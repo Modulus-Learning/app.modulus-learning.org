@@ -28,7 +28,10 @@ function RouteComponent() {
   return (
     <div className="flex flex-col gap-8 items-center py-16 flex-1 w-full">
       <div className="w-full max-w-6xl px-6">
-        <Breadcrumbs breadcrumbs={[{ label: 'Calculus 1', href: '/calculus-1' }]} className="mb-4" />
+        <Breadcrumbs
+          breadcrumbs={[{ label: 'Calculus 1', href: '/calculus-1' }]}
+          className="mb-4"
+        />
         <h1 className="text-3xl sm:text-4xl font-bold mb-2">Calculus 1</h1>
         <p className="text-gray-400">Select a lesson to get started.</p>
       </div>

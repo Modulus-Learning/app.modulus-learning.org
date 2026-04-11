@@ -82,21 +82,21 @@ function RouteComponent() {
             </div>
             <blockquote className="border-l-4 border-gray-400 pl-4 italic text-gray-300">
               <p className="mb-2">
-                <strong>Riley:</strong> &hellip;which we now know are completely different functions.
+                <strong>Riley:</strong> &hellip;which we now know are completely different
+                functions.
               </p>
               <p className="mb-2">
                 <strong>Devyn:</strong> Whoa. How are you seeing a connection here?
               </p>
               <p className="mb-2">
                 <strong>Riley:</strong> If we want to understand what is happening with the function{' '}
-                {String.raw`\(f(x) = \frac{x^2 - 3x + 2}{x - 2}\)`} at {String.raw`\(x = 2\)`},
-                we can&apos;t do it by setting {String.raw`\(x = 2\)`}. Instead we need to look
-                near {String.raw`\(x = 2\)`} but not exactly at {String.raw`\(x = 2\)`}.
+                {String.raw`\(f(x) = \frac{x^2 - 3x + 2}{x - 2}\)`} at {String.raw`\(x = 2\)`}, we
+                can&apos;t do it by setting {String.raw`\(x = 2\)`}. Instead we need to look near{' '}
+                {String.raw`\(x = 2\)`} but not exactly at {String.raw`\(x = 2\)`}.
               </p>
               <p>
                 <strong>Devyn:</strong> Ah ha! Because if we are not exactly at{' '}
-                {String.raw`\(x = 2\)`}, then{' '}
-                {String.raw`\(\frac{x^2 - 3x + 2}{x - 2} = x - 1\)`}.
+                {String.raw`\(x = 2\)`}, then {String.raw`\(\frac{x^2 - 3x + 2}{x - 2} = x - 1\)`}.
               </p>
             </blockquote>
           </MathJaxTypeset>
