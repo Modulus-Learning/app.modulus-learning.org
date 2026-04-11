@@ -48,10 +48,11 @@ export function ComingSoon() {
               >
                 View on GitHub
                 <ExternalLink className="ml-2 h-4 w-4" />
-
               </Button>
               <Button
-                render={<Link href="https://ximera.osu.edu/" target="_blank" rel="noopener noreferrer" />}
+                render={
+                  <Link href="https://ximera.osu.edu/" target="_blank" rel="noopener noreferrer" />
+                }
                 variant="outlined"
                 size="lg"
                 className="w-full sm:w-auto border-border text-foreground hover:bg-secondary bg-transparent"

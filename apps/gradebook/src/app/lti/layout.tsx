@@ -26,9 +26,7 @@ export default function LtiLayout({ children }: { children: React.ReactNode }) {
         <meta name="color-scheme" content="light dark" />
         <EarlyThemeDetector nonce="" />
       </head>
-      <body className="bg-gray-50 not-dark light">
-        {children}
-      </body>
+      <body className="bg-gray-50 not-dark light">{children}</body>
     </html>
   )
 }

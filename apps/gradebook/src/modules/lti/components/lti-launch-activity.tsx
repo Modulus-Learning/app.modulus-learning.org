@@ -59,9 +59,7 @@ export function LtiLaunchActivity({
             Welcome, <strong>{sessionName}</strong>. You are about to be redirected to a
             Modulus-enabled activity at:
           </p>
-          <p className="text-blue-600 text-sm break-all font-medium">
-            {activityUrl}
-          </p>
+          <p className="text-blue-600 text-sm break-all font-medium">{activityUrl}</p>
         </div>
 
         <div className="flex flex-col items-center gap-4">
@@ -89,11 +87,7 @@ export function LtiLaunchActivity({
 
         <p className="mt-6 text-xs text-gray-400 text-center">
           If you are not redirected,{' '}
-          <button
-            type="button"
-            onClick={handleLaunch}
-            className="underline hover:text-gray-600"
-          >
+          <button type="button" onClick={handleLaunch} className="underline hover:text-gray-600">
             click here
           </button>
           .

@@ -40,8 +40,9 @@ function RouteComponent() {
           {lessons.map(({ id, title, path, progress }) => {
             const card = (
               <Card
-                className={`p-2 h-full transition-all ${path ? 'hover:ring-2 hover:ring-green-500/50' : 'opacity-70'
-                  }`}
+                className={`p-2 h-full transition-all ${
+                  path ? 'hover:ring-2 hover:ring-green-500/50' : 'opacity-70'
+                }`}
               >
                 <Card.Header>
                   <LessonSummaryProgressBar value={progress} className="mb-4" />
