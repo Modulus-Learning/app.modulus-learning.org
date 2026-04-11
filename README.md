@@ -1,7 +1,7 @@
 # Modulus
 
 > [!NOTE]
-> Modulus is in active development. Contributions may be initially limited to core maintainers while the project settles on a final governance and license structured. 
+> Modulus is in active development. Contributions may be initially limited to core maintainers while the project settles on a final governance and license structure. 
 
 This is the monorepo for the Modulus project. Modulus is a learning platform monorepo (pnpm + Turborepo) targeting higher education with LTI integration support. The application is built on a **modular, package-based architecture** centered around a core registry and dependency injection framework in `packages/core`.
 
