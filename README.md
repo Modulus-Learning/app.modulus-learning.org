@@ -39,7 +39,7 @@ This means consuming applications can swap between local (in-process) and remote
 Get started by running
 
 1. `pnpm install` from the root of the monorepo.
-2. Create `/apps/gradebook/.env` and `/apps/api/.env` files based on `/apps/gradebook/.env.example` and `/apps/api/.env.example` (contact current maintainers for 'secrets')
+2. Create `/apps/gradebook/.env` based on `/apps/gradebook/.env.example` (contact current maintainers for 'secrets')
 3. `pnpm build` - from the root
 4. `pnpm dev`- to start Next.js and Fastify dev servers
 
