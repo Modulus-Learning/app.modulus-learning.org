@@ -3,8 +3,6 @@ import { createContext, useContext, useEffect, useRef } from 'react'
 import { ModulusAgent } from '@modulus-learning/agent'
 import { type ModulusWidgetPosition, setupModulusAvatar } from '@modulus-learning/agent/ui/vanilla'
 
-import '@modulus-learning/agent/ui/vanilla/main.css'
-
 const ModulusContext = createContext<ModulusAgent | null>(null)
 
 interface Props {

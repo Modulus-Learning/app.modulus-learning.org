@@ -1,7 +1,15 @@
-import './main.css'
-
 import logoSvg from './assets/modulus-logo-symbol-white.svg'
+import { widgetStyles } from './styles.js'
+import { getWidgetViewModel, type ModulusWidgetViewModel } from './view-model.js'
 import type { ModulusAgent } from '@/core/agent.js'
+
+export {
+  getWidgetStatus,
+  getWidgetViewModel,
+  type ModulusWidgetStatus,
+  type ModulusWidgetViewModel,
+  statusLabels,
+} from './view-model.js'
 
 export type ModulusWidgetPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 
@@ -12,33 +20,6 @@ export interface ModulusWidgetOptions {
 
 export interface ModulusWidgetHandle {
   destroy: () => void
-}
-
-type WidgetStatus =
-  | 'initializing'
-  | 'disconnected'
-  | 'connected'
-  | 'connection-lost'
-  | 'session-expired'
-  | 'error'
-
-const statusLabels: Record<WidgetStatus, string> = {
-  initializing: 'Connecting to Modulus…',
-  disconnected: 'Not connected to Modulus',
-  connected: 'Connected to Modulus',
-  'connection-lost': 'Connection lost — retrying',
-  'session-expired': 'Session expired',
-  error: 'Modulus error',
-}
-
-function getWidgetStatus(agent: ModulusAgent): WidgetStatus {
-  if (!agent.isReady()) return 'initializing'
-  const auth = agent.authStatus()
-  if (auth.status === 'none') return 'disconnected'
-  if (auth.status === 'failed') return 'error'
-  if (auth.status === 'expired') return 'session-expired'
-  if (agent.isConnectionLost()) return 'connection-lost'
-  return 'connected'
 }
 
 function escapeHtml(s: string): string {
@@ -57,11 +38,20 @@ export const setupModulusAvatar = (
   const position = options.position ?? 'bottom-left'
   const offset = options.offset ?? 20
 
-  const container = document.createElement('div')
-  container.id = 'modulus-agent-ui-container'
-  container.classList.add(`modulus-pos-${position}`)
-  container.style.setProperty('--modulus-offset', `${offset}px`)
-  document.body.appendChild(container)
+  const host = document.createElement('div')
+  host.id = 'modulus-agent-ui-container'
+  document.body.appendChild(host)
+
+  const shadow = host.attachShadow({ mode: 'open' })
+
+  const style = document.createElement('style')
+  style.textContent = widgetStyles
+  shadow.appendChild(style)
+
+  const root = document.createElement('div')
+  root.classList.add('root', `modulus-pos-${position}`)
+  root.style.setProperty('--modulus-offset', `${offset}px`)
+  shadow.appendChild(root)
 
   const button = document.createElement('button')
   button.type = 'button'
@@ -82,27 +72,18 @@ export const setupModulusAvatar = (
   panel.setAttribute('aria-hidden', 'true')
   panel.setAttribute('role', 'dialog')
 
-  container.appendChild(button)
-  container.appendChild(panel)
+  root.appendChild(button)
+  root.appendChild(panel)
 
   let open = false
 
-  const renderButton = () => {
-    const status = getWidgetStatus(agent)
+  const renderButton = (vm: ModulusWidgetViewModel) => {
     button.className = 'modulus-avatar'
-    button.classList.add(`modulus-status-${status}`)
-    button.setAttribute('aria-label', `Modulus — ${statusLabels[status]}`)
+    button.classList.add(`modulus-status-${vm.status}`)
+    button.setAttribute('aria-label', `Modulus — ${vm.statusLabel}`)
   }
 
-  const renderPanel = () => {
-    const status = getWidgetStatus(agent)
-    const user = agent.user()
-    const progress = agent.progress()
-    const submitted = agent.submittedProgress()
-    const pct = Math.round(progress * 100)
-    const submittedPct = Math.round(submitted * 100)
-    const inSync = Math.abs(progress - submitted) < 1e-6
-
+  const renderPanel = (vm: ModulusWidgetViewModel) => {
     const parts: string[] = []
 
     parts.push(`
@@ -113,35 +94,35 @@ export const setupModulusAvatar = (
     `)
 
     parts.push(`
-      <p class="modulus-status-line modulus-status-${status}">
+      <p class="modulus-status-line modulus-status-${vm.status}">
         <span class="modulus-status-dot"></span>
-        ${statusLabels[status]}
+        ${vm.statusLabel}
       </p>
     `)
 
-    if (user) {
-      parts.push(`<p class="modulus-user">${escapeHtml(user.full_name)}</p>`)
+    if (vm.userName) {
+      parts.push(`<p class="modulus-user">${escapeHtml(vm.userName)}</p>`)
     }
 
-    if (status === 'connected' || status === 'connection-lost') {
+    if (vm.showProgress) {
       parts.push(`
         <div class="modulus-progress">
           <div class="modulus-progress-label">
             <span>Progress</span>
-            <span>${pct}%</span>
+            <span>${vm.progressPercent}%</span>
           </div>
           <div class="modulus-progress-track">
-            <div class="modulus-progress-local" style="width: ${pct}%"></div>
-            <div class="modulus-progress-submitted" style="width: ${submittedPct}%"></div>
+            <div class="modulus-progress-local" style="width: ${vm.progressPercent}%"></div>
+            <div class="modulus-progress-submitted" style="width: ${vm.submittedPercent}%"></div>
           </div>
           <p class="modulus-sync-line">
-            ${inSync ? 'Synced with Modulus' : 'Saving to Modulus…'}
+            ${vm.inSync ? 'Synced with Modulus' : 'Saving to Modulus…'}
           </p>
         </div>
       `)
     }
 
-    if (status === 'connection-lost') {
+    if (vm.canRetry) {
       parts.push(`<button type="button" class="modulus-retry">Retry now</button>`)
     }
 
@@ -154,15 +135,16 @@ export const setupModulusAvatar = (
   }
 
   const render = () => {
-    renderButton()
-    if (open) renderPanel()
+    const vm = getWidgetViewModel(agent)
+    renderButton(vm)
+    if (open) renderPanel(vm)
   }
 
   const setOpen = (next: boolean) => {
     open = next
-    container.classList.toggle('modulus-open', open)
+    root.classList.toggle('modulus-open', open)
     panel.setAttribute('aria-hidden', open ? 'false' : 'true')
-    if (open) renderPanel()
+    if (open) renderPanel(getWidgetViewModel(agent))
   }
 
   button.addEventListener('click', () => setOpen(!open))
@@ -184,7 +166,7 @@ export const setupModulusAvatar = (
   return {
     destroy: () => {
       for (const off of unsubscribers) off()
-      container.remove()
+      host.remove()
     },
   }
 }

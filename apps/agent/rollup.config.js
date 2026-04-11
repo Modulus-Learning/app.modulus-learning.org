@@ -97,12 +97,7 @@ const config = [
       clearScreen: false,
     },
     external: (id) => !/^@\/|[./]/.test(id),
-    plugins: [
-      del({ targets: 'dist/ui-vanilla/*' }),
-      image(),
-      postcss({ inject: false, extract: 'ui-vanilla/main.css', minimize: true }),
-      swc(),
-    ],
+    plugins: [del({ targets: 'dist/ui-vanilla/*' }), image(), swc()],
   },
   {
     input: 'src/ui-vanilla/index.ts',
@@ -117,12 +112,7 @@ const config = [
       clearScreen: false,
     },
     external: (id) => !/^@\/|[./]/.test(id),
-    plugins: [
-      image(),
-      postcss({ inject: false, extract: false }),
-      swc(),
-      dts({ respectExternal: true }),
-    ],
+    plugins: [image(), swc(), dts({ respectExternal: true })],
   },
 ]
 

@@ -1,4 +1,9 @@
-#modulus-agent-ui-container {
+export const widgetStyles = `
+:host {
+  all: initial;
+}
+
+.root {
   --modulus-offset: 20px;
   --modulus-bg: #111;
   --modulus-panel-bg: #1a1a1a;
@@ -16,31 +21,29 @@
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   font-size: 14px;
   color: var(--modulus-fg);
+  line-height: 1.4;
 }
 
-#modulus-agent-ui-container.modulus-pos-bottom-left {
+.root.modulus-pos-bottom-left {
   bottom: var(--modulus-offset);
   left: var(--modulus-offset);
 }
-
-#modulus-agent-ui-container.modulus-pos-bottom-right {
+.root.modulus-pos-bottom-right {
   bottom: var(--modulus-offset);
   right: var(--modulus-offset);
 }
-
-#modulus-agent-ui-container.modulus-pos-top-left {
+.root.modulus-pos-top-left {
   top: var(--modulus-offset);
   left: var(--modulus-offset);
 }
-
-#modulus-agent-ui-container.modulus-pos-top-right {
+.root.modulus-pos-top-right {
   top: var(--modulus-offset);
   right: var(--modulus-offset);
 }
 
 /* ********** Avatar button ********** */
 
-#modulus-agent-ui-container .modulus-avatar {
+.modulus-avatar {
   position: relative;
   height: 48px;
   width: 48px;
@@ -53,19 +56,21 @@
   transition:
     border-color 120ms ease,
     transform 120ms ease;
+  font: inherit;
+  color: inherit;
 }
 
-#modulus-agent-ui-container .modulus-avatar:hover {
+.modulus-avatar:hover {
   transform: translateY(-1px);
 }
 
-#modulus-agent-ui-container .modulus-avatar img {
+.modulus-avatar img {
   display: block;
   width: 100%;
   height: auto;
 }
 
-#modulus-agent-ui-container .modulus-avatar .modulus-status-dot {
+.modulus-avatar .modulus-status-dot {
   position: absolute;
   right: 2px;
   bottom: 2px;
@@ -76,35 +81,32 @@
   background-color: var(--modulus-muted);
 }
 
-#modulus-agent-ui-container .modulus-avatar.modulus-status-connected {
+.modulus-avatar.modulus-status-connected {
   border-color: var(--modulus-accent);
 }
-
-#modulus-agent-ui-container .modulus-avatar.modulus-status-connected .modulus-status-dot {
+.modulus-avatar.modulus-status-connected .modulus-status-dot {
   background-color: var(--modulus-accent);
 }
 
-#modulus-agent-ui-container .modulus-avatar.modulus-status-connection-lost,
-#modulus-agent-ui-container .modulus-avatar.modulus-status-session-expired {
+.modulus-avatar.modulus-status-connection-lost,
+.modulus-avatar.modulus-status-session-expired {
   border-color: var(--modulus-warn);
 }
-
-#modulus-agent-ui-container .modulus-avatar.modulus-status-connection-lost .modulus-status-dot,
-#modulus-agent-ui-container .modulus-avatar.modulus-status-session-expired .modulus-status-dot {
+.modulus-avatar.modulus-status-connection-lost .modulus-status-dot,
+.modulus-avatar.modulus-status-session-expired .modulus-status-dot {
   background-color: var(--modulus-warn);
 }
 
-#modulus-agent-ui-container .modulus-avatar.modulus-status-error {
+.modulus-avatar.modulus-status-error {
   border-color: var(--modulus-error);
 }
-
-#modulus-agent-ui-container .modulus-avatar.modulus-status-error .modulus-status-dot {
+.modulus-avatar.modulus-status-error .modulus-status-dot {
   background-color: var(--modulus-error);
 }
 
 /* ********** Panel ********** */
 
-#modulus-agent-ui-container .modulus-panel {
+.modulus-panel {
   position: absolute;
   min-width: 260px;
   max-width: 320px;
@@ -119,47 +121,45 @@
   transition:
     opacity 140ms ease,
     transform 140ms ease;
+  box-sizing: border-box;
 }
 
-#modulus-agent-ui-container.modulus-open .modulus-panel {
+.root.modulus-open .modulus-panel {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
 }
 
-#modulus-agent-ui-container.modulus-pos-bottom-left .modulus-panel {
+.root.modulus-pos-bottom-left .modulus-panel {
   bottom: 60px;
   left: 0;
 }
-
-#modulus-agent-ui-container.modulus-pos-bottom-right .modulus-panel {
+.root.modulus-pos-bottom-right .modulus-panel {
   bottom: 60px;
   right: 0;
 }
-
-#modulus-agent-ui-container.modulus-pos-top-left .modulus-panel {
+.root.modulus-pos-top-left .modulus-panel {
   top: 60px;
   left: 0;
 }
-
-#modulus-agent-ui-container.modulus-pos-top-right .modulus-panel {
+.root.modulus-pos-top-right .modulus-panel {
   top: 60px;
   right: 0;
 }
 
-#modulus-agent-ui-container .modulus-panel-header {
+.modulus-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
 }
 
-#modulus-agent-ui-container .modulus-panel-title {
+.modulus-panel-title {
   font-weight: 600;
   font-size: 14px;
 }
 
-#modulus-agent-ui-container .modulus-panel-close {
+.modulus-panel-close {
   background: none;
   border: none;
   color: var(--modulus-muted);
@@ -167,13 +167,13 @@
   line-height: 1;
   cursor: pointer;
   padding: 0 4px;
+  font-family: inherit;
 }
-
-#modulus-agent-ui-container .modulus-panel-close:hover {
+.modulus-panel-close:hover {
   color: var(--modulus-fg);
 }
 
-#modulus-agent-ui-container .modulus-status-line {
+.modulus-status-line {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -182,38 +182,37 @@
   color: var(--modulus-muted);
 }
 
-#modulus-agent-ui-container .modulus-status-line .modulus-status-dot {
+.modulus-status-line .modulus-status-dot {
   position: static;
   width: 8px;
   height: 8px;
   border: none;
+  border-radius: 9999px;
   background-color: var(--modulus-muted);
 }
 
-#modulus-agent-ui-container .modulus-status-line.modulus-status-connected .modulus-status-dot {
+.modulus-status-line.modulus-status-connected .modulus-status-dot {
   background-color: var(--modulus-accent);
 }
-
-#modulus-agent-ui-container .modulus-status-line.modulus-status-connection-lost .modulus-status-dot,
-#modulus-agent-ui-container .modulus-status-line.modulus-status-session-expired .modulus-status-dot {
+.modulus-status-line.modulus-status-connection-lost .modulus-status-dot,
+.modulus-status-line.modulus-status-session-expired .modulus-status-dot {
   background-color: var(--modulus-warn);
 }
-
-#modulus-agent-ui-container .modulus-status-line.modulus-status-error .modulus-status-dot {
+.modulus-status-line.modulus-status-error .modulus-status-dot {
   background-color: var(--modulus-error);
 }
 
-#modulus-agent-ui-container .modulus-user {
+.modulus-user {
   margin: 0 0 10px;
   font-size: 13px;
   font-weight: 500;
 }
 
-#modulus-agent-ui-container .modulus-progress {
+.modulus-progress {
   margin-bottom: 4px;
 }
 
-#modulus-agent-ui-container .modulus-progress-label {
+.modulus-progress-label {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
@@ -221,7 +220,7 @@
   margin-bottom: 4px;
 }
 
-#modulus-agent-ui-container .modulus-progress-track {
+.modulus-progress-track {
   position: relative;
   height: 6px;
   width: 100%;
@@ -230,7 +229,7 @@
   overflow: hidden;
 }
 
-#modulus-agent-ui-container .modulus-progress-local {
+.modulus-progress-local {
   position: absolute;
   inset: 0 auto 0 0;
   background-color: #4a7a4a;
@@ -238,7 +237,7 @@
   z-index: 1;
 }
 
-#modulus-agent-ui-container .modulus-progress-submitted {
+.modulus-progress-submitted {
   position: absolute;
   inset: 0 auto 0 0;
   background-color: var(--modulus-accent);
@@ -246,13 +245,13 @@
   z-index: 2;
 }
 
-#modulus-agent-ui-container .modulus-sync-line {
+.modulus-sync-line {
   margin: 6px 0 0;
   font-size: 11px;
   color: var(--modulus-muted);
 }
 
-#modulus-agent-ui-container .modulus-retry {
+.modulus-retry {
   margin-top: 10px;
   width: 100%;
   padding: 6px 10px;
@@ -262,8 +261,9 @@
   border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
+  font-family: inherit;
 }
-
-#modulus-agent-ui-container .modulus-retry:hover {
+.modulus-retry:hover {
   border-color: var(--modulus-accent);
 }
+`

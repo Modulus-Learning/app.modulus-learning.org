@@ -38,10 +38,6 @@
       "default": "./dist/ui-vanilla/index.js",
       "types": "./dist/ui-vanilla/index.d.ts",
       "import": "./dist/ui-vanilla/index.js"
-    },
-    "./ui/vanilla/main.css": {
-      "default": "./dist/ui-vanilla/main.css",
-      "import": "./dist/ui-vanilla/main.css"
     }
   },
   "keywords": [],

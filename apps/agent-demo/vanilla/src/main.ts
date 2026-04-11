@@ -1,13 +1,10 @@
 import { ModulusAgent } from '@modulus-learning/agent'
+import { setupModulusAvatar } from '@modulus-learning/agent/ui/vanilla'
 
 import { setupDebugPanel } from './debug-panel'
 import { setupMultipleChoiceQuestions } from './multiple-choice'
 import { setupProgressIndicator } from './progress-indicator'
 import { setupResetButton } from './reset-button'
-
-import '@modulus-learning/agent/ui/vanilla/main.css'
-
-import { setupModulusAvatar } from '@modulus-learning/agent/ui/vanilla'
 
 const agent = new ModulusAgent()
 
