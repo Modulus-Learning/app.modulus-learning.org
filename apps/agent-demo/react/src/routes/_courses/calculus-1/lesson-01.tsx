@@ -1,7 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 
-import { Button, Card, Container, LoaderSpinner, Section } from '@infonomic/uikit/react'
+import { Card, Container, LoaderSpinner, Section } from '@infonomic/uikit/react'
 
 import { BooleanQuestion } from '@/ui/components/boolean-question'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
@@ -26,16 +26,6 @@ function RouteComponent() {
     () => modulus.isReady()
   )
 
-  const [modulusError, setModulusError] = useState<string | undefined>(undefined)
-
-  useEffect(() => {
-    modulus.onReady(({ auth }) => {
-      if (auth.status === 'failed') {
-        setModulusError(auth.error)
-      }
-    })
-  }, [modulus])
-
   const { setShowResetButton } = useCourseLayout()
 
   useEffect(() => {
@@ -51,18 +41,6 @@ function RouteComponent() {
             className="relative top-[30vh] text-gray-900 dark:text-white"
             size="48px"
           />
-        </div>
-      )}
-      {modulusError != null && (
-        <div className="fixed inset-0 z-10 flex justify-center items-center bg-black/80 backdrop-blur-xs">
-          <Container className="relative flex flex-col items-center justify-center">
-            <Card className="w-96 p-3 flex flex-col gap-3">
-              <h2>Warning</h2>
-              <p>We were unable to connect to Modulus.</p>
-              <pre>Error code: {modulusError}</pre>
-              <Button onClick={() => setModulusError(undefined)}>Dismiss</Button>
-            </Card>
-          </Container>
         </div>
       )}
       <Container className="flex flex-col gap-8 items-center py-16 flex-1 max-w-[800px]">
