@@ -1,0 +1,7 @@
+.faq-item::marker {
+  color: rgb(var(--secondary-500));
+}
+
+.dark .faq-item::marker {
+  color: rgb(var(--secondary-400));
+}

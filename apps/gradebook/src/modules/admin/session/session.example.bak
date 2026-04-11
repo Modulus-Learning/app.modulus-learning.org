@@ -1,0 +1,28 @@
+const session = {
+  user: {
+    id: '01922732-cc91-7115-bae2-c03c21d9bfe2',
+    given_name: 'Alice',
+    family_name: 'Wonderland',
+    email: 'alice@modulus.org',
+    is_super_admin: false,
+  },
+  abilities: [
+    'account:read_own',
+    'account:edit_own',
+    'account:delete_own',
+    'profile:read_own',
+    'profile:edit_own',
+    'profile:delete_own',
+    'users:list',
+    'users:read',
+    'users:create',
+    'users:update',
+    'users:delete',
+  ],
+  policies: {},
+  provider: 'admin_session',
+  aud: 'localhost:3010',
+  iss: 'localhost:3010',
+  iat: 1727808509,
+  exp: 1728168509,
+}

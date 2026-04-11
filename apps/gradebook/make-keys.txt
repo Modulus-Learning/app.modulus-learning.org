@@ -1,0 +1,6 @@
+# To generate a 256-bit (32-byte) Base64-Encoded Key that can be used
+# as our session key for encrypting / de-encrypting session cookies.
+openssl rand -base64 32
+
+# To (re)-generate a Payload CMS secret
+openssl rand -hex 32 | cut -c1-24

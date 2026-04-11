@@ -1,0 +1,42 @@
+[href="#main-content"] {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  margin: 1rem;
+  padding: 1%;
+}
+
+[href="#main-content"]:active,
+[href="#main-content"]:focus {
+  background: blue;
+  color: #fff;
+  right: auto;
+}
+
+.global--gradient-background-light {
+  background:
+    linear-gradient(
+      rgb(231, 231, 108),
+      rgb(236, 236, 111),
+      rgb(155, 244, 248),
+      rgb(247, 159, 241),
+      rgb(234, 233, 111),
+      rgb(151, 240, 187),
+      rgb(176, 169, 244)
+    )
+    0% 0% / 100% 100%;
+}
+
+.global--gradient-background-dark {
+  background:
+    linear-gradient(
+      rgba(30, 41, 59, 1),
+      rgba(30, 41, 59, 1),
+      rgba(74, 29, 71, 0.673),
+      rgba(17, 14, 96, 0.314),
+      rgba(70, 32, 57, 0.666),
+      rgba(70, 32, 35, 0.666),
+      rgba(34, 35, 44, 0.455)
+    )
+    0% 0% / 100% 100%;
+}

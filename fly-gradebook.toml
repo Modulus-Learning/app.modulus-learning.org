@@ -1,0 +1,120 @@
+# fly.toml app configuration file generated for modulus-restless-snowflake-2677 on 2024-07-09T19:01:05+07:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'modulus-restless-snowflake-2677'
+primary_region = 'sin'
+swap_size_mb = 512
+
+[build]
+dockerfile = '_docker/gradebook/production/Dockerfile'
+
+[build.args]
+APP_VOLUME = '/app/storage'
+IMAGE_VOLUME = '/app/apps/next/.next/cache/images'
+
+[deploy]
+strategy = 'rolling'
+
+[env]
+PORT = '3000'
+NEXT_PUBLIC_SITE_NAME = 'MODULUS'
+NEXT_PUBLIC_SITE_DESCRIPTION = 'Modulus - an open source educational analytics system for distributed learning content.'
+NEXT_PUBLIC_PUBLIC_SERVER_URL = 'https://app.modulus-learning.org'
+NEXT_PUBLIC_CSP_ENABLED = 'false'
+DATA_REQUEST_CACHING = 'true'
+ANALYTICS_ENABLED = 'true'
+
+USER_SESSION_COOKIE_NAME = 'user_session'
+USER_SESSION_COOKIE_SAME_SITE = 'none'
+USER_SESSION_COOKIE_HTTP_ONLY = 'true'
+USER_SESSION_COOKIE_SECURE = 'true'
+
+USER_REFRESH_COOKIE_NAME = 'user_refresh'
+USER_REFRESH_COOKIE_SAME_SITE = 'none'
+USER_REFRESH_COOKIE_HTTP_ONLY = 'true'
+USER_REFRESH_COOKIE_SECURE = 'true'
+
+ADMIN_SESSION_COOKIE_NAME = 'admin_session'
+ADMIN_SESSION_COOKIE_SAME_SITE = 'lax'
+ADMIN_SESSION_COOKIE_HTTP_ONLY = 'true'
+ADMIN_SESSION_COOKIE_SECURE = 'true'
+
+ADMIN_REFRESH_COOKIE_NAME = 'admin_refresh'
+ADMIN_REFRESH_COOKIE_SAME_SITE = 'lax'
+ADMIN_REFRESH_COOKIE_HTTP_ONLY = 'true'
+ADMIN_REFRESH_COOKIE_SECURE = 'true'
+
+FLASH_COOKIE_NAME = 'flash'
+FLASH_COOKIE_SAME_SITE = 'lax'
+FLASH_COOKIE_HTTP_ONLY = 'true'
+FLASH_COOKIE_SECURE = 'true'
+
+API_BASE_URL = 'https://app.modulus-learning.org/routes'
+API_JWT_PUBLIC_KEY = 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF0WUtmS3JFYnpqcEYxSERXZkUxTAoxYnBiRmNPZkRDc2VBZnhIVzVSY2JGVHpENGNkT1JvYU5BcmZ0VWR1QnVCcjBZdnRrc0Z1RjBMdG1NZ0ZPQW1mCmUrbURJUHA3RCtYZFdQOU1kOTB5Ui9jSkF0bHJ6U2g0MUxaeEkwTWtHeW9kLzcwOEZFZmZtb3QyWURtMElsSzQKN3E3V2M0WVNMZ1I3cUljNkh2dkd0cFZkTjM5dmVaeWM5NVE3REhwWDYrRllhcWlyYzR0VUZ3RzYzMkp1dmZINApVY1VqQTdJRTBTeTRWd3dtWS8xRHMvWTVQc0cyQWNHWkU4aWg1Q0srRVNGckdEemFraHpmTElOR05vcDE5VHd3Ci9iTEQ1VUR4WGVwTnFwYjlYNHg1NWNsakUvSmhzb3Y3eElsWURKTmhNUTFRSngxSk0vem4yVk1JQXgydlg1TmQKWlFJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=='
+API_JWT_ISSUER = 'https://app.modulus-learning.org'
+API_JWT_AUDIENCE = 'https://app.modulus-learning.org'
+
+NEXT_PUBLIC_RECAPTCHA_ENABLED = 'true'
+NEXT_PUBLIC_RECAPTCHA_MANDATORY = 'true'
+NEXT_PUBLIC_RECAPTCHA_SITE_KEY = '6LcsQL0ZAAAAALwsX4c-YK-oe76-BhPjYU3iQArK'
+
+SYSTEM_EMAIL_FROM_ADDRESS = 'Modulus Learning <info@infonomic.io>'
+CONTACT_SUBMISSION_FROM_ADDRESS = 'Modulus Learning <info@infonomic.io>'
+
+SMTP_HOST = 'email-smtp.ap-southeast-1.amazonaws.com'
+SMTP_PORT = '465'
+SMTP_USER = 'AKIA3NCF7XCVCQSBJRU5'
+SMTP_SECURE = 'true'
+
+S3_ACCESS_KEY_ID = 'AKIA3NCF7XCVBH2HXICF'
+S3_BUCKET = 'origin.modulus-learning.org'
+S3_CDN_DOMAIN = 'https://cdn.modulus-learning.org'
+
+OAUTH_GITHUB_CLIENT_ID = 'Ov23lih9WiC1jEIBqi6S'
+OAUTH_GITHUB_AUTH_URL = 'https://github.com/login/oauth/authorize'
+OAUTH_GITHUB_ACCESS_TOKEN_URL = 'https://github.com/login/oauth/access_token'
+OAUTH_GITHUB_USER_URL = 'https://api.github.com/user'
+OAUTH_GITHUB_RETURN_URL = 'https://app.modulus-learning.org/routes/oauth/github'
+
+OAUTH_GOOGLE_CLIENT_ID = '1033625618297-l355umo309knrgmgn4d1r665knsc9fti.apps.googleusercontent.com'
+OAUTH_GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/auth'
+OAUTH_GOOGLE_ACCESS_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+OAUTH_GOOGLE_RETURN_URL = 'https://app.modulus-learning.org/routes/oauth/google'
+
+NEW_RELIC_APP_NAME = 'Modulus Website'
+NEW_RELIC_ERROR_COLLECTOR_EXPECTED_ERROR_CODES = '401'
+
+# @modulus/core configuration -- expect changes here
+# POSTGRES_CONNECTION_STRING in fly secrets
+LTI_REDIRECT_URI = 'https://app.modulus-learning.org/routes/lti/launch'
+LTI_JWKS_KEY_ID = '1m05tSyzxzwX'
+# LTI_JWKS_PRIVATE_KEY in fly secrets
+LTI_JWKS_PUBLIC_KEY = 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF0V3JYa084V0prS3J5aS9HcERZYgpVS1BTYmFlQ0ZybmVtR2hzM1AydHlRUVpzZS9ZSmVER0pwTGM2Zjdtd2xwQXJwN2thQ2VHRnhGK0xVNnFabHo5ClRYZHFFeDZSYk53aHVJVEd0Q0ZhdnVZaHhuS09RZUNkZm1vSXB6LzNmWFg2NG81djVVQlVDZjhib2ZTV0FFSU8KaDNGQjVVaUM2ZStWOEFzS3MzRk52TzcvSDg5OXFtY1RiMGorQ1A3M0piRXZxR2NEa3ZDTkdJN3BLa1dzYm5sYwo2a3VsYWRDTERwSkIwVkcxQm1zbksxZWl5ZjBmUDZSMHZhaEx5N1g3TU1ydEpBeFlURnZpalRLcWQydE1Pd2ZTCkpiNDF3bjI5NWdQbWMwbEtIVWJOaExDZ3FVS3RCRENKMTN5WUs0Skw1Y0VHTGFidXlib043NEF4WndnOVBMQkgKendJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=='
+SERVER_HOST = 'app.modulus-learning.org'
+SERVER_BASE_URL = 'https://app.modulus-learning.org'
+# API_JWT_PRIVATE_KEY in fly secrets
+API_JWT_ACCESS_TOKEN_EXPIRES_IN = 600
+API_JWT_REFRESH_TOKEN_EXPIRES_IN = 2592000
+
+[http_service]
+internal_port = 8000
+force_https = true
+auto_stop_machines = true
+auto_start_machines = true
+min_machines_running = 1
+processes = ['app']
+
+[[http_service.checks]]
+interval = '30s'
+timeout = '5s'
+grace_period = '10s'
+method = 'GET'
+path = '/routes/elb-status'
+
+[[vm]]
+size = 'shared-cpu-2x'
+memory = "1024mb"
+cpu_kind = 'shared'
+cpus = 2

@@ -1,0 +1,32 @@
+.photo-block {
+  display: block;
+}
+
+.photo-block--caption {
+  position: relative;
+  font-size: 1rem;
+  line-height: 1.3;
+  color: #666666;
+  padding-left: 14px;
+  margin-top: 0.75rem;
+}
+
+.photo-block--caption::before {
+  background-color: rgb(var(--canvas-300));
+  content: "";
+  display: block;
+  height: calc(100% - 4px);
+  left: 0;
+  position: absolute;
+  top: 2px;
+  width: 5px;
+}
+
+.dark .photo-block--caption {
+  color: #aaaabb;
+}
+
+.photo-block--caption p {
+  margin-top: 0;
+  margin-bottom: 0;
+}

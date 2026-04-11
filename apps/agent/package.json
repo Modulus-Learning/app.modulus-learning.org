@@ -1,0 +1,72 @@
+{
+  "name": "@modulus-learning/agent",
+  "version": "0.9.0",
+  "private": false,
+  "description": "Modulus client agent.",
+  "type": "module",
+  "homepage": "https://github.com/Modulus-Learning/modulus",
+  "bugs": {
+    "url": "https://github.com/Modulus-Learning/modulus/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Modulus-Learning/modulus.git",
+    "directory": "apps/agent"
+  },
+  "sideEffects": false,
+  "types": "./dist/core/index.d.ts",
+  "module": "./dist/core/index.js",
+  "main": "./dist/core/index.js",
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "devlti": "rollup -c -w"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    },
+    "./browser": {
+      "default": "./dist/browser/modulus-agent.js"
+    },
+    "./ui/vanilla": {
+      "default": "./dist/ui-vanilla/index.js",
+      "types": "./dist/ui-vanilla/index.d.ts",
+      "import": "./dist/ui-vanilla/index.js"
+    },
+    "./ui/vanilla/main.css": {
+      "default": "./dist/ui-vanilla/main.css",
+      "import": "./dist/ui-vanilla/main.css"
+    }
+  },
+  "keywords": [],
+  "author": "",
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.9",
+    "@rollup/plugin-commonjs": "^29.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-swc": "^0.4.0",
+    "@rollup/plugin-terser": "^1.0.0",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@swc/core": "^1.15.21",
+    "rollup": "^4.60.1",
+    "rollup-plugin-delete": "^3.0.2",
+    "rollup-plugin-dts": "^6.4.1",
+    "rollup-plugin-swc3": "^0.12.1",
+    "tslib": "^2.8.1",
+    "typescript": "6.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@rollup/plugin-babel": "^7.0.0",
+    "@rollup/plugin-image": "^3.0.3",
+    "rollup-plugin-postcss": "^4.0.2"
+  }
+}

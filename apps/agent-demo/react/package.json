@@ -1,0 +1,33 @@
+{
+  "name": "@modulus-learning/agent-demo-react",
+  "private": true,
+  "version": "0.9.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "biome check --write --unsafe --diagnostic-level=error",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@infonomic/uikit": "^6.4.0",
+    "@modulus-learning/agent": "workspace:*",
+    "@tanstack/react-router": "^1.168.8",
+    "classnames": "^2.5.1",
+    "jwt-decode": "^4.0.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/router-plugin": "^1.167.9",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react-swc": "^4.3.0",
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3"
+  }
+}

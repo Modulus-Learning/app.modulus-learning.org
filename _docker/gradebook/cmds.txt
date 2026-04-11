@@ -1,0 +1,26 @@
+docker# Important note for Mac or Windows volume mounts
+# https://docs.docker.com/docker-for-mac/osxfs-caching/
+
+# Build devel
+# We take the entire app site as the volume to sync for development
+docker build -f Dockerfile --build-arg APP_VOLUME=/app -t modulus:web-1.0.0 .
+
+# Build production
+# We take just the files directory to sync with an EFS mount on AWS. This directory
+# will be empty on production builds (it's excluded in .dockerignore).
+docker build -f Dockerfile --build-arg APP_VOLUME=/app/storage -t 783978313898.dkr.ecr.ap-southeast-1.amazonaws.com/modulus:web-1.0.0 .
+
+
+# Other commands
+docker images
+docker image rm <image name or id>
+docker system prune
+docker volume prune
+
+# Shell into running container
+docker exec -it modulus_app bash
+
+--volumes-from - used to share volumes across containers
+
+docker run -p 80:8000 783978313898.dkr.ecr.ap-southeast-1.amazonaws.com/modulus:web-1.0.0
+

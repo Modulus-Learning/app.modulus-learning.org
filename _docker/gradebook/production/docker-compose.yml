@@ -1,0 +1,7 @@
+services:
+  app:
+    image: 783978313898.dkr.ecr.ap-southeast-1.amazonaws.com/modulus:app-0.1.0
+    container_name: modulus_app
+    env_file: ./apps/gradebook/.env
+    ports:
+      - 80:8000

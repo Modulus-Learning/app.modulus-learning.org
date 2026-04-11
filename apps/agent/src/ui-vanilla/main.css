@@ -1,0 +1,54 @@
+#modulus-agent-ui-container {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 2147483647;
+}
+
+#modulus-agent-ui-container button {
+  height: 48px;
+  width: 48px;
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+  padding: 4px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: white;
+  cursor: pointer;
+  background-color: #111;
+}
+
+#modulus-agent-ui-container button.ok {
+  background-color: #141;
+  border-color: #8f8;
+}
+
+#modulus-agent-ui-container button.warn {
+  background-color: #441;
+  border-color: #ff0;
+}
+
+#modulus-agent-ui-container button.error {
+  background-color: #611;
+  border-color: #f66;
+}
+
+#modulus-agent-ui-container button img {
+  max-width: 100%;
+  height: auto;
+}
+
+#modulus-agent-ui-container .popup {
+  position: absolute;
+  bottom: 60px;
+  left: 0;
+  padding: 8px 12px;
+  background-color: #222;
+  color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  font-size: 14px;
+}

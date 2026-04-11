@@ -1,0 +1,42 @@
+.component--ribbon {
+  background-color: rgb(234 233 111);
+  overflow: hidden;
+  white-space: nowrap;
+  /* top right corner */
+  position: absolute;
+  right: -60px;
+  top: 20px;
+  /* for 45 deg rotation */
+  -webkit-transform: rotate(45deg);
+  -moz-transform: rotate(45deg);
+  -ms-transform: rotate(45deg);
+  -o-transform: rotate(45deg);
+  transform: rotate(45deg);
+  /* for creating shadow */
+  -webkit-box-shadow: 0 0 10px #888;
+  -moz-box-shadow: 0 0 10px #888;
+  box-shadow: 0 0 10px #888;
+}
+.component--ribbon .component--ribbon--content {
+  border: 1px solid #faa;
+  color: rgb(90 94 164);
+  display: block;
+  min-width: 190px;
+  margin: 1px 0;
+  font-size: small;
+  font-weight: 700;
+  padding: 3px 50px;
+  text-align: center;
+  text-decoration: none;
+  /* for creating shadow */
+  /* text-shadow: 0 0 5px #444; */
+}
+
+.dark .component--ribbon {
+  background-color: rgb(220 127 158);
+}
+
+.dark .component--ribbon .component--ribbon--content {
+  border: 1px solid rgb(180, 156, 202);
+  color: rgb(54, 54, 78);
+}

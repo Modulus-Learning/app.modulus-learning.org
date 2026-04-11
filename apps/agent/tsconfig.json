@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "lib": ["es2024", "dom"],
+    "target": "es2024",
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "outDir": "./dist",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "strict": true
+  },
+  "include": ["src/index.ts", "src", "test"],
+  "exclude": ["node_modules", "dist", "demo", "coverage"]
+}

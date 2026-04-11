@@ -1,0 +1,24 @@
+/**
+ * App globals
+ */
+@import "./base/base.css";
+@import "./utils/utils.css";
+@import "./components/components.css";
+@import "./blocks/blocks.css";
+@import "./layouts/layouts.css";
+
+.grecaptcha-badge {
+  visibility: hidden;
+}
+
+:root {
+  --loader-color: #16151e;
+}
+
+html {
+  scroll-padding-top: 90px;
+}
+
+.root {
+  isolation: isolate;
+}

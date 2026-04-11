@@ -1,0 +1,9 @@
+fly deploy . --local-only   
+
+flyctl launch --local-only --no-deploy
+
+fly secrets set 'DATABASE_URL=postgres://example.com/mydb' 
+
+flyctl launch --local-only --no-deploy --dockerfile _docker/web/production/Dockerfile --build-arg VERSION=1 --build-arg APP_VOLUME=/app/storage
+
+flyctl deploy --local-only --build-only --build-arg VERSION=1 --build-arg APP_VOLUME=/app/storage

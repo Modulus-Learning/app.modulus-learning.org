@@ -1,0 +1,214 @@
+'use client'
+
+import type React from 'react'
+import { useActionState, useEffect, useRef, useState } from 'react'
+
+import cx from 'classnames'
+
+import useDebounce from '@/hooks/use-debounce'
+import { useTheme } from '@/ui/theme/provider'
+
+import { Button, CheckIcon, Input, LoaderEllipsis, LoaderRing, XIcon } from '@infonomic/uikit/react'
+
+import type { ActivityCodeFormState } from '../@types'
+import { createActivityCode } from '../create-activity-code'
+
+import { usePublicConfig } from '@/config/provider'
+import { useTranslations } from '@/i18n/client/translations-provider'
+
+const initialState: ActivityCodeFormState = { errors: {}, status: 'idle' }
+
+type Status = 'busy' | 'available' | 'not-available' | 'idle'
+
+function helpText(status: Status): string {
+  switch (status) {
+    case 'busy':
+      return 'Checking availability...'
+    case 'available':
+      return 'Code is available.'
+    case 'not-available':
+      return 'Code is not available.'
+    case 'idle':
+      return 'Please enter an activity code. For example - algebra-101, calculus-101 etc.'
+  }
+}
+
+function renderStatus(status: Status) {
+  if (status === 'idle') {
+    return undefined
+  }
+  return <Status status={status} />
+}
+
+function Status({ status }: { status: Status }): React.JSX.Element | undefined {
+  const { theme } = useTheme()
+  if (status === 'busy') {
+    return (
+      <LoaderRing className="ml-2" size={22} color={theme === 'dark' ? '#dddddd' : '#777777'} />
+    )
+  }
+  if (status === 'available') {
+    return <CheckIcon className="ml-2" svgClassName="fill-green-500 dark:fill-green-500" />
+  }
+  if (status === 'not-available') {
+    return (
+      <XIcon
+        width="16px"
+        height="16px"
+        className="ml-2"
+        svgClassName="fill-red-500 dark:fill-red-500"
+      />
+    )
+  }
+  return undefined
+}
+
+async function isActivityCodeAvailable(
+  code: string,
+  controller: AbortController,
+  baseUrl: string
+): Promise<boolean> {
+  // Abort previous request
+  // controller.abort('New request received.')
+
+  const params = new URLSearchParams({
+    code,
+  }).toString()
+
+  try {
+    const response = await fetch(`${baseUrl}/activities/is-activity-code-available?${params}`, {
+      method: 'get',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      throw new Error(`Response status: ${response.status}`)
+    }
+    const json = await response.json()
+    return json.result
+  } catch (error: any) {
+    console.error(error)
+    console.error(error.message)
+    return false
+  }
+}
+
+export function CreateActivityCodeForm(): React.JSX.Element {
+  const { apiBaseUrl } = usePublicConfig()
+  const { t } = useTranslations('common')
+  const [code, setCode] = useState<string>('')
+  const [status, setStatus] = useState<Status>('idle')
+  const debouncedValue = useDebounce<string>(code, 400)
+  const abortControllerRef = useRef<AbortController>(null)
+  const [formState, formAction, isPending] = useActionState(createActivityCode, initialState)
+
+  const handleCodeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setCode(event.target.value)
+  }
+
+  useEffect(() => {
+    return () => {
+      // Cleanup function to abort any pending requests
+      // if we 'leave' this component / page
+      if (abortControllerRef.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    async function checkAvailability() {
+      if (debouncedValue != null && debouncedValue.length > 0) {
+        setStatus('busy')
+
+        // Abort any pending requests
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort()
+        }
+
+        // Create new abort controller
+        const newAbortController = new AbortController()
+
+        abortControllerRef.current = newAbortController
+
+        const result = await isActivityCodeAvailable(
+          debouncedValue as string,
+          newAbortController,
+          apiBaseUrl
+        )
+        if (result === true) {
+          setStatus('available')
+        } else {
+          setStatus('not-available')
+        }
+      } else {
+        setStatus('idle')
+      }
+      // // Simulate a code lookup or API call
+      // console.log(`Looking up name: ${debouncedValue}`)
+      // if (debouncedValue === 'available') {
+      //   setStatus('available')
+      // } else if (debouncedValue === 'not-available') {
+      //   setStatus('not-available')
+      // } else if (debouncedValue !== '') {
+      //   setStatus('busy')
+      // } else {
+      //   setStatus('idle')
+      // }
+    }
+    checkAvailability()
+  }, [debouncedValue, apiBaseUrl])
+
+  return (
+    <div className="flex flex-col items-center justify-center mx-auto mt-8 sm:mt-[6vh] mb-12">
+      <div className="w-full bg-white rounded-lg shadow border md:mt-0 sm:max-w-[820px] xl:p-0 dark:bg-canvas-900 dark:border-gray-600">
+        <div className="p-6 sm:p-8">
+          <h1 className="mb-6 text-xl font-bold leading-tight tracking-tight text-gray-900 md:text-2xl dark:text-white">
+            {/* @ts-expect-error missing translations */}
+            {t('Create Activity Code')}
+          </h1>
+          <form action={formAction} noValidate>
+            <Input
+              required
+              variant="outlined"
+              id="code"
+              label="Code"
+              placeHolder="Activity code"
+              helpText={helpText(status)}
+              name="code"
+              value={code}
+              onChange={handleCodeChange}
+              error={Boolean(formState.errors.code)}
+              errorText={formState.errors.code?._errors[0]}
+              startAdornment={renderStatus(status)}
+              className={cx(
+                {
+                  'border-gray-500 dark:border-gray-500 ring-gray-500 border-1 ring-1 hover:focus-visible:ring-1 focus-visible:ring-gray-500 hover:focus-visible:ring-gray-500':
+                    status === 'idle' || status === 'busy',
+                },
+                {
+                  'border-green-500 dark:border-green-500 ring-green-500 border-1 ring-1 hover:focus-visible:ring-1 focus-visible:ring-green-500 hover:focus-visible:ring-green-500':
+                    status === 'available',
+                },
+                {
+                  'border-red-500 dark:border-red-500 ring-red-500 border-1 ring-1 hover:focus-visible:ring-1 focus-visible:ring-red-500 hover:focus-visible:ring-red-500':
+                    status === 'not-available',
+                }
+              )}
+            />
+
+            <div className="actions flex gap-2 items-center justify-end">
+              {/* <Button type="button" variant="outlined">
+                Reset
+              </Button> */}
+              <Button type="submit" disabled={status !== 'available' || isPending === true}>
+                {isPending === true ? <LoaderEllipsis size={22} /> : 'Save'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,150 @@
+/* Mobile menu */
+
+.mobile-menu {
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 20;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--canvas-700);
+  transition: transform 200ms linear;
+  transform: translateX(100%);
+}
+
+@media (min-width: 48rem) {
+  .mobile-menu {
+    width: 50%;
+  }
+}
+
+.dark .mobile-menu {
+  background-color: var(--canvas-800);
+}
+
+.mobile-menu[data-open] {
+  transform: translateX(0%);
+}
+
+.mobile-menu-inner {
+  margin-top: 4vh;
+  margin-left: 1rem;
+  margin-right: 1rem;
+}
+
+.mobile-menu-accordion {
+  background-color: var(--canvas-700);
+}
+
+.dark .mobile-menu-accordion {
+  background-color: var(--canvas-800);
+}
+
+.mobile-menu-scroller {
+  max-height: 80vh;
+}
+
+.mobile-menu-nav-list {
+  list-style: none;
+  padding: 0 12px 24px;
+  margin-top: 16px;
+}
+
+.mobile-menu-nav-item {
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+/* Mobile menu button (accordion triggers and leaf items) */
+
+.mobile-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: white;
+  border-radius: 4px;
+  padding: 4px 8px;
+  text-decoration: none;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  outline: none;
+  width: 100%;
+  transition: all 500ms ease-in-out;
+}
+
+.mobile-menu-trigger:hover {
+  color: black;
+  background-color: var(--canvas-25);
+}
+
+.mobile-menu-trigger.active {
+  color: black;
+  background-color: var(--canvas-25);
+}
+
+/* Home icon inside trigger */
+
+.mobile-menu-home-icon {
+  margin-bottom: -1px;
+  margin-right: 8px;
+  height: 16px;
+  width: 16px;
+}
+
+/* Rocket image section */
+
+.mobile-menu-rocket-section {
+  position: relative;
+  display: flex;
+  overflow: visible;
+}
+
+@media (min-width: 40rem) {
+  .mobile-menu-rocket-section {
+    height: 260px;
+    width: 300px;
+  }
+}
+
+.mobile-menu-rocket-container {
+  position: relative;
+  margin-left: auto;
+  margin-right: auto;
+  left: 30px;
+  top: -20px;
+  width: 450px;
+}
+
+@media (min-width: 40rem) {
+  .mobile-menu-rocket-container {
+    position: absolute;
+    left: 90px;
+    top: -10px;
+    width: 450px;
+  }
+}
+
+@media (min-width: 48rem) {
+  .mobile-menu-rocket-container {
+    left: 100px;
+    top: -20px;
+    width: 500px;
+  }
+}
+
+@media (min-width: 66rem) {
+  .mobile-menu-rocket-container {
+    left: 120px;
+    top: -20px;
+    width: 580px;
+  }
+}
+
+@media (min-width: 77rem) {
+  .mobile-menu-rocket-container {
+    left: 220px;
+    top: -20px;
+    width: 580px;
+  }
+}

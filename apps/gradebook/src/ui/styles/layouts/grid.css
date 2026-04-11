@@ -1,0 +1,35 @@
+.page-layout--two-columns--right-sticky .content {
+  margin-bottom: 2.75rem;
+}
+
+.page-layout--two-columns--right-sticky .content {
+  max-width: 100%;
+}
+
+.page-layout--two-columns--right-sticky .sidebar-second {
+  max-width: 100%;
+}
+
+@media (min-width: 960px) {
+  .page-layout--two-columns--right-sticky {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 0.4fr;
+    grid-template-areas: "content sidebar-second";
+    grid-column-gap: 36px;
+    align-items: start;
+  }
+
+  .page-layout--two-columns--right-sticky .content {
+    grid-area: content;
+    max-width: 100%;
+    margin-bottom: 1.75rem;
+  }
+
+  .page-layout--two-columns--right-sticky .sidebar-second {
+    grid-area: sidebar-second;
+    position: sticky;
+    max-width: 100%;
+    padding-right: 12px;
+    top: 95px;
+  }
+}

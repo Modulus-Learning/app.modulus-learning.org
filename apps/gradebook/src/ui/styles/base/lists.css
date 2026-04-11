@@ -1,0 +1,25 @@
+.editor-text li:has(:is(ul, ol)) {
+  list-style: none;
+}
+
+.editor-text li > ol,
+.editor-text li > ul {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.editor-text li > ul {
+  list-style: circle;
+}
+
+.editor-text li > ul > li > ul {
+  list-style: square;
+}
+
+.editor-text li > ol {
+  list-style: lower-alpha;
+}
+
+.editor-text li > ol > li > ol {
+  list-style: lower-roman;
+}

@@ -1,0 +1,20 @@
+.gradient-glow {
+  position: fixed;
+  width: 90vw;
+  height: 90vh;
+  top: -500px;
+  border-radius: 100%;
+  z-index: -20;
+  opacity: 0.15;
+  background: conic-gradient(from 180deg at 50% 50%, #2a8af6 0deg, #a853ba 180deg, #e92a67 2turn);
+  filter: blur(32px);
+  mix-blend-mode: normal;
+  transform: rotate(20deg);
+}
+
+.dark,
+[data-theme="dark"] {
+  .gradient-glow {
+    opacity: 0.2;
+  }
+}

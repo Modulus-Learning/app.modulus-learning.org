@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Modulus Demo Assignment</title>
+    <link href="/src/style.css" rel="stylesheet">
+  </head>
+  <body class="bg-gray-800">
+    <div class="absolute top-3 right-3">
+      <button id="reset-button" type="button" class="bg-gray-200 px-3 py-1 rounded-lg">Reset</div>
+    </div> 
+    <main class="min-h-screen flex flex-col gap-8 items-center pt-20">
+      <div class="bg-gray-200 p-3 rounded-lg shadow-lg shadow-gray-950 flex flex-col items-center">
+        <h3 id="assignment-title" class="text-3xl mb-2">Assignment 1</h3>
+        <div class="w-full bg-gray-400 rounded-full h-2.5 relative">
+          <div
+            id="progress-indicator"
+            class="bg-green-300 h-2.5 rounded-full w-0 absolute top-0 left-0 z-10">
+          </div>
+          <div
+            id="remote-progress-indicator"
+            class="bg-green-700 h-2.5 rounded-full w-0 absolute top-0 left-0 z-20">
+          </div>
+        </div>
+      </div>
+      <div class="bg-gray-200 p-3 rounded-lg shadow-lg shadow-gray-950">
+        <div data-question data-id="1" data-type="multiple-choice" data-answer="2" class="p-3">
+          <h3 class="text-3xl">Problem 1</h3>
+          <div class="flex flex-row items-center gap-2">
+            <span>What is 1 + 1?</span>
+            <button
+            data-option="1"
+            type="button"
+            class="border border-gray-400 rounded px-2 py-1 min-w-20"
+          >
+            1
+          </button>
+          <button
+            data-option="2"
+            type="button"
+            class="border border-gray-400 rounded px-2 py-1 min-w-20"
+          >
+            2
+          </button>
+          <button
+            data-option="3"
+            type="button"
+            class="border border-gray-400 rounded px-2 py-1 min-w-20"
+          >
+            3
+          </button>
+          <button
+            data-option="4"
+            type="button"
+            class="border border-gray-400 rounded px-2 py-1 min-w-20"
+          >
+            4
+          </button>
+          </div>
+        </div>
+      </div>
+      <div class="bg-gray-200 p-3 rounded-lg shadow-lg shadow-gray-950">
+        <div data-question data-id="2" data-type="multiple-choice" data-answer="3" class="p-3">
+          <h3 class="text-3xl">Problem 2</h3>
+          <div class="flex flex-row items-center gap-2">
+            <span>What is 7 - 4?</span>
+            <button
+              data-option="1"
+              type="button"
+              class="border border-gray-400 rounded px-2 py-1 min-w-20"
+            >
+              1
+            </button>
+            <button
+              data-option="2"
+              type="button"
+              class="border border-gray-400 rounded px-2 py-1 min-w-20"
+            >
+              2
+            </button>
+            <button
+              data-option="3"
+              type="button"
+              class="border border-gray-400 rounded px-2 py-1 min-w-20"
+            >
+              3
+            </button>
+            <button
+              data-option="4"
+              type="button"
+              class="border border-gray-400 rounded px-2 py-1 min-w-20"
+            >
+              4
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="bg-gray-200 p-3 rounded-lg shadow-lg shadow-gray-950">
+        <div data-question data-id="3" data-type="multiple-choice" data-answer="4" class="p-3">
+          <h3 class="text-3xl">Problem 3</h3>
+          <div class="flex flex-row items-center gap-2">
+            <span>What is 8 / 2?</span>
+            <button
+              data-option="1"
+              type="button"
+              class="border border-gray-400 rounded px-2 py-1 min-w-20"
+            >
+              1
+            </button>
+            <button
+              data-option="2"
+              type="button"
+              class="border border-gray-400 rounded px-2 py-1 min-w-20"
+            >
+              2
+            </button>
+            <button
+              data-option="3"
+              type="button"
+              class="border border-gray-400 rounded px-2 py-1 min-w-20"
+            >
+              3
+            </button>
+            <button
+              data-option="4"
+              type="button"
+              class="border border-gray-400 rounded px-2 py-1 min-w-20"
+            >
+              4
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="user-data-card" class="hidden bg-gray-200 p-3 rounded-lg shadow-lg shadow-gray-950">
+        <pre id="user-data"></pre>
+      </div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+
+services:
+  api:
+    image: 280583594212.dkr.ecr.ap-southeast-1.amazonaws.com/modulus:agent-demo-0.1.0
+    container_name: modulus_agent_demo
+    ports:
+      - 8000:8000

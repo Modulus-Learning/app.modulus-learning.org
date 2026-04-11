@@ -1,0 +1,54 @@
+{
+  "name": "@modulus-learning/root",
+  "version": "0.8.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "clean": "turbo run clean && rm -rf node_modules",
+    "build": "turbo run build",
+    "build:packages": "turbo run build --filter=\"./packages/*\"",
+    "start": "turbo run start",
+    "storybook": "turbo run storybook",
+    "dev": "turbo run dev",
+    "devlti": "turbo run devlti",
+    "devturbo": "turbo run devturbo",
+    "dev:seed": "turbo run dev:seed",
+    "lint": "turbo run lint --continue",
+    "typecheck": "turbo run typecheck --continue",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "version-packages": "changeset version",
+    "release:tag": "turbo run build --filter=@modulus-learning/agent && changeset tag",
+    "release:npm": "turbo run build --filter=@modulus-learning/agent && changeset publish"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.9",
+    "@changesets/cli": "^2.30.0",
+    "turbo": "^2.8.21",
+    "typescript": "6.0.2"
+  },
+  "engines": {
+    "node": "^18.20.2 || >=20.9.0"
+  },
+  "pnpm": {
+    "allowedDeprecatedVersions": {
+      "abab": "2",
+      "domexception": "4"
+    },
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "@contrast/fn-inspect",
+      "@newrelic/fn-inspect",
+      "@newrelic/native-metrics",
+      "@parcel/watcher",
+      "@swc/core",
+      "argon2",
+      "bcrypt",
+      "core-js",
+      "lightningcss-cli",
+      "protobufjs",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}

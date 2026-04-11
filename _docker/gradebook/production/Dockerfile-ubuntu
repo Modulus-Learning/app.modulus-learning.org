@@ -1,0 +1,174 @@
+FROM ubuntu:jammy AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN set -eux; \
+mkdir -p /etc/apt/keyrings; \
+apt update; \
+apt --no-install-recommends upgrade -y; \
+apt --no-install-recommends install -y software-properties-common gnupg ca-certificates curl openssl supervisor iputils-ping ghostscript graphicsmagick; \
+curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg; \
+echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list; \
+add-apt-repository ppa:ondrej/nginx; \
+apt update; \
+apt --no-install-recommends install nodejs -y; \
+apt --no-install-recommends install nginx -y; \
+apt remove --purge -y software-properties-common && apt autoremove -y && apt-get clean && apt-get autoclean;
+
+WORKDIR /app
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# deps
+# Add node deps
+FROM base AS deps
+
+WORKDIR /app
+
+COPY apps/gradebook/package.json ./apps/gradebook/package.json
+COPY packages/eslint-config/package.json ./packages/eslint-config/package.json
+COPY packages/shared/package.json ./packages/shared/package.json
+COPY packages/tailwind-config/package.json ./packages/tailwind-config/package.json
+COPY packages/uikit/package.json ./packages/uikit/package.json
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+
+RUN corepack enable pnpm && pnpm install --frozen-lockfile
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# production-deps
+# Setup production node_modules
+FROM base AS production-deps
+
+WORKDIR /app
+
+# NOTE: prune is not currently supported recursively.
+# https://pnpm.io/cli/prune - prune is not currently supported recursively.
+# COPY --from=deps /app/apps/gradebook/node_modules /app/apps/gradebook/node_modules
+# COPY --from=deps /app/packages/eslint-config/node_modules /app/packages/eslint-config/node_modules
+# COPY --from=deps /app/packages/shared/node_modules /app/packages/shared/node_modules
+# COPY --from=deps /app/packages/tailwind-config/node_modules /app/packages/tailwind-config/node_modules
+# COPY --from=deps /app/packages/uikit/node_modules /app/packages/uikit/node_modules
+
+# RUN pnpm prune --prod
+
+COPY apps/gradebook/package.json ./apps/gradebook/package.json
+COPY packages/eslint-config/package.json ./packages/eslint-config/package.json
+COPY packages/shared/package.json ./packages/shared/package.json
+COPY packages/tailwind-config/package.json ./packages/tailwind-config/package.json
+COPY packages/uikit/package.json ./packages/uikit/package.json
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+
+RUN corepack enable pnpm && pnpm install --prod --frozen-lockfile
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# build
+# Build the app
+FROM base AS build
+
+WORKDIR /app
+
+# Likely only required here during build - but also included in the
+# final stage below
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY --from=deps /app/apps/gradebook/node_modules /app/apps/gradebook/node_modules
+COPY --from=deps /app/packages/eslint-config/node_modules /app/packages/eslint-config/node_modules
+COPY --from=deps /app/packages/shared/node_modules /app/packages/shared/node_modules
+COPY --from=deps /app/packages/tailwind-config/node_modules /app/packages/tailwind-config/node_modules
+COPY --from=deps /app/packages/uikit/node_modules /app/packages/uikit/node_modules
+COPY --from=deps /app/node_modules /app/node_modules
+
+# Copy source code for the project (manually excluding _docker)
+COPY apps/gradebook apps/gradebook
+COPY packages packages
+COPY .prettierignore .prettierrc.json package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json turbo.json ./
+
+# RUN --mount=type=secret,id=payload_secret PAYLOAD_SECRET=$(cat /run/secrets/payload_secret) \
+# --mount=type=secret,id=db_connect DATABASE_URI=$(cat /run/secrets/db_connect) \
+RUN corepack enable pnpm && pnpm run build
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# final
+#
+# Rebuild the source code only when needed
+# This may be the case that you would try
+# to build the app based on some `X_TAG` in my case (Git commit hash)
+# but the code hasn't changed.
+FROM base
+
+ARG IMAGE_VOLUME
+ARG APP_VOLUME
+ARG VERSION
+
+LABEL io.infonomic.name="modulus_web" \
+      io.infonomic.version="${VERSION}" \
+      io.infonomic.maintainer="Anthony Bouch <anthony@infonomic.io>" \
+      io.infonomic.description="Modulus website app container."
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEW_RELIC_NO_CONFIG_FILE=true
+ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true \
+NEW_RELIC_LOG=stdout
+
+RUN set -eux; \
+  mkdir -p /app; \
+  mkdir -p /app/node_modules/.cache; \
+  mkdir -p /app/apps/gradebook; \
+  mkdir -p /app/apps/gradebook/.next/cache/images; \
+  mkdir -p /app/packages/eslint-config; \
+  mkdir -p /app/packages/shared; \
+  mkdir -p /app/packages/tailwind-config; \
+  mkdir -p /app/packages/uikit; \
+  mkdir -p /var/run/nginx-cache; \
+  chown -R www-data:www-data /app;  \
+  chown -R www-data:www-data /run; \
+  chown -R www-data:www-data /var/lib/nginx; \
+  chown -R www-data:www-data /var/log/nginx; \
+  chown -R www-data:www-data /var/run/nginx-cache;
+
+COPY _docker/gradebook/nginx/ /etc/nginx/
+COPY _docker/gradebook/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+USER www-data
+VOLUME ${APP_VOLUME}
+WORKDIR /app
+
+COPY --from=production-deps /app/packages/shared/node_modules /app/packages/shared/node_modules
+COPY --from=production-deps /app/packages/uikit/node_modules /app/packages/uikit/node_modules
+COPY --from=production-deps /app/node_modules /app/node_modules
+
+# packages build (shared, and uikit)
+COPY --from=build /app/packages/shared/dist /app/packages/shared/dist
+COPY --from=build /app/packages/shared/package.json /app/packages/shared/package.json
+COPY --from=build /app/packages/uikit/dist /app/packages/uikit/dist
+COPY --from=build /app/packages/uikit/package.json /app/packages/uikit/package.json
+
+# main app
+COPY --from=production-deps --chown=www-data:www-data /app/apps/gradebook/node_modules /app/apps/gradebook/node_modules
+COPY --from=build --chown=www-data:www-data /app/apps/gradebook/.next/standalone/apps/gradebook/.next /app/apps/gradebook/.next
+COPY --from=build --chown=www-data:www-data /app/apps/gradebook/.next/standalone/apps/gradebook/package.json /app/apps/gradebook/package.json
+COPY --from=build --chown=www-data:www-data /app/apps/gradebook/.next/standalone/apps/gradebook/server.js /app/apps/gradebook/server.js
+COPY --from=build --chown=www-data:www-data /app/apps/gradebook/.next/static /app/apps/gradebook/.next/static
+COPY --from=build --chown=www-data:www-data /app/apps/gradebook/public /app/apps/gradebook/public
+
+# Root package.json and files
+COPY --from=build /app/package.json /app/package.json
+COPY --from=build /app/pnpm-lock.yaml /app/pnpm-lock.yaml
+COPY --from=build /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
+COPY --from=build /app/turbo.json /app/turbo.json
+
+COPY _docker/gradebook/start-nginx.sh /app/start-nginx.sh
+COPY _docker/gradebook/start-node.sh /app/start-node.sh
+
+VOLUME ${IMAGE_VOLUME}
+
+EXPOSE 8000
+
+# CMD ["npm", "start"]
+# CMD ["node", "server.js"]
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# HEALTHCHECK --timeout=10s CMD curl --silent --fail http://127.0.0.1:8000/elb-status || exit 1

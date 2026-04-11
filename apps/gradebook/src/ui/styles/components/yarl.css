@@ -1,0 +1,14 @@
+:root {
+  --yarl__slide_captions_container_padding: 6px 12px;
+  --yarl__slide_title_font_size: 1rem;
+  --yarl__slide_title_font_weight: 400;
+}
+
+.yarl__slide_description .editor-text {
+  font-size: 0.9rem;
+}
+
+.yarl__slide_description .editor-text p {
+  margin-top: 0;
+  margin-bottom: 0;
+}

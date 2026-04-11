@@ -1,0 +1,25 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.9/schema.json",
+  "root": false,
+  "extends": ["../../biome.jsonc"],
+  "linter": {
+    "rules": {
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "zod": {
+                "importNames": ["default"],
+                "message": "Use 'import { z } from \"zod\"' instead of 'import z from \"zod\"'"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "files": {
+    "includes": ["!**/dist", "!**/node_modules", "!src/modules/lti/constants.ts"]
+  }
+}

@@ -1,0 +1,18 @@
+packages:
+  - packages/**
+  - apps/**
+  - '!apps/gradebook/.next/**'
+  - '!apps/agent/demo/**'
+onlyBuiltDependencies:
+  - '@biomejs/biome'
+  - '@contrast/fn-inspect'
+  - '@newrelic/native-metrics'
+  - '@parcel/watcher'
+  - '@swc/core'
+  - argon2
+  - bcrypt
+  - core-js
+  - esbuild
+  - lightningcss-cli
+  - protobufjs
+  - sharp

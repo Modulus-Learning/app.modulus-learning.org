@@ -1,0 +1,28 @@
+import { createCoreErrorType } from '@/lib/errors.js'
+
+export const ErrorCodes = {
+  REGISTRATION_EMAIL_CONFICT: 'ERR_REGISTRATION_EMAIL_CONFICT',
+  REGISTRATION_NOT_FOUND: 'ERR_REGISTRATION_NOT_FOUND',
+  REGISTRATION_WRONG_CODE: 'ERR_REGISTRATION_WRONG_CODE',
+  REGISTRATION_EMAIL_NOT_VERIFIED: 'ERR_REGISTRATION_EMAIL_NOT_VERIFIED',
+} as const
+
+export const ERR_REGISTRATION_EMAIL_CONFICT = createCoreErrorType(
+  ErrorCodes.REGISTRATION_EMAIL_CONFICT,
+  'warn'
+)
+
+export const ERR_REGISTRATION_NOT_FOUND = createCoreErrorType(
+  ErrorCodes.REGISTRATION_NOT_FOUND,
+  'warn'
+)
+
+export const ERR_REGISTRATION_WRONG_CODE = createCoreErrorType(
+  ErrorCodes.REGISTRATION_WRONG_CODE,
+  'warn'
+)
+
+export const ERR_REGISTRATION_EMAIL_NOT_VERIFIED = createCoreErrorType(
+  ErrorCodes.REGISTRATION_EMAIL_NOT_VERIFIED,
+  'warn'
+)

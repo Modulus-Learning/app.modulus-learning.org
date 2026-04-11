@@ -1,0 +1,260 @@
+/* UI Kit overrides */
+:root {
+  /* Theme base color */
+  --theme-base: oklch(0.4502 0.0037 308.34);
+
+  --theme-25: oklch(from var(--theme-base) 0.98 c h);
+  --theme-50: oklch(from var(--theme-base) 0.9 c h);
+  --theme-100: oklch(from var(--theme-base) 0.75 c h);
+  --theme-200: oklch(from var(--theme-base) 0.6 c h);
+  --theme-300: oklch(from var(--theme-base) 0.5 c h);
+  --theme-400: var(--theme-base);
+  --theme-500: oklch(from var(--theme-base) 0.4 c h);
+  --theme-600: oklch(from var(--theme-base) 0.35 c h);
+  --theme-700: oklch(from var(--theme-base) 0.3 c h);
+  --theme-800: oklch(from var(--theme-base) 0.25 c h);
+  --theme-900: oklch(from var(--theme-base) 0.2 c h);
+  --theme-950: oklch(from var(--theme-base) 0.175 c h);
+
+  /* Primary base */
+  --primary-base: oklch(18.02% 0.0037 308.34);
+
+  --primary-25: oklch(from var(--primary-base) calc(l * 5.5) c 263);
+  --primary-50: oklch(from var(--primary-base) calc(l * 4.5) c 263);
+  --primary-100: oklch(from var(--primary-base) calc(l * 3.5) c 260);
+  --primary-200: oklch(from var(--primary-base) calc(l * 2.2) c h);
+  --primary-300: oklch(from var(--primary-base) calc(l * 1.5) c h);
+  --primary-400: var(--primary-base);
+  --primary-500: oklch(from var(--primary-base) calc(l * 0.9) c h);
+  --primary-600: oklch(from var(--primary-base) calc(l * 0.85) c h);
+  --primary-700: oklch(from var(--primary-base) calc(l * 0.77) c h);
+  --primary-800: oklch(from var(--primary-base) calc(l * 0.71) c h);
+  --primary-900: oklch(from var(--primary-base) calc(l * 0.65) c h);
+  --primary-950: oklch(from var(--primary-base) calc(l * 0.57) c h);
+
+  /* Secondary base */
+  --secondary-base: oklch(60.56% 0.19 258);
+
+  --secondary-25: oklch(from var(--secondary-base) calc(l * 1.6) 0.05 263);
+  --secondary-50: oklch(from var(--secondary-base) calc(l * 1.5) 0.1 263);
+  --secondary-100: oklch(from var(--secondary-base) calc(l * 1.3) c 260);
+  --secondary-200: oklch(from var(--secondary-base) calc(l * 1.2) c h);
+  --secondary-300: oklch(from var(--secondary-base) calc(l * 1.1) c h);
+  --secondary-400: var(--secondary-base);
+  --secondary-500: oklch(from var(--secondary-base) calc(l * 0.9) c h);
+  --secondary-600: oklch(from var(--secondary-base) calc(l * 0.85) c h);
+  --secondary-700: oklch(from var(--secondary-base) calc(l * 0.77) c h);
+  --secondary-800: oklch(from var(--secondary-base) calc(l * 0.71) c h);
+  --secondary-900: oklch(from var(--secondary-base) calc(l * 0.65) c h);
+  --secondary-950: oklch(from var(--secondary-base) calc(l * 0.57) c h);
+
+  /* Accent base */
+  --accent-base: oklch(88.01% 0.1491 100.3);
+
+  --accent-25: oklch(from var(--accent-base) calc(l * 1.5) 0.05 h);
+  --accent-50: oklch(from var(--accent-base) calc(l * 1.1) 0.05 h);
+  --accent-100: oklch(from var(--accent-base) calc(l * 1.5) 0.1 h);
+  --accent-200: oklch(from var(--accent-base) calc(l * 1.1) 0.12 h);
+  --accent-300: oklch(from var(--accent-base) calc(l * 1.075) c h);
+  --accent-400: var(--accent-base);
+  --accent-500: oklch(from var(--accent-base) calc(l * 0.95) c h);
+  --accent-600: oklch(from var(--accent-base) calc(l * 0.91) c h);
+  --accent-700: oklch(from var(--accent-base) calc(l * 0.89) c h);
+  --accent-800: oklch(from var(--accent-base) calc(l * 0.75) c h);
+  --accent-900: oklch(from var(--accent-base) calc(l * 0.7) c h);
+  --accent-950: oklch(from var(--accent-base) calc(l * 0.6) c h);
+
+  /* Gray base */
+  --gray-base: oklch(0.5984 0 0);
+
+  --gray-25: oklch(from var(--gray-base) calc(l * 1.625) c h);
+  --gray-50: oklch(from var(--gray-base) calc(l * 1.575) c h);
+  --gray-100: oklch(from var(--gray-base) calc(l * 1.475) c h);
+  --gray-200: oklch(from var(--gray-base) calc(l * 1.35) c h);
+  --gray-300: oklch(from var(--gray-base) calc(l * 1.175) c h);
+  --gray-400: var(--gray-base);
+  --gray-500: oklch(from var(--gray-base) calc(l * 0.85) c h);
+  --gray-600: oklch(from var(--gray-base) calc(l * 0.725) c h);
+  --gray-700: oklch(from var(--gray-base) calc(l * 0.6126) c h);
+  --gray-800: oklch(from var(--gray-base) calc(l * 0.5) c h);
+  --gray-900: oklch(from var(--gray-base) calc(l * 0.4) c h);
+  --gray-950: oklch(from var(--gray-base) calc(l * 0.3) c h);
+
+  /* Canvas base */
+  --canvas-base: oklch(0.542 0.0037 275.34);
+
+  --canvas-25: oklch(from var(--canvas-base) calc(l * 1.9) c h);
+  --canvas-50: oklch(from var(--canvas-base) calc(l * 1.75) c h);
+  --canvas-100: oklch(from var(--canvas-base) calc(l * 1.6) c h);
+  --canvas-200: oklch(from var(--canvas-base) calc(l * 1.4) c h);
+  --canvas-300: oklch(from var(--canvas-base) calc(l * 1.2) c h);
+  --canvas-400: var(--canvas-base);
+  --canvas-500: oklch(from var(--canvas-base) calc(l * 0.9) c h);
+  --canvas-600: oklch(from var(--canvas-base) calc(l * 0.7) c h);
+  --canvas-700: oklch(from var(--canvas-base) calc(l * 0.5) c h);
+  --canvas-800: oklch(from var(--canvas-base) calc(l * 0.335) c h);
+  --canvas-900: oklch(from var(--canvas-base) calc(l * 0.3) c h);
+  --canvas-950: oklch(from var(--canvas-base) calc(l * 0.225) c h);
+
+  /* Fill tokens - for solid backgrounds (filled variant) */
+  --fill-primary-strong: var(--primary-500);
+  --fill-primary-strong-hover: oklch(from var(--primary-500) calc(l * 0.9) c h);
+  --fill-primary-strong-disabled: oklch(from var(--primary-500) calc(l * 1.1) calc(c * 0.85) h);
+
+  --fill-primary-weak: oklch(from var(--primary-300) calc(l * 1.5) calc(c * 0.2) h / 0.5);
+  --fill-primary-weak-hover: oklch(from var(--primary-300) calc(l * 1.35) calc(c * 0.2) h / 0.5);
+  --fill-primary-weak-disabled: oklch(from var(--primary-300) calc(l * 1.35) calc(c * 0.2) h / 0.5);
+
+  --fill-primary-outlined: transparent;
+  --fill-primary-outlined-hover: oklch(from var(--primary-50) calc(l * 2) calc(c * 0.2) h / 0.4);
+  --fill-primary-outlined-disabled: oklch(from var(--primary-50) calc(l * 2) calc(c * 0.2) h / 0.4);
+
+  /* Text tokens */
+  --text-on-primary-strong: white;
+  --text-on-primary-strong-disabled: oklch(from white calc(l * 0.9) calc(c * 0.85) h);
+  --text-on-primary-strong-hover: oklch(from white calc(l * 0.9) calc(c * 0.85) h);
+
+  --text-on-primary-weak: oklch(from var(--primary-25) calc(l * 0.7) c h);
+  --text-on-primary-weak-hover: oklch(from var(--primary-25) calc(l * 1.5) calc(c * 0.5) h);
+  --text-on-primary-weak-disabled: oklch(from var(--primary-25) calc(l * 1.5) calc(c * 0.5) h);
+
+  --text-on-primary-outlined: oklch(from var(--primary-500) calc(l * 0.7) c h);
+  --text-on-primary-outlined-hover: oklch(from var(--primary-600) calc(l * 1.5) calc(c * 0.5) h);
+  --text-on-primary-outlined-disabled: oklch(from var(--primary-600) calc(l * 1.5) calc(c * 0.5) h);
+
+  --text-primary: var(--primary-25);
+  --text-primary-weak: oklch(from var(--primary-25) calc(l * 0.7) c h);
+  --text-primary-hover: oklch(from var(--primary-25) calc(l * 0.7) c h);
+  --text-primary-disabled: oklch(from var(--primary-25) calc(l * 1.5) calc(c * 0.5) h);
+
+  /* Stroke tokens - for borders */
+  --stroke-primary: var(--primary-600);
+  --stroke-primary-hover: oklch(from var(--primary-600) calc(l * 0.85) c h);
+  --stroke-primary-disabled: oklch(from var(--primary-600) calc(l * 1.5) calc(c * 0.8) h);
+
+  /* Ring tokens - for focus states */
+  --ring-primary: var(--primary-500);
+
+  /* Gradient tokens */
+  --gradient-primary-start: var(--primary-500);
+  --gradient-primary-end: var(--primary-700);
+  --gradient-primary-foreground: white;
+  --gradient-primary-disabled: oklch(from var(--primary-700) calc(l * 1.2) calc(c * 0.85) h);
+
+  .infonomic-checkbox-primary {
+    --checkbox-icon-color: white;
+  }
+}
+
+.dark,
+[data-theme="dark"],
+[data-theme="dark"] ::backdrop {
+  /* PRIMARY INTENT TOKENS (Dark Mode)
+       ----------------------------------------------------------------- */
+
+  /* Fill tokens */
+  --fill-primary-strong: white;
+  --fill-primary-strong-hover: oklch(from var(--gray-25) calc(l * 0.9) c h);
+  --fill-primary-strong-disabled: oklch(from var(--gray-25) calc(l * 0.85) calc(c * 0.85) h);
+
+  --fill-primary-weak: oklch(from var(--gray-25) calc(l * 0.4) calc(c * 0.5) h / 0.4);
+  --fill-primary-weak-hover: oklch(from var(--gray-25) calc(l * 0.3) calc(c * 0.5) h / 0.4);
+  --fill-primary-weak-disabled: oklch(from var(--gray-25) calc(l * 0.3) calc(c * 0.5) h / 0.4);
+
+  --fill-primary-outlined: transparent;
+  --fill-primary-outlined-hover: oklch(from var(--primary-500) calc(l * 2) calc(c * 0.2) h / 0.4);
+  --fill-primary-outlined-disabled: oklch(
+    from var(--primary-500) calc(l * 2) calc(c * 0.2) h /
+    0.4
+  );
+
+  /* Text tokens */
+  --text-on-primary-outlined: white;
+  --text-on-primary-outlined-hover: oklch(from white calc(l * 1.5) calc(c * 0.5) h);
+  --text-on-primary-outlined-disabled: oklch(from white calc(l * 1.5) calc(c * 0.5) h);
+
+  --text-on-primary-strong: black;
+  --text-on-primary-strong-hover: oklch(from black calc(l * 0.85) calc(c * 0.85) h);
+  --text-on-primary-strong-disabled: oklch(from black calc(l * 0.85) calc(c * 0.85) h);
+
+  --text-on-primary-weak: oklch(from var(--primary-500) calc(l * 0.7) c h);
+  --text-on-primary-weak-hover: oklch(from var(--primary-600) calc(l * 1.5) calc(c * 0.5) h);
+  --text-on-primary-weak-disabled: oklch(from var(--primary-600) calc(l * 1.5) calc(c * 0.5) h);
+
+  --text-primary: var(--primary-25);
+  --text-primary-weak: oklch(from var(--primary-25) calc(l * 0.7) c h);
+  --text-primary-hover: oklch(from var(--primary-25) calc(l * 0.7) c h);
+  --text-primary-disabled: oklch(from var(--primary-25) calc(l * 1.5) calc(c * 0.5) h);
+
+  /* Stroke tokens */
+  --stroke-primary: var(--primary-50);
+  --stroke-primary-hover: oklch(from var(--primary-50) calc(l * 1.1) c h);
+  --stroke-primary-disabled: oklch(from var(--primary-50) calc(l * 0.8) calc(c * 0.8) h);
+
+  /* Ring tokens */
+  --ring-primary: white;
+
+  .infonomic-checkbox-primary {
+    --checkbox-icon-color: black;
+  }
+
+  /* Gradient tokens */
+  --gradient-primary-start: var(--primary-500);
+  --gradient-primary-end: var(--primary-700);
+  --gradient-primary-foreground: white;
+  --gradient-primary-disabled: oklch(from var(--primary-700) calc(l * 0.85) calc(c * 0.85) h);
+}
+
+/* ===================================================================
+   * .NOT-DARK OVERRIDE
+   * .not-dark override: Forces light mode tokens by re-declaring :root values.
+   * This duplication is intentional - it ensures .not-dark always wins over .dark
+   * regardless of DOM order, without needing complex :not() selectors.
+   * Alternative approaches (revert-layer, :not() patterns) would be more fragile.
+  */
+.not-dark {
+  /* Fill tokens - for solid backgrounds (filled variant) */
+  --fill-primary-strong: var(--primary-500);
+  --fill-primary-strong-hover: oklch(from var(--primary-500) calc(l * 0.9) c h);
+  --fill-primary-strong-disabled: oklch(from var(--primary-500) calc(l * 1.1) calc(c * 0.85) h);
+
+  --fill-primary-weak: oklch(from var(--primary-300) calc(l * 1.5) calc(c * 0.2) h / 0.5);
+  --fill-primary-weak-hover: oklch(from var(--primary-300) calc(l * 1.35) calc(c * 0.2) h / 0.5);
+  --fill-primary-weak-disabled: oklch(from var(--primary-300) calc(l * 1.35) calc(c * 0.2) h / 0.5);
+
+  --fill-primary-outlined: transparent;
+  --fill-primary-outlined-hover: oklch(from var(--primary-50) calc(l * 2) calc(c * 0.2) h / 0.4);
+  --fill-primary-outlined-disabled: oklch(from var(--primary-50) calc(l * 2) calc(c * 0.2) h / 0.4);
+
+  /* Text tokens */
+  --text-on-primary-strong: white;
+  --text-on-primary-strong-disabled: oklch(from white calc(l * 0.9) calc(c * 0.85) h);
+  --text-on-primary-strong-hover: oklch(from white calc(l * 0.9) calc(c * 0.85) h);
+
+  --text-on-primary-weak: oklch(from var(--primary-25) calc(l * 0.7) c h);
+  --text-on-primary-weak-hover: oklch(from var(--primary-25) calc(l * 1.5) calc(c * 0.5) h);
+  --text-on-primary-weak-disabled: oklch(from var(--primary-25) calc(l * 1.5) calc(c * 0.5) h);
+
+  --text-on-primary-outlined: oklch(from var(--primary-500) calc(l * 0.7) c h);
+  --text-on-primary-outlined-hover: oklch(from var(--primary-600) calc(l * 1.5) calc(c * 0.5) h);
+  --text-on-primary-outlined-disabled: oklch(from var(--primary-600) calc(l * 1.5) calc(c * 0.5) h);
+
+  --text-primary: var(--primary-25);
+  --text-primary-weak: oklch(from var(--primary-25) calc(l * 0.7) c h);
+  --text-primary-hover: oklch(from var(--primary-25) calc(l * 0.7) c h);
+  --text-primary-disabled: oklch(from var(--primary-25) calc(l * 1.5) calc(c * 0.5) h);
+
+  /* Stroke tokens - for borders */
+  --stroke-primary: var(--primary-600);
+  --stroke-primary-hover: oklch(from var(--primary-600) calc(l * 0.85) c h);
+  --stroke-primary-disabled: oklch(from var(--primary-600) calc(l * 1.5) calc(c * 0.8) h);
+
+  /* Ring tokens - for focus states */
+  --ring-primary: var(--primary-500);
+
+  /* Gradient tokens */
+  --gradient-primary-start: var(--primary-500);
+  --gradient-primary-end: var(--primary-700);
+  --gradient-primary-foreground: white;
+  --gradient-primary-disabled: oklch(from var(--primary-700) calc(l * 1.2) calc(c * 0.85) h);
+}
