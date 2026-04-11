@@ -57,20 +57,15 @@ export class LtiDeepLinkingService extends BaseService {
     activity_code,
     activity_url,
   }: DeepLinkRequest): Promise<DeepLinkResponse> {
-    // TODO: When an instructor submits the deep linking form, we currently
-    // ensure that the corresponding activity exists.  But we still need to
-    // think about how/when to associate the activity with the given activity
-    // code. It could be done here, or the first time a learner uses the LTI
-    // link this method returns. One important caveat: this method returns an
-    // LTI link, which the platform shows to the instructor -- and they still
-    // get one more opportunity to confirm or cancel the creation of the actual
-    // link on their LTI platform.  If they cancel, the LTI link won't be
-    // created on the platform, and so the corresponding activity probably
-    // shouldn't be associated with the activity code.  Unfortunately, the LTI
-    // platform doesn't have to tell us that the instructor cancelled the link
-    // creation, and so maybe we should defer everything here until we get some
-    // evidence that the link was really created (i.e. a learner actually using
-    // the link).
+    // NOTE: When an instructor submits the deep linking form we ensure the
+    // activity exists and associate it with the given activity code here, so
+    // that newly-entered URLs are registered against the code immediately.
+    // Caveat: this method returns an LTI link which the platform shows to the
+    // instructor, and they still have a chance to cancel before the link is
+    // actually created on the LTI platform.  The LTI platform does not tell us
+    // about cancellations, so in that case we will have associated an activity
+    // with the code that is never used.  This is preferable to losing the
+    // association entirely, and the join is idempotent on re-submission.
 
     const launchItem = await this.ltiQueries.findLaunch(launch_id)
     if (launchItem == null) {
@@ -96,6 +91,14 @@ export class LtiDeepLinkingService extends BaseService {
       }).log(this.logger)
     }
 
+    const activityCodeRecord =
+      await this.activityQueries.findActivityCodeByPublicCode(activity_code)
+    if (activityCodeRecord == null) {
+      throw ERR_DEEP_LINKING({
+        message: 'activity code not found',
+      }).log(this.logger)
+    }
+
     let activity = await this.activityQueries.findActivityByURL(activity_url)
     if (activity == null) {
       activity = await this.activityMutations.createActivity({
@@ -103,6 +106,8 @@ export class LtiDeepLinkingService extends BaseService {
         url: activity_url,
       })
     }
+
+    await this.activityMutations.assignActivitiesToActivityCode(activityCodeRecord, [activity])
 
     const nonce = crypto.randomBytes(30).toString('base64url')
 
