@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useRef } from 'react'
+import { createContext, useContext, useEffect, useMemo } from 'react'
+import { useRouterState } from '@tanstack/react-router'
 
 import { ModulusAgent } from '@modulus-learning/agent'
 import { type ModulusWidgetPosition, setupModulusAvatar } from '@modulus-learning/agent/ui/vanilla'
@@ -11,20 +12,23 @@ interface Props {
 }
 
 export const ModulusProvider: React.FC<Props> = ({ children, widgetPosition = 'bottom-right' }) => {
-  const modulusRef = useRef<ModulusAgent>(null)
+  // TEMPORARY: The agent's auth token is currently bound server-side to the
+  // activity URL it was first authenticated against, so a single agent instance
+  // can only read/write progress for one activity. Until the server is updated
+  // to resolve the activity per-request, we work around this by dropping the
+  // agent and re-authenticating from scratch whenever the SPA route changes.
+  // See discussion on navigation reactivity in the agent widget plan.
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
 
-  if (modulusRef.current == null) {
-    const modulus = new ModulusAgent()
-    modulusRef.current = modulus
-  }
+  // biome-ignore lint/correctness/useExhaustiveDependencies: we monitor pathname.
+  const modulus = useMemo(() => new ModulusAgent(), [pathname])
 
   useEffect(() => {
-    if (modulusRef.current == null) return
-    const handle = setupModulusAvatar(modulusRef.current, { position: widgetPosition })
+    const handle = setupModulusAvatar(modulus, { position: widgetPosition })
     return () => handle.destroy()
-  }, [widgetPosition])
+  }, [modulus, widgetPosition])
 
-  return <ModulusContext.Provider value={modulusRef.current}>{children}</ModulusContext.Provider>
+  return <ModulusContext.Provider value={modulus}>{children}</ModulusContext.Provider>
 }
 
 export const useModulus = () => {
