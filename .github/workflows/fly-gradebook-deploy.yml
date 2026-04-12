@@ -13,7 +13,7 @@ jobs:
       group: gradebook-deploy-group    # optional: ensure only one action runs at a time
       cancel-in-progress: true         # optional: cancel any in-progress jobs in the group
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy --remote-only --wait-timeout 1000 --config fly-gradebook.toml
         env:
