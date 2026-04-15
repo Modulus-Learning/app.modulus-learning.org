@@ -5,6 +5,7 @@
 **/.dockerignore
 **/.env
 **/.env.*
+!**/.env.public
 **/.git
 **/.gitignore
 **/.project
