@@ -4,6 +4,7 @@
 **/.classpath
 **/.dockerignore
 **/.env
+**/.env.*
 **/.git
 **/.gitignore
 **/.project
@@ -23,40 +24,28 @@
 **/obj
 **/secrets.dev.yaml
 **/values.dev.yaml
-README.md
+*.md
 **/sql
 npm-debug.log
 
-# Node storage system
-node/storage
+# Node
 node_modules
+**/.turbo
 
-# Apps and packages
-/apps/solr
+# Apps
+apps/gradebook/.next
+apps/gradebook/.turbo
+apps/agent-demo/react/dist
 
-/apps/agent/demo/react/node_modules
-/apps/agent/demo/react/dist
+# Ignore local database data and backups
+postgres/
 
-/apps/api/node_modules
-/apps/api/dist
-
-/apps/gradebook/uploads
-/apps/gradebook/src/_drupal-migration/data
-/apps/gradebook/node_modules
-/apps/gradebook/.next
-/apps/gradebook/.turbo
-
-/packages/eslint-config/node_modules
-
-/packages/shared/dist
-/packages/shared/node_modules
-
-/packages/tailwind-config/node_modules
-
-/packages/core/.turbo
-/packages/core/dist
-/packages/core/node_modules
-/packages/core/src/database/sql
+# Misc
+.github/
+.changeset/
+benchmarks/
+fly-*.toml
+LICENSE
 
 
 # Ignore our local postgres data directory

@@ -5,3 +5,8 @@ services:
     env_file: ./apps/gradebook/.env
     ports:
       - 80:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      # Override localhost references to reach host services (PostgreSQL, etc.)
+      POSTGRES_CONNECTION_STRING: postgres://modulus:modulus@host.docker.internal:5432/modulus_dev

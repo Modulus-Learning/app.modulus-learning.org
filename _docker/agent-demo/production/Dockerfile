@@ -1,7 +1,5 @@
-# Adjust NODE_VERSION as desired
-# ARG NODE_VERSION=22.14.0
-ARG NODE_VERSION=24.13.0
-FROM node:${NODE_VERSION}-slim AS base
+# Node LTS on Debian Slim (glibc). Automatically tracks the active LTS line (currently 24.x).
+FROM node:lts-slim AS base
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Throw-away build stage to reduce size of final image
@@ -9,7 +7,8 @@ FROM base AS build
 
 # Install packages needed to build node modules
 RUN apt-get update -qq && \
-  apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
+  apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3 \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

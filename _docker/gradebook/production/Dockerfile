@@ -1,5 +1,5 @@
-# Use the official Node.js Alpine base image
-FROM node:lts-alpine AS base
+# Node LTS on Debian Slim (glibc). Automatically tracks the active LTS line (currently 24.x).
+FROM node:lts-slim AS base
 
 # PNPM ENVs
 ENV PNPM_HOME="/pnpm"
@@ -8,8 +8,13 @@ ENV PATH="$PNPM_HOME:$PATH"
 # See: https://github.com/nodejs/corepack/issues/612
 ENV COREPACK_INTEGRITY_KEYS=0
 
-# Install necessary packages, including Nginx, Supervisord
-RUN apk add --no-cache nginx supervisor
+# Create nginx user/group to match Alpine convention used throughout this Dockerfile
+RUN groupadd --system nginx && useradd --system --gid nginx --no-create-home --shell /usr/sbin/nologin nginx
+
+# Install necessary packages: Nginx, Supervisord, and netcat (for health-check probing in start-nginx.sh)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx supervisor netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -24,7 +29,8 @@ COPY apps/gradebook/package.json ./apps/gradebook/package.json
 COPY packages/core/package.json ./packages/core/package.json
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 
-RUN corepack enable pnpm && pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    corepack enable pnpm && pnpm install --frozen-lockfile
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # production-deps
@@ -45,7 +51,8 @@ COPY packages/core/package.json ./packages/core/package.json
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 
 # RUN pnpm install --prod;
-RUN corepack enable pnpm && pnpm install --prod --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    corepack enable pnpm && pnpm install --prod --frozen-lockfile
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
