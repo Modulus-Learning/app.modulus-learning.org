@@ -22,9 +22,9 @@
     "release:npm": "turbo run build --filter=@modulus-learning/agent && changeset publish"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.9",
+    "@biomejs/biome": "^2.4.12",
     "@changesets/cli": "^2.30.0",
-    "turbo": "^2.8.21",
+    "turbo": "^2.9.6",
     "typescript": "6.0.2"
   },
   "engines": {
