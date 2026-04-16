@@ -20,9 +20,9 @@ import type { DeepLinkingFormState } from '../@types'
 
 const initialState: DeepLinkingFormState = { errors: {}, status: 'idle' }
 
-async function fetchActivities(privateCode: string): Promise<Activity[]> {
+async function fetchActivities(activityCodeId: string): Promise<Activity[]> {
   const res = await fetch(
-    `/routes/lti/deep-link/activities?private_code=${encodeURIComponent(privateCode)}`
+    `/routes/lti/deep-link/activities?id=${encodeURIComponent(activityCodeId)}`
   )
   if (!res.ok) return []
   const data = await res.json()
@@ -59,7 +59,7 @@ export function DeepLinkingForm({
     setIsLoadingActivities(true)
     setActivities([])
 
-    fetchActivities(selectedActivityCode.private_code).then((result) => {
+    fetchActivities(selectedActivityCode.id).then((result) => {
       if (fetchId === fetchRef.current) {
         setActivities(result)
         setIsLoadingActivities(false)

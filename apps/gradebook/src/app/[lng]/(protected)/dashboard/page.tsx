@@ -1,6 +1,5 @@
 import { Button, Container, CopyButton, Section, Table } from '@infonomic/uikit/react'
 
-import { getServerConfig } from '@/config'
 import { LangLink } from '@/i18n/components/lang-link'
 import { getActivityCodes } from '@/modules/app/activities/get-activity-codes'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
@@ -13,7 +12,6 @@ export default async function ActivityList({
 }): Promise<React.JSX.Element> {
   const { lng } = await params
   const { activity_codes } = await getActivityCodes()
-  const config = getServerConfig()
 
   return (
     <>
@@ -47,17 +45,16 @@ export default async function ActivityList({
                     Code
                   </Table.HeadingCell>
                   <Table.HeadingCell scope="col" className="p-2">
-                    Admin Link
+                    Private Code
                   </Table.HeadingCell>
                 </Table.Row>
               </Table.Header>
 
               <Table.Body>
                 {activity_codes.map((activityCode) => {
-                  const adminPath = `/dashboard/activity-code/${activityCode.private_code}`
-                  const adminUrl = config.publicServerUrl + adminPath
+                  const adminPath = `/dashboard/activity-code/${activityCode.id}`
                   return (
-                    <Table.Row key={activityCode.private_code}>
+                    <Table.Row key={activityCode.id}>
                       <Table.Cell className="py-3">
                         <div className="flex items-center gap-2">
                           <CopyButton
@@ -81,11 +78,9 @@ export default async function ActivityList({
                             variant="outlined"
                             size="xs"
                             intent="noeffect"
-                            text={adminUrl}
+                            text={activityCode.private_code}
                           />
-                          <LangLink className="pb-[3px]" href={adminPath}>
-                            {adminUrl}
-                          </LangLink>
+                          <span className="pb-[3px]">{activityCode.private_code}</span>
                         </div>
                       </Table.Cell>
                     </Table.Row>

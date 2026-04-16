@@ -8,13 +8,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ status: 'failed', message: 'Not authenticated' }, { status: 401 })
   }
 
-  const private_code = request.nextUrl.searchParams.get('private_code')
-  if (!private_code || typeof private_code !== 'string') {
-    return NextResponse.json({ status: 'failed', message: 'Missing private_code' }, { status: 400 })
+  const id = request.nextUrl.searchParams.get('id')
+  if (!id || typeof id !== 'string') {
+    return NextResponse.json({ status: 'failed', message: 'Missing id' }, { status: 400 })
   }
 
   const core = await getCoreInstance()
-  const result = await core.app.activities.getActivitiesByPrivateCode(userAuth, private_code)
+  const result = await core.app.activities.getActivitiesByActivityCodeId(userAuth, id)
 
   if (!result.ok) {
     return NextResponse.json(

@@ -67,6 +67,16 @@ export class ActivityQueries extends BaseService {
   }
 
   @method
+  async findActivityCodeById(id: string): Promise<ActivityCodeRecord | undefined> {
+    return await this.db
+      .get()
+      .query.activityCodes.findFirst({
+        where: eq(activityCodes.id, id),
+      })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
   async findActivityCodeByPrivateCode(
     private_code: string
   ): Promise<ActivityCodeRecord | undefined> {

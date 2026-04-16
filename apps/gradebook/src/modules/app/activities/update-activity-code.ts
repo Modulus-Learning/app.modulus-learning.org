@@ -23,13 +23,13 @@ export const updateActivityCode = async (
     }
   }
 
-  const private_code = formData.get('private_code') as string | null
+  const id = formData.get('id') as string | null
   const urls = formData.get('urls') as string | null
 
-  if (private_code == null || typeof private_code !== 'string') {
+  if (id == null || typeof id !== 'string') {
     return {
       errors: {},
-      message: 'Invalid private code.',
+      message: 'Invalid activity code id.',
       status: 'failed',
     }
   }
@@ -57,7 +57,7 @@ export const updateActivityCode = async (
 
   const core = await getCoreInstance()
   const result = await core.app.activities.updateActivityCode(userAuth, {
-    private_code,
+    id,
     urls: urlsArray,
   })
 
@@ -77,5 +77,5 @@ export const updateActivityCode = async (
     }
   }
 
-  redirect(`/dashboard/activity-code/${private_code}/activities`)
+  redirect(`/dashboard/activity-code/${id}/activities`)
 }

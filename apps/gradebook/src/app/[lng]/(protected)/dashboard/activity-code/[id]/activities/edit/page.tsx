@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 
 import { Container, Section } from '@infonomic/uikit/react'
 
-import { ActivitiesView } from '@/modules/app/activities/components/activities-view'
+import { EditActivitiesForm } from '@/modules/app/activities/components/edit-activities-form'
 import { getActivities } from '@/modules/app/activities/get-activities'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
 import type { Locale } from '@/i18n/i18n-config'
@@ -12,12 +12,12 @@ export default async function Activities({
 }: {
   params: Promise<{
     lng: Locale
-    private_code: string
+    id: string
   }>
 }): Promise<React.JSX.Element> {
-  const { lng, private_code } = await params
+  const { lng, id } = await params
 
-  const data = await getActivities(private_code)
+  const data = await getActivities(id)
 
   if (data == null || data.activity_code == null || data.activities == null) {
     notFound()
@@ -33,18 +33,31 @@ export default async function Activities({
               { label: 'Activity Codes', href: '/dashboard' },
               {
                 label: 'Activity Code',
-                href: `/dashboard/activity-code/${private_code}`,
+                href: `/dashboard/activity-code/${data.activity_code.id}`,
               },
               {
                 label: 'Activities',
-                href: `/dashboard/activity-code/${private_code}/activities`,
+                href: `/dashboard/activity-code/${data.activity_code.id}/activities`,
+              },
+              {
+                label: 'Edit',
+                href: `/dashboard/activity-code/${data.activity_code.id}/activities/edit`,
               },
             ]}
           />
         </Container>
       </Section>
 
-      <ActivitiesView activityCode={data.activity_code} activities={data.activities} lng={lng} />
+      <Section>
+        <Container>
+          <h1>{data.activity_code.code} </h1>
+          <EditActivitiesForm
+            activityCode={data.activity_code}
+            activities={data.activities}
+            lng={lng}
+          />
+        </Container>
+      </Section>
     </>
   )
 }

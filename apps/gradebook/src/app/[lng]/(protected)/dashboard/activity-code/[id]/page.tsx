@@ -12,12 +12,12 @@ export default async function ProgressPage({
 }: {
   params: Promise<{
     lng: Locale
-    private_code: string
+    id: string
   }>
 }): Promise<React.JSX.Element> {
-  const { lng, private_code } = await params
+  const { lng, id } = await params
 
-  const data = await getActivityCode(private_code)
+  const data = await getActivityCode(id)
   if (data == null || data.activity_code == null) {
     notFound()
   }
@@ -32,7 +32,7 @@ export default async function ProgressPage({
               { label: 'Activity Codes', href: '/dashboard' },
               {
                 label: 'Activity Code',
-                href: `/dashboard/activity-code/${private_code}`,
+                href: `/dashboard/activity-code/${id}`,
               },
             ]}
           />

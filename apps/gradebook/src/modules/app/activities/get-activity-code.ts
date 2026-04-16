@@ -2,9 +2,7 @@ import { getCoreInstance, getCoreUserRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import type { ActivityCode } from './@types'
 
-export async function getActivityCode(
-  private_code: string
-): Promise<{ activity_code: ActivityCode | null }> {
+export async function getActivityCode(id: string): Promise<{ activity_code: ActivityCode | null }> {
   const logger = getLogger()
 
   const userAuth = await getCoreUserRequestContext()
@@ -13,7 +11,7 @@ export async function getActivityCode(
   }
 
   const core = await getCoreInstance()
-  const result = await core.app.activities.getActivityCodeByPrivateCode(userAuth, private_code)
+  const result = await core.app.activities.getActivityCode(userAuth, id)
   if (!result.ok) {
     logger.error({
       activities: {

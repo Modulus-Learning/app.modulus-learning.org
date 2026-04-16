@@ -3,7 +3,7 @@ import { getLogger } from '@/lib/logger'
 import type { Activity, ActivityCode } from './@types'
 
 export async function getActivities(
-  private_code: string
+  id: string
 ): Promise<{ activity_code: ActivityCode | null; activities: Activity[] }> {
   const logger = getLogger()
 
@@ -13,7 +13,7 @@ export async function getActivities(
   }
 
   const core = await getCoreInstance()
-  const result = await core.app.activities.getActivitiesByPrivateCode(userAuth, private_code)
+  const result = await core.app.activities.getActivitiesByActivityCodeId(userAuth, id)
 
   if (!result.ok) {
     logger.error({

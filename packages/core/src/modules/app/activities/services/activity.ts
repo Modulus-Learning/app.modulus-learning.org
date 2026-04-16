@@ -44,13 +44,9 @@ export class ActivityService extends BaseService {
   }
 
   @method
-  async getActivityCodeByPrivateCode(
-    _userAuth: UserAuth,
-    private_code: string
-  ): Promise<ActivityCode> {
-    const record = await this.queries.findActivityCodeByPrivateCode(private_code)
+  async getActivityCode(_userAuth: UserAuth, id: string): Promise<ActivityCode> {
+    const record = await this.queries.findActivityCodeById(id)
     if (record == null) {
-      // TODO: Should this (and below) just be an ERR_NOT_FOUND?
       throw ERR_ACTIVITY_CODE_NOT_FOUND({
         message: 'activity code not found',
       }).log(this.logger)
@@ -60,11 +56,11 @@ export class ActivityService extends BaseService {
   }
 
   @method
-  async getActivitiesByPrivateCode(
+  async getActivitiesByActivityCodeId(
     _userAuth: UserAuth,
-    private_code: string
+    id: string
   ): Promise<ActivityCodeWithActivities> {
-    const activityCodeRecord = await this.queries.findActivityCodeByPrivateCode(private_code)
+    const activityCodeRecord = await this.queries.findActivityCodeById(id)
     if (activityCodeRecord == null) {
       throw ERR_ACTIVITY_CODE_NOT_FOUND({
         message: 'activity code not found',
@@ -81,9 +77,7 @@ export class ActivityService extends BaseService {
 
   @method
   async getProgress(_userAuth: UserAuth, request: ProgressRequest): Promise<ProgressReport> {
-    const activityCodeRecord = await this.queries.findActivityCodeByPrivateCode(
-      request.private_code
-    )
+    const activityCodeRecord = await this.queries.findActivityCodeById(request.id)
     if (activityCodeRecord == null) {
       throw ERR_ACTIVITY_CODE_NOT_FOUND({
         message: 'activity code not found',
@@ -190,7 +184,7 @@ export class ActivityService extends BaseService {
   @method
   async updateActivityCode(
     userAuth: UserAuth,
-    { private_code, urls }: UpdateActivityCodeRequest
+    { id, urls }: UpdateActivityCodeRequest
   ): Promise<ActivityCode> {
     // TODO: Validate urls, here and in createActivityCode
     // const urlValidationResult = validateUrls(urls)
@@ -199,7 +193,7 @@ export class ActivityService extends BaseService {
     // }
 
     // 1. Check that we have an existing activity code for the user
-    const activityCodeRecord = await this.queries.findActivityCodeByPrivateCode(private_code)
+    const activityCodeRecord = await this.queries.findActivityCodeById(id)
     if (activityCodeRecord?.user_id !== userAuth.id) {
       throw ERR_ACTIVITY_CODE_NOT_FOUND({
         message: 'activity code not found for user',

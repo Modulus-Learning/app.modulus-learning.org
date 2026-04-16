@@ -20,7 +20,7 @@ const notOkayResponse = {
 }
 
 export async function getProgress(
-  private_code: string,
+  id: string,
   searchParams: {
     page?: string
     page_size?: string
@@ -37,7 +37,7 @@ export async function getProgress(
 
   const core = await getCoreInstance()
   const options = core.app.activities.getActivityProgress.schemas.input.safeParse({
-    private_code,
+    id,
     options: {
       page: searchParams.page,
       page_size: searchParams.page_size,

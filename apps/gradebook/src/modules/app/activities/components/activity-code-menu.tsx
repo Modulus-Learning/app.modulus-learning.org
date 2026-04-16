@@ -28,7 +28,7 @@ export function ActivityCodeMenu({
           <Card
             render={
               <Link
-                href={`/dashboard/activity-code/${activityCode.private_code}/learners`}
+                href={`/dashboard/activity-code/${activityCode.id}/learners`}
                 className="transition-all hover:scale-[1.02]"
               />
             }
@@ -60,7 +60,7 @@ export function ActivityCodeMenu({
           <Card
             render={
               <Link
-                href={`/dashboard/activity-code/${activityCode.private_code}/activities`}
+                href={`/dashboard/activity-code/${activityCode.id}/activities`}
                 className="transition-all hover:scale-[1.02]"
               />
             }
@@ -121,7 +121,7 @@ export function ActivityCodeMenu({
           <Card
             render={
               <Link
-                href={`/dashboard/activity-code/${activityCode.private_code}/completion`}
+                href={`/dashboard/activity-code/${activityCode.id}/completion`}
                 className="transition-all hover:scale-[1.02]"
               />
             }

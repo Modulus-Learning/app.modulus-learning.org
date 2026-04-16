@@ -8,10 +8,10 @@ import type { Locale } from '@/i18n/i18n-config'
 export default async function ProgressPage({
   params,
 }: {
-  params: Promise<{ lng: Locale; private_code: string }>
+  params: Promise<{ lng: Locale; id: string }>
 }): Promise<React.JSX.Element> {
-  const { lng, private_code } = await params
-  const data = await getProgress(private_code)
+  const { lng, id } = await params
+  const data = await getProgress(id)
 
   return (
     <>
@@ -23,11 +23,11 @@ export default async function ProgressPage({
               { label: 'Activity Codes', href: '/dashboard' },
               {
                 label: 'Activity Code',
-                href: `/dashboard/activity-code/${data?.included?.activity_code?.private_code}`,
+                href: `/dashboard/activity-code/${id}`,
               },
               {
                 label: 'Completion',
-                href: `/dashboard/activity-code/${data?.included?.activity_code?.private_code}/completion`,
+                href: `/dashboard/activity-code/${id}/completion`,
               },
             ]}
           />

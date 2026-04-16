@@ -161,13 +161,8 @@ export type ProgressSearchOptions = z.infer<typeof progressSearchOptionsSchema>
 //  ProgressRequestSchema
 // ----------------------------------------------
 
-// TODO: Revisit this schema?
 export const progressRequestSchema = z.strictObject({
-  private_code: z
-    .string()
-    .min(10, { error: 'private_code must be a string with a minimum of 10 characters' })
-    .max(20, { error: 'private_code must be a string with a maximum of 10 characters' })
-    .regex(/^[a-zA-Z0-9]+$/),
+  id: z.uuid(),
   options: progressSearchOptionsSchema,
 })
 
@@ -195,7 +190,7 @@ export type CreateActivityCodeRequest = z.infer<typeof createActivityCodeRequest
 // ----------------------------------------------
 
 export const updateActivityCodeRequestSchema = z.strictObject({
-  private_code: z.string(),
+  id: z.uuid(),
 
   // TODO: enforce more rules here, like starting with https?
   urls: z.url().array(),

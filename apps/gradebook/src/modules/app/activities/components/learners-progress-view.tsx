@@ -126,7 +126,7 @@ export function LearnersProgressView({ data, lng }: { data: ProgressResponse; ln
       searchParams.delete('page')
       searchParams.set('query', query)
       navigate({
-        href: `/dashboard/activity-code/${data?.included?.activity_code?.private_code}/learners?${searchParams?.toString()}` as string,
+        href: `/dashboard/activity-code/${data?.included?.activity_code?.id}/learners?${searchParams?.toString()}` as string,
         scroll: false,
       })
     }
@@ -136,7 +136,7 @@ export function LearnersProgressView({ data, lng }: { data: ProgressResponse; ln
     searchParams.delete('page')
     searchParams.delete('query')
     navigate({
-      href: `/dashboard/activity-code/${data?.included?.activity_code?.private_code}/learners?${searchParams?.toString()}` as string,
+      href: `/dashboard/activity-code/${data?.included?.activity_code?.id}/learners?${searchParams?.toString()}` as string,
       scroll: false,
     })
   }
@@ -147,7 +147,7 @@ export function LearnersProgressView({ data, lng }: { data: ProgressResponse; ln
       searchParams.delete('page')
       searchParams.set('page_size', v)
       navigate({
-        href: `/dashboard/activity-code/${data?.included?.activity_code?.private_code}/learners?${searchParams?.toString()}` as string,
+        href: `/dashboard/activity-code/${data?.included?.activity_code?.id}/learners?${searchParams?.toString()}` as string,
         scroll: true,
         smoothScrollToTop: true,
       })
@@ -185,7 +185,7 @@ export function LearnersProgressView({ data, lng }: { data: ProgressResponse; ln
             <Table.Header>
               <Table.Row>
                 {getTableColumnDefs(
-                  `/dashboard/metrics/${data?.included?.activity_code?.private_code}/learners`
+                  `/dashboard/metrics/${data?.included?.activity_code?.id}/learners`
                 ).map((column) => {
                   return (
                     <TableHeadingCellSortable

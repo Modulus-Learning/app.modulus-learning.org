@@ -72,7 +72,7 @@ export function EditActivitiesForm({
         />
       )}
       <form onSubmit={handleOnSubmit}>
-        <input type="hidden" name="private_code" value={activityCode.private_code} />
+        <input type="hidden" name="id" value={activityCode.id} />
         <div className="mt-2">
           <TextArea
             onChange={handleUrlChange}
@@ -91,10 +91,7 @@ export function EditActivitiesForm({
         <div className="form-actions flex items-center justify-end mt-4 gap-4">
           <Button
             render={
-              <LangLink
-                href={`/dashboard/activity-code/${activityCode.private_code}/activities`}
-                lng={lng}
-              />
+              <LangLink href={`/dashboard/activity-code/${activityCode.id}/activities`} lng={lng} />
             }
             intent="noeffect"
           >

@@ -59,9 +59,9 @@ export class ActivityCommands {
     })
   }
 
-  @cached get getActivityCodeByPrivateCode() {
+  @cached get getActivityCode() {
     return this.utils.createCommand({
-      method: 'getActivityCodeByPrivateCode',
+      method: 'getActivityCode',
       auth: {
         mode: 'user',
         abilities: [], // TODO: Should there be an ability for this?
@@ -70,13 +70,13 @@ export class ActivityCommands {
         input: z.string(),
         output: activityCodeSchema,
       },
-      handler: this.activityService.getActivityCodeByPrivateCode.bind(this.activityService),
+      handler: this.activityService.getActivityCode.bind(this.activityService),
     })
   }
 
-  @cached get getActivitiesByPrivateCode() {
+  @cached get getActivitiesByActivityCodeId() {
     return this.utils.createCommand({
-      method: 'getActivitiesByPrivateCode',
+      method: 'getActivitiesByActivityCodeId',
       auth: {
         mode: 'user',
         abilities: [], // TODO: Should there be an ability for this?
@@ -85,7 +85,7 @@ export class ActivityCommands {
         input: z.string(),
         output: activityCodeWithActivitiesSchema,
       },
-      handler: this.activityService.getActivitiesByPrivateCode.bind(this.activityService),
+      handler: this.activityService.getActivitiesByActivityCodeId.bind(this.activityService),
     })
   }
 

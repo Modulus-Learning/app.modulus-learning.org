@@ -137,7 +137,7 @@ export function ActivitiesView({
       searchParams.delete('page')
       searchParams.set('query', query)
       navigate({
-        href: `/dashboard/activity-code/${activityCode?.private_code}/activities?${searchParams?.toString()}` as string,
+        href: `/dashboard/activity-code/${activityCode?.id}/activities?${searchParams?.toString()}` as string,
         scroll: false,
       })
     }
@@ -147,7 +147,7 @@ export function ActivitiesView({
     searchParams.delete('page')
     searchParams.delete('query')
     navigate({
-      href: `/dashboard/activity-code/${activityCode?.private_code}/activities?${searchParams?.toString()}` as string,
+      href: `/dashboard/activity-code/${activityCode?.id}/activities?${searchParams?.toString()}` as string,
       scroll: false,
     })
   }
@@ -157,7 +157,7 @@ export function ActivitiesView({
       searchParams.delete('page')
       searchParams.set('page_size', value)
       navigate({
-        href: `/dashboard/activity-code/${activityCode?.private_code}/activities?${searchParams?.toString()}` as string,
+        href: `/dashboard/activity-code/${activityCode?.id}/activities?${searchParams?.toString()}` as string,
         scroll: true,
         smoothScrollToTop: true,
       })
@@ -172,9 +172,7 @@ export function ActivitiesView({
           <Stats total={activities.length} />
           <Button
             render={
-              <LangLink
-                href={`/dashboard/activity-code/${activityCode?.private_code}/activities/edit`}
-              />
+              <LangLink href={`/dashboard/activity-code/${activityCode?.id}/activities/edit`} />
             }
             size="sm"
             variant="outlined"
@@ -206,18 +204,18 @@ export function ActivitiesView({
           <Table>
             <Table.Header>
               <Table.Row>
-                {getTableColumnDefs(
-                  `/dashboard/activity-code/${activityCode?.private_code}/activities`
-                ).map((column) => {
-                  return (
-                    <TableHeadingCellSortable
-                      key={column.fieldName ?? column.label}
-                      lng={lng}
-                      {...column}
-                      ref={undefined}
-                    />
-                  )
-                })}
+                {getTableColumnDefs(`/dashboard/activity-code/${activityCode?.id}/activities`).map(
+                  (column) => {
+                    return (
+                      <TableHeadingCellSortable
+                        key={column.fieldName ?? column.label}
+                        lng={lng}
+                        {...column}
+                        ref={undefined}
+                      />
+                    )
+                  }
+                )}
               </Table.Row>
             </Table.Header>
 

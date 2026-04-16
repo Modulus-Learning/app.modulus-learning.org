@@ -14,7 +14,7 @@ export default async function ProgressPage({
 }: {
   params: Promise<{
     lng: Locale
-    private_code: string
+    id: string
   }>
   searchParams: Promise<{
     page?: string
@@ -24,14 +24,14 @@ export default async function ProgressPage({
     role?: string
   }>
 }): Promise<React.JSX.Element> {
-  const { lng, private_code } = await params
+  const { lng, id } = await params
   const queryString = await searchParams
 
   if (validateSearchParamsSchema.safeParse(queryString).success === false) {
     notFound()
   }
 
-  const data = await getProgress(private_code, queryString)
+  const data = await getProgress(id, queryString)
 
   return (
     <>
@@ -43,11 +43,11 @@ export default async function ProgressPage({
               { label: 'Activity Codes', href: '/dashboard' },
               {
                 label: 'Activity Code',
-                href: `/dashboard/activity-code/${data?.included?.activity_code?.private_code}`,
+                href: `/dashboard/activity-code/${id}`,
               },
               {
                 label: 'Learners',
-                href: `/dashboard/activity-code/${data?.included?.activity_code?.private_code}/learners`,
+                href: `/dashboard/activity-code/${id}/learners`,
               },
             ]}
           />
