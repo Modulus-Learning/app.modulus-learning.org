@@ -10,22 +10,22 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@infonomic/uikit": "^6.5.0",
+    "@infonomic/uikit": "^6.5.1",
     "@modulus-learning/agent": "workspace:*",
     "@tanstack/react-router": "^1.168.22",
     "classnames": "^2.5.1",
     "jwt-decode": "^4.0.0",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react": "19.2.5",
+    "react-dom": "19.2.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/router-plugin": "^1.167.22",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react-swc": "^4.3.0",
+    "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.5.0",
-    "postcss": "^8.5.9",
+    "postcss": "^8.5.10",
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.2",
     "vite": "^8.0.8"

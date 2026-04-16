@@ -3,7 +3,7 @@ import path from 'node:path'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 
 import tailwindcss from '@tailwindcss/vite'
-import react from '@vitejs/plugin-react-swc'
+import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
 
 const httpsConfig = (mode: string) => {
@@ -26,6 +26,7 @@ const httpsConfig = (mode: string) => {
 export default defineConfig(({ mode }) => ({
   plugins: [tanstackRouter({ autoCodeSplitting: true }), react(), tailwindcss()],
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
