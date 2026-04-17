@@ -1,0 +1,1 @@
+ALTER TABLE "activity_codes" ADD COLUMN "url_prefix" varchar(255);--> statement-breakpoint

@@ -223,6 +223,24 @@ export class ActivityMutations extends BaseService {
   }
 
   @method
+  async updateActivityCode(
+    id: string,
+    data: Pick<ActivityCodeInsert, 'url_prefix'>
+  ): Promise<ActivityCodeRecord> {
+    const [activityCode] = await this.db
+      .get()
+      .update(activityCodes)
+      .set({ ...data, updated_at: new Date() })
+      .where(eq(activityCodes.id, id))
+      .returning()
+      .catch(this.utils.wrapDbErrorNew())
+
+    this.utils.assertExists(activityCode, { message: 'updated activity code is null' })
+
+    return activityCode
+  }
+
+  @method
   async createActivity(data: ActivityInsert): Promise<ActivityRecord> {
     const [activity] = await this.db
       .get()

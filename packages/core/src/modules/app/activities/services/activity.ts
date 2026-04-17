@@ -170,6 +170,7 @@ export class ActivityService extends BaseService {
         id: uuidv7(),
         code: request.code,
         private_code,
+        url_prefix: request.url_prefix ?? null,
         user_id: userAuth.id,
       })
 
@@ -184,7 +185,7 @@ export class ActivityService extends BaseService {
   @method
   async updateActivityCode(
     userAuth: UserAuth,
-    { id, urls }: UpdateActivityCodeRequest
+    { id, url_prefix, urls }: UpdateActivityCodeRequest
   ): Promise<ActivityCode> {
     // TODO: Validate urls, here and in createActivityCode
     // const urlValidationResult = validateUrls(urls)
@@ -207,6 +208,10 @@ export class ActivityService extends BaseService {
     // or activity URLs that may have been created by users that attempted activities
     // that are allowed, but not associated with any activity code.
     return this.tx.withTransaction(async () => {
+      const updatedActivityCodeRecord = await this.mutations.updateActivityCode(id, {
+        url_prefix: url_prefix ?? null,
+      })
+
       // Insert the activity URLs into the activities table
       // with onConflictDoNothing - i.e. only new URLs will be inserted
       await this.mutations.ensureActivitiesExist(urls)
@@ -215,7 +220,7 @@ export class ActivityService extends BaseService {
       const activityRecords = await this.queries.findActivitiesByURL(urls)
       await this.mutations.assignActivitiesToActivityCode(activityCodeRecord, activityRecords)
 
-      return toActivityCode(activityCodeRecord)
+      return toActivityCode(updatedActivityCodeRecord)
     })
   }
 }

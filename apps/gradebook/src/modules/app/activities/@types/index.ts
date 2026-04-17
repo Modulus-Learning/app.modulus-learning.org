@@ -17,6 +17,7 @@ export interface ActivityCodeRequest {
 export interface ActivityCodeFormState {
   errors: {
     urls?: string[]
+    url_prefix?: string[]
   }
   message?: string
   status: 'success' | 'failed' | 'idle'
@@ -48,6 +49,7 @@ export interface ActivityCode {
   user_id: string
   code: string
   private_code: string
+  url_prefix: string | null
   created_at: string
   updated_at: string
 }

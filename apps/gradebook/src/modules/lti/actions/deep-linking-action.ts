@@ -38,6 +38,22 @@ export const deepLinking = async (
         error: result.error,
       },
     })
+
+    const errorMessage =
+      result.error != null && typeof result.error === 'object' && 'message' in result.error
+        ? String(result.error.message)
+        : 'An error occurred.'
+
+    if (/activity url must start with/i.test(errorMessage)) {
+      return {
+        errors: {
+          activity_url: [errorMessage],
+        },
+        message: 'Invalid activity URL.',
+        status: 'failed',
+      }
+    }
+
     return {
       status: 'failed',
       message: 'An error occurred.',

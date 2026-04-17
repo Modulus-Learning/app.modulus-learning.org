@@ -16,6 +16,7 @@ export const activityCodeSchema = z.strictObject({
   user_id: z.uuid(),
   code: z.string(),
   private_code: z.string(),
+  url_prefix: z.string().nullable(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
 })
@@ -27,6 +28,7 @@ export const toActivityCode = ({
   user_id,
   code,
   private_code,
+  url_prefix,
   created_at,
   updated_at,
 }: ActivityCodeRecord): ActivityCode => {
@@ -35,6 +37,7 @@ export const toActivityCode = ({
     user_id,
     code,
     private_code,
+    url_prefix,
     created_at: created_at.toISOString(),
     updated_at: updated_at.toISOString(),
   }
@@ -178,6 +181,7 @@ export const createActivityCodeRequestSchema = z.strictObject({
     .min(10, 'activity_code must be a string with a minimum of 10 characters')
     .max(60, 'activity_code must be a string with a maximum of 200 characters')
     .regex(/^[a-zA-Z0-9-]+$/, 'activity_code must be alphanumeric with dashes'),
+  url_prefix: z.string().max(255).nullable().optional(),
 
   // TODO: enforce more rules here, like starting with https?
   urls: z.url().array(),
@@ -191,6 +195,7 @@ export type CreateActivityCodeRequest = z.infer<typeof createActivityCodeRequest
 
 export const updateActivityCodeRequestSchema = z.strictObject({
   id: z.uuid(),
+  url_prefix: z.string().max(255).nullable().optional(),
 
   // TODO: enforce more rules here, like starting with https?
   urls: z.url().array(),

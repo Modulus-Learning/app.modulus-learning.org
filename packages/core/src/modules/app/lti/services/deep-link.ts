@@ -99,6 +99,16 @@ export class LtiDeepLinkingService extends BaseService {
       }).log(this.logger)
     }
 
+    if (
+      activityCodeRecord.url_prefix != null &&
+      activityCodeRecord.url_prefix.length > 0 &&
+      !activity_url.startsWith(activityCodeRecord.url_prefix)
+    ) {
+      throw ERR_DEEP_LINKING({
+        message: `activity url must start with ${activityCodeRecord.url_prefix}`,
+      }).log(this.logger)
+    }
+
     let activity = await this.activityQueries.findActivityByURL(activity_url)
     if (activity == null) {
       activity = await this.activityMutations.createActivity({
