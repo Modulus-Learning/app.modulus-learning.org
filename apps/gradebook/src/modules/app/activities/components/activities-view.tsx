@@ -36,7 +36,7 @@ const getTableColumnDefs = (path: string): Omit<TableHeadingCellSortableProps, '
       sortable: true,
       scope: 'col',
       align: 'left',
-      className: 'w-[30%]',
+      className: 'w-[35%]',
     },
     {
       label: 'Launch',
@@ -44,7 +44,7 @@ const getTableColumnDefs = (path: string): Omit<TableHeadingCellSortableProps, '
       path,
       scope: 'col',
       align: 'left',
-      className: 'w-[30%]',
+      className: 'w-[35%]',
     },
     {
       fieldName: 'name',
@@ -110,7 +110,7 @@ function padRows(value: number) {
       key={`empty-row-${
         // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
         index
-      }`}
+        }`}
       className="h-[32px] border-none"
     >
       &nbsp;
@@ -201,7 +201,7 @@ export function ActivitiesView({
           /> */}
         </div>
         <Table.Container className="mt-2 mb-3">
-          <Table>
+          <Table className="table-fixed w-full">
             <Table.Header>
               <Table.Row>
                 {getTableColumnDefs(`/dashboard/activity-code/${activityCode?.id}/activities`).map(
@@ -223,8 +223,8 @@ export function ActivitiesView({
               {activities?.map((activity) => {
                 return (
                   <Table.Row key={activity.id}>
-                    <Table.Cell style={{ overflowWrap: 'anywhere' }}>
-                      <div className="flex items-center gap-2">
+                    <Table.Cell className="min-w-0 align-top" style={{ overflowWrap: 'anywhere' }}>
+                      <div className="flex min-w-0 items-center gap-2">
                         <CopyButton
                           className="w-[24px] min-w-[24px] h-[24px]"
                           svgClassName="w-[18px]"
@@ -233,13 +233,19 @@ export function ActivitiesView({
                           intent="noeffect"
                           text={activity.url}
                         />
-                        <a href={activity.url} target="_blank" rel="noopener noreferrer">
+                        <a
+                          className="min-w-0"
+                          style={{ overflowWrap: 'anywhere' }}
+                          href={activity.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
                           {activity.url}
                         </a>
                       </div>
                     </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex items-center gap-2">
+                    <Table.Cell className="min-w-0 align-top" style={{ overflowWrap: 'anywhere' }}>
+                      <div className="flex min-w-0 items-center gap-2">
                         <CopyButton
                           className="w-[24px] min-w-[24px] h-[24px]"
                           svgClassName="w-[18px]"
@@ -249,6 +255,8 @@ export function ActivitiesView({
                           text={`${config.publicServerUrl}/${activityCode.code}/${activity.url}`}
                         />
                         <a
+                          className="min-w-0"
+                          style={{ overflowWrap: 'anywhere' }}
                           href={`${config.publicServerUrl}/${activityCode.code}/${activity.url}`}
                           target="_blank"
                           rel="noopener noreferrer"
