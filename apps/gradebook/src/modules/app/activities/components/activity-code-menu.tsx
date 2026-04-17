@@ -6,6 +6,11 @@ import { BarChart3, Calendar, ChevronRight, ClipboardList, Link2, Users } from '
 import type { Locale } from '@/i18n/i18n-config'
 import type { ActivityCode } from '@/modules/app/activities/@types'
 
+const cardClassName = 'flex h-full flex-col overflow-hidden'
+const cardHeaderClassName = 'min-h-24 pb-2'
+const cardContentClassName = 'flex-1'
+const cardFooterClassName = 'mt-auto pt-2'
+
 export function ActivityCodeMenu({
   lng,
   activityCode,
@@ -33,21 +38,21 @@ export function ActivityCodeMenu({
               />
             }
             hover={true}
-            className="h-full overflow-hidden"
+            className={cardClassName}
           >
-            <Card.Header className="pb-2">
+            <Card.Header className={cardHeaderClassName}>
               <Card.Title className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
                 Learners
               </Card.Title>
               <Card.Description>Learners and current progress per activity.</Card.Description>
             </Card.Header>
-            <Card.Content>
+            <Card.Content className={cardContentClassName}>
               <div className="rounded-md border p-2">
                 <TableSkeleton />
               </div>
             </Card.Content>
-            <Card.Footer className="pt-2">
+            <Card.Footer className={cardFooterClassName}>
               <div className="flex w-full items-center justify-between text-sm text-muted-foreground">
                 <span>View details</span>
                 <ChevronRight className="h-4 w-4" />
@@ -65,21 +70,21 @@ export function ActivityCodeMenu({
               />
             }
             hover={true}
-            className="h-full overflow-hidden"
+            className={cardClassName}
           >
-            <Card.Header className="pb-2">
+            <Card.Header className={cardHeaderClassName}>
               <Card.Title className="flex items-center gap-2">
                 <Link2 className="h-5 w-5" />
                 Activities
               </Card.Title>
               <Card.Description>Table of activity URLs.</Card.Description>
             </Card.Header>
-            <Card.Content>
+            <Card.Content className={cardContentClassName}>
               <div className="rounded-md border p-2">
                 <TableSkeleton rows={4} />
               </div>
             </Card.Content>
-            <Card.Footer className="pt-2">
+            <Card.Footer className={cardFooterClassName}>
               <div className="flex w-full items-center justify-between text-sm text-muted-foreground">
                 <span>View details</span>
                 <ChevronRight className="h-4 w-4" />
@@ -92,9 +97,9 @@ export function ActivityCodeMenu({
           <Card
             render={<Link href="#" className="transition-all hover:scale-[1.02]" />}
             hover={true}
-            className="h-full overflow-hidden"
+            className={cardClassName}
           >
-            <Card.Header className="pb-2">
+            <Card.Header className={cardHeaderClassName}>
               <Card.Title className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
                 Enrollment
@@ -103,12 +108,12 @@ export function ActivityCodeMenu({
                 Time distribution of learners enrolling / starting their first activity.
               </Card.Description>
             </Card.Header>
-            <Card.Content>
+            <Card.Content className={cardContentClassName}>
               <div className="rounded-md border p-2">
                 <HistogramSkeleton />
               </div>
             </Card.Content>
-            <Card.Footer className="pt-2">
+            <Card.Footer className={cardFooterClassName}>
               <div className="flex w-full items-center justify-between text-sm text-muted-foreground">
                 <span>View details</span>
                 <ChevronRight className="h-4 w-4" />
@@ -126,9 +131,9 @@ export function ActivityCodeMenu({
               />
             }
             hover={true}
-            className="h-full overflow-hidden"
+            className={cardClassName}
           >
-            <Card.Header className="pb-2">
+            <Card.Header className={cardHeaderClassName}>
               <Card.Title className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5" />
                 Completion Data
@@ -137,12 +142,12 @@ export function ActivityCodeMenu({
                 Time distribution of learners completing activities.
               </Card.Description>
             </Card.Header>
-            <Card.Content>
+            <Card.Content className={cardContentClassName}>
               <div className="rounded-md border p-2">
                 <HistogramSkeleton variant="completion" />
               </div>
             </Card.Content>
-            <Card.Footer className="pt-2">
+            <Card.Footer className={cardFooterClassName}>
               <div className="flex w-full items-center justify-between text-sm text-muted-foreground">
                 <span>View details</span>
                 <ChevronRight className="h-4 w-4" />
@@ -155,21 +160,21 @@ export function ActivityCodeMenu({
           <Card
             render={<Link href="#" className="transition-all hover:scale-[1.02]" />}
             hover={true}
-            className="h-full overflow-hidden"
+            className={cardClassName}
           >
-            <Card.Header className="pb-2">
+            <Card.Header className={cardHeaderClassName}>
               <Card.Title className="flex items-center gap-2">
                 <ClipboardList className="h-5 w-5" />
                 Activity Metrics
               </Card.Title>
               <Card.Description>Event distribution for activity.</Card.Description>
             </Card.Header>
-            <Card.Content>
+            <Card.Content className={cardContentClassName}>
               <div className="rounded-md border p-2">
                 <HistogramSkeleton variant="events" />
               </div>
             </Card.Content>
-            <Card.Footer className="pt-2">
+            <Card.Footer className={cardFooterClassName}>
               <div className="flex w-full items-center justify-between text-sm text-muted-foreground">
                 <span>View details</span>
                 <ChevronRight className="h-4 w-4" />
