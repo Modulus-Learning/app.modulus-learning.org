@@ -3,6 +3,7 @@ import { Button, Container, CopyButton, Section, Table } from '@infonomic/uikit/
 import { LangLink } from '@/i18n/components/lang-link'
 import { getActivityCodes } from '@/modules/app/activities/get-activity-codes'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { LocalDateTime } from '@/ui/components/local-date-time'
 import type { Locale } from '@/i18n/i18n-config'
 
 export default async function ActivityList({
@@ -22,7 +23,7 @@ export default async function ActivityList({
       </Section>
 
       <Section>
-        <Container className="sm:px-[32px] mb-8">
+        <Container className="sm:px-8 mb-8">
           <div className="flex justify-between items-center">
             <h1 className="mb-2">Activity Codes</h1>
             <Button
@@ -41,11 +42,14 @@ export default async function ActivityList({
             <Table>
               <Table.Header>
                 <Table.Row>
-                  <Table.HeadingCell scope="col" className="p-2 text-left min-w-[200px]">
+                  <Table.HeadingCell scope="col" className="p-2 text-left min-w-50">
                     Code
                   </Table.HeadingCell>
                   <Table.HeadingCell scope="col" className="p-2">
-                    Private Code
+                    Created
+                  </Table.HeadingCell>
+                  <Table.HeadingCell scope="col" className="p-2">
+                    Updated
                   </Table.HeadingCell>
                 </Table.Row>
               </Table.Header>
@@ -58,30 +62,23 @@ export default async function ActivityList({
                       <Table.Cell className="py-3">
                         <div className="flex items-center gap-2">
                           <CopyButton
-                            className="w-[24px] min-w-[24px] h-[24px]"
+                            className="w-6 min-w-6 h-6"
                             svgClassName="w-[18px]"
                             variant="outlined"
                             size="xs"
                             intent="noeffect"
                             text={activityCode.code}
                           />
-                          <LangLink className="pb-[3px]" href={adminPath}>
+                          <LangLink className="pb-0.75" href={adminPath}>
                             {activityCode.code}
                           </LangLink>
                         </div>
                       </Table.Cell>
                       <Table.Cell className="items-center gap-2">
-                        <div className="flex items-center gap-2">
-                          <CopyButton
-                            className="w-[24px] min-w-[24px] h-[24px]"
-                            svgClassName="w-[18px]"
-                            variant="outlined"
-                            size="xs"
-                            intent="noeffect"
-                            text={activityCode.private_code}
-                          />
-                          <span className="pb-[3px]">{activityCode.private_code}</span>
-                        </div>
+                        <LocalDateTime value={activityCode.created_at} />
+                      </Table.Cell>
+                      <Table.Cell className="items-center gap-2">
+                        <LocalDateTime value={activityCode.updated_at} />
                       </Table.Cell>
                     </Table.Row>
                   )
