@@ -35,7 +35,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@infonomic/crypto": "^2.3.0",
     "@infonomic/schemas": "^2.4.0",
-    "@infonomic/uikit": "^6.5.1",
+    "@infonomic/uikit": "^6.7.0",
     "@modulus-learning/core": "workspace:*",
     "@panva/hkdf": "^1.2.1",
     "argon2": "^0.44.0",
@@ -100,7 +100,7 @@
     "tailwind-merge": "^3.2.0",
     "tailwindcss": "^4.2.2",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2",
+    "typescript": "^6.0.3",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.4"
   }
