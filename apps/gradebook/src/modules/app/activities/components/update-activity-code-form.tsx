@@ -13,7 +13,7 @@ import type { Activity, ActivityCode, ActivityCodeFormState } from '../@types'
 
 const initialState: ActivityCodeFormState = { errors: {}, status: 'idle' }
 
-export function EditActivitiesForm({
+export function UpdateActivityCodeForm({
   activityCode,
   activities,
   lng,

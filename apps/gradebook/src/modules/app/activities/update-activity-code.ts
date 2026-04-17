@@ -35,9 +35,9 @@ export const updateActivityCode = async (
     }
   }
 
-  if (urls == null || typeof urls !== 'string') {
+  if (urls != null && typeof urls !== 'string') {
     return {
-      errors: { urls: ['URLs are required.'] },
+      errors: { urls: ['URLs must be a string.'] },
       message: 'Invalid URLs.',
       status: 'failed',
     }
@@ -61,16 +61,19 @@ export const updateActivityCode = async (
     }
   }
 
-  const urlsArray = urls
+  const urlsArray = (urls ?? '')
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line !== '')
-  const urlValidationResult = validateUrls(urlsArray, normalizedUrlPrefix)
-  if (urlValidationResult.valid === false) {
-    return {
-      errors: { urls: [urlValidationResult.message] },
-      message: 'Invalid URLs.',
-      status: 'failed',
+
+  if (urlsArray.length > 0) {
+    const urlValidationResult = validateUrls(urlsArray, normalizedUrlPrefix)
+    if (urlValidationResult.valid === false) {
+      return {
+        errors: { urls: [urlValidationResult.message] },
+        message: 'Invalid URLs.',
+        status: 'failed',
+      }
     }
   }
 

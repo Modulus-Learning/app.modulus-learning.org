@@ -1,8 +1,9 @@
 import Link from 'next/link'
 
-import { Card, Container, Section } from '@infonomic/uikit/react'
+import { Button, Card, Container, Section } from '@infonomic/uikit/react'
 import { BarChart3, Calendar, ChevronRight, ClipboardList, Link2, Users } from 'lucide-react'
 
+import { LangLink } from '@/i18n/components/lang-link'
 import type { Locale } from '@/i18n/i18n-config'
 import type { ActivityCode } from '@/modules/app/activities/@types'
 
@@ -23,7 +24,16 @@ export function ActivityCodeMenu({
       <Container className="mb-4">
         <div className="flex flex-col gap-1">
           <h1 className="!m-0 pb-[2px]">{activityCode.code}</h1>
-          <p className="text-muted-foreground">Activity code analytics</p>
+          <div className="flex items-center gap-2 justify-between">
+            <p className="text-muted-foreground">Activity code analytics</p>
+            <Button
+              size="sm"
+              variant="outlined"
+              render={<LangLink href={`/dashboard/activity-code/${activityCode.id}/activities/edit`} />}
+            >
+              Update Activity Code
+            </Button>
+          </div>
         </div>
       </Container>
 
