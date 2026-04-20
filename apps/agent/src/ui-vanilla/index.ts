@@ -4,11 +4,14 @@ import { getWidgetViewModel, type ModulusWidgetViewModel } from './view-model.js
 import type { ModulusAgent } from '@/core/agent.js'
 
 export {
+  formatRelativeTime,
   getWidgetStatus,
   getWidgetViewModel,
   type ModulusWidgetStatus,
+  type ModulusWidgetSyncState,
   type ModulusWidgetViewModel,
   statusLabels,
+  syncLabels,
 } from './view-model.js'
 
 export type ModulusWidgetPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
@@ -76,6 +79,9 @@ export const setupModulusAvatar = (
   root.appendChild(panel)
 
   let open = false
+  let agentReady = agent.isReady()
+  let lastSavedAt: Date | undefined
+  let timeRefreshTimer: ReturnType<typeof setInterval> | undefined
 
   const renderButton = (vm: ModulusWidgetViewModel) => {
     button.className = 'modulus-avatar'
@@ -115,9 +121,10 @@ export const setupModulusAvatar = (
             <div class="modulus-progress-local" style="width: ${vm.progressPercent}%"></div>
             <div class="modulus-progress-submitted" style="width: ${vm.submittedPercent}%"></div>
           </div>
-          <p class="modulus-sync-line">
-            ${vm.inSync ? 'Synced with Modulus' : 'Saving to Modulus…'}
-          </p>
+          <div class="modulus-sync-row">
+            <span class="modulus-sync-pill modulus-sync-${vm.syncState}">${vm.syncLabel}</span>
+            ${vm.lastSavedLabel ? `<span class="modulus-saved-time">${escapeHtml(vm.lastSavedLabel)}</span>` : ''}
+          </div>
         </div>
       `)
     }
@@ -135,26 +142,52 @@ export const setupModulusAvatar = (
   }
 
   const render = () => {
-    const vm = getWidgetViewModel(agent)
+    const vm = getWidgetViewModel(agent, { lastSavedAt })
     renderButton(vm)
     if (open) renderPanel(vm)
+  }
+
+  const startTimeRefresh = () => {
+    if (timeRefreshTimer !== undefined) return
+    timeRefreshTimer = setInterval(() => {
+      if (open && lastSavedAt) render()
+    }, 10_000)
+  }
+
+  const stopTimeRefresh = () => {
+    if (timeRefreshTimer === undefined) return
+    clearInterval(timeRefreshTimer)
+    timeRefreshTimer = undefined
   }
 
   const setOpen = (next: boolean) => {
     open = next
     root.classList.toggle('modulus-open', open)
     panel.setAttribute('aria-hidden', open ? 'false' : 'true')
-    if (open) renderPanel(getWidgetViewModel(agent))
+    if (open) {
+      renderPanel(getWidgetViewModel(agent, { lastSavedAt }))
+      startTimeRefresh()
+    } else {
+      stopTimeRefresh()
+    }
+  }
+
+  const handleSubmitted = () => {
+    if (agentReady) lastSavedAt = new Date()
+    render()
   }
 
   button.addEventListener('click', () => setOpen(!open))
 
   const unsubscribers: Array<() => void> = [
-    agent.on('ready', render),
+    agent.on('ready', () => {
+      agentReady = true
+      render()
+    }),
     agent.on('progress-changed', render),
-    agent.on('progress-submitted', render),
+    agent.on('progress-submitted', handleSubmitted),
     agent.on('pagestate-changed', render),
-    agent.on('pagestate-submitted', render),
+    agent.on('pagestate-submitted', handleSubmitted),
     agent.on('connection-lost', render),
     agent.on('connection-restored', render),
     agent.on('session-expired', render),
@@ -165,6 +198,7 @@ export const setupModulusAvatar = (
 
   return {
     destroy: () => {
+      stopTimeRefresh()
       for (const off of unsubscribers) off()
       host.remove()
     },

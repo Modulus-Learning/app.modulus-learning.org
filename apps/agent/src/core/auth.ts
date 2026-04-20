@@ -9,13 +9,13 @@ type AuthResult =
 export const authenticate = async (logger: Logger | undefined): Promise<AuthResult> => {
   const params = getQueryParams()
 
-  const { state, code, error } = params
+  const { state, code, error, error_description, error_uri } = params
 
   // If we received any OAuth response parameters, assume we've been redirected
   // back from an authorization request, and handle the response accordingly.
   if (state != null || code != null || error != null) {
     await logger?.log('Received OAuth response')
-    return await handleAuthCodeResponse(state, code, error, logger)
+    return await handleAuthCodeResponse(state, code, error, error_description, error_uri, logger)
   }
 
   // If we received a Modulus server url in the query parameters, check that
@@ -111,12 +111,15 @@ const validateIssuer = async (
   registryUrl: string,
   logger: Logger | undefined
 ): Promise<{ ok: true } | { ok: false; error: string }> => {
-  await logger?.log('Looking for issuer in Modulus server registry', issuer)
+  await logger?.log('Looking for issuer in Modulus server registry', { issuer, registryUrl })
   // TODO: Should this retry on network errors?
   try {
     const response = await fetch(registryUrl)
     if (!response.ok) {
-      await logger?.log(`Failed to fetch Modulus server registry (status ${response.status})`)
+      await logger?.log('Failed to fetch Modulus server registry', {
+        registryUrl,
+        status: response.status,
+      })
       return {
         ok: false,
         error: 'issuer_validation_failed',
@@ -128,10 +131,10 @@ const validateIssuer = async (
       await logger?.log('Issuer found in Modulus server registry')
       return { ok: true }
     }
-    await logger?.log('Issuer not found in Modulus server registry')
+    await logger?.log('Issuer not found in Modulus server registry', { issuer, registryUrl })
     return { ok: false, error: 'invalid_issuer' }
   } catch (err) {
-    await logger?.log('Failed to fetch Modulus server registry', `${err}`)
+    await logger?.log('Failed to fetch Modulus server registry', { registryUrl, error: `${err}` })
     return { ok: false, error: 'issuer_validation_failed' }
   }
 }
@@ -189,6 +192,8 @@ const handleAuthCodeResponse = async (
   state: string | null,
   code: string | null,
   error: string | null,
+  error_description: string | null,
+  error_uri: string | null,
   logger: Logger | undefined
 ): Promise<AuthResult> => {
   const storedState = window.sessionStorage.getItem('oauth_state')
@@ -220,7 +225,13 @@ const handleAuthCodeResponse = async (
   // If we received an OAuth error response, report the error and make no
   // further attempt at auth.
   if (error != null) {
-    await logger?.log('OAuth error:', error)
+    await logger?.log('OAuth error response from gradebook:', {
+      error,
+      error_description,
+      error_uri,
+      issuer,
+      redirect_uri: getOAuthRedirectUri(),
+    })
     return {
       status: 'failed',
       error: OAUTH_ERRORS.includes(error) ? error : 'malformed_response',
@@ -323,25 +334,30 @@ const MODULUS_BASE_URL_PARAM = 'modulus'
 const OAUTH_CODE_PARAM = 'code'
 const OAUTH_STATE_PARAM = 'state'
 const OAUTH_ERROR_PARAM = 'error'
+const OAUTH_ERROR_DESCRIPTION_PARAM = 'error_description'
+const OAUTH_ERROR_URI_PARAM = 'error_uri'
 
 const getQueryParams = () => {
   const query = new URLSearchParams(window.location.search)
   const state = query.get(OAUTH_STATE_PARAM)
   const code = query.get(OAUTH_CODE_PARAM)
   const error = query.get(OAUTH_ERROR_PARAM)
+  const error_description = query.get(OAUTH_ERROR_DESCRIPTION_PARAM)
+  const error_uri = query.get(OAUTH_ERROR_URI_PARAM)
   const issuer = query.get(MODULUS_BASE_URL_PARAM)
 
   query.delete(OAUTH_STATE_PARAM)
   query.delete(OAUTH_CODE_PARAM)
   query.delete(OAUTH_ERROR_PARAM)
+  query.delete(OAUTH_ERROR_DESCRIPTION_PARAM)
+  query.delete(OAUTH_ERROR_URI_PARAM)
   query.delete(MODULUS_BASE_URL_PARAM)
 
   const newUrl = new URL(window.location.href)
   newUrl.search = query.toString()
   window.history.replaceState(null, '', newUrl)
 
-  console.log({ state, code, error, issuer })
-  return { state, code, error, issuer }
+  return { state, code, error, error_description, error_uri, issuer }
 }
 
 // Warning: this method only works with relatively short byte arrays, say less

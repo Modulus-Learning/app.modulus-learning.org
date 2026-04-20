@@ -245,8 +245,56 @@ export const widgetStyles = `
   z-index: 2;
 }
 
-.modulus-sync-line {
-  margin: 6px 0 0;
+.modulus-sync-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  min-height: 20px;
+}
+
+.modulus-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  background-color: var(--modulus-track);
+  color: var(--modulus-fg);
+  line-height: 1.3;
+}
+
+.modulus-sync-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background-color: currentColor;
+}
+
+.modulus-sync-pill.modulus-sync-saved {
+  color: var(--modulus-accent);
+  background-color: rgba(136, 255, 136, 0.08);
+  border-color: rgba(136, 255, 136, 0.25);
+}
+
+.modulus-sync-pill.modulus-sync-saving {
+  color: var(--modulus-warn);
+  background-color: rgba(255, 255, 0, 0.08);
+  border-color: rgba(255, 255, 0, 0.25);
+}
+
+.modulus-sync-pill.modulus-sync-unsaved {
+  color: var(--modulus-error);
+  background-color: rgba(255, 102, 102, 0.08);
+  border-color: rgba(255, 102, 102, 0.25);
+}
+
+.modulus-saved-time {
   font-size: 11px;
   color: var(--modulus-muted);
 }

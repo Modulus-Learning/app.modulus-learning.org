@@ -1,5 +1,5 @@
 export interface Logger {
-  log(...msgs: string[]): Promise<void>
+  log(...msgs: unknown[]): Promise<void>
 }
 
 export const createConsoleLogger = (): Logger => {
