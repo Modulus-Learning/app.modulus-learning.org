@@ -12,7 +12,7 @@
   "dependencies": {
     "@infonomic/uikit": "^6.7.0",
     "@modulus-learning/agent": "workspace:*",
-    "@tanstack/react-router": "^1.168.22",
+    "@tanstack/react-router": "^1.168.23",
     "classnames": "^2.5.1",
     "jwt-decode": "^4.0.0",
     "react": "19.2.5",
