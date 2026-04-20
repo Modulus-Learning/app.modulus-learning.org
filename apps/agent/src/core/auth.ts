@@ -73,7 +73,7 @@ export const authenticate = async (logger: Logger | undefined): Promise<AuthResu
   }
 
   // Check if there's a stored Modulus server url in localStorage
-  const storedIssuer = window.localStorage.getItem('modulus_base_url')
+  const storedIssuer = window.localStorage.getItem(MODULUS_BASE_URL_STORAGE_KEY)
   if (storedIssuer != null) {
     await logger?.log('Found stored issuer in localStorage:', storedIssuer)
 
@@ -87,6 +87,13 @@ export const authenticate = async (logger: Logger | undefined): Promise<AuthResu
       // The issuer is not recognized (or the attempt to validate it failed) --
       // report an error and make no further attempt at auth.
       await logger?.log('Issuer validation failed:', validationResult.error)
+      // If the registry definitively rejected the stored issuer, drop the
+      // cached value so the next page load doesn't keep trying it.  Transient
+      // registry-fetch failures (issuer_validation_failed) are left alone --
+      // we don't want a flaky network to flush a good cache.
+      if (validationResult.error === 'invalid_issuer') {
+        await clearStoredIssuer(logger, 'stored issuer no longer in registry')
+      }
       return {
         status: 'failed',
         error: validationResult.error,
@@ -204,6 +211,12 @@ const handleAuthCodeResponse = async (
   window.sessionStorage.removeItem('oauth_code_verifier')
   window.sessionStorage.removeItem('issuer')
 
+  // Drop any cached issuer up front; the success branch below re-sets it after
+  // a successful token exchange.  This way every failure return path implicitly
+  // leaves localStorage clean, so the next page load won't keep retrying a
+  // gradebook that just refused us (e.g., access_denied, expired session).
+  await clearStoredIssuer(logger, 'auth response received; will re-set on success')
+
   if (state == null) {
     await logger?.log('OAuth state not supplied')
     return {
@@ -297,7 +310,7 @@ const handleAuthCodeResponse = async (
         'Received token response:',
         JSON.stringify({ access_token, api_base_url, user })
       )
-      window.localStorage.setItem('modulus_base_url', issuer)
+      window.localStorage.setItem(MODULUS_BASE_URL_STORAGE_KEY, issuer)
       return {
         status: 'authenticated',
         baseUrl: api_base_url,
@@ -318,6 +331,15 @@ const handleAuthCodeResponse = async (
       error: 'token_request_failed',
     }
   }
+}
+
+const MODULUS_BASE_URL_STORAGE_KEY = 'modulus_base_url'
+
+const clearStoredIssuer = async (logger: Logger | undefined, reason: string) => {
+  const previous = window.localStorage.getItem(MODULUS_BASE_URL_STORAGE_KEY)
+  if (previous == null) return
+  window.localStorage.removeItem(MODULUS_BASE_URL_STORAGE_KEY)
+  await logger?.log('Cleared stored Modulus issuer:', { previous, reason })
 }
 
 const OAUTH_ERRORS = [
