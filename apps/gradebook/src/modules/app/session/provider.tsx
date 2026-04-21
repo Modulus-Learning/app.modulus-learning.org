@@ -4,7 +4,7 @@ import { createContext, type ReactNode, useContext } from 'react'
 
 import type { UserSession } from './@types'
 
-const UserSessionContext = createContext<UserSession | null>(null)
+export const UserSessionContext = createContext<UserSession | null>(null)
 
 export const UserSessionProvider = ({
   session,

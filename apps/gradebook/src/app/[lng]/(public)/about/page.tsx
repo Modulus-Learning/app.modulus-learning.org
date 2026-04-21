@@ -6,7 +6,7 @@ import { GradientGlow } from '@/ui/components/gradient'
 import type { Locale } from '@/i18n/i18n-config'
 
 // // Use this to debug ISR
-// // export const dynamic = 'error'
+export const dynamic = 'error'
 export const dynamicParams = true // explicit, though default
 // generateStaticParams stub - so that static pages can be generated on first request.
 export async function generateStaticParams() {
