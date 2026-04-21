@@ -7,6 +7,8 @@ This is the monorepo for the Modulus project. Modulus is a learning platform mon
 
 ### Core Architectural Philosophy
 
+NOTE: Our Gradebook application is currently hosted within Next.js 16. One of our design goals is to make Modulus easy to install on 'right-size' infrastructure — from self-hosted to cloud services. While we are still evaluating [Tanstack Start](https://tanstack.com/start/latest), it's highly likely that we'll migrate to Tanstack Start in the near future. Our key architectural principle below makes this possible with minimal effort.
+
 The key architectural principle is that `packages/core` exposes all business logic, data access, and services through **class contracts (interfaces)** resolved via a DI registry (`AsyncRegistry`). The consuming application (currently Next.js) uses core directly in-process, leveraging the framework's **native routing system** — there is no separate API server. API routes in `apps/gradebook` are thin route handlers that delegate to core services.
 
 This design enables **single-instance deploys** for smaller installations where the web app and backend logic run in the same process, which is a unique and important aspect of the project.
