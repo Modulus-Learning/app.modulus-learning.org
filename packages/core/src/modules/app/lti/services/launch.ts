@@ -22,8 +22,6 @@ import type { LtiMutations, LtiQueries, PlatformRecord } from '../repository/ind
 import type { LaunchRequest, LaunchResponse } from '../schemas.js'
 import type { DeepLinkingRequest } from '../types/messages/platform-originating/deep-linking-request.js'
 import type { ResourceLinkLaunchRequest } from '../types/messages/platform-originating/resource-link-launch-request.js'
-import type { LtiScorePassbackService } from './score-passback.js'
-
 type RemoteJWKSet = ReturnType<typeof createRemoteJWKSet>
 
 export class LtiLaunchService extends BaseService {
@@ -35,7 +33,6 @@ export class LtiLaunchService extends BaseService {
   private activityQueries: ActivityQueries
   private ltiSignInService: LtiSignInService
   private tokens: TokenIssuer
-  private ltiScorePassbackService: LtiScorePassbackService
 
   constructor(deps: {
     logger: CoreLogger
@@ -43,7 +40,6 @@ export class LtiLaunchService extends BaseService {
     mutations: LtiMutations
     activities: { queries: ActivityQueries }
     session: { ltiSignInService: LtiSignInService; tokenIssuer: TokenIssuer }
-    scorePassbackService: LtiScorePassbackService
   }) {
     super(deps.logger, 'app', 'lti')
     this.ltiQueries = deps.queries
@@ -51,7 +47,6 @@ export class LtiLaunchService extends BaseService {
     this.activityQueries = deps.activities.queries
     this.ltiSignInService = deps.session.ltiSignInService
     this.tokens = deps.session.tokenIssuer
-    this.ltiScorePassbackService = deps.scorePassbackService
   }
 
   /**
@@ -152,15 +147,9 @@ export class LtiLaunchService extends BaseService {
         // platform_issuer / lti_user_id are correct)?
       }
 
-      // TODO: Remove this once we have a proper score passback job queue.
-      const progress = await this.activityQueries.getProgressForUser(signIn.user.id, activity.id)
-      if (progress != null && progress.progress > lineitem.submitted_progress) {
-        try {
-          await this.ltiScorePassbackService.submitScore(lineitem, progress.progress)
-        } catch (error) {
-          this.logger.error(`Failed to submit score for line item ${lineitem.id}:`, error)
-        }
-      }
+      // Score submission to the LTI platform is handled asynchronously by the
+      // ScoreSubmissionProcessor background worker. If this line item has a
+      // stale submitted_progress, the worker will discover and submit it.
     }
 
     const tokens = await this.tokens.createTokens(signIn)

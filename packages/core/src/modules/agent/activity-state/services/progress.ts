@@ -1,25 +1,21 @@
 import { BaseService, method } from '@/lib/base-service.js'
 import type { AgentAuth } from '@/lib/auth.js'
 import type { CoreLogger } from '@/lib/logger.js'
-import type { LtiScorePassbackService } from '@/modules/app/lti/services/score-passback.js'
 import type { ActivityStateMutations, ActivityStateQueries } from '../repository/index.js'
 import type { GetProgressResponse, SetProgressRequest, SetProgressResponse } from '../schemas.js'
 
 export class ActivityProgressService extends BaseService {
   private queries: ActivityStateQueries
   private mutations: ActivityStateMutations
-  private scorePassbackService: LtiScorePassbackService
 
   constructor(deps: {
     logger: CoreLogger
     queries: ActivityStateQueries
     mutations: ActivityStateMutations
-    app: { lti: { scorePassbackService: LtiScorePassbackService } }
   }) {
     super(deps.logger, 'agent', 'activity-state')
     this.queries = deps.queries
     this.mutations = deps.mutations
-    this.scorePassbackService = deps.app.lti.scorePassbackService
   }
 
   @method
@@ -40,11 +36,10 @@ export class ActivityProgressService extends BaseService {
       updated_at: now,
     })
 
-    await this.scorePassbackService.submitAllScores(
-      auth.user_id,
-      auth.activity_id,
-      progressRecord.progress
-    )
+    // Score submission to the LTI platform is now handled asynchronously
+    // by the ScoreSubmissionProcessor background worker. The worker will
+    // discover that this line item's progress has changed and submit the
+    // updated score after the debounce period.
 
     return {
       progress: progressRecord.progress,
