@@ -1,4 +1,5 @@
 export { initModulusCore, type ModulusCore } from './core.js'
+export type { ProcessSubmissionResult } from './modules/app/lti/services/score-submission.js'
 export { AdminAuth, AgentAuth, UserAuth } from './lib/auth.js'
 export type { Config, UrlBuilder } from './config.js'
 export type {

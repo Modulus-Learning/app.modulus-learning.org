@@ -12,7 +12,7 @@ import { AccessTokenManager } from './lti/services/access-tokens.js'
 import { LtiDeepLinkingService } from './lti/services/deep-link.js'
 import { LtiLaunchService } from './lti/services/launch.js'
 import { LtiLoginService } from './lti/services/login.js'
-import { LtiScorePassbackService } from './lti/services/score-passback.js'
+import { ScoreSubmissionProcessor } from './lti/services/score-submission.js'
 import { RegistrationCommands } from './registration/commands.js'
 import { RegistrationMutations, RegistrationQueries } from './registration/repository/index.js'
 import { RegistrationService } from './registration/services/registration.js'
@@ -66,7 +66,7 @@ const createLtiRegistry = () =>
     .addClass('queries', LtiQueries)
     .addClass('mutations', LtiMutations)
     .addClass('accessTokenManager', AccessTokenManager)
-    .addClass('scorePassbackService', LtiScorePassbackService)
+    .addClass('scoreSubmissionProcessor', ScoreSubmissionProcessor)
     .addClass('loginService', LtiLoginService)
     .addClass('launchService', LtiLaunchService)
     .addClass('deepLinkingService', LtiDeepLinkingService)
@@ -89,5 +89,11 @@ export const getAppCommands = (services: RegisteredServices<AppRegistry>) => {
     session: services.session.commands,
     registration: services.registration.commands,
     lti: services.lti.commands,
+  }
+}
+
+export const getAppWorkers = (services: RegisteredServices<AppRegistry>) => {
+  return {
+    scoreSubmission: services.lti.scoreSubmissionProcessor,
   }
 }

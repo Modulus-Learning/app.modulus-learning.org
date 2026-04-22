@@ -11,7 +11,7 @@ import { AsyncRegistry } from './lib/registry.js'
 import { CoreUtils } from './lib/utils.js'
 import { createAdminRegistry, getAdminCommands } from './modules/admin/index.js'
 import { createAgentRegistry, getAgentCommands } from './modules/agent/index.js'
-import { createAppRegistry, getAppCommands } from './modules/app/index.js'
+import { createAppRegistry, getAppCommands, getAppWorkers } from './modules/app/index.js'
 import { LtiKeyStore } from './modules/app/lti/services/keystore.js'
 
 const createJwtSigner = (deps: { logger: CoreLogger; config: Config }) =>
@@ -71,6 +71,9 @@ export const initModulusCore = async ({
     app: getAppCommands(registry.app),
     admin: getAdminCommands(registry.admin),
     agent: getAgentCommands(registry.agent),
+    workers: {
+      ...getAppWorkers(registry.app),
+    },
   }
 }
 

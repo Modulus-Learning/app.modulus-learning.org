@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm'
-import { index, pgTable, real, unique, uuid, varchar } from 'drizzle-orm/pg-core'
+import { index, integer, pgTable, real, text, timestamp, unique, uuid, varchar } from 'drizzle-orm/pg-core'
 
 import { activities } from '../activities.js'
 import { users } from '../users.js'
@@ -44,6 +44,27 @@ export const lineitems = pgTable(
 
     // Optional due date as reported by the LTI platform
     // due_date: timestamp('due_date', { withTimezone: true }),
+
+    // --- Score submission tracking ---
+
+    // Set to NOW() when a worker claims this line item for submission.
+    // Null when no submission is in flight. Used as a lock to prevent
+    // concurrent submission attempts, and as a staleness indicator for
+    // crash recovery (if older than a threshold, the lock is considered stale).
+    submission_locked_at: timestamp('submission_locked_at', { precision: 6, withTimezone: true }),
+
+    // Number of consecutive failed submission attempts. Reset to 0 on success.
+    // Used to compute exponential backoff delay on retry.
+    submission_attempts: integer('submission_attempts').notNull().default(0),
+
+    // Earliest time at which this line item is eligible for another submission
+    // attempt. Set on failure to NOW() + backoff. Null when not in a backoff
+    // period (i.e. after success, or when never attempted).
+    submission_next_retry_at: timestamp('submission_next_retry_at', { precision: 6, withTimezone: true }),
+
+    // Diagnostic: the error message from the most recent failed submission
+    // attempt. Cleared on success.
+    submission_last_error: text('submission_last_error'),
   },
   (table) => [
     unique('lti_lineitems_user_id_activity_id_lineitem_url_idx').on(
