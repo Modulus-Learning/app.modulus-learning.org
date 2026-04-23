@@ -1,4 +1,4 @@
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import type { RegistrationsPerDay } from './@types'
 
 const notOkayResponse: RegistrationsPerDay = {
@@ -16,7 +16,7 @@ export async function getRegistrationsPerDay(
     return notOkayResponse
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.reports.getRegistrationsPerDay(auth, { year, month })
 
   if (result.ok) {

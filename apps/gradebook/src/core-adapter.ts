@@ -5,8 +5,9 @@ import {
   type AdminRequestContext,
   AgentAuth,
   type AgentRequestContext,
-  initModulusCore,
-  type ModulusCore,
+  type CoreCommands,
+  type CoreInstance,
+  initCore,
   type RequestContext,
   UserAuth,
   type UserRequestContext,
@@ -19,13 +20,13 @@ import { getRequestId } from './lib/request-id'
 import { getAdminSession } from './modules/admin/session/storage'
 import { getUserSession } from './modules/app/session/storage'
 
-// Singleton instance of modulus core
-let corePromise: Promise<ModulusCore>
+// Singleton instance of the full core instance (commands + background jobs)
+let coreInstancePromise: Promise<CoreInstance>
 
-export const getCoreInstance = () => {
-  if (corePromise == null) {
+export const getCoreInstance = (): Promise<CoreInstance> => {
+  if (coreInstancePromise == null) {
     const { publicServerUrl } = getServerConfig()
-    corePromise = initModulusCore({
+    coreInstancePromise = initCore({
       pinoLogger: getLogger(),
       urlBuilder: {
         baseUrl: publicServerUrl,
@@ -37,8 +38,11 @@ export const getCoreInstance = () => {
     })
   }
 
-  return corePromise
+  return coreInstancePromise
 }
+
+// Convenience accessor for the commands facade
+export const getCoreCommands = async (): Promise<CoreCommands> => (await getCoreInstance()).commands
 
 // Singleton instance of modulus core token verifiers
 let tokenVerifiersPromise: Promise<TokenVerifiers>

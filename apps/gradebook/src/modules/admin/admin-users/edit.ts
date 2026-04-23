@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
 import { getServerConfig } from '@/config'
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import { type AdminUserFormState, adminUserEditSchema } from './@types'
 
 export async function editAdminUser(
@@ -46,7 +46,7 @@ export async function editAdminUser(
   const { id, vid, given_name, family_name, email, password, is_enabled, roles, previous_roles } =
     validatedFields.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.adminUsers.updateAdminUser(adminAuth, {
     id,
     vid,

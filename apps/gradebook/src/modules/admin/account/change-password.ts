@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import { type ChangePasswordFormState, changePasswordSchema } from './@types'
 
 export async function changePassword(
@@ -38,7 +38,7 @@ export async function changePassword(
 
   const { id, vid, lng, current_password, new_password } = validatedFields.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.account.changePassword(adminAuth, {
     id,
     vid,

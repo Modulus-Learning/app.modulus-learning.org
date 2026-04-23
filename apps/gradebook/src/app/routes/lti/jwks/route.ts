@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { getCoreInstance, getCoreRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 
 /**
  * Serves the current JSON Web Key Set used for communicating with LTI
@@ -12,7 +12,7 @@ import { getCoreInstance, getCoreRequestContext } from '@/core-adapter'
  * maintain separate JWKS endpoints, one for each platform we talk to.
  */
 export async function GET() {
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const ctx = await getCoreRequestContext()
   const result = await core.app.lti.getJWKS(ctx)
   if (result.ok) {

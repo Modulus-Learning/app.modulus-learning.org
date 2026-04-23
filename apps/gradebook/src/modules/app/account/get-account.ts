@@ -1,4 +1,4 @@
-import { getCoreInstance, getCoreUserRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import type { Locale } from '@/i18n/i18n-config'
 
 export async function getAccount(_locale: Locale) {
@@ -7,7 +7,7 @@ export async function getAccount(_locale: Locale) {
     return null
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.app.account.getAccount(userAuth)
 
   if (result.ok) {

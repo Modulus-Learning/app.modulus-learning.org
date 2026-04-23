@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-import { getCoreInstance, getCoreRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 
 export const POST = async (request: NextRequest): Promise<NextResponse> => {
   let refreshToken: any
@@ -15,7 +15,7 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
     return NextResponse.json({ status: 'failed', message: 'invalid request' }, { status: 400 })
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const ctx = await getCoreRequestContext()
   const result = await core.app.session.refreshTokens(ctx, { refreshToken })
 

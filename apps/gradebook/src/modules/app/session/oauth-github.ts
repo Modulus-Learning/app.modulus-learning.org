@@ -10,7 +10,7 @@ import { redirect } from 'next/navigation'
 import { stdSerializers } from 'pino'
 
 import { getServerConfig } from '@/config'
-import { getCoreInstance, getCoreRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import { getUserSession, setUserSession } from './storage'
 import type { GitHubFormState, OAuthSessionResponse } from './@types/index'
@@ -136,7 +136,7 @@ export async function startGithubSession(
   // make this explicit.
   const currentSession = await getUserSession()
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const ctx = await getCoreRequestContext()
   const signInResult = await core.app.session.signInGithub(ctx, {
     tokens: accessToken,

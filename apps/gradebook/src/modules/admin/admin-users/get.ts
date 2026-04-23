@@ -1,4 +1,4 @@
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import type { Locale } from '@/i18n/i18n-config'
 import type { AdminUserResponse } from './@types'
 
@@ -17,7 +17,7 @@ export async function getAdminUser(id: string, _locale: Locale): Promise<AdminUs
     return notOkayResponse
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.adminUsers.getAdminUser(adminAuth, { id })
 
   if (result.ok) {

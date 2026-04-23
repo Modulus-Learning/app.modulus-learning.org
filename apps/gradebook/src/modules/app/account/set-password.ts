@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 
-import { getCoreInstance, getCoreUserRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import { type SetPasswordFormState, setPasswordSchema } from './@types'
 
 export async function setPassword(
@@ -40,7 +40,7 @@ export async function setPassword(
   // TODO: lng
   const { id, vid, lng, password } = validatedFields.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.app.account.setPassword(userAuth, {
     id,
     vid,

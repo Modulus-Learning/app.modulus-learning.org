@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
 import { getServerConfig } from '@/config'
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import { type RoleFormState, roleCreateSchema } from './@types'
 
 export async function createRole(
@@ -39,7 +39,7 @@ export async function createRole(
 
   const { name, machine_name, description } = validatedFields.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.roles.createRole(adminAuth, {
     name,
     machine_name,

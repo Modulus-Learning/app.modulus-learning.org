@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 
 import z from 'zod'
 
-import { getCoreInstance, getCoreRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import { setUserSession } from '@/modules/app/session/storage'
 
@@ -36,7 +36,7 @@ const authenticationResponseSchema = z.object({
  * cookie to effectively log the user in.
  */
 export async function POST(request: NextRequest) {
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const log = getLogger()
 
   // Validate and extract request parameters

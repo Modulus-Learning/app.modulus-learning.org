@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 
-import { getCoreInstance, getCoreRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import type { DeepLinkingFormState } from '../@types'
 
@@ -11,7 +11,7 @@ export const deepLinking = async (
   formData: FormData
 ): Promise<DeepLinkingFormState> => {
   const log = getLogger()
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
 
   const validationResult = core.app.lti.handleDeepLink.schemas.input.safeParse({
     activity_url: formData.get('activity_url'),

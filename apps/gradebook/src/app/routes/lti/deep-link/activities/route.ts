@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-import { getCoreInstance, getCoreUserRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 
 export async function GET(request: NextRequest) {
   const userAuth = await getCoreUserRequestContext()
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ status: 'failed', message: 'Missing id' }, { status: 400 })
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.app.activities.getActivitiesByActivityCodeId(userAuth, id)
 
   if (!result.ok) {

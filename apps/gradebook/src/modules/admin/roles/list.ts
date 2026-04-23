@@ -1,4 +1,4 @@
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import type { Locale } from '@/i18n/i18n-config'
 import type { RolesResponse } from './@types'
 
@@ -14,7 +14,7 @@ export async function listRoles(_locale: Locale): Promise<RolesResponse> {
     return notOkayResponse
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.roles.listRoles(adminAuth)
 
   if (result.ok) {

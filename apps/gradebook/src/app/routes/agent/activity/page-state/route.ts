@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-import { getCoreAgentRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAgentRequestContext, getCoreCommands } from '@/core-adapter'
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -21,7 +21,7 @@ export const GET = async (request: NextRequest): Promise<NextResponse> => {
     return NextResponse.json({ status: 'unauthorized' }, { status: 401, headers })
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.agent.activityState.getPageState(auth)
 
   if (!result.ok) {
@@ -41,7 +41,7 @@ export const PUT = async (request: NextRequest): Promise<NextResponse> => {
 
   const requestBody = await request.json()
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.agent.activityState.setPageState(auth, requestBody)
 
   if (!result.ok) {

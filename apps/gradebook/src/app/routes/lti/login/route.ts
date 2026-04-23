@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-import { getCoreInstance, getCoreRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 
 /**
@@ -21,7 +21,7 @@ import { getLogger } from '@/lib/logger'
  * https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.1
  */
 export async function POST(request: NextRequest) {
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const log = getLogger()
 
   // Validate and extract request parameters

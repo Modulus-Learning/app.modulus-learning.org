@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 
 import { z } from 'zod'
 
-import { getCoreInstance, getCoreRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import { setUserSession } from '../session/storage'
 import { registrationStep1Schema, registrationStep2Schema, registrationStep3Schema } from './@types'
 import type {
@@ -40,7 +40,7 @@ export const registrationStep1 = async (
     }
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const ctx = await getCoreRequestContext()
   const result = await core.app.registration.preRegister(ctx, {
     email: validationResult.data.email,
@@ -90,7 +90,7 @@ export const registrationStep2 = async (
     }
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const ctx = await getCoreRequestContext()
   const result = await core.app.registration.verifyEmail(ctx, validationResult.data)
 
@@ -139,7 +139,7 @@ export const registrationStep3 = async (
     }
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const ctx = await getCoreRequestContext()
   const result = await core.app.registration.register(ctx, {
     id: validationResult.data.id,

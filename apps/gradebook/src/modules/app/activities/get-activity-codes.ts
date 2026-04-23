@@ -1,6 +1,6 @@
 import { getLogger } from 'nodemailer/lib/shared'
 
-import { getCoreInstance, getCoreUserRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import type { ActivityCode } from './@types'
 
 // TODO: implement standard API response object, including paged list
@@ -13,7 +13,7 @@ export async function getActivityCodes(): Promise<{ activity_codes: ActivityCode
     throw new Error('Unauthenticated')
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.app.activities.listActivityCodes(userAuth)
   if (!result.ok) {
     logger.error({

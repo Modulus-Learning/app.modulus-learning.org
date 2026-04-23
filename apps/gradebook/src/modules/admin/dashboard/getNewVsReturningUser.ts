@@ -1,4 +1,4 @@
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import type { NewVsReturningUsers } from './@types'
 
 const notOkayResponse: NewVsReturningUsers = {
@@ -15,7 +15,7 @@ export async function getNewVsReturningUsers(
     return notOkayResponse
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.reports.getNewVsReturningUsers(auth, { year })
 
   if (result.ok) {
