@@ -92,8 +92,3 @@ export const getAppCommands = (services: RegisteredServices<AppRegistry>) => {
   }
 }
 
-export const getAppWorkers = (services: RegisteredServices<AppRegistry>) => {
-  return {
-    scoreSubmission: services.lti.scoreSubmissionProcessor,
-  }
-}

@@ -1,5 +1,9 @@
-export { initModulusCore, type ModulusCore } from './core.js'
-export type { ProcessSubmissionResult } from './modules/app/lti/services/score-submission.js'
+export {
+  type CoreCommands,
+  type CoreInstance,
+  initCore,
+  type StopHandle,
+} from './core.js'
 export { AdminAuth, AgentAuth, UserAuth } from './lib/auth.js'
 export type { Config, UrlBuilder } from './config.js'
 export type {
@@ -13,6 +17,7 @@ export type {
   AdminTokens,
 } from './modules/admin/session/schemas.js'
 export type { AccessTokenPayload as AgentSession } from './modules/agent/auth/types.js'
+export type { ProcessSubmissionResult } from './modules/app/lti/services/score-submission.js'
 export type {
   AccessTokenPayload as UserSession,
   UserTokens,
