@@ -11,8 +11,9 @@ import { AsyncRegistry } from './lib/registry.js'
 import { CoreUtils } from './lib/utils.js'
 import { createAdminRegistry, getAdminCommands } from './modules/admin/index.js'
 import { createAgentRegistry, getAgentCommands } from './modules/agent/index.js'
-import { createAppRegistry, getAppCommands, getAppWorkers } from './modules/app/index.js'
+import { createAppRegistry, getAppCommands } from './modules/app/index.js'
 import { LtiKeyStore } from './modules/app/lti/services/keystore.js'
+import { startScoreSubmissionWorker } from './workers/score-submission.js'
 
 const createJwtSigner = (deps: { logger: CoreLogger; config: Config }) =>
   JWTSigner.create(deps.logger, deps.config.jwt)
@@ -36,6 +37,10 @@ const createMailer = (deps: {
   return new NodeMailer(deps.logger, deps.config.email, deps.emailTemplates)
 }
 
+/**
+ * Creates the core registry with all commands, services, and dependencies wired
+ * up (but not yet initialized).
+ */
 const createCoreRegistry = (urlBuilder: UrlBuilder, config: Config) => {
   return new AsyncRegistry()
     .addValue('config', config)
@@ -56,25 +61,72 @@ const createCoreRegistry = (urlBuilder: UrlBuilder, config: Config) => {
     .addNested('agent', createAgentRegistry())
 }
 
-export const initModulusCore = async ({
-  pinoLogger = pino({ level: 'info' }),
-  urlBuilder,
-  config = loadConfig(),
-}: {
+/**
+ * The core commands facade -- the set of method calls that consuming
+ * applications are permitted to make into core services.  Each method is a
+ * Command, i.e. a function with some associated metadata (see lib/utils.ts).
+ */
+export type CoreCommands = {
+  app: ReturnType<typeof getAppCommands>
+  admin: ReturnType<typeof getAdminCommands>
+  agent: ReturnType<typeof getAgentCommands>
+}
+
+/**
+ * A function that can be called to stop a background job or worker loop.
+ */
+export type StopHandle = () => Promise<void>
+
+/**
+ * A fully initialized core instance, providing both the commands facade and a
+ * function to start background workers. The registry is internal and not
+ * exposed to consumers.
+ */
+export type CoreInstance = {
+  commands: CoreCommands
+  startBackgroundJobs: () => StopHandle
+}
+
+export type InitOptions = {
   pinoLogger?: PinoLogger
   urlBuilder: UrlBuilder
   config?: Config
-}) => {
+}
+
+/**
+ * Initializes the core registry and returns a CoreInstance with both
+ * the commands facade and a startBackgroundJobs function.
+ *
+ * In a single-instance deployment, the consuming application should call
+ * this once, use `instance.commands` for request handling, and call
+ * `instance.startBackgroundJobs()` to start the background worker loops.
+ */
+export const initCore = async ({
+  pinoLogger = pino({ level: 'info' }),
+  urlBuilder,
+  config = loadConfig(),
+}: InitOptions): Promise<CoreInstance> => {
   const registry = await createCoreRegistry(urlBuilder, config).compose({ pinoLogger })
 
-  return {
+  const commands: CoreCommands = {
     app: getAppCommands(registry.app),
     admin: getAdminCommands(registry.admin),
     agent: getAgentCommands(registry.agent),
-    workers: {
-      ...getAppWorkers(registry.app),
-    },
   }
-}
 
-export type ModulusCore = Awaited<ReturnType<typeof initModulusCore>>
+  const startBackgroundJobs = (): StopHandle => {
+    const stopScoreSubmission = startScoreSubmissionWorker({
+      processor: registry.app.lti.scoreSubmissionProcessor,
+      logger: registry.logger,
+    })
+
+    return async () => {
+      // NOTE: this should probably use Promise.all or Promise.allSettled if
+      // there are multiple background jobs to stop -- and the question of how
+      // (or whether) to handle errors will need to be addressed.
+      await stopScoreSubmission()
+    }
+  }
+
+  return { commands, startBackgroundJobs }
+}
