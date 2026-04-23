@@ -1,8 +1,8 @@
 import type { CoreLogger } from '@/lib/logger.js'
 import type { ScoreSubmissionProcessor } from '@/modules/app/lti/services/score-submission.js'
 
-const POLL_INTERVAL_MS = 2_000
 const IDLE_INTERVAL_MS = 5_000
+const ERROR_INTERVAL_MS = 1_000
 
 /**
  * Starts a polling loop that processes pending LTI score submissions.
@@ -37,20 +37,13 @@ export function startScoreSubmissionWorker({
             await sleep(IDLE_INTERVAL_MS)
             break
           case 'claimed_by_other':
-            // Another worker got it; try again immediately
-            break
           case 'success':
-            // More work may be pending; continue with a short delay
-            await sleep(POLL_INTERVAL_MS)
-            break
           case 'failure':
-            // The failed item is now in backoff; continue looking for others
-            await sleep(POLL_INTERVAL_MS)
             break
         }
       } catch (error) {
         logger.error({ err: error }, 'unexpected error in score submission worker')
-        await sleep(IDLE_INTERVAL_MS)
+        await sleep(ERROR_INTERVAL_MS)
       }
     }
 
