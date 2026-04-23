@@ -1,6 +1,6 @@
 'use server'
 
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import { type RoleOrderState, roleOrderSchema } from './@types'
 
 export async function orderRoles(
@@ -29,7 +29,7 @@ export async function orderRoles(
 
   const { ids } = validatedFields.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.roles.updateRolesOrder(adminAuth, { ids })
 
   if (result.ok) {

@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 
-import { getCoreInstance, getCoreUserRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import {
   type ChangeEmailFormState,
   changeEmailSchema,
@@ -44,7 +44,7 @@ export async function changeEmail(
   // TODO: lng
   const { id, vid, lng, email } = validatedFields.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.app.account.changeEmail(userAuth, {
     id,
     vid,
@@ -140,7 +140,7 @@ export async function verifyEmail(
   // TODO: lng
   const { id, lng, verification_code } = validatedFields.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.app.account.verifyEmail(userAuth, {
     id,
     verification_code,

@@ -1,4 +1,4 @@
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import type { Locale } from '@/i18n/i18n-config'
 import type { UserAddResponse } from './@types'
 
@@ -16,7 +16,7 @@ export async function addUser(_locale: Locale): Promise<UserAddResponse> {
     return notOkResponse
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.users.addUser(adminAuth)
 
   if (result.ok) {

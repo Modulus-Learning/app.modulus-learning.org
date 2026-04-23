@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { getServerConfig } from '@/config'
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import { type UserDeleteState, userDeleteSchema } from './@types'
 
 export async function deleteUser(
@@ -33,7 +33,7 @@ export async function deleteUser(
 
   const { userId, full_name } = validationResult.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.users.deleteUser(adminAuth, { id: userId })
 
   if (result.ok) {

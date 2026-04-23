@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import { type NameFormState, nameEditSchema } from './@types'
 
 export async function editFullName(
@@ -37,7 +37,7 @@ export async function editFullName(
 
   const { id, vid, lng, given_name, family_name } = validatedFields.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.account.setFullName(adminAuth, {
     id,
     vid,

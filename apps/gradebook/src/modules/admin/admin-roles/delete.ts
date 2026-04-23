@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { getServerConfig } from '@/config'
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import { type AdminRoleDeleteState, adminRoleDeleteSchema } from './@types'
 
 export async function deleteAdminRole(
@@ -33,7 +33,7 @@ export async function deleteAdminRole(
 
   const { roleId, name } = validationResult.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.adminRoles.deleteAdminRole(adminAuth, {
     id: roleId,
   })

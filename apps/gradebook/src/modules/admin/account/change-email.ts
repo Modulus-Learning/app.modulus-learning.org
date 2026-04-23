@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import {
   type ChangeEmailFormState,
   changeEmailSchema,
@@ -41,7 +41,7 @@ export async function changeEmail(
 
   const { id, vid, lng, email } = validatedFields.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.account.changeEmail(adminAuth, {
     id,
     vid,
@@ -126,7 +126,7 @@ export async function verifyEmail(
 
   const { id, lng, verification_code } = validatedFields.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.account.verifyEmail(adminAuth, {
     id,
     verification_code,

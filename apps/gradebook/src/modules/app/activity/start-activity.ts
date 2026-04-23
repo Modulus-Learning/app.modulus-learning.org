@@ -1,6 +1,6 @@
 'use server'
 
-import { getCoreInstance, getCoreUserRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import type { StartActivityResult } from './@types'
 
 export async function startActivity(
@@ -12,7 +12,7 @@ export async function startActivity(
     return { status: 'needs_user', message: 'Needs user.' }
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.app.activities.startActivity(userAuth, {
     activity_code,
     activity_url,

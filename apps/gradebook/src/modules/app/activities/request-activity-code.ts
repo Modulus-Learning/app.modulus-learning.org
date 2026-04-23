@@ -1,6 +1,6 @@
 'use server'
 
-import { getCoreInstance, getCoreUserRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import type { ActivityCodeRequestFormState } from './@types'
 
 export const requestActivityCode = async (
@@ -19,7 +19,7 @@ export const requestActivityCode = async (
     }
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.app.activities.generateUniqueActivityCode(userAuth)
 
   if (!result.ok) {

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-import { getCoreInstance, getCoreUserRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -68,7 +68,7 @@ export const GET = async (request: NextRequest) => {
     return NextResponse.redirect(redirectURL, 307)
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.agent.auth.createAuthCode(userAuth, {
     client_id,
     redirect_uri,

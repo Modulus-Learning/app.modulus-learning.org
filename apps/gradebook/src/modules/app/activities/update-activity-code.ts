@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 
-import { getCoreInstance, getCoreUserRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import { validateUrlPrefix, validateUrls } from './@types/validate-urls'
 import type { ActivityCodeFormState } from './@types'
@@ -77,7 +77,7 @@ export const updateActivityCode = async (
     }
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.app.activities.updateActivityCode(userAuth, {
     id,
     url_prefix: normalizedUrlPrefix === '' ? null : normalizedUrlPrefix,

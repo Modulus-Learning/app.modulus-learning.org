@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
 import { getServerConfig } from '@/config'
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import { type UserFormState, userCreateSchema } from './@types'
 
 export async function createUser(
@@ -41,7 +41,7 @@ export async function createUser(
 
   const { full_name, email, password, roles, send_welcome } = validatedFields.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.users.createUser(adminAuth, {
     full_name,
     email,

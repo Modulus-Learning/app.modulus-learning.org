@@ -1,4 +1,4 @@
-import { getCoreInstance, getCoreUserRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import type { ActivityCode } from './@types'
 
@@ -10,7 +10,7 @@ export async function getActivityCode(id: string): Promise<{ activity_code: Acti
     throw new Error('Unauthenticated')
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.app.activities.getActivityCode(userAuth, id)
   if (!result.ok) {
     logger.error({

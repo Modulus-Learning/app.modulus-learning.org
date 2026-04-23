@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
 import { getServerConfig } from '@/config'
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import { type RoleFormState, roleEditSchema } from './@types'
 
 export async function editRole(
@@ -41,7 +41,7 @@ export async function editRole(
 
   const { id, vid, name, machine_name, description } = validatedFields.data
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.roles.updateRole(adminAuth, {
     id,
     vid,

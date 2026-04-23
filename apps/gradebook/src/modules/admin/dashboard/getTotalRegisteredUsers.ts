@@ -1,4 +1,4 @@
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import type { TotalRegisteredUsers } from './@types'
 
 const notOkayResponse: TotalRegisteredUsers = {
@@ -11,7 +11,7 @@ export async function getTotalRegisteredUsers(): Promise<TotalRegisteredUsers> {
     return notOkayResponse
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.reports.getTotalRegisteredUsers(auth)
 
   if (result.ok) {

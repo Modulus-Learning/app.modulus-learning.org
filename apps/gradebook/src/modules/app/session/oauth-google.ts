@@ -8,7 +8,7 @@ import { google } from 'googleapis'
 import { stdSerializers } from 'pino'
 
 import { getServerConfig } from '@/config'
-import { getCoreInstance, getCoreRequestContext, getCoreUserRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreRequestContext, getCoreUserRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import { getUserSession, setUserSession } from './storage'
 import type {
@@ -165,7 +165,7 @@ async function startGoogleSession(
   // probably make this explicit.
   const currentSession = await getUserSession()
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   // TODO: is it safe to pass user_id like this?
   const ctx = await getCoreRequestContext()
   const signInResult = await core.app.session.signInGoogle(ctx, {
@@ -245,7 +245,7 @@ export async function unlinkGoogleAccount(): Promise<GoogleFormState> {
     }
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.app.session.unlinkGoogleAccount(userAuth)
 
   if (result.ok) {

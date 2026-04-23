@@ -6,7 +6,7 @@
 // import { JWTExpired } from 'jose/errors'
 
 // import { getServerConfig } from '@/config'
-// import { getCoreInstance } from '@/modulus-core'
+// import { getCoreCommands } from '@/modulus-core'
 // import { accessTokenSchema, refreshTokenSchema } from './@types'
 // import { refreshCookieOptions, sessionCookieOptions } from './cookies'
 // import type { AccessTokenPayload, Provider } from './@types'
@@ -193,7 +193,7 @@
 //  * @returns
 //  */
 // const refreshTokens = async (refresh_token: string, provider: Provider) => {
-//   const core = await getCoreInstance()
+//   const core = await getCoreCommands()
 //   const result = await core.adminUsers.refreshSessionTokens(refresh_token)
 //   if (result.ok) {
 //     return result.data

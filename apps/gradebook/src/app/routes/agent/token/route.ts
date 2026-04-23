@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-import { getCoreInstance, getCoreRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 
 // OAuth 2.0 token exchange endpoint for agent auth
 export const POST = async (request: NextRequest) => {
@@ -33,7 +33,7 @@ export const POST = async (request: NextRequest) => {
     )
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const ctx = await getCoreRequestContext()
   const result = await core.agent.auth.claimAuthCode(ctx, {
     code,

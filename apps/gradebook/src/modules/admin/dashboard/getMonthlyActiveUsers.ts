@@ -1,4 +1,4 @@
-import { getCoreAdminRequestContext, getCoreInstance } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import type { MonthlyActiveUsers } from './@types'
 
 const notOkayResponse: MonthlyActiveUsers = {
@@ -13,7 +13,7 @@ export async function getMonthlyActiveUsers(year: number | undefined): Promise<M
     return notOkayResponse
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const result = await core.admin.reports.getMonthlyActiveUsers(auth, { year })
 
   if (result.ok) {

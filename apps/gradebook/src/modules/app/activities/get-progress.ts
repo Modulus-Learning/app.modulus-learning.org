@@ -1,4 +1,4 @@
-import { getCoreInstance, getCoreUserRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import type { ProgressResponse } from './@types'
 
 // TODO: consider a response object with status and message
@@ -35,7 +35,7 @@ export async function getProgress(
     throw new Error('Unauthenticated')
   }
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const options = core.app.activities.getActivityProgress.schemas.input.safeParse({
     id,
     options: {

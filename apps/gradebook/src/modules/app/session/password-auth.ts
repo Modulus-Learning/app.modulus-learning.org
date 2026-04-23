@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 
 import { z } from 'zod'
 
-import { getCoreInstance, getCoreRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import { type SignInFormState, signInSchema } from './@types'
 import { deleteUserSession, setUserSession } from './storage'
 
@@ -45,7 +45,7 @@ export async function signIn(
   // TODO: Check ip_address is a valid ip address, and set to undefined if not.
   const ip_address = headerList.get('x-real-ip') ?? undefined
 
-  const core = await getCoreInstance()
+  const core = await getCoreCommands()
   const ctx = await getCoreRequestContext()
   const signInResult = await core.app.session.signInPassword(ctx, {
     email,
