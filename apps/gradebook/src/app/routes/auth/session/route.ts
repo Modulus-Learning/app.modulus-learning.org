@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
 import { getServerConfig } from '@/config'
-import { getCoreInstance, getCoreRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import {
   readUserSession,
   refreshCookieOptions,
@@ -30,7 +30,7 @@ export const GET = async (request: NextRequest) => {
   }
 
   try {
-    const core = await getCoreInstance()
+    const core = await getCoreCommands()
     const ctx = await getCoreRequestContext()
     const result = await core.app.session.refreshTokens(ctx, { refreshToken })
     if (!result.ok) {
