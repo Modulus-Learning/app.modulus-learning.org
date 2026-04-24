@@ -1,5 +1,15 @@
 import { relations } from 'drizzle-orm'
-import { index, integer, pgTable, real, text, timestamp, unique, uuid, varchar } from 'drizzle-orm/pg-core'
+import {
+  index,
+  integer,
+  pgTable,
+  real,
+  text,
+  timestamp,
+  unique,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core'
 
 import { activities } from '../activities.js'
 import { users } from '../users.js'
@@ -25,6 +35,9 @@ export const lineitems = pgTable(
 
     // Last progress value that was successfully submitted to the LTI platform
     submitted_progress: real('submitted_progress').notNull(),
+
+    // Timestamp of the last successful score submission to the LTI platform.
+    submitted_at: timestamp('submitted_at', { precision: 6, withTimezone: true }),
 
     // LTI platform that this line item belongs to
     platform_issuer: varchar('platform_issuer')
@@ -60,7 +73,10 @@ export const lineitems = pgTable(
     // Earliest time at which this line item is eligible for another submission
     // attempt. Set on failure to NOW() + backoff. Null when not in a backoff
     // period (i.e. after success, or when never attempted).
-    submission_next_retry_at: timestamp('submission_next_retry_at', { precision: 6, withTimezone: true }),
+    submission_next_retry_at: timestamp('submission_next_retry_at', {
+      precision: 6,
+      withTimezone: true,
+    }),
 
     // Diagnostic: the error message from the most recent failed submission
     // attempt. Cleared on success.
