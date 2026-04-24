@@ -1,8 +1,6 @@
+import type { Config } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { ScoreSubmissionProcessor } from '@/modules/app/lti/services/score-submission.js'
-
-const IDLE_INTERVAL_MS = 5_000
-const ERROR_INTERVAL_MS = 1_000
 
 /**
  * Starts a polling loop that processes pending LTI score submissions.
@@ -19,9 +17,11 @@ const ERROR_INTERVAL_MS = 1_000
 export function startScoreSubmissionWorker({
   processor,
   logger,
+  config,
 }: {
   processor: ScoreSubmissionProcessor
   logger: CoreLogger
+  config: Config
 }): () => void {
   let running = true
 
@@ -34,16 +34,21 @@ export function startScoreSubmissionWorker({
 
         switch (result.status) {
           case 'none_pending':
-            await sleep(IDLE_INTERVAL_MS)
+            await sleep(config.lti.score_submission.poll_interval_ms)
             break
           case 'claimed_by_other':
+            // No delay -- just loop and check for another item
+            break
           case 'success':
+            // No delay -- just loop and check for another item
+            break
           case 'failure':
+            // No delay -- just loop and check for another item
             break
         }
       } catch (error) {
         logger.error({ err: error }, 'unexpected error in score submission worker')
-        await sleep(ERROR_INTERVAL_MS)
+        await sleep(config.lti.score_submission.error_interval_ms)
       }
     }
 

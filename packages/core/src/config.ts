@@ -33,6 +33,20 @@ export const configSchema = z.object({
       privateKey: base64Schema.transform((val) => val.toString('utf-8')),
       publicKey: base64Schema.transform((val) => val.toString('utf-8')),
     }),
+    score_submission: z.object({
+      // How long to wait after finding no pending submissions before polling again.
+      poll_interval_ms: z.coerce.number().default(1_000),
+      // How long to wait after an unexpected error before polling again.
+      error_interval_ms: z.coerce.number().default(1_000),
+      // Minimum seconds since last progress update before a submission is eligible to be sent
+      debounce_seconds: z.coerce.number().default(10),
+      // How long before a lineitem lock is considered stale, and can be claimed by another worker
+      lock_timeout_seconds: z.coerce.number().default(60),
+      // Base seconds for calculating backoff after a failed submission attempt
+      backoff_base_seconds: z.coerce.number().default(5),
+      // Maximum seconds for backoff after failed submission attempts
+      backoff_max_seconds: z.coerce.number().default(300),
+    }),
   }),
   oauth: z.object({
     google: z.object({
@@ -93,6 +107,14 @@ export const loadConfigUnchecked = () => {
         kid: process.env.LTI_JWKS_KEY_ID,
         privateKey: process.env.LTI_JWKS_PRIVATE_KEY,
         publicKey: process.env.LTI_JWKS_PUBLIC_KEY,
+      },
+      score_submission: {
+        poll_interval_ms: process.env.LTI_SCORE_SUBMISSION_POLL_INTERVAL_MS,
+        error_interval_ms: process.env.LTI_SCORE_SUBMISSION_ERROR_INTERVAL_MS,
+        debounce_seconds: process.env.LTI_SCORE_SUBMISSION_DEBOUNCE_SECONDS,
+        lock_timeout_seconds: process.env.LTI_SCORE_SUBMISSION_LOCK_TIMEOUT_SECONDS,
+        backoff_base_seconds: process.env.LTI_SCORE_SUBMISSION_BACKOFF_BASE_SECONDS,
+        backoff_max_seconds: process.env.LTI_SCORE_SUBMISSION_BACKOFF_MAX_SECONDS,
       },
     },
     oauth: {
