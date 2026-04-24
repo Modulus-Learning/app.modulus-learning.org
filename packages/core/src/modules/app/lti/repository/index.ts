@@ -116,12 +116,12 @@ export class LtiQueries extends BaseService {
    */
   @method
   async findNextPendingSubmission({
-    lockTimeoutSeconds = 60,
-    debounceSeconds = 10,
+    debounceSeconds,
+    lockTimeoutSeconds,
   }: {
-    lockTimeoutSeconds?: number
-    debounceSeconds?: number
-  } = {}): Promise<PendingSubmission | undefined> {
+    debounceSeconds: number
+    lockTimeoutSeconds: number
+  }): Promise<PendingSubmission | undefined> {
     const rows = await this.db
       .get()
       .select({
@@ -141,13 +141,16 @@ export class LtiQueries extends BaseService {
       )
       .where(
         and(
-          // Only items where the current progress exceeds what was last submitted
+          // Only items where the current progress exceeds what was last submitted to the LTI platform
           gt(progress.progress, lineitems.submitted_progress),
 
           // Not currently locked (or lock is stale)
           or(
             isNull(lineitems.submission_locked_at),
-            lt(lineitems.submission_locked_at, sql`NOW() - make_interval(secs => ${lockTimeoutSeconds})`)
+            lt(
+              lineitems.submission_locked_at,
+              sql`NOW() - make_interval(secs => ${lockTimeoutSeconds})`
+            )
           ),
 
           // Not in a backoff period
@@ -156,14 +159,18 @@ export class LtiQueries extends BaseService {
             lt(lineitems.submission_next_retry_at, sql`NOW()`)
           ),
 
-          // Debounce: don't submit until the student has stopped updating for
-          // at least debounceSeconds
+          // Not actively being updated (at least debounceSeconds have elapsed
+          // since the last progress update was submitted to Modulus)
           lt(progress.updated_at, sql`NOW() - make_interval(secs => ${debounceSeconds})`)
         )
       )
       .orderBy(
-        sql`${lineitems.submission_next_retry_at} NULLS FIRST`,
-        progress.updated_at
+        // Prioritize items that became eligible for submission earliest.  Items become eligible
+        // at the GREATEST of the following timestamps (ignoring nulls):
+        // - 'debounceSeconds' after their most recent progress update
+        // - their 'next_retry_at' time (if any)
+        // - 'lockTimeoutSeconds' after their lock was set (if any)
+        sql`GREATEST(${lineitems.submission_next_retry_at}, ${progress.updated_at} + make_interval(secs => ${debounceSeconds}), ${lineitems.submission_locked_at} + make_interval(secs => ${lockTimeoutSeconds}))`
       )
       .limit(1)
       .catch(this.utils.wrapDbErrorNew())
@@ -236,12 +243,26 @@ export class LtiMutations extends BaseService {
    * was not already locked by another worker).
    */
   @method
-  async claimLineItemForSubmission(id: string): Promise<boolean> {
+  async claimLineItemForSubmission(
+    id: string,
+    { lockTimeoutSeconds }: { lockTimeoutSeconds: number }
+  ): Promise<boolean> {
     const rows = await this.db
       .get()
       .update(lineitems)
       .set({ submission_locked_at: sql`NOW()` })
-      .where(and(eq(lineitems.id, id), isNull(lineitems.submission_locked_at)))
+      .where(
+        and(
+          eq(lineitems.id, id),
+          or(
+            isNull(lineitems.submission_locked_at),
+            lt(
+              lineitems.submission_locked_at,
+              sql`NOW() - make_interval(secs => ${lockTimeoutSeconds})`
+            )
+          )
+        )
+      )
       .returning({ id: lineitems.id })
       .catch(this.utils.wrapDbErrorNew())
 
@@ -280,10 +301,13 @@ export class LtiMutations extends BaseService {
   async markSubmissionFailure(
     id: string,
     error: string,
-    { backoffBaseSeconds = 5, maxBackoffSeconds = 300 }: {
-      backoffBaseSeconds?: number
-      maxBackoffSeconds?: number
-    } = {}
+    {
+      backoffBaseSeconds,
+      maxBackoffSeconds,
+    }: {
+      backoffBaseSeconds: number
+      maxBackoffSeconds: number
+    }
   ): Promise<void> {
     await this.db
       .get()

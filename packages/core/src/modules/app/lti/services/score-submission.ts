@@ -1,5 +1,6 @@
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_SCORE_PASSBACK } from '../errors.js'
+import type { Config } from '@/index.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { LtiMutations, LtiQueries, PendingSubmission } from '../repository/index.js'
 import type { AccessTokenManager } from './access-tokens.js'
@@ -21,17 +22,20 @@ export type ProcessSubmissionResult =
  * (e.g. from Next.js instrumentation.ts or a standalone worker script).
  */
 export class ScoreSubmissionProcessor extends BaseService {
+  private config: Config
   private queries: LtiQueries
   private mutations: LtiMutations
   private accessTokenManager: AccessTokenManager
 
   constructor(deps: {
     logger: CoreLogger
+    config: Config
     queries: LtiQueries
     mutations: LtiMutations
     accessTokenManager: AccessTokenManager
   }) {
     super(deps.logger, 'app', 'lti')
+    this.config = deps.config
     this.queries = deps.queries
     this.mutations = deps.mutations
     this.accessTokenManager = deps.accessTokenManager
@@ -48,12 +52,17 @@ export class ScoreSubmissionProcessor extends BaseService {
    */
   @method
   async processOne(): Promise<ProcessSubmissionResult> {
-    const pending = await this.queries.findNextPendingSubmission()
+    const pending = await this.queries.findNextPendingSubmission({
+      debounceSeconds: this.config.lti.score_submission.debounce_seconds,
+      lockTimeoutSeconds: this.config.lti.score_submission.lock_timeout_seconds,
+    })
     if (pending == null) {
       return { status: 'none_pending' }
     }
 
-    const claimed = await this.mutations.claimLineItemForSubmission(pending.lineitem_id)
+    const claimed = await this.mutations.claimLineItemForSubmission(pending.lineitem_id, {
+      lockTimeoutSeconds: this.config.lti.score_submission.lock_timeout_seconds,
+    })
     if (!claimed) {
       return { status: 'claimed_by_other' }
     }
@@ -61,10 +70,7 @@ export class ScoreSubmissionProcessor extends BaseService {
     try {
       await this.submitScore(pending)
 
-      await this.mutations.markSubmissionSuccess(
-        pending.lineitem_id,
-        pending.current_progress
-      )
+      await this.mutations.markSubmissionSuccess(pending.lineitem_id, pending.current_progress)
 
       this.logger.info(
         {
@@ -81,8 +87,7 @@ export class ScoreSubmissionProcessor extends BaseService {
         progress: pending.current_progress,
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'unknown error'
+      const errorMessage = error instanceof Error ? error.message : 'unknown error'
 
       this.logger.error(
         {
@@ -93,10 +98,10 @@ export class ScoreSubmissionProcessor extends BaseService {
         'score submission failed'
       )
 
-      await this.mutations.markSubmissionFailure(
-        pending.lineitem_id,
-        errorMessage
-      )
+      await this.mutations.markSubmissionFailure(pending.lineitem_id, errorMessage, {
+        backoffBaseSeconds: this.config.lti.score_submission.backoff_base_seconds,
+        maxBackoffSeconds: this.config.lti.score_submission.backoff_max_seconds,
+      })
 
       return {
         status: 'failure',

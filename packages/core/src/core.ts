@@ -118,6 +118,7 @@ export const initCore = async ({
     const stopScoreSubmission = startScoreSubmissionWorker({
       processor: registry.app.lti.scoreSubmissionProcessor,
       logger: registry.logger,
+      config,
     })
 
     return async () => {
