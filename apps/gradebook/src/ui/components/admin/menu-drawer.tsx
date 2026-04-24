@@ -95,6 +95,16 @@ export function MenuDrawer({ lng }: { lng: Locale }): React.JSX.Element | null {
               <span>Admin Roles</span>
             </LangLink>
           </li>
+          <li className="menu-separator" />
+          <li className={cx({ active: isActive(pathname, '/admin/lti-platforms') }, 'menu-item')}>
+            <LangLink lng={lng} href="/admin/lti-platforms">
+              <span className="icon">
+                {/* TODO: Pick a better icon here */}
+                <RolesIcon height="25px" width="25px" />
+              </span>
+              <span>LTI Platforms</span>
+            </LangLink>
+          </li>
         </ul>
       </nav>
     </aside>
