@@ -144,6 +144,10 @@ export class LtiQueries extends BaseService {
           // Only items where the current progress exceeds what was last submitted to the LTI platform
           gt(progress.progress, lineitems.submitted_progress),
 
+          // Not actively being updated (at least debounceSeconds have elapsed
+          // since the last progress update was submitted to Modulus)
+          lt(progress.updated_at, sql`NOW() - make_interval(secs => ${debounceSeconds})`),
+
           // Not currently locked (or lock is stale)
           or(
             isNull(lineitems.submission_locked_at),
@@ -157,11 +161,7 @@ export class LtiQueries extends BaseService {
           or(
             isNull(lineitems.submission_next_retry_at),
             lt(lineitems.submission_next_retry_at, sql`NOW()`)
-          ),
-
-          // Not actively being updated (at least debounceSeconds have elapsed
-          // since the last progress update was submitted to Modulus)
-          lt(progress.updated_at, sql`NOW() - make_interval(secs => ${debounceSeconds})`)
+          )
         )
       )
       .orderBy(
@@ -170,7 +170,7 @@ export class LtiQueries extends BaseService {
         // - 'debounceSeconds' after their most recent progress update
         // - their 'next_retry_at' time (if any)
         // - 'lockTimeoutSeconds' after their lock was set (if any)
-        sql`GREATEST(${lineitems.submission_next_retry_at}, ${progress.updated_at} + make_interval(secs => ${debounceSeconds}), ${lineitems.submission_locked_at} + make_interval(secs => ${lockTimeoutSeconds}))`
+        sql`GREATEST(${progress.updated_at} + make_interval(secs => ${debounceSeconds}), ${lineitems.submission_next_retry_at}, ${lineitems.submission_locked_at} + make_interval(secs => ${lockTimeoutSeconds}))`
       )
       .limit(1)
       .catch(this.utils.wrapDbErrorNew())
@@ -284,6 +284,7 @@ export class LtiMutations extends BaseService {
         submission_attempts: 0,
         submission_next_retry_at: null,
         submission_last_error: null,
+        submitted_at: new Date(),
       })
       .where(eq(lineitems.id, id))
       .catch(this.utils.wrapDbErrorNew())

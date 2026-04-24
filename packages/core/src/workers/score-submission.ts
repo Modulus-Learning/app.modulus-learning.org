@@ -34,6 +34,7 @@ export function startScoreSubmissionWorker({
 
         switch (result.status) {
           case 'none_pending':
+            logger.debug('no pending score submissions found -- sleeping')
             await sleep(config.lti.score_submission.poll_interval_ms)
             break
           case 'claimed_by_other':
