@@ -20,7 +20,7 @@ export const seedAdminPermissions = async (
     )
 
   console.log('Seed admin permissions start')
-  // Manger
+  // Manager
   await grant(adminRoleIds[0]!.id, [
     'account:read_own',
     'account:edit_own',
@@ -45,6 +45,8 @@ export const seedAdminPermissions = async (
     'admin-roles:create',
     'admin-roles:edit',
     'admin-roles:delete',
+    'lti-platforms:list',
+    'lti-platforms:create',
     'reports:list',
     'reports:read',
     'access_admin',

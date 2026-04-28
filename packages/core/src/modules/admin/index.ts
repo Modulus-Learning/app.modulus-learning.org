@@ -8,6 +8,9 @@ import { AdminRoleService } from './admin-roles/services/admin-roles.js'
 import { AdminUserCommands } from './admin-users/commands.js'
 import { AdminUserMutations, AdminUserQueries } from './admin-users/repository/index.js'
 import { AdminUserService } from './admin-users/services/admin-users.js'
+import { LtiPlatformsCommands } from './lti-platforms/commands.js'
+import { LtiPlatformMutations, LtiPlatformQueries } from './lti-platforms/repository.js'
+import { LtiPlatformsService } from './lti-platforms/services/lti-platforms.js'
 import { AdminReportCommands } from './reports/commands.js'
 import { AdminReportQueries } from './reports/repository/index.js'
 import { AdminReportService } from './reports/services/admin-reports.js'
@@ -75,6 +78,13 @@ const createAdminSessionRegistry = () =>
     .addClass('passwordSignInService', AdminPasswordSignInService)
     .addClass('commands', AdminSessionCommands)
 
+const createLtiPlatformRegistry = () =>
+  new Registry()
+    .addClass('queries', LtiPlatformQueries)
+    .addClass('mutations', LtiPlatformMutations)
+    .addClass('service', LtiPlatformsService)
+    .addClass('commands', LtiPlatformsCommands)
+
 export const createAdminRegistry = () =>
   new Registry()
     .addNested('account', createAccountRegistry())
@@ -84,6 +94,7 @@ export const createAdminRegistry = () =>
     .addNested('roles', createRoleRegistry())
     .addNested('users', createUserRegistry())
     .addNested('session', createAdminSessionRegistry())
+    .addNested('ltiPlatforms', createLtiPlatformRegistry())
 
 type AdminRegistry = ReturnType<typeof createAdminRegistry>
 
@@ -96,5 +107,6 @@ export const getAdminCommands = (services: RegisteredServices<AdminRegistry>) =>
     roles: services.roles.commands,
     users: services.users.commands,
     session: services.session.commands,
+    ltiPlatforms: services.ltiPlatforms.commands,
   }
 }
