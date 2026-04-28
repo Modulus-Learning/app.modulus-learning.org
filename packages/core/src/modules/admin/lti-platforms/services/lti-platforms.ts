@@ -1,6 +1,7 @@
 import { v7 as uuidv7 } from 'uuid'
 
 import { BaseService, method } from '@/lib/base-service.js'
+import { ERR_NOT_FOUND } from '@/lib/errors.js'
 import { ERR_PLATFORM_ISSUER_CONFLICT } from '../errors.js'
 import { toPlatform } from '../utils.js'
 import type { AdminAuth } from '@/lib/auth.js'
@@ -32,6 +33,21 @@ export class LtiPlatformsService extends BaseService {
 
     return {
       platforms: platforms.map(toPlatform),
+    }
+  }
+
+  @method
+  async getLtiPlatform(_auth: AdminAuth, request: { id: string }): Promise<LtiPlatformResponse> {
+    const platform = await this.queries.findPlatformById(request.id)
+
+    if (platform == null) {
+      throw ERR_NOT_FOUND({
+        message: 'Platform not found',
+      }).log(this.logger)
+    }
+
+    return {
+      platform: toPlatform(platform),
     }
   }
 

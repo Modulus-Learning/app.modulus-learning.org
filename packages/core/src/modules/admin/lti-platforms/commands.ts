@@ -46,4 +46,19 @@ export class LtiPlatformsCommands {
       handler: this.service.createLtiPlatform.bind(this.service),
     })
   }
+
+  @cached get getLtiPlatform() {
+    return this.utils.createCommand({
+      method: 'getLtiPlatform',
+      auth: {
+        mode: 'admin',
+        abilities: ['lti-platforms:read'],
+      },
+      schemas: {
+        input: z.object({ id: z.string() }),
+        output: ltiPlatformResponseSchema,
+      },
+      handler: this.service.getLtiPlatform.bind(this.service),
+    })
+  }
 }

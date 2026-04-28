@@ -32,6 +32,14 @@ export class LtiPlatformQueries extends BaseService {
   }
 
   @method
+  async findPlatformById(id: string): Promise<LtiPlatformRecord | undefined> {
+    return await this.db
+      .get()
+      .query.platforms.findFirst({ where: eq(platforms.id, id) })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
   async findPlatformByIssuer(issuer: string): Promise<LtiPlatformRecord | undefined> {
     return await this.db
       .get()
