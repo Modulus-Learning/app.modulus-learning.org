@@ -16,6 +16,10 @@ export interface LtiPlatform {
   authorization_server: string
 }
 
+export interface LtiPlatformResponse {
+  platform: LtiPlatform | null
+}
+
 export interface LtiPlatformFormState {
   errors: {
     name?: string[] | undefined
