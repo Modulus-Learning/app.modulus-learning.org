@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
 import { getServerConfig } from '@/config'
-import { getCoreAdminRequestContext } from '@/core-adapter'
+import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
 import { type LtiPlatformFormState, ltiPlatformCreateSchema } from './@types'
 
 export async function createLtiPlatform(
@@ -38,31 +38,46 @@ export async function createLtiPlatform(
     }
   }
 
-  const { name } = validatedFields.data
+  const { name, issuer, client_id, deployment_id } = validatedFields.data
 
-  // TODO: call into core to actually persist the new LTI platform.
-  // const core = await getCoreCommands()
-  // const result = await core.admin.ltiPlatforms.createLtiPlatform(adminAuth, {
-  //   name,
-  //   issuer,
-  //   client_id,
-  //   deployment_id,
-  // })
+  const core = await getCoreCommands()
+  const result = await core.admin.ltiPlatforms.createLtiPlatform(adminAuth, {
+    name,
+    issuer,
+    client_id,
+    deployment_id,
+  })
 
-  const config = getServerConfig()
-  const cookieJar = await cookies()
+  if (result.ok) {
+    const config = getServerConfig()
+    const cookieJar = await cookies()
 
-  cookieJar.set(
-    config.cookies.flash.name,
-    `LTI Platform Created::${name} LTI platform created successfully.`,
-    {
-      path: '/',
-      httpOnly: config.cookies.flash.httpOnly,
-      secure: config.cookies.flash.secure,
-      sameSite: config.cookies.flash.sameSite,
-      maxAge: 0,
+    cookieJar.set(
+      config.cookies.flash.name,
+      `LTI Platform Created::${name} LTI platform created successfully.`,
+      {
+        path: '/',
+        httpOnly: config.cookies.flash.httpOnly,
+        secure: config.cookies.flash.secure,
+        sameSite: config.cookies.flash.sameSite,
+        maxAge: 0,
+      }
+    )
+
+    redirect('/admin/lti-platforms')
+  }
+
+  if (result.error.code === 'ERR_PLATFORM_ISSUER_CONFLICT') {
+    return {
+      errors: {},
+      message: 'LTI Platform with the same issuer already exists.',
+      status: 'failed',
     }
-  )
+  }
 
-  redirect('/admin/lti-platforms')
+  return {
+    errors: {},
+    message: 'Failed to create LTI platform.',
+    status: 'failed',
+  }
 }

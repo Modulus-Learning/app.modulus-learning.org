@@ -9,7 +9,7 @@ export interface LtiPlatform {
   name: string
   issuer: string
   client_id: string
-  deployment_id: string | null
+  deployment_id?: string | undefined
   authorization_endpoint: string
   token_endpoint: string
   jwks_uri: string
