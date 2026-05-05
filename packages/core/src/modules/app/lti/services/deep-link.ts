@@ -16,6 +16,7 @@ import {
 import { ERR_DEEP_LINKING } from '../errors.js'
 import type { UrlBuilder } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
+import type { LtiKeyStore } from '@/lib/lti-keystore.js'
 import type {
   ActivityMutations,
   ActivityQueries,
@@ -27,7 +28,6 @@ import type {
   DeepLinkingContentItem,
   DeepLinkingResponse,
 } from '../types/messages/tool-originating/deep-linking-response.js'
-import type { LtiKeyStore } from './keystore.js'
 
 export class LtiDeepLinkingService extends BaseService {
   private urlBuilder: UrlBuilder

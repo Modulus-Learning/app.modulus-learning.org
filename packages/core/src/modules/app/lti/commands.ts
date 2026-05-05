@@ -9,8 +9,8 @@ import {
   launchRequestSchema,
   launchResponseSchema,
 } from './schemas.js'
+import type { LtiKeyStore } from '@/lib/lti-keystore.js'
 import type { LtiDeepLinkingService } from './services/deep-link.js'
-import type { LtiKeyStore } from './services/keystore.js'
 import type { LtiLaunchService } from './services/launch.js'
 import type { LtiLoginService } from './services/login.js'
 

@@ -7,12 +7,12 @@ import { DebugMailer, NodeMailer } from './lib/email/services/mailer.js'
 import { EmailTemplates } from './lib/email/services/templates.js'
 import { JWTSigner, JWTVerifier } from './lib/jwt/services.js'
 import { type CoreLogger, createCoreLogger } from './lib/logger.js'
+import { LtiKeyStore } from './lib/lti-keystore.js'
 import { AsyncRegistry } from './lib/registry.js'
 import { CoreUtils } from './lib/utils.js'
 import { createAdminRegistry, getAdminCommands } from './modules/admin/index.js'
 import { createAgentRegistry, getAgentCommands } from './modules/agent/index.js'
 import { createAppRegistry, getAppCommands } from './modules/app/index.js'
-import { LtiKeyStore } from './modules/app/lti/services/keystore.js'
 import { startScoreSubmissionWorker } from './workers/score-submission.js'
 
 const createJwtSigner = (deps: { logger: CoreLogger; config: Config }) =>

@@ -5,9 +5,9 @@ import { SignJWT } from 'jose'
 import { BaseService } from '@/lib/base-service.js'
 import { SCOPE_AGS_LINEITEM, SCOPE_AGS_RESULT_READONLY, SCOPE_AGS_SCORE } from '../constants.js'
 import type { CoreLogger } from '@/lib/logger.js'
+import type { LtiKeyStore } from '@/lib/lti-keystore.js'
 import type { PlatformRecord } from '../repository/index.js'
 import type { AccessToken } from '../types/access-token.js'
-import type { LtiKeyStore } from './keystore.js'
 
 /***
  * Manages access tokens for making API requests to LTI platforms.
