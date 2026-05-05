@@ -45,7 +45,7 @@ export const generateCanvasConfigRequestSchema = z.object({
 export type GenerateCanvasConfigRequest = z.infer<typeof generateCanvasConfigRequestSchema>
 
 export const generateCanvasConfigResponseSchema = z.object({
-  configJson: z.string(),
+  config_json: z.string(),
 })
 
 export type GenerateCanvasConfigResponse = z.infer<typeof generateCanvasConfigResponseSchema>

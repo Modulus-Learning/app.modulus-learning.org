@@ -11,6 +11,7 @@ import { useTheme } from '@/ui/theme/provider'
 import { getErrorText, hasErrors } from '@/utils/utils.forms'
 import { ltiPlatformCreateSchema } from '../@types'
 import { createLtiPlatform } from '../create'
+import { generateCanvasConfig } from '../generate-canvas-config'
 import type { Locale } from '@/i18n/i18n-config'
 import type { LtiPlatformFormState } from '../@types'
 
@@ -31,6 +32,27 @@ export function LtiPlatformCreateForm({ lng }: { lng: Locale }): React.JSX.Eleme
     reset,
   } = useForm({ resolver, mode: 'onSubmit' })
   const [submitted, setSubmitted] = useState<boolean>(false)
+  const [configStatus, setConfigStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [isGeneratingConfig, setIsGeneratingConfig] = useState<boolean>(false)
+
+  const handleCopyCanvasConfig = async (): Promise<void> => {
+    setIsGeneratingConfig(true)
+    setConfigStatus('idle')
+    try {
+      const result = await generateCanvasConfig()
+      if (result.ok && result.config != null) {
+        await navigator.clipboard.writeText(result.config)
+        setConfigStatus('copied')
+      } else {
+        setConfigStatus('failed')
+      }
+    } catch (error) {
+      console.error('Error generating Canvas config:', error)
+      setConfigStatus('failed')
+    } finally {
+      setIsGeneratingConfig(false)
+    }
+  }
 
   const handleOnSubmit = async (data: Record<string, any>): Promise<void> => {
     try {
@@ -69,7 +91,44 @@ export function LtiPlatformCreateForm({ lng }: { lng: Locale }): React.JSX.Eleme
 
   return (
     <div className="max-w-[500px] mx-auto rounded-md border border-gray-100 dark:border-gray-700 p-5 pb-1 mb-8 mt-[4vh]">
-      <h2 className="!m-0 !mb-4">Create New LTI Platform</h2>
+      <h2 className="!m-0 !mb-4">Register New LTI Platform</h2>
+      <div className="mb-3 prose">
+        <p>
+          To register Modulus with Canvas:
+          <ol>
+            <li>Generate a JSON config and copy it to your clipboard using the button below.</li>
+            <li>
+              Add a new LTI developer key in Canvas, and paste the config under &quot;Method: Paste
+              JSON&quot;.
+            </li>
+            <li>Find the client ID (and optional deployment ID) issued by Canvas.</li>
+            <li>
+              Fill in the form below with the platform name, issuer (base Canvas URL), and the
+              client / deployment IDs.
+            </li>
+          </ol>
+        </p>
+      </div>
+      <div className="mb-4 flex items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleCopyCanvasConfig}
+          disabled={isGeneratingConfig}
+        >
+          {isGeneratingConfig ? (
+            <LoaderEllipsis color={theme === 'dark' ? '#000000' : '#FFFFFF'} size={42} />
+          ) : (
+            'Copy Canvas Config JSON'
+          )}
+        </Button>
+        {configStatus === 'copied' && (
+          <span className="text-sm text-green-700 dark:text-green-500">Copied to clipboard.</span>
+        )}
+        {configStatus === 'failed' && (
+          <span className="text-sm text-red-700 dark:text-red-500">Failed to generate config.</span>
+        )}
+      </div>
       {formState?.status === 'success' && (
         <Alert intent="success">
           <span>{formState.message}</span>

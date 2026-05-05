@@ -194,7 +194,7 @@ export class LtiPlatformsService extends BaseService {
     }
 
     return {
-      configJson: JSON.stringify(config, null, 2),
+      config_json: JSON.stringify(config, null, 2),
     }
   }
 }
