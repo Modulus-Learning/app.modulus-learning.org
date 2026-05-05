@@ -106,7 +106,7 @@ export class LtiPlatformsService extends BaseService {
     const config = {
       title,
       description,
-      target_link_uri: this.config.server.baseUrl.toString(),
+      target_link_uri: new URL('/routes/lti/launch', baseUrl).toString(),
       oidc_initiation_url: new URL('/routes/lti/login', baseUrl).toString(),
       public_jwk: this.ltiKeyStore.getJWKS().keys[0],
       custom_fields: {},
@@ -127,7 +127,6 @@ export class LtiPlatformsService extends BaseService {
           privacy_level: 'public',
           platform,
           settings: {
-            // TODO: platform,
             placements: [
               {
                 text: 'Create a Modulus Assignment',
@@ -144,7 +143,7 @@ export class LtiPlatformsService extends BaseService {
                   com_instructure_context_label: '$com.instructure.contextLabel',
                   com_instructure_assignment_lti_id: '$com.instructure.Assignment.lti.id',
                 },
-                target_link_uri: 'https://modulus.infonomic.local:3000/lti/deep-link',
+                target_link_uri: new URL('/lti/deep-link', baseUrl).toString(),
               },
               {
                 text: 'Link to a Modulus activity',
@@ -159,7 +158,7 @@ export class LtiPlatformsService extends BaseService {
                   modulus_deep_link_context: 'standalone',
                   com_instructure_context_label: '$com.instructure.contextLabel',
                 },
-                target_link_uri: 'https://modulus.infonomic.local:3000/lti/deep-link',
+                target_link_uri: new URL('/lti/deep-link', baseUrl).toString(),
               },
               {
                 text: 'Link to a Modulus activity',
@@ -174,7 +173,7 @@ export class LtiPlatformsService extends BaseService {
                   modulus_deep_link_context: 'standalone',
                   com_instructure_context_label: '$com.instructure.contextLabel',
                 },
-                target_link_uri: 'https://modulus.infonomic.local:3000/lti/deep-link',
+                target_link_uri: new URL('/lti/deep-link', baseUrl).toString(),
               },
               {
                 text: 'View Modulus Dashboard',
@@ -184,7 +183,7 @@ export class LtiPlatformsService extends BaseService {
                 custom_fields: {
                   modulus_launch_type: 'view-dashboard',
                 },
-                target_link_uri: 'https://modulus.infonomic.local:3000/dashboard',
+                target_link_uri: new URL('/dashboard', baseUrl).toString(),
                 required_permissions: 'manage_students',
               },
             ],
