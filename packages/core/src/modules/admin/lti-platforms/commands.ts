@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { type CoreUtils, cached } from '@/lib/utils.js'
 import {
   createLtiPlatformRequestSchema,
+  generateCanvasConfigRequestSchema,
+  generateCanvasConfigResponseSchema,
   ltiPlatformListResponseSchema,
   ltiPlatformResponseSchema,
 } from './schemas.js'
@@ -59,6 +61,21 @@ export class LtiPlatformsCommands {
         output: ltiPlatformResponseSchema,
       },
       handler: this.service.getLtiPlatform.bind(this.service),
+    })
+  }
+
+  @cached get generateCanvasConfig() {
+    return this.utils.createCommand({
+      method: 'generateCanvasConfig',
+      auth: {
+        mode: 'admin',
+        abilities: ['lti-platforms:create'],
+      },
+      schemas: {
+        input: generateCanvasConfigRequestSchema,
+        output: generateCanvasConfigResponseSchema,
+      },
+      handler: this.service.generateCanvasConfig.bind(this.service),
     })
   }
 }

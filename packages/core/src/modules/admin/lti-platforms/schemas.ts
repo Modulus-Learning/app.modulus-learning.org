@@ -34,3 +34,18 @@ export const createLtiPlatformRequestSchema = z.object({
 })
 
 export type CreateLtiPlatformRequest = z.infer<typeof createLtiPlatformRequestSchema>
+
+export const generateCanvasConfigRequestSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().optional(),
+  tool_id: z.string().optional(),
+  platform: z.string().optional(),
+})
+
+export type GenerateCanvasConfigRequest = z.infer<typeof generateCanvasConfigRequestSchema>
+
+export const generateCanvasConfigResponseSchema = z.object({
+  configJson: z.string(),
+})
+
+export type GenerateCanvasConfigResponse = z.infer<typeof generateCanvasConfigResponseSchema>
