@@ -86,7 +86,7 @@ const serverSchema = z.object({
     }),
   }),
   jobQueue: z.object({
-    enabled: booleanSchema(),
+    enabled: booleanSchema(true),
   }),
   s3: z.object({
     accessKey: z.string(),
