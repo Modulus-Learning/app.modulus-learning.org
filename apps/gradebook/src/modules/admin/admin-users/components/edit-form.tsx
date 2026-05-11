@@ -18,7 +18,7 @@ import { Controller, useForm } from 'react-hook-form'
 
 import { LangLink } from '@/i18n/components/lang-link'
 import { useTheme } from '@/ui/theme/provider'
-import { getErrorText, hasAnyErrors, hasErrors } from '@/utils/utils.forms'
+import { countErrors, getErrorText, hasErrors } from '@/utils/utils.forms'
 import { adminUserEditSchema } from '../@types'
 import { editAdminUser } from '../edit'
 import type { Locale } from '@/i18n/i18n-config'
@@ -122,8 +122,20 @@ export function AdminUserEditForm({ data, lng }: UserEditFormProps): React.JSX.E
               value="detailsTab"
             >
               Details
-              {hasAnyErrors(['full_name', 'email', 'password'], errors, null) ?? (
-                <span className="text-red-600 dark:text-red-700">&nbsp;*</span>
+              {countErrors(
+                ['given_name', 'family_name', 'email', 'password'],
+                errors,
+                formState?.errors
+              ) > 0 && (
+                <span className="ml-1 text-red-600 dark:text-red-700">
+                  (
+                  {countErrors(
+                    ['given_name', 'family_name', 'email', 'password'],
+                    errors,
+                    formState?.errors
+                  )}
+                  )
+                </span>
               )}
             </Tabs.Trigger>
             <Tabs.Trigger
@@ -131,8 +143,10 @@ export function AdminUserEditForm({ data, lng }: UserEditFormProps): React.JSX.E
               value="rolesTab"
             >
               Roles
-              {hasAnyErrors(['roles'], errors, null) ?? (
-                <span className="text-red-600 dark:text-red-700">Roles &nbsp;*</span>
+              {countErrors(['roles'], errors, formState?.errors) > 0 && (
+                <span className="ml-1 text-red-600 dark:text-red-700">
+                  ({countErrors(['roles'], errors, formState?.errors)})
+                </span>
               )}
             </Tabs.Trigger>
           </Tabs.List>
