@@ -5,6 +5,7 @@ import { startTransition, useActionState, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Alert,
+  Badge,
   Button,
   Checkbox,
   CheckboxGroup,
@@ -88,6 +89,13 @@ export function AdminUserCreateForm({
     }
   }, [formState?.errors, setError])
 
+  const detailsErrorCount = countErrors(
+    ['given_name', 'family_name', 'email', 'password'],
+    errors,
+    formState?.errors
+  )
+  const rolesErrorCount = countErrors(['roles'], errors, formState?.errors)
+
   return (
     <div className="max-w-[500px] mx-auto rounded-md border border-gray-100 dark:border-gray-700 p-5 mb-8 mt-[4vh]">
       <h2 className="!m-0 !mb-4">Create New Admin User</h2>
@@ -120,20 +128,10 @@ export function AdminUserCreateForm({
               value="detailsTab"
             >
               Details
-              {countErrors(
-                ['given_name', 'family_name', 'email', 'password'],
-                errors,
-                formState?.errors
-              ) > 0 && (
-                <span className="ml-1 text-red-600 dark:text-red-700">
-                  (
-                  {countErrors(
-                    ['given_name', 'family_name', 'email', 'password'],
-                    errors,
-                    formState?.errors
-                  )}
-                  )
-                </span>
+              {detailsErrorCount > 0 && (
+                <Badge intent="danger" className="ml-2">
+                  {detailsErrorCount}
+                </Badge>
               )}
             </Tabs.Trigger>
             <Tabs.Trigger
@@ -141,10 +139,10 @@ export function AdminUserCreateForm({
               value="rolesTab"
             >
               Roles
-              {countErrors(['roles'], errors, formState?.errors) > 0 && (
-                <span className="ml-1 text-red-600 dark:text-red-700">
-                  ({countErrors(['roles'], errors, formState?.errors)})
-                </span>
+              {rolesErrorCount > 0 && (
+                <Badge intent="danger" className="ml-2">
+                  {rolesErrorCount}
+                </Badge>
               )}
             </Tabs.Trigger>
           </Tabs.List>
@@ -258,6 +256,7 @@ export function AdminUserCreateForm({
           <Controller
             control={control}
             name="send_welcome"
+            defaultValue={false}
             render={({ field: { onChange, value } }) => (
               <Checkbox
                 reverse={true}

@@ -227,6 +227,7 @@ export function UserCreateForm({ lng, roles }: { lng: Locale; roles: Role[] }): 
             render={({ field: { onChange, value } }) => (
               <Checkbox
                 reverse={true}
+                defaultValue={false}
                 labelClasses="ml-auto mr-4 text-sm"
                 id="send_welcome"
                 name="send_welcome"
