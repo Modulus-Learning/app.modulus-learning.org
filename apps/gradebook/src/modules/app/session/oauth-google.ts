@@ -233,7 +233,8 @@ export async function handleGoogleOAuthResponse(
   }
 
   await setUserSession(result.tokens)
-  redirect(callbackUrl)
+
+  return redirect(callbackUrl != null && callbackUrl !== '/' ? callbackUrl : '/dashboard?m=welcome')
 }
 
 export async function unlinkGoogleAccount(): Promise<GoogleFormState> {

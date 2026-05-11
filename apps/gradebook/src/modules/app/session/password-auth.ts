@@ -66,9 +66,6 @@ export async function signIn(
 
   await setUserSession(signInResult.data)
 
-  // NOTE: Redirect in actions will not work if you are trying to redirect across route groups
-  // and where there is no route layout. See the root layout.tsx for more...
-  // https://github.com/vercel/next.js/issues/58263
   return redirect(
     callback_url != null && callback_url !== '/' ? callback_url : '/dashboard?m=welcome'
   )

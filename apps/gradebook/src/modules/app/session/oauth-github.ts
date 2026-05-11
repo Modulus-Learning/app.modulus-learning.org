@@ -202,5 +202,5 @@ export async function handleGithubOAuthResponse(
   }
 
   await setUserSession(result.tokens)
-  redirect(callbackUrl)
+  return redirect(callbackUrl != null && callbackUrl !== '/' ? callbackUrl : '/dashboard?m=welcome')
 }
