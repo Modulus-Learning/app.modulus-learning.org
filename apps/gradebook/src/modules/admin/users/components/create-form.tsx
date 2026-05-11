@@ -223,11 +223,11 @@ export function UserCreateForm({ lng, roles }: { lng: Locale; roles: Role[] }): 
         <div className="input-control mr-1">
           <Controller
             control={control}
+            defaultValue={false}
             name="send_welcome"
             render={({ field: { onChange, value } }) => (
               <Checkbox
                 reverse={true}
-                defaultValue={false}
                 labelClasses="ml-auto mr-4 text-sm"
                 id="send_welcome"
                 name="send_welcome"
