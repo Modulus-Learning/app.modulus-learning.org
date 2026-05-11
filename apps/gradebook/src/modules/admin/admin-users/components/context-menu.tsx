@@ -34,7 +34,9 @@ export function AdminUserContextMenu({
 }: AdminUserContextMenuProps): React.JSX.Element {
   return (
     <DropdownMenu.Root modal={false}>
-      <DropdownMenu.Trigger render={<IconButton variant="text" size="sm" className="rounded-md" />}>
+      <DropdownMenu.Trigger
+        render={<IconButton variant="text" intent="noeffect" size="sm" className="text-current" />}
+      >
         <EllipsisIcon />
       </DropdownMenu.Trigger>
 
