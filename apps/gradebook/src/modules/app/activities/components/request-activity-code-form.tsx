@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useActionState, useEffect } from 'react'
+import { startTransition, useActionState, useEffect, useRef } from 'react'
 
 import { Button, ErrorText, Input, LoaderEllipsis } from '@infonomic/uikit/react'
 
@@ -23,6 +23,16 @@ export function RequestActivityCodeForm({
 }: RequestActivityCodeFormProps): React.JSX.Element {
   const { theme } = useTheme()
   const [formState, formAction, isPending] = useActionState(requestActivityCode, initialState)
+  const hasAutoRequestedRef = useRef(false)
+
+  useEffect(() => {
+    if (hasAutoRequestedRef.current) return
+    if (formState.code) return
+    hasAutoRequestedRef.current = true
+    startTransition(() => {
+      formAction(new FormData())
+    })
+  }, [formAction, formState.code])
 
   const handleOnSubmit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault()

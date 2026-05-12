@@ -32,8 +32,7 @@ export default async function CreateActivityCode({
               <Card.Header>
                 <Card.Title>Create Activity Code</Card.Title>
                 <Card.Description>
-                  Activity codes are similar to a course, module, or assignment name. Use the button
-                  below to generate a new activity code.
+                  Data will be collected on all activities under the same activity code.
                 </Card.Description>
               </Card.Header>
               <Card.Content>
