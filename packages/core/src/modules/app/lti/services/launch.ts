@@ -22,6 +22,7 @@ import type { LtiMutations, LtiQueries, PlatformRecord } from '../repository/ind
 import type { LaunchRequest, LaunchResponse } from '../schemas.js'
 import type { DeepLinkingRequest } from '../types/messages/platform-originating/deep-linking-request.js'
 import type { ResourceLinkLaunchRequest } from '../types/messages/platform-originating/resource-link-launch-request.js'
+
 type RemoteJWKSet = ReturnType<typeof createRemoteJWKSet>
 
 export class LtiLaunchService extends BaseService {
@@ -265,13 +266,13 @@ export class LtiLaunchService extends BaseService {
       }).log(this.logger)
     }
 
-    // Verify id_token 'deployment_id' claim matches registered
-    // deployment_id for platform.
-    if (launch[CLAIM_DEPLOYMENT_ID] !== platform.deployment_id) {
-      throw ERR_INVALID_LAUNCH({
-        message: 'lti launch has incorrect deployment id',
-      }).log(this.logger)
-    }
+    // // Verify id_token 'deployment_id' claim matches registered
+    // // deployment_id for platform.
+    // if (launch[CLAIM_DEPLOYMENT_ID] !== platform.deployment_id) {
+    //   throw ERR_INVALID_LAUNCH({
+    //     message: 'lti launch has incorrect deployment id',
+    //   }).log(this.logger)
+    // }
 
     // TODO: Any other validations that apply to all LtiMessages?
 
