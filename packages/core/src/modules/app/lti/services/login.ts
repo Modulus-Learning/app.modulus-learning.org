@@ -41,6 +41,9 @@ export class LtiLoginService extends BaseService {
       // TODO: Should this even be logged?
       throw ERR_INVALID_LOGIN({
         message: 'platform not found in lti login',
+        logExtra: {
+          platform,
+        },
       }).log(this.logger)
     }
 
