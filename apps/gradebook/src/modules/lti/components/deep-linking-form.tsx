@@ -13,6 +13,7 @@ import {
   Select,
 } from '@infonomic/uikit/react'
 
+import { getPublicConfig } from '@/config'
 import logoBlack from '@/images/logo/modulus-logo-symbol-black.svg'
 import { validateUrls } from '@/modules/app/activities/@types/validate-urls'
 import { deepLinking } from '../actions/deep-linking-action'
@@ -40,6 +41,8 @@ export function DeepLinkingForm({
   launchId: string
   activityCodes: ActivityCode[]
 }): React.JSX.Element {
+  const config = getPublicConfig()
+
   const [formState, formAction, isPending] = useActionState(deepLinking, initialState)
   const [activityCode, setActivityCode] = useState('')
   const [activityUrl, setActivityUrl] = useState('')
@@ -236,7 +239,7 @@ export function DeepLinkingForm({
               <div className="mb-4 p-3 rounded-md border border-gray-200 text-sm text-gray-600">
                 <p className="mb-2">You don't have any activity codes yet.</p>
                 <a
-                  href="https://app.modulus-learning.org/dashboard"
+                  href={new URL('dashboard', config.publicServerUrl).toString()}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 underline"

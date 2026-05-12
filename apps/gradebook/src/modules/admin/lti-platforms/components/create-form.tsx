@@ -93,21 +93,19 @@ export function LtiPlatformCreateForm({ lng }: { lng: Locale }): React.JSX.Eleme
     <div className="max-w-[500px] mx-auto rounded-md border border-gray-100 dark:border-gray-700 p-5 pb-1 mb-8 mt-[4vh]">
       <h2 className="!m-0 !mb-4">Register New LTI Platform</h2>
       <div className="mb-3 prose">
-        <p>
-          To register Modulus with Canvas:
-          <ol>
-            <li>Generate a JSON config and copy it to your clipboard using the button below.</li>
-            <li>
-              Add a new LTI developer key in Canvas, and paste the config under &quot;Method: Paste
-              JSON&quot;.
-            </li>
-            <li>Find the client ID issued by Canvas.</li>
-            <li>
-              Fill in the form below with the platform name, issuer (base Canvas URL), and the
-              client ID issued by Canvas.
-            </li>
-          </ol>
-        </p>
+        <p>To register Modulus with Canvas:</p>
+        <ol>
+          <li>Generate a JSON config and copy it to your clipboard using the button below.</li>
+          <li>
+            Add a new LTI developer key in Canvas, and paste the config under &quot;Method: Paste
+            JSON&quot;.
+          </li>
+          <li>Find the client ID issued by Canvas.</li>
+          <li>
+            Fill in the form below with the platform name, issuer (base Canvas URL), and the client
+            ID issued by Canvas.
+          </li>
+        </ol>
       </div>
       <div className="mb-4 flex items-center gap-2">
         <Button
