@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm'
 import {
+  foreignKey,
   index,
   integer,
   pgTable,
@@ -13,6 +14,7 @@ import {
 
 import { activities } from '../activities.js'
 import { users } from '../users.js'
+import { platformDeployments } from './lti-platform-deployments.js'
 import { platforms } from './lti-platforms.js'
 
 export const lineitems = pgTable(
@@ -39,10 +41,11 @@ export const lineitems = pgTable(
     // Timestamp of the last successful score submission to the LTI platform.
     submitted_at: timestamp('submitted_at', { precision: 6, withTimezone: true }),
 
-    // LTI platform that this line item belongs to
-    platform_issuer: varchar('platform_issuer')
-      .notNull()
-      .references(() => platforms.issuer, { onDelete: 'cascade' }),
+    // LTI platform this line item belongs to
+    platform_issuer: varchar('platform_issuer').notNull(),
+
+    // LTI deployment this line item belongs to
+    deployment_id: varchar('deployment_id').notNull(),
 
     // ID of the user in the LTI platform
     lti_user_id: varchar('lti_user_id', { length: 255 }).notNull(),
@@ -83,6 +86,11 @@ export const lineitems = pgTable(
     submission_last_error: text('submission_last_error'),
   },
   (table) => [
+    foreignKey({
+      name: 'lti_lineitems_platform_issuer_deployment_id_fk',
+      columns: [table.platform_issuer, table.deployment_id],
+      foreignColumns: [platformDeployments.platform_issuer, platformDeployments.deployment_id],
+    }),
     unique('lti_lineitems_user_id_activity_id_lineitem_url_idx').on(
       table.user_id,
       table.activity_id,

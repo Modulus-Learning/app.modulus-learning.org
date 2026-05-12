@@ -141,6 +141,7 @@ export class LtiLaunchService extends BaseService {
           submitted_progress: 0,
 
           platform_issuer: launch.iss,
+          deployment_id: launch[CLAIM_DEPLOYMENT_ID],
           lti_user_id: launch.sub,
         })
       } else {
@@ -266,13 +267,8 @@ export class LtiLaunchService extends BaseService {
       }).log(this.logger)
     }
 
-    // // Verify id_token 'deployment_id' claim matches registered
-    // // deployment_id for platform.
-    // if (launch[CLAIM_DEPLOYMENT_ID] !== platform.deployment_id) {
-    //   throw ERR_INVALID_LAUNCH({
-    //     message: 'lti launch has incorrect deployment id',
-    //   }).log(this.logger)
-    // }
+    // Create a platform deployment record (if one doesn't already exist)
+    await this.ltiMutations.upsertPlatformDeployment(issuer, launch[CLAIM_DEPLOYMENT_ID])
 
     // TODO: Any other validations that apply to all LtiMessages?
 

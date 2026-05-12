@@ -1,6 +1,13 @@
 import { and, eq, gt, isNull, lt, or, sql } from 'drizzle-orm'
 
-import { launches, lineitems, nonces, platforms, progress } from '@/database/schema/index.js'
+import {
+  launches,
+  lineitems,
+  nonces,
+  platformDeployments,
+  platforms,
+  progress,
+} from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
@@ -225,6 +232,22 @@ export class LtiMutations extends BaseService {
     this.utils.assertExists(result, { message: 'newly created line item is null' })
 
     return result
+  }
+
+  @method
+  async upsertPlatformDeployment(platform_issuer: string, deployment_id: string): Promise<void> {
+    await this.db
+      .get()
+      .insert(platformDeployments)
+      .values({
+        platform_issuer,
+        deployment_id,
+      })
+      .onConflictDoUpdate({
+        target: [platformDeployments.platform_issuer, platformDeployments.deployment_id],
+        set: { updated_at: sql`NOW()` },
+      })
+      .catch(this.utils.wrapDbErrorNew())
   }
 
   @method
