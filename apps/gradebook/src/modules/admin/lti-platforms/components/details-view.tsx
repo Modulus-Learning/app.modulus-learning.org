@@ -32,13 +32,7 @@ export function LtiPlatformDetailsView({
         />
       </div>
       <div className="input-control mb-2">
-        <Input
-          name="name"
-          defaultValue={platform?.name}
-          id="name"
-          label="Name"
-          readOnly={true}
-        />
+        <Input name="name" defaultValue={platform?.name} id="name" label="Name" readOnly={true} />
       </div>
       <div className="input-control mb-2">
         <Input
@@ -55,15 +49,6 @@ export function LtiPlatformDetailsView({
           defaultValue={platform?.client_id}
           id="client_id"
           label="Client ID"
-          readOnly={true}
-        />
-      </div>
-      <div className="input-control mb-2">
-        <Input
-          name="deployment_id"
-          defaultValue={platform?.deployment_id ?? undefined}
-          id="deployment_id"
-          label="Deployment ID"
           readOnly={true}
         />
       </div>

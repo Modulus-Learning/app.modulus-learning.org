@@ -26,7 +26,6 @@ export async function createLtiPlatform(
     name: formData.get('name'),
     issuer: formData.get('issuer'),
     client_id: formData.get('client_id'),
-    deployment_id: formData.get('deployment_id'),
   })
 
   // If form validation fails, return errors early. Otherwise, continue...
@@ -38,14 +37,13 @@ export async function createLtiPlatform(
     }
   }
 
-  const { name, issuer, client_id, deployment_id } = validatedFields.data
+  const { name, issuer, client_id } = validatedFields.data
 
   const core = await getCoreCommands()
   const result = await core.admin.ltiPlatforms.createLtiPlatform(adminAuth, {
     name,
     issuer,
     client_id,
-    deployment_id,
   })
 
   if (result.ok) {

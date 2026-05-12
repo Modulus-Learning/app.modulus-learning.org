@@ -43,15 +43,6 @@ const tableColumnDefs: Omit<TableHeadingCellSortableProps, 'lng'>[] = [
     align: 'left',
     className: 'w-[20%]',
   },
-  {
-    fieldName: 'deployment_id',
-    label: 'Deployment ID',
-    path: '/admin/lti-platforms',
-    sortable: false,
-    scope: 'col',
-    align: 'left',
-    className: 'w-[25%]',
-  },
 ]
 
 function Stats({ total }: { total?: number }) {
@@ -146,7 +137,6 @@ export function LtiPlatformsListView({ data, lng }: { data: LtiPlatformsResponse
                       </Table.Cell>
                       <Table.Cell>{platform.issuer}</Table.Cell>
                       <Table.Cell>{platform.client_id}</Table.Cell>
-                      <Table.Cell>{platform.deployment_id}</Table.Cell>
                     </Table.Row>
                   )
                 })}

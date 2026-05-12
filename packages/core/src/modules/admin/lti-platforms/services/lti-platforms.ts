@@ -78,7 +78,6 @@ export class LtiPlatformsService extends BaseService {
       name: request.name,
       issuer: request.issuer,
       client_id: request.client_id,
-      deployment_id: request.deployment_id,
       // TODO: For now we're just hard-coding these endpoints based on the
       // standard urls for Canvas LMS.  In the future (if we keep this method of
       // platform registration), these urls should be configurable in some way.

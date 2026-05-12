@@ -9,7 +9,6 @@ export interface LtiPlatform {
   name: string
   issuer: string
   client_id: string
-  deployment_id?: string | undefined
   authorization_endpoint: string
   token_endpoint: string
   jwks_uri: string
@@ -25,7 +24,6 @@ export interface LtiPlatformFormState {
     name?: string[] | undefined
     issuer?: string[] | undefined
     client_id?: string[] | undefined
-    deployment_id?: string[] | undefined
   }
   message?: string
   status: 'success' | 'failed' | 'idle'
@@ -71,10 +69,4 @@ export const ltiPlatformCreateSchema = z.object({
     })
     .transform((s) => s.trim())
     .refine((s) => s.length > 0, 'Client ID cannot be empty.'),
-  deployment_id: z
-    .string()
-    .max(255, {
-      error: 'Deployment ID must not be greater than 255 characters.',
-    })
-    .optional(),
 })

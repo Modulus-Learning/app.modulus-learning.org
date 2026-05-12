@@ -101,10 +101,10 @@ export function LtiPlatformCreateForm({ lng }: { lng: Locale }): React.JSX.Eleme
               Add a new LTI developer key in Canvas, and paste the config under &quot;Method: Paste
               JSON&quot;.
             </li>
-            <li>Find the client ID (and optional deployment ID) issued by Canvas.</li>
+            <li>Find the client ID issued by Canvas.</li>
             <li>
               Fill in the form below with the platform name, issuer (base Canvas URL), and the
-              client / deployment IDs.
+              client ID issued by Canvas.
             </li>
           </ol>
         </p>
@@ -176,15 +176,6 @@ export function LtiPlatformCreateForm({ lng }: { lng: Locale }): React.JSX.Eleme
           error={!isValid && hasErrors('client_id', errors, null)}
           errorText={!isValid ? getErrorText('client_id', errors, null) : ''}
           {...register('client_id')}
-        />
-        <Input
-          id="deployment_id"
-          label="Deployment ID"
-          placeHolder="Deployment ID"
-          helpText="Optionally enter a deployment ID"
-          error={!isValid && hasErrors('deployment_id', errors, null)}
-          errorText={!isValid ? getErrorText('deployment_id', errors, null) : ''}
-          {...register('deployment_id')}
         />
 
         <div className="form-actions flex gap-2 justify-end my-4">
