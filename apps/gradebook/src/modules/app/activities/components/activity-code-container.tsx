@@ -71,7 +71,7 @@ export function ActivityCodeContainer({
         </Tabs.Trigger>
       </Tabs.List>
 
-      <Tabs.Content value="detailsTab" keepMounted={true} className="p-2">
+      <Tabs.Content value="detailsTab" keepMounted={true} className="px-2 pb-2">
         <UpdateActivityCodeForm activityCode={activityCode} activities={activities} lng={lng} />
       </Tabs.Content>
       <Tabs.Content value="membersTab" keepMounted={true}>
