@@ -50,7 +50,7 @@ export default async function Activities({
 
       <Section>
         <Container>
-          <h1>{data.activity_code.code} </h1>
+          <h1 className="mb-4">{data.activity_code.code} </h1>
           <ActivityCodeContainer
             activities={data.activities}
             activityCode={data.activity_code}
