@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 
 import { Container, Section } from '@infonomic/uikit/react'
 
-import { UpdateActivityCodeForm } from '@/modules/app/activities/components/update-activity-code-form'
+import { ActivityCodeContainer } from '@/modules/app/activities/components/activity-code-container'
 import { getActivities } from '@/modules/app/activities/get-activities'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
 import type { Locale } from '@/i18n/i18n-config'
@@ -51,9 +51,9 @@ export default async function Activities({
       <Section>
         <Container>
           <h1>{data.activity_code.code} </h1>
-          <UpdateActivityCodeForm
-            activityCode={data.activity_code}
+          <ActivityCodeContainer
             activities={data.activities}
+            activityCode={data.activity_code}
             lng={lng}
           />
         </Container>

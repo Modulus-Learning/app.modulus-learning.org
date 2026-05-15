@@ -3,7 +3,7 @@
 import type { ChangeEvent } from 'react'
 import { startTransition, useActionState, useId, useState } from 'react'
 
-import { Button, ErrorText, Input, TextArea } from '@infonomic/uikit/react'
+import { Button, ErrorText, Input, Tabs, TextArea } from '@infonomic/uikit/react'
 
 import { LangLink } from '@/i18n/components/lang-link'
 import { validateUrlPrefix, validateUrls } from '../@types/validate-urls'
