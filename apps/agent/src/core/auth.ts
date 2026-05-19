@@ -38,7 +38,7 @@ export const authenticate = async (logger: Logger | undefined): Promise<AuthResu
 
     const validationResult = await validateIssuer(
       issuer,
-      'https://modulus-learning.org/routes/registry',
+      'https://modulus-learning.org/api/registry',
       logger
     )
 
@@ -79,7 +79,7 @@ export const authenticate = async (logger: Logger | undefined): Promise<AuthResu
 
     const validationResult = await validateIssuer(
       storedIssuer,
-      'https://modulus-learning.org/routes/registry',
+      'https://modulus-learning.org/api/registry',
       logger
     )
 
