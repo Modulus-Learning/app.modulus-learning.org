@@ -4,7 +4,12 @@ import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_UNAUTHORIZED } from '@/lib/errors.js'
 import { toSignInResult } from '../utils.js'
 import type { CoreLogger } from '@/lib/logger.js'
-import type { SessionMutations, SessionQueries, UserRecord } from '../repository/index.js'
+import type {
+  SessionMutations,
+  SessionQueries,
+  UserInsert,
+  UserRecord,
+} from '../repository/index.js'
 import type { LtiCredentials, SignInResult } from '../schemas.js'
 
 export class LtiSignInService extends BaseService {
@@ -19,7 +24,22 @@ export class LtiSignInService extends BaseService {
 
   @method
   async signInLti(credentials: LtiCredentials, isInstructor: boolean): Promise<SignInResult> {
+    // - If there's already a Modulus account matching credentials.iss and sub, we use
+    //   that account to log the user in.
+    // - Otherwise, if credentials.email is defined and there's already a Modulus account matching
+    //   that email address, we use _that_ account.
+    // - Finally, if neither of the cases above holds, we create a new Modulus account and use it.
+
+    // If there's already a Modulus user matching credentials.iss and credentials.sub, log that
+    // user in.
     let user = await this.queries.findUserByLtiId(credentials.iss, credentials.sub)
+
+    // If there was no such user, and credentials.email is defined, look for a Modulus user matching
+    // credentials.email and log them in instead, and set that user's lti_iss and lti_sub to match
+    // the values in credentials.
+    if (user == null && credentials.email != null) {
+      user = await this.queries.findUserByEmail(credentials.email)
+    }
 
     if (user == null) {
       const roles = isInstructor ? ['everyone', 'instructor'] : ['everyone', 'learner']
@@ -48,11 +68,20 @@ export class LtiSignInService extends BaseService {
         })
       }
 
-      user = await this.mutations.updateUser(user, {
+      const userUpdate: Partial<UserInsert> = {
         last_login: new Date(),
         last_provider: 'lti',
-        // TODO: Should we update anything else here?  last_login_ip for example?
-      })
+      }
+      // Set user email based on credentials.email if it's not already set.
+      if (user.email == null && credentials.email != null) {
+        userUpdate.email = credentials.email
+      }
+      // Update lti_iss and lti_sub if they don't already match
+      if (user.lti_iss !== credentials.iss || user.lti_sub !== credentials.sub) {
+        userUpdate.lti_iss = credentials.iss
+        userUpdate.lti_sub = credentials.sub
+      }
+      user = await this.mutations.updateUser(user, userUpdate)
 
       // TODO: This doesn't need two queries, nor an unconditional write.
       if (isInstructor) {
@@ -92,6 +121,7 @@ export class LtiSignInService extends BaseService {
     const user = await this.mutations.createUser({
       id: uuidv7(),
       full_name: credentials.name,
+      email: credentials.email,
       lti_iss: credentials.iss,
       lti_sub: credentials.sub,
       is_enabled: true,

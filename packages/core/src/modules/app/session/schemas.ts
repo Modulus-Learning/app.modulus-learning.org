@@ -108,5 +108,6 @@ export type LtiCredentials = {
   iss: string
   sub: string
   name?: string
+  email?: string
   ip_address?: string
 }
