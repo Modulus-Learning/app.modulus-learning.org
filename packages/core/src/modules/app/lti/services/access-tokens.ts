@@ -4,6 +4,7 @@ import { SignJWT } from 'jose'
 
 import { BaseService } from '@/lib/base-service.js'
 import { SCOPE_AGS_LINEITEM, SCOPE_AGS_RESULT_READONLY, SCOPE_AGS_SCORE } from '../constants.js'
+import { ERR_LTI_ACCESS_TOKEN } from '../errors.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
 import type { PlatformRecord } from '../repository/index.js'
@@ -59,12 +60,42 @@ export class AccessTokenManager extends BaseService {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body,
+    }).catch((err) => {
+      throw ERR_LTI_ACCESS_TOKEN({
+        message: 'network error fetching LTI access token',
+        cause: err,
+        logExtra: { issuer: platform.issuer },
+      }).log(this.logger)
     })
+
     if (!tokenResponse.ok) {
-      throw new Error('Failed to fetch access token')
+      const body = await tokenResponse
+        .text()
+        .catch(() =>
+          this.logger.error({ issuer: platform.issuer }, 'failed to read error response body')
+        )
+
+      throw ERR_LTI_ACCESS_TOKEN({
+        message: 'error response while fetching LTI access token',
+        logExtra: {
+          issuer: platform.issuer,
+          status: tokenResponse.status,
+          body,
+        },
+      }).log(this.logger)
     }
+
     // TODO: validate response?
-    const { access_token, expires_in, scope } = (await tokenResponse.json()) as {
+    const { access_token, expires_in, scope } = (await tokenResponse.json().catch((err) => {
+      throw ERR_LTI_ACCESS_TOKEN({
+        message: 'failed to read token response body',
+        cause: err,
+        logExtra: {
+          issuer: platform.issuer,
+          status: tokenResponse.status,
+        },
+      }).log(this.logger)
+    })) as {
       access_token: string
       expires_in: number
       scope: string
