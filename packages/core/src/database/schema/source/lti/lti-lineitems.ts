@@ -61,29 +61,28 @@ export const lineitems = pgTable(
     // Optional due date as reported by the LTI platform
     // due_date: timestamp('due_date', { withTimezone: true }),
 
-    // --- Score submission tracking ---
+    // Submission status.  One of 'healthy', 'locked', 'backoff', 'dead'
+    submission_status: varchar('submission_status').notNull().default('healthy'),
 
-    // Set to NOW() when a worker claims this line item for submission.
-    // Null when no submission is in flight. Used as a lock to prevent
-    // concurrent submission attempts, and as a staleness indicator for
-    // crash recovery (if older than a threshold, the lock is considered stale).
-    submission_locked_at: timestamp('submission_locked_at', { precision: 6, withTimezone: true }),
-
-    // Number of consecutive failed submission attempts. Reset to 0 on success.
-    // Used to compute exponential backoff delay on retry.
-    submission_attempts: integer('submission_attempts').notNull().default(0),
-
-    // Earliest time at which this line item is eligible for another submission
-    // attempt. Set on failure to NOW() + backoff. Null when not in a backoff
-    // period (i.e. after success, or when never attempted).
-    submission_next_retry_at: timestamp('submission_next_retry_at', {
+    // Set to NOW() + <lock timeout period> when a worker claims this line item
+    // for submission.  Set to NOW() + <backoff period> on submission error.
+    // Null when no submission is in flight, and not in a backoff period.
+    submission_locked_until: timestamp('submission_locked_until', {
       precision: 6,
       withTimezone: true,
     }),
 
+    // Number of consecutive failed submission attempts. Reset to 0 on success.
+    // Used to compute backoff.
+    submission_error_count: integer('submission_error_count').notNull().default(0),
+
+    // Category of the latest error.  Used to determine submission_error_count
+    // increment, and eventual transition to 'dead' state.
+    submission_error_category: text('submission_error_category'),
+
     // Diagnostic: the error message from the most recent failed submission
     // attempt. Cleared on success.
-    submission_last_error: text('submission_last_error'),
+    submission_error_message: text('submission_error_message'),
   },
   (table) => [
     foreignKey({

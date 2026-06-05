@@ -1,26 +1,28 @@
-import { and, eq, gt, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import {
   launches,
   lineitems,
   nonces,
   platformDeployments,
+  type platformHealth,
   platforms,
-  progress,
 } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { CoreUtils } from '@/lib/utils.js'
 
-export type LineItemRecord = typeof lineitems.$inferSelect
-export type LineItemInsert = typeof lineitems.$inferInsert
 export type NonceRecord = typeof nonces.$inferSelect
 export type NonceInsert = typeof nonces.$inferInsert
-export type PlatformRecord = typeof platforms.$inferSelect
-export type PlatformInsert = typeof platforms.$inferInsert
 export type LaunchRecord = typeof launches.$inferSelect
 export type LaunchInsert = typeof launches.$inferInsert
+export type LineItemRecord = typeof lineitems.$inferSelect
+export type LineItemInsert = typeof lineitems.$inferInsert
+export type PlatformRecord = typeof platforms.$inferSelect
+export type PlatformInsert = typeof platforms.$inferInsert
+export type PlatformHealthRecord = typeof platformHealth.$inferSelect
+export type PlatformHealthInsert = typeof platformHealth.$inferInsert
 
 export type LineItemQueryOptions = {
   user_id: string
@@ -36,7 +38,9 @@ export type PendingSubmission = {
   lineitem_id: string
   lineitem_url: string
   platform_issuer: string
+  deployment_id: string
   lti_user_id: string
+  submission_failure_count: number
   current_progress: number
 }
 
@@ -94,95 +98,6 @@ export class LtiQueries extends BaseService {
         ),
       })
       .catch(this.utils.wrapDbErrorNew())
-  }
-
-  @method
-  async getLineItems(user_id: string, activity_id: string): Promise<LineItemRecord[]> {
-    return await this.db
-      .get()
-      .query.lineitems.findMany({
-        where: and(eq(lineitems.user_id, user_id), eq(lineitems.activity_id, activity_id)),
-      })
-      .catch(this.utils.wrapDbErrorNew())
-  }
-
-  /**
-   * Finds the next line item eligible for score submission.
-   *
-   * A line item is eligible when:
-   * - Its submitted_progress is less than the current progress
-   * - It is not currently locked for submission (or the lock is stale)
-   * - It is not in a backoff period after a failed attempt
-   * - The progress was last updated more than `debounceSeconds` ago (debounce)
-   *
-   * Items that have never failed are prioritized over items in retry.
-   * Among items of equal retry status, the oldest progress update is selected.
-   *
-   * @param lockTimeoutSeconds - How long before a lock is considered stale (default 60)
-   * @param debounceSeconds - Minimum seconds since last progress update (default 10)
-   */
-  @method
-  async findNextPendingSubmission({
-    debounceSeconds,
-    lockTimeoutSeconds,
-  }: {
-    debounceSeconds: number
-    lockTimeoutSeconds: number
-  }): Promise<PendingSubmission | undefined> {
-    const rows = await this.db
-      .get()
-      .select({
-        lineitem_id: lineitems.id,
-        lineitem_url: lineitems.lineitem_url,
-        platform_issuer: lineitems.platform_issuer,
-        lti_user_id: lineitems.lti_user_id,
-        current_progress: progress.progress,
-      })
-      .from(lineitems)
-      .innerJoin(
-        progress,
-        and(
-          eq(lineitems.user_id, progress.user_id),
-          eq(lineitems.activity_id, progress.activity_id)
-        )
-      )
-      .where(
-        and(
-          // Only items where the current progress exceeds what was last submitted to the LTI platform
-          gt(progress.progress, lineitems.submitted_progress),
-
-          // Not actively being updated (at least debounceSeconds have elapsed
-          // since the last progress update was submitted to Modulus)
-          lt(progress.updated_at, sql`NOW() - make_interval(secs => ${debounceSeconds})`),
-
-          // Not currently locked (or lock is stale)
-          or(
-            isNull(lineitems.submission_locked_at),
-            lt(
-              lineitems.submission_locked_at,
-              sql`NOW() - make_interval(secs => ${lockTimeoutSeconds})`
-            )
-          ),
-
-          // Not in a backoff period
-          or(
-            isNull(lineitems.submission_next_retry_at),
-            lt(lineitems.submission_next_retry_at, sql`NOW()`)
-          )
-        )
-      )
-      .orderBy(
-        // Prioritize items that became eligible for submission earliest.  Items become eligible
-        // at the GREATEST of the following timestamps (ignoring nulls):
-        // - 'debounceSeconds' after their most recent progress update
-        // - their 'next_retry_at' time (if any)
-        // - 'lockTimeoutSeconds' after their lock was set (if any)
-        sql`GREATEST(${progress.updated_at} + make_interval(secs => ${debounceSeconds}), ${lineitems.submission_next_retry_at}, ${lineitems.submission_locked_at} + make_interval(secs => ${lockTimeoutSeconds}))`
-      )
-      .limit(1)
-      .catch(this.utils.wrapDbErrorNew())
-
-    return rows[0]
   }
 }
 
@@ -256,92 +171,6 @@ export class LtiMutations extends BaseService {
       .get()
       .update(lineitems)
       .set(data)
-      .where(eq(lineitems.id, id))
-      .catch(this.utils.wrapDbErrorNew())
-  }
-
-  /**
-   * Attempts to claim a line item for score submission by setting
-   * submission_locked_at. Returns true if the claim succeeded (i.e. the item
-   * was not already locked by another worker).
-   */
-  @method
-  async claimLineItemForSubmission(
-    id: string,
-    { lockTimeoutSeconds }: { lockTimeoutSeconds: number }
-  ): Promise<boolean> {
-    const rows = await this.db
-      .get()
-      .update(lineitems)
-      .set({ submission_locked_at: sql`NOW()` })
-      .where(
-        and(
-          eq(lineitems.id, id),
-          or(
-            isNull(lineitems.submission_locked_at),
-            lt(
-              lineitems.submission_locked_at,
-              sql`NOW() - make_interval(secs => ${lockTimeoutSeconds})`
-            )
-          )
-        )
-      )
-      .returning({ id: lineitems.id })
-      .catch(this.utils.wrapDbErrorNew())
-
-    return rows.length > 0
-  }
-
-  /**
-   * Marks a line item's score submission as successful. Clears all submission
-   * tracking state and updates submitted_progress to the score that was sent.
-   */
-  @method
-  async markSubmissionSuccess(id: string, submittedProgress: number): Promise<void> {
-    await this.db
-      .get()
-      .update(lineitems)
-      .set({
-        submitted_progress: submittedProgress,
-        submission_locked_at: null,
-        submission_attempts: 0,
-        submission_next_retry_at: null,
-        submission_last_error: null,
-        submitted_at: new Date(),
-      })
-      .where(eq(lineitems.id, id))
-      .catch(this.utils.wrapDbErrorNew())
-  }
-
-  /**
-   * Marks a line item's score submission as failed. Releases the lock,
-   * increments the attempt counter, and sets the next retry time using
-   * exponential backoff.
-   *
-   * @param backoffBaseSeconds - Base delay for exponential backoff (default 5)
-   * @param maxBackoffSeconds - Maximum backoff delay cap (default 300 = 5 minutes)
-   */
-  @method
-  async markSubmissionFailure(
-    id: string,
-    error: string,
-    {
-      backoffBaseSeconds,
-      maxBackoffSeconds,
-    }: {
-      backoffBaseSeconds: number
-      maxBackoffSeconds: number
-    }
-  ): Promise<void> {
-    await this.db
-      .get()
-      .update(lineitems)
-      .set({
-        submission_locked_at: null,
-        submission_attempts: sql`${lineitems.submission_attempts} + 1`,
-        submission_next_retry_at: sql`NOW() + make_interval(secs => LEAST(${maxBackoffSeconds}, ${backoffBaseSeconds} * power(2, ${lineitems.submission_attempts})))`,
-        submission_last_error: error,
-      })
       .where(eq(lineitems.id, id))
       .catch(this.utils.wrapDbErrorNew())
   }

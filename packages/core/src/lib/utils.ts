@@ -213,7 +213,6 @@ export class CoreUtils {
    * (if needed) when they are initially thrown.
    *
    * @param {unknown} error The error value.
-   * @param {string} method The name of the method containing the catch block.
    */
   reportError(error: unknown): Err {
     if (error instanceof CoreError) {

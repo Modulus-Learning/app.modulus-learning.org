@@ -64,12 +64,12 @@ export class ActivityStateMutations extends BaseService {
     const [progressRecord] = await this.db
       .get()
       .insert(progress)
-      .values(values)
+      .values({ ...values, created_at: sql`NOW()`, updated_at: sql`NOW()` })
       .onConflictDoUpdate({
         target: [progress.activity_id, progress.user_id],
         set: {
           progress: sql`GREATEST(${progress.progress}, ${values.progress})`,
-          updated_at: values.updated_at,
+          updated_at: sql`NOW()`,
         },
       })
       .returning()

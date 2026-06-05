@@ -115,16 +115,11 @@ export const initCore = async ({
   }
 
   const startBackgroundJobs = (): StopHandle => {
-    const stopScoreSubmission = startScoreSubmissionWorker({
-      processor: registry.app.lti.scoreSubmissionProcessor,
-      logger: registry.logger,
-      config,
-    })
+    const stopScoreSubmission = startScoreSubmissionWorker(registry.app.lti.scoreSubmissionManager)
 
     return async () => {
       // NOTE: this should probably use Promise.all or Promise.allSettled if
-      // there are multiple background jobs to stop -- and the question of how
-      // (or whether) to handle errors will need to be addressed.
+      // there are multiple background jobs to stop.
       await stopScoreSubmission()
     }
   }

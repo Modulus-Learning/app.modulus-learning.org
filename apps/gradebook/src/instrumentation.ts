@@ -16,5 +16,7 @@ export async function register() {
     const { getCoreInstance } = await import('@/core-adapter')
     const coreInstance = await getCoreInstance()
     coreInstance.startBackgroundJobs()
+
+    // TODO: support graceful shutdown?
   }
 }

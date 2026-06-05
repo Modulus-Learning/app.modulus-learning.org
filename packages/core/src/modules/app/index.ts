@@ -8,11 +8,15 @@ import { ActivityService } from './activities/services/activity.js'
 import { StartActivityService } from './activities/services/start-activity.js'
 import { LtiCommands } from './lti/commands.js'
 import { LtiMutations, LtiQueries } from './lti/repository/index.js'
+import { LtiScoreSubmissionManager } from './lti/score-submission/manager.js'
+import {
+  LtiScoreSubmissionMutations,
+  LtiScoreSubmissionQueries,
+} from './lti/score-submission/repository.js'
 import { AccessTokenManager } from './lti/services/access-tokens.js'
 import { LtiDeepLinkingService } from './lti/services/deep-link.js'
 import { LtiLaunchService } from './lti/services/launch.js'
 import { LtiLoginService } from './lti/services/login.js'
-import { ScoreSubmissionProcessor } from './lti/services/score-submission.js'
 import { RegistrationCommands } from './registration/commands.js'
 import { RegistrationMutations, RegistrationQueries } from './registration/repository/index.js'
 import { RegistrationService } from './registration/services/registration.js'
@@ -63,10 +67,12 @@ const createRegistrationRegistry = () =>
 
 const createLtiRegistry = () =>
   new Registry()
+    .addClass('accessTokenManager', AccessTokenManager)
+    .addClass('scoreSubmissionQueries', LtiScoreSubmissionQueries)
+    .addClass('scoreSubmissionMutations', LtiScoreSubmissionMutations)
+    .addClass('scoreSubmissionManager', LtiScoreSubmissionManager)
     .addClass('queries', LtiQueries)
     .addClass('mutations', LtiMutations)
-    .addClass('accessTokenManager', AccessTokenManager)
-    .addClass('scoreSubmissionProcessor', ScoreSubmissionProcessor)
     .addClass('loginService', LtiLoginService)
     .addClass('launchService', LtiLaunchService)
     .addClass('deepLinkingService', LtiDeepLinkingService)
