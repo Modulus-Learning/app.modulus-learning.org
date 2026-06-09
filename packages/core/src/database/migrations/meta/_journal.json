@@ -50,6 +50,13 @@
       "when": 1780028337244,
       "tag": "0006_noisy_lifeguard",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780976224710,
+      "tag": "0007_tiresome_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }

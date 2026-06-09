@@ -1,4 +1,4 @@
-import { integer, pgTable, varchar } from 'drizzle-orm/pg-core'
+import { integer, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core'
 
 import { timestamps } from '../../common.js'
 import { platforms } from './lti-platforms.js'
@@ -8,13 +8,18 @@ export const platformHealth = pgTable('lti_platform_health', {
     .primaryKey()
     .references(() => platforms.issuer, { onDelete: 'cascade' }),
 
-  submission_status: varchar('submission_queue_status').notNull().default('healthy'),
-  submission_transient_error_count: integer('submission_transient_error_count')
-    .notNull()
-    .default(0),
-  submission_permanent_error_count: integer('submission_permanent_error_count')
-    .notNull()
-    .default(0),
+  status: varchar('status').notNull().default('healthy'),
+
+  paused_until: timestamp('paused_until', { precision: 6, withTimezone: true }),
+
+  last_success_at: timestamp('last_success_at', { precision: 6, withTimezone: true }),
+  last_failure_at: timestamp('last_failure_at', { precision: 6, withTimezone: true }),
+
+  consecutive_failures: integer('consecutive_failures').notNull().default(0),
+
+  // incident_category: varchar('incident_category'),
+  // incident_started_at: timestamp('incident_started_at', { precision: 6, withTimezone: true }),
+  // incident_notified_at: timestamp('incident_notified_at', { precision: 6, withTimezone: true }),
 
   ...timestamps,
 })

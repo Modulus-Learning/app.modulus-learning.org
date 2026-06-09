@@ -23,7 +23,7 @@
  * the original Response themselves.
  */
 
-import type { SubmissionError, SubmissionErrorCategory } from './types.js'
+import type { SubmissionErrorCategory, SubmissionResult } from './types.js'
 
 interface Rule {
   status: number
@@ -337,10 +337,19 @@ const RULES: Rule[] = [
 
 export async function classifyScoreSubmissionResponse(
   status: number,
-  text: string
-): Promise<SubmissionError | undefined> {
+  getText: () => Promise<string>
+): Promise<SubmissionResult> {
+  if (status >= 200 && status < 300) {
+    return {
+      ok: true,
+    }
+  }
+
+  const text = await getText()
+
   if (status >= 500) {
     return {
+      ok: false,
       category: 'transient',
       description: 'server error',
       status,
@@ -351,6 +360,7 @@ export async function classifyScoreSubmissionResponse(
   for (const rule of RULES) {
     if (rule.status === status && rule.match?.(text)) {
       return {
+        ok: false,
         category: rule.category,
         description: rule.description,
         status,
@@ -360,6 +370,7 @@ export async function classifyScoreSubmissionResponse(
   }
 
   return {
+    ok: false,
     category: 'unknown',
     description: 'unrecognized error',
     status,

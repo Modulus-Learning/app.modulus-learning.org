@@ -19,9 +19,14 @@ export type SubmissionErrorCategory =
   | 'malformed'
   | 'unknown'
 
-export type SubmissionError = {
-  category: SubmissionErrorCategory
-  description: string
-  status?: number
-  text?: string
-}
+export type SubmissionResult =
+  | {
+      ok: true
+    }
+  | {
+      ok: false
+      category: SubmissionErrorCategory
+      description: string
+      status?: number
+      text?: string
+    }

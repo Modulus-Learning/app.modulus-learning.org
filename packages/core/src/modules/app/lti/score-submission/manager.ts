@@ -80,6 +80,7 @@ export class LtiScoreSubmissionManager extends BaseService {
       this.logger,
       this.config,
       this.tx,
+      // this.queries,
       this.mutations,
       this.accessTokenManager
     )

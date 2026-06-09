@@ -12,6 +12,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 
+import { timestamps } from '../../common.js'
 import { activities } from '../activities.js'
 import { users } from '../users.js'
 import { platformDeployments } from './lti-platform-deployments.js'
@@ -61,8 +62,8 @@ export const lineitems = pgTable(
     // Optional due date as reported by the LTI platform
     // due_date: timestamp('due_date', { withTimezone: true }),
 
-    // Submission status.  One of 'healthy', 'locked', 'backoff', 'dead'
-    submission_status: varchar('submission_status').notNull().default('healthy'),
+    // Submission status.  One of 'ready', 'backoff', 'dead'
+    submission_status: varchar('submission_status').notNull().default('ready'),
 
     // Set to NOW() + <lock timeout period> when a worker claims this line item
     // for submission.  Set to NOW() + <backoff period> on submission error.
@@ -83,6 +84,8 @@ export const lineitems = pgTable(
     // Diagnostic: the error message from the most recent failed submission
     // attempt. Cleared on success.
     submission_error_message: text('submission_error_message'),
+
+    ...timestamps,
   },
   (table) => [
     foreignKey({

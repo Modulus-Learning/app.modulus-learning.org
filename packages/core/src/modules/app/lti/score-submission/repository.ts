@@ -1,6 +1,7 @@
-import { and, eq, gt, isNull, lt, not, or, sql } from 'drizzle-orm'
+import { and, eq, gt, isNull, lt, or, sql } from 'drizzle-orm'
 
 import { lineitems, platformHealth, platforms, progress } from '@/database/schema/index.js'
+import { submissionEvents } from '@/database/schema/source/lti/lti-submission-events.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
@@ -14,6 +15,12 @@ export type PlatformRecord = typeof platforms.$inferSelect
 export type PlatformInsert = typeof platforms.$inferInsert
 export type PlatformHealthRecord = typeof platformHealth.$inferSelect
 export type PlatformHealthInsert = typeof platformHealth.$inferInsert
+export type PlatformHealthUpdate = Omit<
+  Partial<PlatformHealthRecord>,
+  'platform_issuer' | 'created_at' | 'updated_at'
+>
+export type SubmissionEventRecord = typeof submissionEvents.$inferSelect
+export type SubmissionEventInsert = typeof submissionEvents.$inferInsert
 
 export class LtiScoreSubmissionQueries extends BaseService {
   private utils: CoreUtils
@@ -47,6 +54,30 @@ export class LtiScoreSubmissionQueries extends BaseService {
     return await this.db
       .get()
       .query.platforms.findFirst({ where: eq(platforms.issuer, issuer) })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async getPlatformHealth(issuer: string): Promise<PlatformHealthRecord | undefined> {
+    return await this.db
+      .get()
+      .query.platformHealth.findFirst({ where: eq(platformHealth.platform_issuer, issuer) })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async getSubmissionEventsForPlatformSince(
+    issuer: string,
+    timestamp: Date
+  ): Promise<SubmissionEventRecord[]> {
+    return await this.db
+      .get()
+      .query.submissionEvents.findMany({
+        where: and(
+          eq(submissionEvents.platform_issuer, issuer),
+          gt(submissionEvents.occurred_at, timestamp)
+        ),
+      })
       .catch(this.utils.wrapDbErrorNew())
   }
 }
@@ -117,8 +148,8 @@ export class LtiScoreSubmissionMutations extends BaseService {
           // since the last progress update was submitted to Modulus)
           lt(progress.updated_at, sql`NOW() - make_interval(secs => ${debounceSeconds})`),
 
-          // Only items that are not dead (i.e. healthy or in cooldown)
-          not(eq(lineitems.submission_status, 'dead')),
+          // Only items that are ready or in backoff
+          or(eq(lineitems.submission_status, 'ready'), eq(lineitems.submission_status, 'backoff')),
 
           // Not currently locked (or lock is stale)
           or(
@@ -153,7 +184,10 @@ export class LtiScoreSubmissionMutations extends BaseService {
     const rows = await this.db
       .get()
       .update(lineitems)
-      .set({ submission_locked_until: sql`NOW() + make_interval(secs => ${lockTimeoutSeconds})` })
+      .set({
+        submission_locked_until: sql`NOW() + make_interval(secs => ${lockTimeoutSeconds})`,
+        updated_at: sql`NOW()`,
+      })
       .where(
         and(
           eq(lineitems.id, id),
@@ -180,80 +214,117 @@ export class LtiScoreSubmissionMutations extends BaseService {
   }
 
   @method
-  async updatePlatformHealth(
+  async getPlatformHealthForUpdate(issuer: string): Promise<PlatformHealthRecord | undefined> {
+    const rows = await this.db
+      .get()
+      .select()
+      .from(platformHealth)
+      .for('update')
+      .where(eq(platformHealth.platform_issuer, issuer))
+      .catch(this.utils.wrapDbErrorNew())
+
+    return rows[0]
+  }
+
+  @method
+  async setPlatformHealth(
     platform_issuer: string,
-    data: Omit<Partial<PlatformHealthRecord>, 'platform_issuer'>
-  ) {
-    await this.db
-      .get()
-      .update(platformHealth)
-      .set(data)
-      .where(eq(platformHealth.platform_issuer, platform_issuer))
-      .catch(this.utils.wrapDbErrorNew())
-  }
-
-  @method
-  async incrementTransientPlatformErrors(platform_issuer: string) {
-    await this.db
+    timestamp: Date,
+    data: PlatformHealthUpdate
+  ): Promise<string | undefined> {
+    const [row] = await this.db
       .get()
       .insert(platformHealth)
       .values({
         platform_issuer,
-        submission_status: 'unhealthy',
-        submission_transient_error_count: sql`${platformHealth.submission_transient_error_count} + 1`,
+        created_at: timestamp,
+        updated_at: timestamp,
+        ...data,
       })
       .onConflictDoUpdate({
-        target: platformHealth.platform_issuer,
+        target: [platformHealth.platform_issuer],
         set: {
-          submission_status: 'unhealthy',
-          submission_permanent_error_count: sql`${platformHealth.submission_transient_error_count} + 1`,
-          updated_at: sql`NOW()`,
+          updated_at: timestamp,
+          ...data,
         },
       })
+      .returning({
+        health: sql<string>`COALESCE(OLD.status, 'healthy')`,
+      })
       .catch(this.utils.wrapDbErrorNew())
+
+    this.utils.assertExists(row, { message: 'Upserted platform health is null' })
+
+    return row.health
   }
 
   @method
-  async incrementPermanentPlatformErrors(platform_issuer: string) {
-    await this.db
-      .get()
-      .insert(platformHealth)
-      .values({
-        platform_issuer,
-        submission_status: 'unhealthy',
-        submission_permanent_error_count: sql`${platformHealth.submission_permanent_error_count} + 1`,
-      })
-      .onConflictDoUpdate({
-        target: platformHealth.platform_issuer,
-        set: {
-          submission_status: 'unhealthy',
-          submission_permanent_error_count: sql`${platformHealth.submission_permanent_error_count} + 1`,
-          updated_at: sql`NOW()`,
-        },
-      })
-      .catch(this.utils.wrapDbErrorNew())
+  async recordSubmissionEvent(event: SubmissionEventInsert) {
+    await this.db.get().insert(submissionEvents).values(event).catch(this.utils.wrapDbErrorNew())
   }
 
-  @method
-  async clearPlatformErrors(platform_issuer: string) {
-    await this.db
-      .get()
-      .insert(platformHealth)
-      .values({
-        platform_issuer,
-        submission_status: 'healthy',
-        submission_permanent_error_count: 0,
-        submission_transient_error_count: 0,
-      })
-      .onConflictDoUpdate({
-        target: platformHealth.platform_issuer,
-        set: {
-          submission_status: 'healthy',
-          submission_permanent_error_count: 0,
-          submission_transient_error_count: 0,
-          updated_at: sql`NOW()`,
-        },
-      })
-      .catch(this.utils.wrapDbErrorNew())
-  }
+  // @method
+  // async incrementTransientPlatformErrors(platform_issuer: string) {
+  //   await this.db
+  //     .get()
+  //     .insert(platformHealth)
+  //     .values({
+  //       platform_issuer,
+  //       submission_queue_status: 'unhealthy',
+  //       submission_transient_error_count: sql`${platformHealth.submission_transient_error_count} + 1`,
+  //     })
+  //     .onConflictDoUpdate({
+  //       target: platformHealth.platform_issuer,
+  //       set: {
+  //         submission_queue_status: 'unhealthy',
+  //         submission_transient_error_count: sql`${platformHealth.submission_transient_error_count} + 1`,
+  //         updated_at: sql`NOW()`,
+  //       },
+  //     })
+  //     .catch(this.utils.wrapDbErrorNew())
+  // }
+
+  // @method
+  // async incrementPermanentPlatformErrors(platform_issuer: string) {
+  //   await this.db
+  //     .get()
+  //     .insert(platformHealth)
+  //     .values({
+  //       platform_issuer,
+  //       submission_queue_status: 'unhealthy',
+  //       submission_permanent_error_count: sql`${platformHealth.submission_permanent_error_count} + 1`,
+  //     })
+  //     .onConflictDoUpdate({
+  //       target: platformHealth.platform_issuer,
+  //       set: {
+  //         submission_queue_status: 'unhealthy',
+  //         submission_permanent_error_count: sql`${platformHealth.submission_permanent_error_count} + 1`,
+  //         updated_at: sql`NOW()`,
+  //       },
+  //     })
+  //     .catch(this.utils.wrapDbErrorNew())
+  // }
+
+  // @method
+  // async clearPlatformErrors(platform_issuer: string) {
+  //   await this.db
+  //     .get()
+  //     .insert(platformHealth)
+  //     .values({
+  //       platform_issuer,
+  //       submission_queue_status: 'healthy',
+  //       submission_permanent_error_count: 0,
+  //       submission_transient_error_count: 0,
+  //     })
+  //     .onConflictDoUpdate({
+  //       target: platformHealth.platform_issuer,
+  //       set: {
+  //         submission_queue_status: 'healthy',
+  //         submission_permanent_error_count: 0,
+  //         submission_transient_error_count: 0,
+  //         updated_at: sql`NOW()`,
+  //       },
+  //     })
+  //     .catch(this.utils.wrapDbErrorNew())
+  // }
 }
