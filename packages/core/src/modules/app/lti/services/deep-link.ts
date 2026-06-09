@@ -123,7 +123,6 @@ export class LtiDeepLinkingService extends BaseService {
 
     const customFields = {
       modulus_launch_type: 'start-activity',
-      // TODO: modulus_activity_id: activity.id,
       modulus_activity_code: activity_code,
       modulus_activity_url: activity_url,
       ...CANVAS_CUSTOM_LAUNCH_FIELDS,
@@ -132,8 +131,8 @@ export class LtiDeepLinkingService extends BaseService {
     const link: DeepLinkingContentItem = {
       type: 'ltiResourceLink',
       url: this.urlBuilder.startActivityUrl(activity_code, activity_url),
-      title: activity_url, // TODO
-      text: undefined, // TODO
+      // title: undefined,
+      // text: undefined,
       window: { targetName: `modulus-${activity_code}-${activity_url}` },
       custom: customFields,
     }
