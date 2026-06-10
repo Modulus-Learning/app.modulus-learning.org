@@ -1,5 +1,13 @@
 # @modulus-learning/agent-demo-react
 
+## 0.9.1
+
+### Patch Changes
+
+- Updated dependencies, and patch release flow.
+- Updated dependencies
+  - @modulus-learning/agent@0.9.1
+
 ## 0.9.0
 
 ### Minor Changes
