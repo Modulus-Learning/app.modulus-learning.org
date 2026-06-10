@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation'
 
-import { getServerConfig } from '@/config'
-import type { RouteClass } from './deployment-mode'
+import { getDeploymentMode, type RouteClass } from './deployment-mode'
 
 /**
  * Server-side defense-in-depth guard for the deployment-mode gate. Call this at
@@ -15,11 +14,11 @@ import type { RouteClass } from './deployment-mode'
  * the block authoritative regardless of how the request arrives.
  */
 export const assertSurfaceServed = (surface: Exclude<RouteClass, 'neutral'>): void => {
-  const { deployment } = getServerConfig()
-  if (deployment.mode === 'all-in-one') {
+  const mode = getDeploymentMode()
+  if (mode === 'all-in-one') {
     return
   }
-  if (deployment.mode !== surface) {
+  if (mode !== surface) {
     notFound()
   }
 }

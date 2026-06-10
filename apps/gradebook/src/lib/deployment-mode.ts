@@ -4,7 +4,23 @@ import { pathWithoutLocale } from '@/i18n/utils'
  * Which surfaces of the application a given instance serves. Mirrors the
  * `deployment.mode` value in `@/config`.
  */
-export type DeploymentMode = 'all-in-one' | 'frontend' | 'admin'
+export const DEPLOYMENT_MODES = ['all-in-one', 'frontend', 'admin'] as const
+export type DeploymentMode = (typeof DEPLOYMENT_MODES)[number]
+
+/**
+ * Read the deployment mode straight from the environment, defaulting to
+ * 'all-in-one'. This is intentionally independent of the full server config
+ * (`getServerConfig`) so it stays safe to call during static prerendering, where
+ * the server secrets are absent and parsing the whole config would throw -- the
+ * gate only needs this single flag. The full config still validates the value
+ * strictly at runtime startup (see `@/config` + instrumentation).
+ */
+export const getDeploymentMode = (): DeploymentMode => {
+  const raw = process.env.DEPLOYMENT_MODE
+  return (DEPLOYMENT_MODES as readonly string[]).includes(raw ?? '')
+    ? (raw as DeploymentMode)
+    : 'all-in-one'
+}
 
 /**
  * The surface a request path belongs to:

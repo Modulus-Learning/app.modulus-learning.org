@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { getServerConfig } from '@/config'
-import { isRouteAllowed } from '@/lib/deployment-mode'
+import { getDeploymentMode, isRouteAllowed } from '@/lib/deployment-mode'
 import type { ProxyLayer } from './@types'
 
 /**
@@ -19,10 +18,10 @@ import type { ProxyLayer } from './@types'
  * API handler and all other UI pages flow through here.
  */
 export const withDeploymentMode: ProxyLayer = (next) => {
-  const { deployment } = getServerConfig()
+  const mode = getDeploymentMode()
 
   return (request, event, context) => {
-    if (!isRouteAllowed(deployment.mode, request.nextUrl.pathname)) {
+    if (!isRouteAllowed(mode, request.nextUrl.pathname)) {
       return Promise.resolve(new NextResponse('Not Found', { status: 404 }))
     }
     return next(request, event, context)
