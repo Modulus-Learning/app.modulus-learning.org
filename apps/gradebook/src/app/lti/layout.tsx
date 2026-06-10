@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 
+import { assertSurfaceServed } from '@/lib/deployment-mode-guard'
 import { EarlyThemeDetector } from '@/ui/theme/early-theme-detector'
 
 export const metadata: Metadata = {
@@ -20,6 +21,10 @@ import '@/ui/styles/global.css'
  * No header, footer, or navigation — just the page content.
  */
 export default function LtiLayout({ children }: { children: React.ReactNode }) {
+  // The /lti/* pages are excluded from the proxy matcher, so this guard is the
+  // authoritative deployment-mode gate for the LTI surface (blocked in admin mode).
+  assertSurfaceServed('frontend')
+
   return (
     <html lang="en" className="light" style={{ colorScheme: 'light' }} suppressHydrationWarning>
       <head>

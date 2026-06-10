@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import type { Viewport } from 'next'
 
 import { getTranslations } from '@/i18n/server'
+import { assertSurfaceServed } from '@/lib/deployment-mode-guard'
 import { AdminSessionProvider } from '@/modules/admin/session/provider'
 import { getAdminSession } from '@/modules/admin/session/storage'
 import { Providers } from '../providers'
@@ -19,6 +20,10 @@ export default async function AdminRootLayout({
   children,
   params,
 }: LayoutProps<'/[lng]'>): Promise<React.JSX.Element> {
+  // Defense-in-depth backup to the proxy gate: the admin surface is blocked on
+  // frontend-only instances.
+  assertSurfaceServed('admin')
+
   const { lng } = (await params) as { lng: Locale }
   const translations = await getTranslations(lng)
   const nonce = (await headers()).get('x-nonce') ?? ''

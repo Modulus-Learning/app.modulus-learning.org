@@ -106,10 +106,11 @@ monthly active users), and how they are computed.
 A local setup guide: clone, install, build, database setup and migration, seeds,
 environment configuration, and running the app in development.
 
-### Deployment — Planned
-Running Modulus in production: container images, the single-instance model,
-health endpoints, and background-worker startup, along with the production
-topology and operational considerations.
+### [Deployment](./DEPLOYMENT.md) — Available
+The three runtime deployment modes — all-in-one, frontend-only, and admin-only —
+selected via `DEPLOYMENT_MODE`: what each mode serves, how route surfaces are
+classified and gated (the proxy gate plus the LTI/admin layout guards), the
+background-jobs switch, and the rule that a frontend instance may never run jobs.
 
 ### Remote Connector — Planned
 The planned HTTP proxy layer — a thin wrapper over the core service layer with

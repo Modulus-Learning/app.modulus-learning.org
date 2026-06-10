@@ -8,7 +8,10 @@ export async function register() {
   }
 
   const config = getServerConfig()
-  if (config.jobQueue.enabled) {
+  // Background jobs only run on 'admin' or 'all-in-one' instances. A 'frontend'
+  // instance never starts them (config validation also forbids the combination).
+  const backgroundJobsEnabled = config.jobQueue.enabled && config.deployment.mode !== 'frontend'
+  if (backgroundJobsEnabled) {
     const logger = getLogger()
     logger.info('Starting background jobs')
 

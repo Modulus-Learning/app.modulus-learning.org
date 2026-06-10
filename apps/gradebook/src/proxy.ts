@@ -16,6 +16,7 @@ import { withAdminAuth } from './middleware/withAdminAuth'
 import { withAdminSession } from './middleware/withAdminSession'
 import { withCSP } from './middleware/withCSP'
 import { withCurrentPath } from './middleware/withCurrentPath'
+import { withDeploymentMode } from './middleware/withDeploymentMode'
 import { withFlash } from './middleware/withFlash'
 import { withI18n } from './middleware/withI18n'
 import { withNonce } from './middleware/withNonce'
@@ -33,6 +34,11 @@ const isAdminRoute = (request: NextRequest) =>
 
 export default composeProxy([
   withRequestId,
+  // Deployment-mode gate: rejects routes this instance does not serve before any
+  // session/CSP/i18n work runs. Applies to every matched route, including the
+  // /routes/* API handlers (the /lti/* pages are matcher-excluded and gated by
+  // their layout instead -- see withDeploymentMode and app/lti/layout.tsx).
+  withDeploymentMode,
   withFilter(
     isNotApiRoute,
     withCurrentPath,
@@ -54,16 +60,19 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api (API routes) (note this depends entirely on the directory you choose since
-     *      in Next.js 14 app router, any directory that has a route.ts handler, becomes
-     *      the api directory)
+     * - lti (the chromeless LTI launch/deep-link pages, gated by their own layout)
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * - favicon.ico and the other static assets listed below
+     *
+     * NOTE: the API route handlers live under /routes (not /api), so they are
+     * intentionally NOT excluded here -- the proxy runs on them, but the UI
+     * layers are skipped inside the chain via the isNotApiRoute filter. Top-level
+     * layers (withRequestId, withDeploymentMode) still apply to /routes/*.
      */
     {
       source:
-        '/((?!assets|fonts|images|lti|api|_next/static|_next/image|opengraph-image|twitter-image|robots.txt|sitemap.xml|manifest.json|android-chrome-192x192.png|android-chrome-512x512.png|apple-touch-icon.png|browserconfig.xml|mstile-150x150.png|safari-pinned-tab.svg|site.webmanifest|favicon.ico|favicon.png|favicon-.*.png|modulus-icon-.*.png|web-app-manifest-.*.png|screenshot-.*.png|sprite.svg|external-link-dark.svg|external-link-light.svg|modules/js/script.js|modules/api/event).*)',
+        '/((?!assets|fonts|images|lti|_next/static|_next/image|opengraph-image|twitter-image|robots.txt|sitemap.xml|manifest.json|android-chrome-192x192.png|android-chrome-512x512.png|apple-touch-icon.png|browserconfig.xml|mstile-150x150.png|safari-pinned-tab.svg|site.webmanifest|favicon.ico|favicon.png|favicon-.*.png|modulus-icon-.*.png|web-app-manifest-.*.png|screenshot-.*.png|sprite.svg|external-link-dark.svg|external-link-light.svg|modules/js/script.js|modules/api/event).*)',
       // '/((?!assets|fonts|images|api|_next/static|_next/image|opengraph-image|twitter-image|manifest|favicon.ico|sprite.svg).*)'
       // TODO: we've disabled prefetch on most links for now - because they need
       // the locale rewrite rules above, but NOT the CSP rules.

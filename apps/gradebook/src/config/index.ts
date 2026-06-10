@@ -9,109 +9,137 @@ import { z } from 'zod'
  * which is NOT committed to the project's Git repo and
  * CAN include secrets.
  */
-const serverSchema = z.object({
-  port: z.coerce.number().int(),
-  siteName: z.string(),
-  siteDescription: z.string(),
-  publicServerUrl: urlSchema,
-  cspEnabled: booleanSchema(),
-  dataRequestCaching: booleanSchema(),
-  analyticsEnabled: booleanSchema(),
-  sessionSecret: z.string(),
-  cookies: z.object({
-    adminSession: z.object({
-      name: z.string(),
-      sameSite: z.enum(['strict', 'lax', 'none']),
-      httpOnly: booleanSchema(),
-      secure: booleanSchema(),
-    }),
-    adminRefresh: z.object({
-      name: z.string(),
-      sameSite: z.enum(['strict', 'lax', 'none']),
-      httpOnly: booleanSchema(),
-      secure: booleanSchema(),
-    }),
-    userSession: z.object({
-      name: z.string(),
-      sameSite: z.enum(['strict', 'lax', 'none']),
-      httpOnly: booleanSchema(),
-      secure: booleanSchema(),
-    }),
-    userRefresh: z.object({
-      name: z.string(),
-      sameSite: z.enum(['strict', 'lax', 'none']),
-      httpOnly: booleanSchema(),
-      secure: booleanSchema(),
-    }),
-    flash: z.object({
-      name: z.string(),
-      sameSite: z.enum(['strict', 'lax', 'none']),
-      httpOnly: booleanSchema(),
-      secure: booleanSchema(),
-    }),
-  }),
-  api: z.object({
-    baseUrl: urlSchema,
-    jwt: z.object({
-      publicKey: base64Schema.transform((val) => val.toString('utf-8')),
-      issuer: z.string(),
-      audience: z.string(),
-    }),
-  }),
-  recaptcha: z
-    .object({
-      enabled: booleanSchema(),
-      mandatory: booleanSchema(),
-      siteKey: z.string().optional(), // Initially optional
-      projectID: z.string().optional(), // Initially optional
-      secretKey: z.string().optional(), // Initially optional
-    })
-    .superRefine(requireIfEnabled(['siteKey', 'secretKey'], 'enabled')),
-  log: z.object({
-    level: z.string().optional(),
-    pretty: booleanSchema(),
-  }),
-  email: z.object({
-    systemEmailFromAddress: z.string(),
-    contactSubmissionFromAddress: z.string(),
-    templateDirectory: z.string().optional(),
-    transport: z.object({
-      host: z.string(),
-      port: z.coerce.number().int(),
-      secure: booleanSchema(),
-      auth: z.object({
-        user: z.string().optional(),
-        pass: z.string().optional(),
+const serverSchema = z
+  .object({
+    port: z.coerce.number().int(),
+    siteName: z.string(),
+    siteDescription: z.string(),
+    publicServerUrl: urlSchema,
+    cspEnabled: booleanSchema(),
+    dataRequestCaching: booleanSchema(),
+    analyticsEnabled: booleanSchema(),
+    sessionSecret: z.string(),
+    cookies: z.object({
+      adminSession: z.object({
+        name: z.string(),
+        sameSite: z.enum(['strict', 'lax', 'none']),
+        httpOnly: booleanSchema(),
+        secure: booleanSchema(),
+      }),
+      adminRefresh: z.object({
+        name: z.string(),
+        sameSite: z.enum(['strict', 'lax', 'none']),
+        httpOnly: booleanSchema(),
+        secure: booleanSchema(),
+      }),
+      userSession: z.object({
+        name: z.string(),
+        sameSite: z.enum(['strict', 'lax', 'none']),
+        httpOnly: booleanSchema(),
+        secure: booleanSchema(),
+      }),
+      userRefresh: z.object({
+        name: z.string(),
+        sameSite: z.enum(['strict', 'lax', 'none']),
+        httpOnly: booleanSchema(),
+        secure: booleanSchema(),
+      }),
+      flash: z.object({
+        name: z.string(),
+        sameSite: z.enum(['strict', 'lax', 'none']),
+        httpOnly: booleanSchema(),
+        secure: booleanSchema(),
       }),
     }),
-  }),
-  jobQueue: z.object({
-    enabled: booleanSchema(true),
-  }),
-  s3: z.object({
-    accessKey: z.string(),
-    secretKey: z.string(),
-    bucket: z.string(),
-    cdnDomain: z.string(),
-  }),
-  oauth: z.object({
-    github: z.object({
-      client_id: z.string(),
-      client_secret: z.string(),
-      auth_url: z.string(),
-      access_token_url: z.string(),
-      user_url: z.string(),
-      return_url: z.string(),
+    api: z.object({
+      baseUrl: urlSchema,
+      jwt: z.object({
+        publicKey: base64Schema.transform((val) => val.toString('utf-8')),
+        issuer: z.string(),
+        audience: z.string(),
+      }),
     }),
-    google: z.object({
-      client_id: z.string(),
-      client_secret: z.string(),
-      auth_url: z.string(),
-      access_token_url: z.string(),
-      return_url: z.string(),
+    recaptcha: z
+      .object({
+        enabled: booleanSchema(),
+        mandatory: booleanSchema(),
+        siteKey: z.string().optional(), // Initially optional
+        projectID: z.string().optional(), // Initially optional
+        secretKey: z.string().optional(), // Initially optional
+      })
+      .superRefine(requireIfEnabled(['siteKey', 'secretKey'], 'enabled')),
+    log: z.object({
+      level: z.string().optional(),
+      pretty: booleanSchema(),
     }),
-  }),
-})
+    email: z.object({
+      systemEmailFromAddress: z.string(),
+      contactSubmissionFromAddress: z.string(),
+      templateDirectory: z.string().optional(),
+      transport: z.object({
+        host: z.string(),
+        port: z.coerce.number().int(),
+        secure: booleanSchema(),
+        auth: z.object({
+          user: z.string().optional(),
+          pass: z.string().optional(),
+        }),
+      }),
+    }),
+    jobQueue: z.object({
+      enabled: booleanSchema(true),
+    }),
+    /**
+     * Selects which surfaces of the application this instance serves. See
+     * `@/lib/deployment-mode` and `proxy.ts` for how the mode gates routes.
+     *
+     * - `all-in-one` — frontend, admin, and (per JOB_QUEUE_ENABLED) background
+     *   jobs all run in a single process.
+     * - `frontend` — only the public/learner + LTI surface; the admin surface is
+     *   blocked and background jobs are forbidden (see the superRefine below).
+     * - `admin` — only the admin surface; all frontend + LTI routes are blocked.
+     *   Background jobs run (per JOB_QUEUE_ENABLED).
+     */
+    deployment: z.object({
+      mode: z.enum(['all-in-one', 'frontend', 'admin']).default('all-in-one'),
+    }),
+    s3: z.object({
+      accessKey: z.string(),
+      secretKey: z.string(),
+      bucket: z.string(),
+      cdnDomain: z.string(),
+    }),
+    oauth: z.object({
+      github: z.object({
+        client_id: z.string(),
+        client_secret: z.string(),
+        auth_url: z.string(),
+        access_token_url: z.string(),
+        user_url: z.string(),
+        return_url: z.string(),
+      }),
+      google: z.object({
+        client_id: z.string(),
+        client_secret: z.string(),
+        auth_url: z.string(),
+        access_token_url: z.string(),
+        return_url: z.string(),
+      }),
+    }),
+  })
+  .superRefine((config, ctx) => {
+    // A frontend-only instance must never run background jobs (e.g. the LTI
+    // score-submission worker). Fail fast at boot rather than silently starting
+    // them or silently ignoring an operator's JOB_QUEUE_ENABLED=true.
+    if (config.deployment.mode === 'frontend' && config.jobQueue.enabled) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['jobQueue', 'enabled'],
+        message:
+          "DEPLOYMENT_MODE=frontend requires JOB_QUEUE_ENABLED=false (background jobs are only run by 'admin' or 'all-in-one' instances).",
+      })
+    }
+  })
 
 type ServerConfig = z.infer<typeof serverSchema>
 
@@ -215,6 +243,9 @@ const initServerConfig = (): ServerConfig =>
         access_token_url: process.env.OAUTH_GOOGLE_ACCESS_TOKEN_URL,
         return_url: process.env.OAUTH_GOOGLE_RETURN_URL,
       },
+    },
+    deployment: {
+      mode: process.env.DEPLOYMENT_MODE,
     },
   })
 
