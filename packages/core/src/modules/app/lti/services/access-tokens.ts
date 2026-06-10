@@ -7,7 +7,7 @@ import { SCOPE_AGS_LINEITEM, SCOPE_AGS_RESULT_READONLY, SCOPE_AGS_SCORE } from '
 import type { CoreLogger } from '@/lib/logger.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
 import type { PlatformRecord } from '../repository/index.js'
-import type { AccessToken } from '../types/access-token.js'
+import type { AccessToken, AccessTokenResult } from '../types/access-token.js'
 
 /***
  * Manages access tokens for making API requests to LTI platforms.
@@ -33,18 +33,26 @@ export class AccessTokenManager extends BaseService {
     this.keystore = deps.ltiKeyStore
   }
 
-  async getAccessToken(platform: PlatformRecord): Promise<AccessToken> {
-    let token = this.tokens[platform.id]
+  async getAccessToken(platform: PlatformRecord): Promise<AccessTokenResult> {
+    const accessToken = this.tokens[platform.id]
 
-    if (token == null || token.expires.getTime() < Date.now() + 30000) {
-      token = await this.fetchAccessToken(platform)
-      this.tokens[platform.id] = token
+    if (accessToken == null || accessToken.expires.getTime() < Date.now() + 30000) {
+      return await this.fetchAccessToken(platform)
     }
 
-    return token
+    return {
+      ok: true,
+      accessToken,
+    }
   }
 
-  private async fetchAccessToken(platform: PlatformRecord): Promise<AccessToken> {
+  invalidateAccessToken(platform: PlatformRecord, accessToken: AccessToken) {
+    if (this.tokens[platform.id]?.token === accessToken.token) {
+      delete this.tokens[platform.id]
+    }
+  }
+
+  private async fetchAccessToken(platform: PlatformRecord): Promise<AccessTokenResult> {
     const clientAssertionJWT = await this.createLTIClientAssertionJWT(platform)
 
     const scopes = [SCOPE_AGS_LINEITEM, SCOPE_AGS_RESULT_READONLY, SCOPE_AGS_SCORE]
@@ -59,15 +67,86 @@ export class AccessTokenManager extends BaseService {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body,
-    })
-    if (!tokenResponse.ok) {
-      throw new Error('Failed to fetch access token')
+    }).catch((err) => null)
+
+    if (tokenResponse == null) {
+      this.logger.warn({ issuer: platform.issuer }, 'network error fetching access token')
+      return {
+        ok: false,
+        category: 'transient',
+        message: 'network error fetching access token',
+      }
     }
-    // TODO: validate response?
-    const { access_token, expires_in, scope } = (await tokenResponse.json()) as {
-      access_token: string
-      expires_in: number
-      scope: string
+
+    const status = tokenResponse.status
+    const text = await tokenResponse.text().catch(() => null)
+
+    if (text == null) {
+      this.logger.warn({ status, issuer: platform.issuer }, 'failed to read access token response')
+      return {
+        ok: false,
+        category: 'transient',
+        message: 'failed to read access token response',
+        status_code: status,
+      }
+    }
+
+    if (!tokenResponse.ok) {
+      // TODO: Add a proper error classifier here.
+      this.logger.warn({ status, issuer: platform.issuer }, 'access token request failed')
+      return {
+        ok: false,
+        category:
+          tokenResponse.status >= 500
+            ? 'transient'
+            : tokenResponse.status === 429
+              ? 'rate_limit'
+              : 'platform_config',
+        message: 'access token request failed',
+        status_code: status,
+      }
+    }
+
+    let data: any
+    try {
+      data = JSON.parse(text)
+    } catch {
+      this.logger.warn(
+        { status, issuer: platform.issuer },
+        'access token response is not valid JSON'
+      )
+      return {
+        ok: false,
+        // TODO: Different category?
+        category: 'unknown',
+        message: 'access token response is not valid JSON',
+        status_code: status,
+      }
+    }
+
+    const access_token = data?.access_token
+    const expires_in = data?.expires_in
+    const scope = data?.scope
+
+    if (
+      typeof access_token !== 'string' ||
+      typeof expires_in !== 'number' ||
+      typeof scope !== 'string'
+    ) {
+      this.logger.warn(
+        {
+          status,
+          issuer: platform.issuer,
+        },
+        'malformed access token response body'
+      )
+      return {
+        ok: false,
+        // TODO: Different category?
+        category: 'unknown',
+        message: 'malformed access token response body',
+        status_code: status,
+      }
     }
 
     const expires = new Date()
@@ -78,7 +157,10 @@ export class AccessTokenManager extends BaseService {
       scopes: scope.split(' '),
     }
 
-    return accessToken
+    return {
+      ok: true,
+      accessToken,
+    }
   }
 
   private async createLTIClientAssertionJWT(platform: PlatformRecord): Promise<string> {

@@ -145,8 +145,7 @@ export class LtiLaunchService extends BaseService {
           lti_user_id: launch.sub,
         })
       } else {
-        // TODO: Is there a reason to update lineitem here (e.g. to ensure that
-        // platform_issuer / lti_user_id are correct)?
+        // TODO: Update the line-item: if it's dead, resurrect it!
       }
 
       // Score submission to the LTI platform is handled asynchronously by the

@@ -17,7 +17,6 @@ export type {
   AdminTokens,
 } from './modules/admin/session/schemas.js'
 export type { AccessTokenPayload as AgentSession } from './modules/agent/auth/types.js'
-export type { ProcessSubmissionResult } from './modules/app/lti/services/score-submission.js'
 export type {
   AccessTokenPayload as UserSession,
   UserTokens,

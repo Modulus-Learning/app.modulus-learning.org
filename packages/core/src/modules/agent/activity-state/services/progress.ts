@@ -26,20 +26,15 @@ export class ActivityProgressService extends BaseService {
 
   @method
   async setProgress(auth: AgentAuth, request: SetProgressRequest): Promise<SetProgressResponse> {
-    const now = new Date()
-
     const progressRecord = await this.mutations.setProgress({
       user_id: auth.user_id,
       activity_id: auth.activity_id,
       progress: request.progress,
-      created_at: now,
-      updated_at: now,
     })
 
-    // Score submission to the LTI platform is now handled asynchronously
-    // by the ScoreSubmissionProcessor background worker. The worker will
-    // discover that this line item's progress has changed and submit the
-    // updated score after the debounce period.
+    // Score submission to the LTI platform is handled asynchronously by
+    // a background worker. The worker will discover that this line item's
+    // progress has changed and submit the updated score after the debounce period.
 
     return {
       progress: progressRecord.progress,

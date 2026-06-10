@@ -5,9 +5,11 @@ export const ErrorCodes = {
   INVALID_LAUNCH: 'ERR_INVALID_LAUNCH',
   DEEP_LINKING: 'ERR_DEEP_LINKING',
   SCORE_PASSBACK: 'ERR_SCORE_PASSBACK',
+  LTI_ACCESS_TOKEN: 'ERR_LTI_ACCESS_TOKEN',
 } as const
 
 export const ERR_INVALID_LOGIN = createCoreErrorType(ErrorCodes.INVALID_LOGIN, 'warn')
 export const ERR_INVALID_LAUNCH = createCoreErrorType(ErrorCodes.INVALID_LAUNCH, 'warn')
 export const ERR_DEEP_LINKING = createCoreErrorType(ErrorCodes.DEEP_LINKING, 'warn')
 export const ERR_SCORE_PASSBACK = createCoreErrorType(ErrorCodes.SCORE_PASSBACK, 'error')
+export const ERR_LTI_ACCESS_TOKEN = createCoreErrorType(ErrorCodes.LTI_ACCESS_TOKEN, 'error')
