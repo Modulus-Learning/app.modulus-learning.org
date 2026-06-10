@@ -8,9 +8,7 @@ summary: "How a single gradebook build is deployed in one of three runtime modes
 
 Modulus is a [single-instance, in-process system](./ARCHITECTURE.md#3-single-instance-no-separate-api-server):
 the `apps/gradebook` host calls `initCore` once and holds the result as a
-singleton, serving the learner/LTI frontend, the admin backend, and the
-background workers from one process and one Postgres database. For a
-"right-size" installation that is the whole story — one container, `DEPLOYMENT_MODE`
+as a runtime service registry serving the learner/LTI frontend, the admin backend, and the background workers from one process and one Postgres database. For a "right-size" installation that is the whole story — one container, `DEPLOYMENT_MODE`
 left at its default, done.
 
 The same build can also be split across separate instances when an operator
@@ -117,11 +115,9 @@ Gating happens in two places, by design:
    could be prerendered as static HTML (mode `all-in-one`) and served on an
    admin-only instance, bypassing the gate.
 
-> Note on the matcher: the API route handlers live under `/routes` (not `/api`),
-> so they are **not** excluded from the proxy matcher — only `/lti` and static
-> assets are. The proxy runs on `/routes/*`; the `isNotApiRoute` filter merely
-> skips the *UI* layers for them, while top-level layers like `withDeploymentMode`
-> still apply.
+:::note[Note on the matcher] 
+The API route handlers live under `/routes` (not `/api`), so they are **not** excluded from the proxy matcher — only `/lti` and static assets are. The proxy runs on `/routes/*`; the `isNotApiRoute` filter merely skips the *UI* layers for them, while top-level layers like `withDeploymentMode` still apply.
+:::
 
 ## Background jobs
 
