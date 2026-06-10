@@ -227,12 +227,8 @@ export class LtiScoreSubmissionMutations extends BaseService {
   }
 
   @method
-  async setPlatformHealth(
-    platform_issuer: string,
-    timestamp: Date,
-    data: PlatformHealthUpdate
-  ): Promise<string | undefined> {
-    const [row] = await this.db
+  async setPlatformHealth(platform_issuer: string, timestamp: Date, data: PlatformHealthUpdate) {
+    await this.db
       .get()
       .insert(platformHealth)
       .values({
@@ -248,14 +244,7 @@ export class LtiScoreSubmissionMutations extends BaseService {
           ...data,
         },
       })
-      .returning({
-        health: sql<string>`COALESCE(OLD.status, 'healthy')`,
-      })
       .catch(this.utils.wrapDbErrorNew())
-
-    this.utils.assertExists(row, { message: 'Upserted platform health is null' })
-
-    return row.health
   }
 
   @method

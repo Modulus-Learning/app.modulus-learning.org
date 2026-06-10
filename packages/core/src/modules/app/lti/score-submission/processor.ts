@@ -256,8 +256,10 @@ export class LtiScoreSubmissionProcessor extends BaseService {
           updated_at: now,
         })
 
+        const oldPlatformHealth = await this.mutations.getPlatformHealthForUpdate(platform_issuer)
+
         // Mark the platform as healthy and unpaused.
-        const oldPlatformStatus = await this.mutations.setPlatformHealth(platform_issuer, now, {
+        await this.mutations.setPlatformHealth(platform_issuer, now, {
           status: 'healthy',
           paused_until: null,
           last_success_at: now,
@@ -266,7 +268,7 @@ export class LtiScoreSubmissionProcessor extends BaseService {
 
         // If the platform was previously not healthy, record a single submission
         // event demarking the transition from not healthy to healthy.
-        if (oldPlatformStatus !== 'healthy') {
+        if (oldPlatformHealth?.status !== 'healthy') {
           await this.mutations.recordSubmissionEvent({
             id: uuidv7(),
             platform_issuer,
@@ -293,10 +295,12 @@ export class LtiScoreSubmissionProcessor extends BaseService {
           updated_at: now,
         })
 
+        const oldPlatformHealth = await this.mutations.getPlatformHealthForUpdate(platform_issuer)
+
         // Mark the platform as healthy and unpaused (the platform identified
         // the lineitem as dead, but that implies the connection to the platform
         // itself is healthy).
-        const oldPlatformStatus = await this.mutations.setPlatformHealth(platform_issuer, now, {
+        await this.mutations.setPlatformHealth(platform_issuer, now, {
           status: 'healthy',
           paused_until: null,
           last_success_at: now,
@@ -305,7 +309,7 @@ export class LtiScoreSubmissionProcessor extends BaseService {
 
         // If the platform was previously not healthy, record a single submission
         // event demarking the transition from not healthy to healthy.
-        if (oldPlatformStatus !== 'healthy') {
+        if (oldPlatformHealth?.status !== 'healthy') {
           await this.mutations.recordSubmissionEvent({
             id: uuidv7(),
             platform_issuer,
