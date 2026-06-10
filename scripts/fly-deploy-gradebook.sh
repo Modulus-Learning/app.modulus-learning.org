@@ -5,7 +5,7 @@ set -euo pipefail
 # (DEPLOYMENT_MODE=frontend) and the backend (DEPLOYMENT_MODE=admin). Both run the
 # identical image; the mode is a runtime env switch (see docs/DEPLOYMENT.md).
 # Extra args are forwarded to each `fly deploy` (e.g. --build-only is NOT useful
-# here; use the per-app scripts to deploy a single app). REBUILD=1 forces a rebuild.
+# here; use the per-app scripts to deploy a single app).
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=./fly-gradebook-image.sh

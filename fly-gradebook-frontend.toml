@@ -18,7 +18,7 @@ dockerfile = '_docker/gradebook/production/Dockerfile'
 
 [build.args]
 APP_VOLUME = '/app/storage'
-IMAGE_VOLUME = '/app/apps/next/.next/cache/images'
+IMAGE_VOLUME = '/app/apps/gradebook/.next/cache/images'
 
 [deploy]
 strategy = 'rolling'

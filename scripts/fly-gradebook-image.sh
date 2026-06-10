@@ -5,11 +5,12 @@
 #
 # Build-once / deploy-twice: the frontend (DEPLOYMENT_MODE=frontend) and backend
 # (DEPLOYMENT_MODE=admin) apps run the SAME image; the mode is purely a runtime env
-# switch (see docs/DEPLOYMENT.md). build_image() builds a single local image and is
-# a no-op if that image already exists, so running the two per-app scripts in
-# sequence still builds only once (set REBUILD=1 to force a fresh build). Each
-# deploy just retags that identical local image into the target app's Fly registry
-# namespace and releases it -- no rebuild per app.
+# switch (see docs/DEPLOYMENT.md). build_image() builds a single local image; both
+# deploys retag that identical image into each app's Fly registry namespace and
+# release it -- no per-app rebuild. Within one invocation build_image is called
+# once, so the two-app deploy still builds only once. build_image always runs
+# `docker build` and relies on Docker's layer cache to keep an unchanged rebuild
+# fast, so a deploy can never ship stale code under the reused image tag.
 
 # Resolve repo root from this file's location (works whether sourced or executed).
 _FLY_LIB_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -26,15 +27,12 @@ fi
 # Single, app-agnostic local image tag shared by both deploys.
 IMAGE_TAG="modulus-gradebook:deployment-${VERSION}"
 
-# Build the shared image once. No-op if it already exists locally (REBUILD=1 forces).
+# Build the shared image. Always runs `docker build`; Docker's layer cache keeps a
+# rebuild with no source changes cheap, while guaranteeing a deploy never ships
+# stale code under the reused "${IMAGE_TAG}" tag.
 # Using --network=host ensures reliable connectivity to registries
 # (avoids ETIMEDOUT errors in Docker's default bridge network).
 build_image() {
-  if [[ "${REBUILD:-0}" != "1" ]] && docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
-    echo "✅ Reusing existing image ${IMAGE_TAG} (set REBUILD=1 to force a rebuild)"
-    return 0
-  fi
-
   # Default to linux/amd64 for Fly deploy; override with DOCKER_PLATFORM for local testing.
   local platform="${DOCKER_PLATFORM:-linux/amd64}"
   echo "🔨 Building image: ${IMAGE_TAG} (platform ${platform})"

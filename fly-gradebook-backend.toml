@@ -27,9 +27,6 @@
 #
 # This admin backend serves https://admin.modulus-learning.org -- you must add the
 # DNS record and a Fly certificate for that subdomain.
-#
-# TODO: replace the app name below with the Fly app you create for the backend
-# (e.g. `fly apps create modulus-gradebook-backend`).
 app = 'modulus-gradebook-backend'
 primary_region = 'sin'
 swap_size_mb = 512
@@ -39,7 +36,7 @@ dockerfile = '_docker/gradebook/production/Dockerfile'
 
 [build.args]
 APP_VOLUME = '/app/storage'
-IMAGE_VOLUME = '/app/apps/next/.next/cache/images'
+IMAGE_VOLUME = '/app/apps/gradebook/.next/cache/images'
 
 [deploy]
 strategy = 'rolling'
