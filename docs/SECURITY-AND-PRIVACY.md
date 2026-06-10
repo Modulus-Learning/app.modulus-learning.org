@@ -12,11 +12,13 @@ institutional summary calls "IT and Security Staff," and it consolidates
 mechanisms documented in detail elsewhere — [AUTHN-AUTHZ](./AUTHN-AUTHZ.md),
 [LTI](./LTI.md), and [AGENT](./AGENT.md).
 
-> **Status.** The *technical* controls below are implemented and described from
-> the code. The *policy* items — data-retention windows, the formal threat model,
-> and institutional accessibility/privacy statements — are not yet settled and are
-> flagged as [open questions](#open-questions--needs-institutional-policy). Treat
-> those sections as placeholders pending OSU input.
+:::note[Status]
+The *technical* controls below are implemented and described from the code. The
+*policy* items — data-retention windows, the formal threat model, and
+institutional accessibility/privacy statements — are not yet settled and are
+flagged as [open questions](#open-questions--needs-institutional-policy). Treat
+those sections as placeholders pending OSU input.
+:::
 
 ## Design Principles
 
