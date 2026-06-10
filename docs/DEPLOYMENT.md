@@ -110,6 +110,13 @@ Gating happens in two places, by design:
    even for requests (server actions, RSC) that do not traverse the matcher
    identically. The guard helper lives in `src/lib/deployment-mode-guard.ts`.
 
+   Two details make this guard correct: it reads the mode via `getDeploymentMode()`
+   (just the `DEPLOYMENT_MODE` env var, not the full secret-bearing config) so it is
+   safe during static prerendering; and the `/lti` segment is marked
+   `export const dynamic = 'force-dynamic'` so it renders per request — otherwise it
+   could be prerendered as static HTML (mode `all-in-one`) and served on an
+   admin-only instance, bypassing the gate.
+
 > Note on the matcher: the API route handlers live under `/routes` (not `/api`),
 > so they are **not** excluded from the proxy matcher — only `/lti` and static
 > assets are. The proxy runs on `/routes/*`; the `isNotApiRoute` filter merely
