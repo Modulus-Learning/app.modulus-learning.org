@@ -1,9 +1,36 @@
-# fly.toml app configuration file generated for modulus-restless-snowflake-2677 on 2024-07-09T19:01:05+07:00
+# Fly.io configuration for the Modulus gradebook BACKEND deployment.
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
-
-app = 'modulus-restless-snowflake-2677'
+# BACKEND (admin + background jobs) deployment. Serves the administrative surface
+# only -- the public/learner and LTI surface is blocked (404) -- and runs the
+# background workers (LTI score-submission). The learner/LTI surface is served by
+# the companion fly-gradebook-frontend.toml app. See docs/DEPLOYMENT.md.
+#
+# SAME IMAGE, both apps. DEPLOYMENT_MODE / JOB_QUEUE_ENABLED and all server-side
+# config are read at RUNTIME from process.env, so this app and the frontend app
+# deploy the identical image; the mode is purely an env switch.
+#
+# Build-time caveat (NEXT_PUBLIC_*): Next.js inlines NEXT_PUBLIC_* into the CLIENT
+# bundle at `next build` from apps/gradebook/.env.public, so the client-baked
+# NEXT_PUBLIC_PUBLIC_SERVER_URL is always the frontend origin and CANNOT vary by
+# runtime env on a shared image. That is harmless here: the only client code that
+# reads publicServerUrl is on the frontend/LTI surface (activities + LTI deep-link
+# forms), which this admin backend blocks (404) and never serves.
+#
+# What DOES matter at runtime: getServerConfig().publicServerUrl is read live by
+# withAdminSession, which self-fetches `${publicServerUrl}/routes/admin/refresh`
+# to refresh admin tokens. That must resolve to THIS app's own origin, so the
+# runtime server URL values below point at the admin subdomain. (/routes/admin is
+# 404 on the frontend, so leaving them at the frontend origin would break admin
+# token refresh.)
+#
+# This admin backend serves https://admin.modulus-learning.org -- you must add the
+# DNS record and a Fly certificate for that subdomain.
+#
+# TODO: replace the app name below with the Fly app you create for the backend
+# (e.g. `fly apps create modulus-gradebook-backend`).
+app = 'modulus-gradebook-backend'
 primary_region = 'sin'
 swap_size_mb = 512
 
@@ -19,9 +46,18 @@ strategy = 'rolling'
 
 [env]
 PORT = '3000'
+# Serve the admin surface only, and run the background workers on this instance.
+DEPLOYMENT_MODE = 'admin'
+JOB_QUEUE_ENABLED = 'true'
+
+# NEXT_PUBLIC_SITE_NAME / DESCRIPTION / CSP are build-time inlined (see header) and
+# identical across both apps.
 NEXT_PUBLIC_SITE_NAME = 'MODULUS'
 NEXT_PUBLIC_SITE_DESCRIPTION = 'Modulus - an open source educational analytics system for distributed learning content.'
-NEXT_PUBLIC_PUBLIC_SERVER_URL = 'https://app.modulus-learning.org'
+# Runtime value = this backend's own origin (used server-side by the admin token
+# refresh self-fetch). The client-baked value remains the frontend origin but is
+# inert here (no admin client reads it) -- see header.
+NEXT_PUBLIC_PUBLIC_SERVER_URL = 'https://admin.modulus-learning.org'
 NEXT_PUBLIC_CSP_ENABLED = 'false'
 DATA_REQUEST_CACHING = 'true'
 ANALYTICS_ENABLED = 'true'
@@ -51,8 +87,11 @@ FLASH_COOKIE_SAME_SITE = 'lax'
 FLASH_COOKIE_HTTP_ONLY = 'true'
 FLASH_COOKIE_SECURE = 'true'
 
-API_BASE_URL = 'https://app.modulus-learning.org/routes'
+API_BASE_URL = 'https://admin.modulus-learning.org/routes'
 API_JWT_PUBLIC_KEY = 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF0WUtmS3JFYnpqcEYxSERXZkUxTAoxYnBiRmNPZkRDc2VBZnhIVzVSY2JGVHpENGNkT1JvYU5BcmZ0VWR1QnVCcjBZdnRrc0Z1RjBMdG1NZ0ZPQW1mCmUrbURJUHA3RCtYZFdQOU1kOTB5Ui9jSkF0bHJ6U2g0MUxaeEkwTWtHeW9kLzcwOEZFZmZtb3QyWURtMElsSzQKN3E3V2M0WVNMZ1I3cUljNkh2dkd0cFZkTjM5dmVaeWM5NVE3REhwWDYrRllhcWlyYzR0VUZ3RzYzMkp1dmZINApVY1VqQTdJRTBTeTRWd3dtWS8xRHMvWTVQc0cyQWNHWkU4aWg1Q0srRVNGckdEemFraHpmTElOR05vcDE5VHd3Ci9iTEQ1VUR4WGVwTnFwYjlYNHg1NWNsakUvSmhzb3Y3eElsWURKTmhNUTFRSngxSk0vem4yVk1JQXgydlg1TmQKWlFJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=='
+# JWT issuer/audience are kept IDENTICAL to the frontend (same signing key), so
+# tokens stay interchangeable across both apps -- they are opaque claim strings
+# that need only match between mint and verify, not the serving origin.
 API_JWT_ISSUER = 'https://app.modulus-learning.org'
 API_JWT_AUDIENCE = 'https://app.modulus-learning.org'
 
@@ -73,6 +112,10 @@ S3_ACCESS_KEY_ID = 'AKIA3NCF7XCVBH2HXICF'
 S3_BUCKET = 'origin.modulus-learning.org'
 S3_CDN_DOMAIN = 'https://cdn.modulus-learning.org'
 
+# OAuth / LTI launch flows live on the FRONTEND; these return/redirect URLs point
+# at the frontend domain by design. They are inert on the admin backend (the
+# score-submission worker uses the LTI_JWKS keys + DB for passback, not these),
+# but core config validation requires them to be present.
 OAUTH_GITHUB_CLIENT_ID = 'Ov23lih9WiC1jEIBqi6S'
 OAUTH_GITHUB_AUTH_URL = 'https://github.com/login/oauth/authorize'
 OAUTH_GITHUB_ACCESS_TOKEN_URL = 'https://github.com/login/oauth/access_token'
@@ -93,8 +136,8 @@ LTI_REDIRECT_URI = 'https://app.modulus-learning.org/routes/lti/launch'
 LTI_JWKS_KEY_ID = '1m05tSyzxzwX'
 # LTI_JWKS_PRIVATE_KEY in fly secrets
 LTI_JWKS_PUBLIC_KEY = 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF0V3JYa084V0prS3J5aS9HcERZYgpVS1BTYmFlQ0ZybmVtR2hzM1AydHlRUVpzZS9ZSmVER0pwTGM2Zjdtd2xwQXJwN2thQ2VHRnhGK0xVNnFabHo5ClRYZHFFeDZSYk53aHVJVEd0Q0ZhdnVZaHhuS09RZUNkZm1vSXB6LzNmWFg2NG81djVVQlVDZjhib2ZTV0FFSU8KaDNGQjVVaUM2ZStWOEFzS3MzRk52TzcvSDg5OXFtY1RiMGorQ1A3M0piRXZxR2NEa3ZDTkdJN3BLa1dzYm5sYwo2a3VsYWRDTERwSkIwVkcxQm1zbksxZWl5ZjBmUDZSMHZhaEx5N1g3TU1ydEpBeFlURnZpalRLcWQydE1Pd2ZTCkpiNDF3bjI5NWdQbWMwbEtIVWJOaExDZ3FVS3RCRENKMTN5WUs0Skw1Y0VHTGFidXlib043NEF4WndnOVBMQkgKendJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=='
-SERVER_HOST = 'app.modulus-learning.org'
-SERVER_BASE_URL = 'https://app.modulus-learning.org'
+SERVER_HOST = 'admin.modulus-learning.org'
+SERVER_BASE_URL = 'https://admin.modulus-learning.org'
 # API_JWT_PRIVATE_KEY in fly secrets
 API_JWT_ACCESS_TOKEN_EXPIRES_IN = 600
 API_JWT_REFRESH_TOKEN_EXPIRES_IN = 2592000
