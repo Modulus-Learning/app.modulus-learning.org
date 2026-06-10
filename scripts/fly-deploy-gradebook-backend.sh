@@ -12,4 +12,6 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "${SCRIPT_DIR}/fly-gradebook-image.sh"
 
 build_image
-deploy_app "${REPO_ROOT}/fly-gradebook-backend.toml" "$@"
+# --ha=false: the backend runs the background workers and must be a SINGLE machine,
+# so suppress Fly's default 2-machine HA pair (see fly-gradebook-backend.toml).
+deploy_app "${REPO_ROOT}/fly-gradebook-backend.toml" --ha=false "$@"

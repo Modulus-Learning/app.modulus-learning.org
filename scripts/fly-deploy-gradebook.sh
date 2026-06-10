@@ -13,4 +13,6 @@ source "${SCRIPT_DIR}/fly-gradebook-image.sh"
 
 build_image
 deploy_app "${REPO_ROOT}/fly-gradebook-frontend.toml" "$@"
-deploy_app "${REPO_ROOT}/fly-gradebook-backend.toml" "$@"
+# --ha=false: the backend runs the background workers and must be a SINGLE machine
+# (see fly-gradebook-backend.toml), so suppress Fly's default 2-machine HA pair.
+deploy_app "${REPO_ROOT}/fly-gradebook-backend.toml" --ha=false "$@"

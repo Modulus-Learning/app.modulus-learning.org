@@ -142,11 +142,22 @@ SERVER_BASE_URL = 'https://admin.modulus-learning.org'
 API_JWT_ACCESS_TOKEN_EXPIRES_IN = 600
 API_JWT_REFRESH_TOKEN_EXPIRES_IN = 2592000
 
+# SINGLE MACHINE ONLY. This backend runs the background workers (LTI score
+# submission), so it must be exactly one always-running instance:
+#   - auto_stop_machines = false: never stop the machine on idle HTTP traffic --
+#     it would also stop the background workers.
+#   - auto_start_machines = false: never auto-start additional machines.
+#   - min_machines_running = 1: keep the one machine running.
+# Fly does not cap machine count from this file, and `fly deploy` on an app with an
+# [http_service] creates a 2-machine HA pair BY DEFAULT. The backend deploy passes
+# `--ha=false` (see scripts/fly-deploy-gradebook-backend.sh) to create just one.
+# Operationally also keep a single region (primary_region above) and verify with
+# `fly scale show` / `fly scale count 1` -- never `fly machine clone` this app.
 [http_service]
 internal_port = 8000
 force_https = true
-auto_stop_machines = true
-auto_start_machines = true
+auto_stop_machines = false
+auto_start_machines = false
 min_machines_running = 1
 processes = ['app']
 
