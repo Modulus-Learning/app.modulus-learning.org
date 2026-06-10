@@ -4,13 +4,13 @@
   "private": false,
   "description": "Modulus client agent.",
   "type": "module",
-  "homepage": "https://github.com/Modulus-Learning/modulus",
+  "homepage": "https://github.com/Modulus-Learning/app.modulus-learning.org",
   "bugs": {
-    "url": "https://github.com/Modulus-Learning/modulus/issues"
+    "url": "https://github.com/Modulus-Learning/app.modulus-learning.org/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Modulus-Learning/modulus.git",
+    "url": "git+https://github.com/Modulus-Learning/app.modulus-learning.org.git",
     "directory": "apps/agent"
   },
   "sideEffects": false,
