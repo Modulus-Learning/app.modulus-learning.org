@@ -1,14 +1,17 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, getTableColumns, gt, sql } from 'drizzle-orm'
 
-import { pageState, progress } from '@/database/schema/index.js'
+import { pageState, progress, progressEvents } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { CoreUtils } from '@/lib/utils.js'
 
 export type ProgressRecord = typeof progress.$inferSelect
-export type ProgressInsert = typeof progress.$inferInsert
-export type ProgressUpdate = Pick<Partial<ProgressInsert>, 'progress' | 'updated_at'>
+export type ProgressUpdateRecord = ProgressRecord & { updated: boolean }
+export type ProgressUpdate = Omit<typeof progress.$inferInsert, 'created_at' | 'updated_at'>
+
+export type ProgressEventInsert = typeof progressEvents.$inferInsert
+export type ProgressEventRecord = typeof progressEvents.$inferSelect
 
 export type PageStateRecord = typeof pageState.$inferSelect
 export type PageStateInsert = typeof pageState.$inferInsert
@@ -60,24 +63,40 @@ export class ActivityStateMutations extends BaseService {
   }
 
   @method
-  async setProgress(values: ProgressInsert): Promise<ProgressRecord> {
-    const [progressRecord] = await this.db
+  async updateProgress(values: ProgressUpdate): Promise<ProgressUpdateRecord> {
+    const [result] = await this.db
       .get()
       .insert(progress)
-      .values({ ...values, created_at: sql`NOW()`, updated_at: sql`NOW()` })
+      .values({
+        user_id: values.user_id,
+        activity_id: values.activity_id,
+        progress: values.progress,
+        created_at: sql`NOW()`,
+        updated_at: sql`NOW()`,
+      })
       .onConflictDoUpdate({
         target: [progress.activity_id, progress.user_id],
         set: {
-          progress: sql`GREATEST(${progress.progress}, ${values.progress})`,
+          progress: sql`GREATEST(${values.progress}, ${progress.progress})`,
           updated_at: sql`NOW()`,
         },
       })
-      .returning()
+      .returning({
+        ...getTableColumns(progress),
+        // updated will be true if the new progress value is greater than the old one,
+        // or if there _was_ no old one.
+        updated: sql<boolean>`COALESCE(${progress.progress} > OLD.progress, TRUE)`,
+      })
       .catch(this.utils.wrapDbErrorNew())
 
-    this.utils.assertExists(progressRecord, { message: 'upserted progress record is null' })
+    this.utils.assertExists(result, { message: 'updated progress record is null' })
 
-    return progressRecord
+    return result
+  }
+
+  @method
+  async recordProgressEvent(values: ProgressEventInsert) {
+    await this.db.get().insert(progressEvents).values(values).catch(this.utils.wrapDbErrorNew())
   }
 
   @method
