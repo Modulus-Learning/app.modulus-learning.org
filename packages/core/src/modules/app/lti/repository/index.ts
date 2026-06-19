@@ -166,11 +166,14 @@ export class LtiMutations extends BaseService {
   }
 
   @method
-  async updateLineItem(id: string, data: Omit<Partial<LineItemRecord>, 'id'>): Promise<void> {
+  async updateLineItem(
+    id: string,
+    data: Omit<Partial<LineItemRecord>, 'id' | 'updated_at' | 'created_at'>
+  ): Promise<void> {
     await this.db
       .get()
       .update(lineitems)
-      .set(data)
+      .set({ ...data, updated_at: sql`NOW()` })
       .where(eq(lineitems.id, id))
       .catch(this.utils.wrapDbErrorNew())
   }

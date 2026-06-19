@@ -1,6 +1,12 @@
-import { and, eq, gt, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, eq, gt, isNull, lt, lte, max, or, sql } from 'drizzle-orm'
 
-import { lineitems, platformHealth, platforms, progress } from '@/database/schema/index.js'
+import {
+  lineitems,
+  platformHealth,
+  platforms,
+  progress,
+  progressEvents,
+} from '@/database/schema/index.js'
 import { submissionEvents } from '@/database/schema/source/lti/lti-submission-events.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
@@ -80,6 +86,26 @@ export class LtiScoreSubmissionQueries extends BaseService {
       })
       .catch(this.utils.wrapDbErrorNew())
   }
+
+  @method
+  async getProgressAtCutoff(user_id: string, activity_id: string, cutoff: Date): Promise<number> {
+    const [row] = await this.db
+      .get()
+      .select({
+        progress: max(progressEvents.progress),
+      })
+      .from(progressEvents)
+      .where(
+        and(
+          eq(progressEvents.user_id, user_id),
+          eq(progressEvents.activity_id, activity_id),
+          lte(progressEvents.submitted_at, cutoff)
+        )
+      )
+      .catch(this.utils.wrapDbErrorNew())
+
+    return row?.progress ?? 0
+  }
 }
 
 export class LtiScoreSubmissionMutations extends BaseService {
@@ -122,10 +148,14 @@ export class LtiScoreSubmissionMutations extends BaseService {
         lineitem_url: lineitems.lineitem_url,
         platform_issuer: lineitems.platform_issuer,
         deployment_id: lineitems.deployment_id,
+        user_id: lineitems.user_id,
+        activity_id: lineitems.activity_id,
         lti_user_id: lineitems.lti_user_id,
         submission_error_count: lineitems.submission_error_count,
         submission_error_category: lineitems.submission_error_category,
+        cutoff_at: lineitems.cutoff_at,
         current_progress: progress.progress,
+        submitted_progress: lineitems.submitted_progress,
       })
       .from(lineitems)
       .innerJoin(

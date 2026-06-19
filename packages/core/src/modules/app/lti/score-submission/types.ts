@@ -3,10 +3,14 @@ export type PendingSubmission = {
   lineitem_url: string
   platform_issuer: string
   deployment_id: string
+  user_id: string
+  activity_id: string
   lti_user_id: string
   submission_error_count: number
   submission_error_category: string | null
+  cutoff_at: Date | null
   current_progress: number
+  submitted_progress: number
 }
 
 export type SubmissionErrorCategory =

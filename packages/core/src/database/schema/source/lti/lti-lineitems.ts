@@ -59,8 +59,8 @@ export const lineitems = pgTable(
     // assignment_id: varchar('assignment_id'),
     // assignment_name: varchar('assignment_name'),
 
-    // Optional due date as reported by the LTI platform
-    // due_date: timestamp('due_date', { withTimezone: true }),
+    // Optional cutoff date as reported by the LTI platform.
+    cutoff_at: timestamp('cutoff_at', { precision: 6, withTimezone: true }),
 
     // Submission status.  One of 'ready', 'backoff', 'dead'
     submission_status: varchar('submission_status').notNull().default('ready'),

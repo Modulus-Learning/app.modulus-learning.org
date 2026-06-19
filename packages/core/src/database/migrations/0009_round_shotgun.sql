@@ -1,0 +1,1 @@
+ALTER TABLE "lti_lineitems" ADD COLUMN "cutoff_at" timestamp (6) with time zone;

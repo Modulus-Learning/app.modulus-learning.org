@@ -6,7 +6,11 @@ import type { Config } from '@/index.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { AccessTokenManager } from '../services/access-tokens.js'
-import type { LtiScoreSubmissionMutations, PlatformRecord } from './repository.js'
+import type {
+  LtiScoreSubmissionMutations,
+  LtiScoreSubmissionQueries,
+  PlatformRecord,
+} from './repository.js'
 import type { PendingSubmission, SubmissionResult } from './types.js'
 
 type ControlFlow =
@@ -26,7 +30,7 @@ type ControlFlow =
  */
 export class LtiScoreSubmissionProcessor extends BaseService {
   private config: Config
-  // private queries: LtiScoreSubmissionQueries
+  private queries: LtiScoreSubmissionQueries
   private mutations: LtiScoreSubmissionMutations
   private accessTokenManager: AccessTokenManager
   private tx: TXManager
@@ -40,14 +44,14 @@ export class LtiScoreSubmissionProcessor extends BaseService {
     logger: CoreLogger,
     config: Config,
     tx: TXManager,
-    // scoreSubmissionQueries: LtiScoreSubmissionQueries,
+    scoreSubmissionQueries: LtiScoreSubmissionQueries,
     scoreSubmissionMutations: LtiScoreSubmissionMutations,
     accessTokenManager: AccessTokenManager
   ) {
     super(logger, 'app', 'lti')
     this.config = config
     this.tx = tx
-    // this.queries = scoreSubmissionQueries
+    this.queries = scoreSubmissionQueries
     this.mutations = scoreSubmissionMutations
     this.accessTokenManager = accessTokenManager
 
@@ -124,6 +128,27 @@ export class LtiScoreSubmissionProcessor extends BaseService {
       return {
         action: 'idle',
         duration_ms: this.config.lti.score_submission.idle_interval_ms,
+      }
+    }
+
+    // Handle the case where the pending lineitem's cutoff_at time has passed.
+    if (pending.cutoff_at != null && pending.cutoff_at.getTime() < Date.now()) {
+      // Find the progress as of the cutoff time.
+      const progressAtCutoff = await this.queries.getProgressAtCutoff(
+        pending.user_id,
+        pending.activity_id,
+        pending.cutoff_at
+      )
+
+      // If there's still progress to submit,
+      if (progressAtCutoff > pending.submitted_progress) {
+        pending.current_progress = progressAtCutoff
+      } else {
+        // The progress value that was present at cutoff time has already
+        // been submitted, and we're already past the cutoff time (so any
+        // further progress events we recieve will not be submittable against
+        // this line item).  Mark the line item as dead, and move on.
+        return await this.handleCutoffSubmission(pending)
       }
     }
 
@@ -386,6 +411,19 @@ export class LtiScoreSubmissionProcessor extends BaseService {
 
       return { action: 'idle', duration_ms: platformBackoff }
     })
+  }
+
+  async handleCutoffSubmission(pending: PendingSubmission): Promise<ControlFlow> {
+    await this.mutations.updateLineItem(pending.lineitem_id, {
+      submission_status: 'dead',
+      submission_locked_until: null,
+      submission_error_count: 0,
+      submission_error_category: 'lineitem_dead',
+      submission_error_message: 'cutoff time has passed',
+      updated_at: new Date(),
+    })
+
+    return { action: 'continue' }
   }
 
   computeBackoffMs(error_count: number) {
