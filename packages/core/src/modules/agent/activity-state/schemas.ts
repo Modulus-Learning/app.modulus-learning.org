@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+/*
+ The request is no longer input void - it can be a list of URLs
+ for which the agent wants progress.
+*/
 export const getProgressSchemas = {
   input: z.void(),
   output: z.object({
@@ -8,6 +12,9 @@ export const getProgressSchemas = {
   }),
 }
 
+/**
+ * To be updated to take  a list of URLs to be updated.
+ */
 export const setProgressSchemas = {
   input: z.object({
     progress: z.number(),
