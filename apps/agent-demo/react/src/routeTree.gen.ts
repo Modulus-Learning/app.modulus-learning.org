@@ -14,6 +14,15 @@ import { Route as CoursesRouteRouteImport } from './routes/_courses/route'
 import { Route as PublicIndexRouteImport } from './routes/_public/index'
 import { Route as CoursesCalculus2IndexRouteImport } from './routes/_courses/calculus-2/index'
 import { Route as CoursesCalculus1IndexRouteImport } from './routes/_courses/calculus-1/index'
+import { Route as CoursesCalculus1Lesson12RouteImport } from './routes/_courses/calculus-1/lesson-12'
+import { Route as CoursesCalculus1Lesson11RouteImport } from './routes/_courses/calculus-1/lesson-11'
+import { Route as CoursesCalculus1Lesson10RouteImport } from './routes/_courses/calculus-1/lesson-10'
+import { Route as CoursesCalculus1Lesson09RouteImport } from './routes/_courses/calculus-1/lesson-09'
+import { Route as CoursesCalculus1Lesson08RouteImport } from './routes/_courses/calculus-1/lesson-08'
+import { Route as CoursesCalculus1Lesson07RouteImport } from './routes/_courses/calculus-1/lesson-07'
+import { Route as CoursesCalculus1Lesson06RouteImport } from './routes/_courses/calculus-1/lesson-06'
+import { Route as CoursesCalculus1Lesson05RouteImport } from './routes/_courses/calculus-1/lesson-05'
+import { Route as CoursesCalculus1Lesson04RouteImport } from './routes/_courses/calculus-1/lesson-04'
 import { Route as CoursesCalculus1Lesson03RouteImport } from './routes/_courses/calculus-1/lesson-03'
 import { Route as CoursesCalculus1Lesson02RouteImport } from './routes/_courses/calculus-1/lesson-02'
 import { Route as CoursesCalculus1Lesson01RouteImport } from './routes/_courses/calculus-1/lesson-01'
@@ -41,6 +50,60 @@ const CoursesCalculus1IndexRoute = CoursesCalculus1IndexRouteImport.update({
   path: '/calculus-1/',
   getParentRoute: () => CoursesRouteRoute,
 } as any)
+const CoursesCalculus1Lesson12Route =
+  CoursesCalculus1Lesson12RouteImport.update({
+    id: '/calculus-1/lesson-12',
+    path: '/calculus-1/lesson-12',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson11Route =
+  CoursesCalculus1Lesson11RouteImport.update({
+    id: '/calculus-1/lesson-11',
+    path: '/calculus-1/lesson-11',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson10Route =
+  CoursesCalculus1Lesson10RouteImport.update({
+    id: '/calculus-1/lesson-10',
+    path: '/calculus-1/lesson-10',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson09Route =
+  CoursesCalculus1Lesson09RouteImport.update({
+    id: '/calculus-1/lesson-09',
+    path: '/calculus-1/lesson-09',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson08Route =
+  CoursesCalculus1Lesson08RouteImport.update({
+    id: '/calculus-1/lesson-08',
+    path: '/calculus-1/lesson-08',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson07Route =
+  CoursesCalculus1Lesson07RouteImport.update({
+    id: '/calculus-1/lesson-07',
+    path: '/calculus-1/lesson-07',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson06Route =
+  CoursesCalculus1Lesson06RouteImport.update({
+    id: '/calculus-1/lesson-06',
+    path: '/calculus-1/lesson-06',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson05Route =
+  CoursesCalculus1Lesson05RouteImport.update({
+    id: '/calculus-1/lesson-05',
+    path: '/calculus-1/lesson-05',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson04Route =
+  CoursesCalculus1Lesson04RouteImport.update({
+    id: '/calculus-1/lesson-04',
+    path: '/calculus-1/lesson-04',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
 const CoursesCalculus1Lesson03Route =
   CoursesCalculus1Lesson03RouteImport.update({
     id: '/calculus-1/lesson-03',
@@ -65,6 +128,15 @@ export interface FileRoutesByFullPath {
   '/calculus-1/lesson-01': typeof CoursesCalculus1Lesson01Route
   '/calculus-1/lesson-02': typeof CoursesCalculus1Lesson02Route
   '/calculus-1/lesson-03': typeof CoursesCalculus1Lesson03Route
+  '/calculus-1/lesson-04': typeof CoursesCalculus1Lesson04Route
+  '/calculus-1/lesson-05': typeof CoursesCalculus1Lesson05Route
+  '/calculus-1/lesson-06': typeof CoursesCalculus1Lesson06Route
+  '/calculus-1/lesson-07': typeof CoursesCalculus1Lesson07Route
+  '/calculus-1/lesson-08': typeof CoursesCalculus1Lesson08Route
+  '/calculus-1/lesson-09': typeof CoursesCalculus1Lesson09Route
+  '/calculus-1/lesson-10': typeof CoursesCalculus1Lesson10Route
+  '/calculus-1/lesson-11': typeof CoursesCalculus1Lesson11Route
+  '/calculus-1/lesson-12': typeof CoursesCalculus1Lesson12Route
   '/calculus-1/': typeof CoursesCalculus1IndexRoute
   '/calculus-2/': typeof CoursesCalculus2IndexRoute
 }
@@ -73,6 +145,15 @@ export interface FileRoutesByTo {
   '/calculus-1/lesson-01': typeof CoursesCalculus1Lesson01Route
   '/calculus-1/lesson-02': typeof CoursesCalculus1Lesson02Route
   '/calculus-1/lesson-03': typeof CoursesCalculus1Lesson03Route
+  '/calculus-1/lesson-04': typeof CoursesCalculus1Lesson04Route
+  '/calculus-1/lesson-05': typeof CoursesCalculus1Lesson05Route
+  '/calculus-1/lesson-06': typeof CoursesCalculus1Lesson06Route
+  '/calculus-1/lesson-07': typeof CoursesCalculus1Lesson07Route
+  '/calculus-1/lesson-08': typeof CoursesCalculus1Lesson08Route
+  '/calculus-1/lesson-09': typeof CoursesCalculus1Lesson09Route
+  '/calculus-1/lesson-10': typeof CoursesCalculus1Lesson10Route
+  '/calculus-1/lesson-11': typeof CoursesCalculus1Lesson11Route
+  '/calculus-1/lesson-12': typeof CoursesCalculus1Lesson12Route
   '/calculus-1': typeof CoursesCalculus1IndexRoute
   '/calculus-2': typeof CoursesCalculus2IndexRoute
 }
@@ -84,6 +165,15 @@ export interface FileRoutesById {
   '/_courses/calculus-1/lesson-01': typeof CoursesCalculus1Lesson01Route
   '/_courses/calculus-1/lesson-02': typeof CoursesCalculus1Lesson02Route
   '/_courses/calculus-1/lesson-03': typeof CoursesCalculus1Lesson03Route
+  '/_courses/calculus-1/lesson-04': typeof CoursesCalculus1Lesson04Route
+  '/_courses/calculus-1/lesson-05': typeof CoursesCalculus1Lesson05Route
+  '/_courses/calculus-1/lesson-06': typeof CoursesCalculus1Lesson06Route
+  '/_courses/calculus-1/lesson-07': typeof CoursesCalculus1Lesson07Route
+  '/_courses/calculus-1/lesson-08': typeof CoursesCalculus1Lesson08Route
+  '/_courses/calculus-1/lesson-09': typeof CoursesCalculus1Lesson09Route
+  '/_courses/calculus-1/lesson-10': typeof CoursesCalculus1Lesson10Route
+  '/_courses/calculus-1/lesson-11': typeof CoursesCalculus1Lesson11Route
+  '/_courses/calculus-1/lesson-12': typeof CoursesCalculus1Lesson12Route
   '/_courses/calculus-1/': typeof CoursesCalculus1IndexRoute
   '/_courses/calculus-2/': typeof CoursesCalculus2IndexRoute
 }
@@ -94,6 +184,15 @@ export interface FileRouteTypes {
     | '/calculus-1/lesson-01'
     | '/calculus-1/lesson-02'
     | '/calculus-1/lesson-03'
+    | '/calculus-1/lesson-04'
+    | '/calculus-1/lesson-05'
+    | '/calculus-1/lesson-06'
+    | '/calculus-1/lesson-07'
+    | '/calculus-1/lesson-08'
+    | '/calculus-1/lesson-09'
+    | '/calculus-1/lesson-10'
+    | '/calculus-1/lesson-11'
+    | '/calculus-1/lesson-12'
     | '/calculus-1/'
     | '/calculus-2/'
   fileRoutesByTo: FileRoutesByTo
@@ -102,6 +201,15 @@ export interface FileRouteTypes {
     | '/calculus-1/lesson-01'
     | '/calculus-1/lesson-02'
     | '/calculus-1/lesson-03'
+    | '/calculus-1/lesson-04'
+    | '/calculus-1/lesson-05'
+    | '/calculus-1/lesson-06'
+    | '/calculus-1/lesson-07'
+    | '/calculus-1/lesson-08'
+    | '/calculus-1/lesson-09'
+    | '/calculus-1/lesson-10'
+    | '/calculus-1/lesson-11'
+    | '/calculus-1/lesson-12'
     | '/calculus-1'
     | '/calculus-2'
   id:
@@ -112,6 +220,15 @@ export interface FileRouteTypes {
     | '/_courses/calculus-1/lesson-01'
     | '/_courses/calculus-1/lesson-02'
     | '/_courses/calculus-1/lesson-03'
+    | '/_courses/calculus-1/lesson-04'
+    | '/_courses/calculus-1/lesson-05'
+    | '/_courses/calculus-1/lesson-06'
+    | '/_courses/calculus-1/lesson-07'
+    | '/_courses/calculus-1/lesson-08'
+    | '/_courses/calculus-1/lesson-09'
+    | '/_courses/calculus-1/lesson-10'
+    | '/_courses/calculus-1/lesson-11'
+    | '/_courses/calculus-1/lesson-12'
     | '/_courses/calculus-1/'
     | '/_courses/calculus-2/'
   fileRoutesById: FileRoutesById
@@ -158,6 +275,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CoursesCalculus1IndexRouteImport
       parentRoute: typeof CoursesRouteRoute
     }
+    '/_courses/calculus-1/lesson-12': {
+      id: '/_courses/calculus-1/lesson-12'
+      path: '/calculus-1/lesson-12'
+      fullPath: '/calculus-1/lesson-12'
+      preLoaderRoute: typeof CoursesCalculus1Lesson12RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-11': {
+      id: '/_courses/calculus-1/lesson-11'
+      path: '/calculus-1/lesson-11'
+      fullPath: '/calculus-1/lesson-11'
+      preLoaderRoute: typeof CoursesCalculus1Lesson11RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-10': {
+      id: '/_courses/calculus-1/lesson-10'
+      path: '/calculus-1/lesson-10'
+      fullPath: '/calculus-1/lesson-10'
+      preLoaderRoute: typeof CoursesCalculus1Lesson10RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-09': {
+      id: '/_courses/calculus-1/lesson-09'
+      path: '/calculus-1/lesson-09'
+      fullPath: '/calculus-1/lesson-09'
+      preLoaderRoute: typeof CoursesCalculus1Lesson09RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-08': {
+      id: '/_courses/calculus-1/lesson-08'
+      path: '/calculus-1/lesson-08'
+      fullPath: '/calculus-1/lesson-08'
+      preLoaderRoute: typeof CoursesCalculus1Lesson08RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-07': {
+      id: '/_courses/calculus-1/lesson-07'
+      path: '/calculus-1/lesson-07'
+      fullPath: '/calculus-1/lesson-07'
+      preLoaderRoute: typeof CoursesCalculus1Lesson07RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-06': {
+      id: '/_courses/calculus-1/lesson-06'
+      path: '/calculus-1/lesson-06'
+      fullPath: '/calculus-1/lesson-06'
+      preLoaderRoute: typeof CoursesCalculus1Lesson06RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-05': {
+      id: '/_courses/calculus-1/lesson-05'
+      path: '/calculus-1/lesson-05'
+      fullPath: '/calculus-1/lesson-05'
+      preLoaderRoute: typeof CoursesCalculus1Lesson05RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-04': {
+      id: '/_courses/calculus-1/lesson-04'
+      path: '/calculus-1/lesson-04'
+      fullPath: '/calculus-1/lesson-04'
+      preLoaderRoute: typeof CoursesCalculus1Lesson04RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
     '/_courses/calculus-1/lesson-03': {
       id: '/_courses/calculus-1/lesson-03'
       path: '/calculus-1/lesson-03'
@@ -186,6 +366,15 @@ interface CoursesRouteRouteChildren {
   CoursesCalculus1Lesson01Route: typeof CoursesCalculus1Lesson01Route
   CoursesCalculus1Lesson02Route: typeof CoursesCalculus1Lesson02Route
   CoursesCalculus1Lesson03Route: typeof CoursesCalculus1Lesson03Route
+  CoursesCalculus1Lesson04Route: typeof CoursesCalculus1Lesson04Route
+  CoursesCalculus1Lesson05Route: typeof CoursesCalculus1Lesson05Route
+  CoursesCalculus1Lesson06Route: typeof CoursesCalculus1Lesson06Route
+  CoursesCalculus1Lesson07Route: typeof CoursesCalculus1Lesson07Route
+  CoursesCalculus1Lesson08Route: typeof CoursesCalculus1Lesson08Route
+  CoursesCalculus1Lesson09Route: typeof CoursesCalculus1Lesson09Route
+  CoursesCalculus1Lesson10Route: typeof CoursesCalculus1Lesson10Route
+  CoursesCalculus1Lesson11Route: typeof CoursesCalculus1Lesson11Route
+  CoursesCalculus1Lesson12Route: typeof CoursesCalculus1Lesson12Route
   CoursesCalculus1IndexRoute: typeof CoursesCalculus1IndexRoute
   CoursesCalculus2IndexRoute: typeof CoursesCalculus2IndexRoute
 }
@@ -194,6 +383,15 @@ const CoursesRouteRouteChildren: CoursesRouteRouteChildren = {
   CoursesCalculus1Lesson01Route: CoursesCalculus1Lesson01Route,
   CoursesCalculus1Lesson02Route: CoursesCalculus1Lesson02Route,
   CoursesCalculus1Lesson03Route: CoursesCalculus1Lesson03Route,
+  CoursesCalculus1Lesson04Route: CoursesCalculus1Lesson04Route,
+  CoursesCalculus1Lesson05Route: CoursesCalculus1Lesson05Route,
+  CoursesCalculus1Lesson06Route: CoursesCalculus1Lesson06Route,
+  CoursesCalculus1Lesson07Route: CoursesCalculus1Lesson07Route,
+  CoursesCalculus1Lesson08Route: CoursesCalculus1Lesson08Route,
+  CoursesCalculus1Lesson09Route: CoursesCalculus1Lesson09Route,
+  CoursesCalculus1Lesson10Route: CoursesCalculus1Lesson10Route,
+  CoursesCalculus1Lesson11Route: CoursesCalculus1Lesson11Route,
+  CoursesCalculus1Lesson12Route: CoursesCalculus1Lesson12Route,
   CoursesCalculus1IndexRoute: CoursesCalculus1IndexRoute,
   CoursesCalculus2IndexRoute: CoursesCalculus2IndexRoute,
 }
