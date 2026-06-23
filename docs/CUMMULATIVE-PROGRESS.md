@@ -6,11 +6,11 @@ summary: "Design for activities that report a calculation of their own progress 
 
 # Cumulative ('Umbrella') Progress Reporting
 
-> **Status: IN PROGRESS — Phase 1 implemented, pending review.** This document
-> specifies **Phase 1** — the new agent ↔ gradebook API contract — and sketches
-> **Phase 2** (backend commands, queries, and storage). The Phase 1 code is in
-> place; Phase 2 is described here only well enough to keep the Phase 1 contract
-> forward-compatible.
+> **Status: IN PROGRESS — Phase 1 committed; Phase 2 underway.** This document
+> specifies **Phase 1** — the new agent ↔ gradebook API contract — and the
+> **Phase 2** backend (transactional multi-activity storage and sum-based
+> accumulation). Phase 1 is committed; Phase 2 sections below reflect the locked
+> design and are being implemented.
 > Sections marked _(Phase 2)_ are not yet implemented.
 
 This is the design for **cumulative** (informally "umbrella") progress: letting an
@@ -179,37 +179,125 @@ system compiles and round-trips end-to-end.
 
 ## Phase 2 — backend, storage, and accumulation _(Phase 2)_
 
-Sketched here only to keep the Phase 1 contract honest; not yet implemented.
+Locked decisions for the initial Phase 2 cut:
 
-- **Multi-activity write in one transaction.** `set-progress` updates the self
-  activity (high-water mark, as today) and records each target contribution keyed
-  by `(source, target, user)`, then derives the target's aggregate. Accumulation
-  is a **sum of per-source contributions**, _not_ a high-water mark.
-- **Multi-URL read.** `get-progress` resolves and returns progress for the
-  requested set of URLs.
-- **`progress_events`.** All agent submissions are now recorded as events, not
-  only the high-water value in `progress` — the event log must capture the
-  per-target contributions so the aggregate can be (re)computed/audited.
-- **Authorization scope.** The token currently carries only `activity_id`
-  (`token-issuer.ts`). Phase 2 needs the source's **activity code** in the request
-  context (`AgentAuth`) so target URLs can be validated/created **within that
-  code's scope** — a token should only be able to report against activities in its
-  own activity code. The Phase 1 wire format is intentionally unaffected by this
-  change.
+- **Sum, not high-water.** A cumulative activity's progress is the **sum of the
+  current contributions from its sources**, maintained transactionally.
+- **Strict resolution.** A target URL is honored only if it is already a recorded
+  activity that **shares an activity code** with the source. Unknown / out-of-code
+  targets are skipped (see below). Lazy-creating missing targets is a later
+  **Phase 2b**.
+- **Skip + warn on a bad target.** The learner's own (self) progress is **always**
+  persisted; an invalid umbrella target is logged and skipped rather than failing
+  the whole submission. `result.others` contains only the valid targets.
+- **Activity code derived at request time — no token change.** Scope is checked
+  with an `activity_activity_code` self-join (does source share a code with
+  target?), so the Phase 1 token (`activity_id` only) is left untouched. This is a
+  refinement of the earlier sketch, which proposed carrying the code in the token;
+  the join makes that unnecessary. (`activity_codes.url_prefix` is optional and,
+  in practice, often empty — membership via `activity_activity_code` is the
+  authoritative scope.)
 
-### Activity existence (resolve vs. create) _(Phase 2)_
+### Why a dedicated `progress_contributions` table
+
+This table is the crux of Phase 2, so the reasoning is worth recording.
+
+A normal activity's progress is a **high-water mark**: one learner, one activity,
+one number that only goes up — the existing `progress` table, keyed by
+`(activity_id, user_id)` and updated with `GREATEST(new, old)`.
+
+A **cumulative** activity (the `calculus-1` index) is different. Its progress is
+not one thing the learner did; it is the **sum of many contributions** flowing in
+from its children, where each child contributes `ownProgress × maxContribution`:
+
+```
+index progress = contribution(lesson-01) + contribution(lesson-02) + … + contribution(lesson-12)
+```
+
+A high-water mark **cannot** express this. If `progress[index]` were a single
+number that each child wrote to:
+
+- lesson-01 finishes → wants index = `0.083`
+- lesson-02 finishes → wants index = `0.083`
+
+`GREATEST(0.083, 0.083)` is still `0.083` — the second contribution is **lost**. A
+single number has no memory of *who* contributed what, so it cannot add them up.
+To sum, you must remember **each source's current contribution separately**. That
+is exactly what `progress_contributions` holds:
+
+```
+progress_contributions(
+  target_activity_id,   -- the cumulative activity receiving the contribution (the index)
+  source_activity_id,   -- the child activity providing it (lesson-01)
+  user_id,              -- whose progress this is
+  contribution,         -- the current value from THIS source: ownProgress × maxContribution
+  …timestamps
+)
+PRIMARY KEY (target_activity_id, source_activity_id, user_id)
+```
+
+The **primary key is the triple** because there is exactly one current
+contribution per *(who, from-which-child, to-which-parent)*. That uniqueness makes
+a write an idempotent **upsert** rather than an append: a child re-submitting at a
+higher value updates its own row in place (GREATEST); a different child writes a
+different row. After two lessons finish you have two rows you can add:
+
+| target | source    | user | contribution |
+| ------ | --------- | ---- | ------------ |
+| index  | lesson-01 | u    | 0.0833       |
+| index  | lesson-02 | u    | 0.0556       |
+
+### Write path (`set-progress`, one transaction)
+
+1. **Self** → high-water `progress` update + a self `progress_events` row
+   (`source_activity_id = null`), exactly as Phase 1.
+2. **Per umbrella target:**
+   1. resolve the activity by URL; verify it shares a code with self (else skip + warn);
+   2. upsert this source's contribution row (`GREATEST`, so it is monotonic);
+   3. recompute the target total: `SELECT sum(contribution) … WHERE target = ? AND user = ?`;
+   4. write that sum to `progress[target]` (so reads and LTI passback see one number);
+   5. record a contribution `progress_events` row (`source_activity_id = source`).
+3. Return `{ progress: self, others: [{ url, progress: sum }] }`.
+
+So `progress_contributions` is the normalized **breakdown** (the addends) and
+`progress[target]` is the maintained **total** (their sum). The breakdown is what
+lets the total actually *be* a sum.
+
+### Read path (`get-progress`)
+
+`progress[target]` already holds the maintained total, so a cumulative page load is
+a plain lookup — no recompute. `get-progress({ urls })` returns self plus, for each
+requested URL that shares a code with self, a `{ url, progress }` entry in `others`.
+
+### `progress_events` and history
+
+`progress_events` gains a nullable `source_activity_id`: `null` for direct/self
+submissions, set for contribution events. The dedicated `progress_contributions`
+table is the **current state** (cheap sum, source of truth for the total);
+`progress_events` is the **audit/history** (replayable, "how did we get here"). We
+could instead derive a target's total from the events ("sum the latest event per
+source"), but that is an expensive, fragile query on an ever-growing log; a table
+with one current row per source keeps the sum a trivial aggregate.
+
+**Trade-off worth naming:** the total is denormalized into `progress[target]`.
+`progress_contributions` is authoritative; the `progress` row is a maintained cache
+of their sum. Consistency is preserved by always recomputing the sum inside the
+**same transaction** as the contribution upsert, so a reader (or LTI passback)
+never sees a stale or partial total.
+
+### Activity existence (resolve vs. create)
 
 A target URL may or may not yet be a recorded activity. The contract carries the
-raw URL precisely so this policy lives entirely in Phase 2:
+raw URL precisely so this policy lives entirely in the backend:
 
-- **Strict first.** A target URL is honored only if it is already a recorded
-  activity URL **for the source's activity code**. Unknown / out-of-code targets
-  are rejected. Reuses `findActivityByUrl()` plus the `activity_codes` /
-  `activity-activity-code` tables.
-- **Relaxed later.** When a target URL isn't yet an activity, **lazily create the
-  activity row** (within the source's activity code) inside the same transaction
-  before recording progress against it — so children can report into a cumulative
-  page that hasn't been visited/created yet.
+- **Strict (this cut).** A target is honored only if it is already a recorded
+  activity that shares a code with the source. Unknown / out-of-code targets are
+  skipped + warned. Reuses `findActivityByUrl()` plus the `activity_codes` /
+  `activity_activity_code` tables.
+- **Lazy-create (Phase 2b).** When a target URL isn't yet an activity, create the
+  activity row (linked to the source's activity code) inside the same transaction
+  before recording progress — so children can report into a cumulative page that
+  hasn't been visited/created yet.
 
 ## Names as built
 
