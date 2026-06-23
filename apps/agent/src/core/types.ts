@@ -2,11 +2,12 @@
 
 export type User = { id: string; full_name: string }
 
-// An activity that the current activity reports a *calculation* of its own
-// progress against (cumulative / "umbrella" reporting).  `maxContribution` is
-// the normalized (0..1) amount this activity contributes to `url` at full
-// (1.0) own-progress; the submitted value is `ownProgress * maxContribution`.
-export type ReportTarget = { url: string; maxContribution: number }
+// A cumulative ("accumulator") activity that the current activity contributes a
+// calculation of its own progress to.  `factor` is the normalized (0..1) share
+// of this activity's progress that flows to `url` -- the server applies
+// `Δself × factor` to the target, deriving the increment from the change in this
+// activity's idempotent high-water mark.
+export type ContributionTarget = { url: string; factor: number }
 
 export type AuthStatus =
   | { status: 'authenticated'; user: User }

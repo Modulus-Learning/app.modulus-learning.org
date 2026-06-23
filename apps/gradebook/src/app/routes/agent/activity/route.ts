@@ -47,7 +47,10 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
       case 'get-progress':
         return core.agent.activityState.getProgress(auth, { urls: body.urls })
       case 'set-progress':
-        return core.agent.activityState.setProgress(auth, { updates: body.updates })
+        return core.agent.activityState.setProgress(auth, {
+          progress_for_current_page: body.progress_for_current_page,
+          increments_for_other_pages: body.increments_for_other_pages,
+        })
       case 'get-page-state':
         return core.agent.activityState.getPageState(auth)
       case 'set-page-state':

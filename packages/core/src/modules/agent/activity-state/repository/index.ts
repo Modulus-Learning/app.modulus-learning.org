@@ -1,13 +1,23 @@
-import { and, eq, getTableColumns, gt, sql } from 'drizzle-orm'
+import { and, eq, getTableColumns, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
-import { pageState, progress, progressEvents } from '@/database/schema/index.js'
+import {
+  activities,
+  activityActivityCode,
+  pageState,
+  progress,
+  progressEvents,
+} from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { CoreUtils } from '@/lib/utils.js'
 
+export type ActivityRecord = typeof activities.$inferSelect
 export type ProgressRecord = typeof progress.$inferSelect
-export type ProgressUpdateRecord = ProgressRecord & { updated: boolean }
+// `updated` is true when the high-water mark advanced (or there was no prior
+// row); `increase` is the actual numeric advance (Δself) -- 0 on a no-op/retry.
+export type ProgressUpdateRecord = ProgressRecord & { updated: boolean; increase: number }
 export type ProgressUpdate = Omit<typeof progress.$inferInsert, 'created_at' | 'updated_at'>
 
 export type ProgressEventInsert = typeof progressEvents.$inferInsert
@@ -50,6 +60,34 @@ export class ActivityStateQueries extends BaseService {
       })
       .catch(this.utils.wrapDbErrorNew())
   }
+
+  @method
+  async findActivityByUrl(url: string): Promise<ActivityRecord | undefined> {
+    return await this.db
+      .get()
+      .query.activities.findFirst({ where: eq(activities.url, url) })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  // True if `source_id` and `target_id` are both members of (at least) one
+  // common activity code -- the scope within which one activity is allowed to
+  // report a cumulative contribution against another.
+  @method
+  async sharesActivityCode(source_id: string, target_id: string): Promise<boolean> {
+    const source = alias(activityActivityCode, 'source')
+    const target = alias(activityActivityCode, 'target')
+
+    const rows = await this.db
+      .get()
+      .select({ one: sql`1` })
+      .from(source)
+      .innerJoin(target, eq(source.activity_code_id, target.activity_code_id))
+      .where(and(eq(source.activity_id, source_id), eq(target.activity_id, target_id)))
+      .limit(1)
+      .catch(this.utils.wrapDbErrorNew())
+
+    return rows.length > 0
+  }
 }
 
 export class ActivityStateMutations extends BaseService {
@@ -86,10 +124,49 @@ export class ActivityStateMutations extends BaseService {
         // updated will be true if the new progress value is greater than the old one,
         // or if there _was_ no old one.
         updated: sql<boolean>`COALESCE(${progress.progress} > OLD.progress, TRUE)`,
+        // increase is the actual numeric advance of the high-water mark (Δself):
+        // new value minus old value, or the full new value if there was no old
+        // row.  0 on a no-op (a retry or an equal/lower submission) -- this is
+        // what makes cumulative contributions derived from it idempotent.
+        increase: sql<number>`${progress.progress} - COALESCE(OLD.progress, 0)`,
       })
       .catch(this.utils.wrapDbErrorNew())
 
     this.utils.assertExists(result, { message: 'updated progress record is null' })
+
+    return result
+  }
+
+  // Add `amount` to an activity's progress (the cumulative / "umbrella" target
+  // write), clamped to a maximum of 1.0.  Creates the row if absent.  `amount`
+  // is the caller-computed Δself × factor.
+  @method
+  async incrementProgress(values: {
+    activity_id: string
+    user_id: string
+    amount: number
+  }): Promise<ProgressRecord> {
+    const [result] = await this.db
+      .get()
+      .insert(progress)
+      .values({
+        user_id: values.user_id,
+        activity_id: values.activity_id,
+        progress: Math.min(1, Math.max(0, values.amount)),
+        created_at: sql`NOW()`,
+        updated_at: sql`NOW()`,
+      })
+      .onConflictDoUpdate({
+        target: [progress.activity_id, progress.user_id],
+        set: {
+          progress: sql`LEAST(1.0, ${progress.progress} + ${values.amount})`,
+          updated_at: sql`NOW()`,
+        },
+      })
+      .returning()
+      .catch(this.utils.wrapDbErrorNew())
+
+    this.utils.assertExists(result, { message: 'incremented progress record is null' })
 
     return result
   }

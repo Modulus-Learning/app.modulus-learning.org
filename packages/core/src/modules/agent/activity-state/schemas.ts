@@ -1,17 +1,21 @@
 import { z } from 'zod'
 
 /*
- * A single progress target in a `set-progress` submission.
+ * A single cumulative ("umbrella") contribution target in a `set-progress`
+ * submission.
  *
- * `url` identifies the activity the value applies to.  When omitted, the value
- * applies to the "self" activity -- the one the agent's access token is bound
- * to.  Entries that carry a `url` are activities this one reports a *calculation*
- * of its own progress against (cumulative / "umbrella" reporting); their source
- * is the implicit self activity.
+ * `url` identifies the *other* activity this one reports a calculation of its own
+ * progress against; the source is the implicit self (token-bound) activity.
+ * `factor` is the normalized (0..1) share of the self activity's progress that
+ * flows to `url`.  The server does NOT receive a precomputed increment: it
+ * observes the change in the self activity's idempotent high-water mark and
+ * applies `Δself × factor` to `url`.  Deriving the increment from the idempotent
+ * self change makes the umbrella update idempotent too (a retried submission sees
+ * no self change and so contributes nothing).
  */
 const progressUpdateSchema = z.object({
-  url: z.string().optional(),
-  progress: z.number(),
+  url: z.string(),
+  factor: z.number(),
 })
 
 /*
@@ -43,12 +47,14 @@ export const getProgressSchemas = {
 }
 
 /*
- * The request is a list of progress targets: the self activity (url omitted)
- * plus zero or more activities this one reports a calculation against.
+ * The request carries the self activity's progress (an idempotent high-water
+ * mark) plus zero or more cumulative contribution targets (by url + factor) that
+ * this activity reports a calculation against.
  */
 export const setProgressSchemas = {
   input: z.object({
-    updates: z.array(progressUpdateSchema),
+    progress_for_current_page: z.number(),
+    increments_for_other_pages: z.array(progressUpdateSchema),
   }),
   output: z.object({
     // Resulting self (token-bound activity) high-water-mark progress.

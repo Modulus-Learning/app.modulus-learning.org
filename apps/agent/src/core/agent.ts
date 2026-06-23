@@ -1,13 +1,13 @@
-import { ApiClient, type ProgressUpdate } from './api-client.js'
+import { ApiClient, type ProgressContribution } from './api-client.js'
 import { authenticate } from './auth.js'
 import { EventEmitter } from './event-emitter.js'
 import { createConsoleLogger, type Logger } from './logger.js'
 import type {
   AgentError,
   AuthStatus,
+  ContributionTarget,
   ModulusAgentEvents,
   ReadyEvent,
-  ReportTarget,
   User,
 } from './types.js'
 
@@ -49,10 +49,10 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
   // Track retry attempts
   #progressRetryAttempt = 0
 
-  // Activities this one reports a calculation of its own progress against
-  // (cumulative / "umbrella" reporting).  Each registered target adds an extra
-  // entry to every progress submission.
-  #reportTargets: ReportTarget[] = []
+  // Cumulative ("accumulator") activities this one contributes a calculation of
+  // its own progress to.  Each registered target adds an extra entry to every
+  // progress submission.
+  #contributionTargets: ContributionTarget[] = []
 
   // ********************** PAGESTATE ****************************
 
@@ -150,6 +150,25 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
     return this.#progress
   }
 
+  // Fetch progress for a set of *other* activity URLs -- e.g. a cumulative page
+  // reading the activities that report into it.  Returns one entry per URL the
+  // server resolved and authorized (URLs that don't exist or that fall outside
+  // the current activity's scope are omitted).  Best-effort: resolves to an
+  // empty array if the agent isn't authenticated or the request fails.
+  async getProgressFor(urls: string[]): Promise<{ url: string; progress: number }[]> {
+    if (this.#auth.status !== 'authenticated' || urls.length === 0) {
+      return []
+    }
+
+    const result = await this.#auth.client.getProgress(urls)
+    if (result.status === 'ok') {
+      return result.data.others ?? []
+    }
+
+    await this.#logger?.log('Failed to fetch progress for urls', { status: result.status })
+    return []
+  }
+
   // Get the last progress value that was successfully submitted to (or received
   // from) the Modulus API.
   submittedProgress(): number {
@@ -213,31 +232,29 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
     }
   }
 
-  // Register an activity that this activity reports a calculation of its own
-  // progress against (cumulative / "umbrella" reporting).  Once registered,
-  // every progress submission will additionally submit
-  // `ownProgress * maxContribution` for the target url.  Returns a function that
-  // removes the registration (e.g. for use as a React effect cleanup).
-  addReportTarget(target: ReportTarget): () => void {
-    this.#reportTargets.push(target)
+  // Register a cumulative ("accumulator") activity that this activity contributes
+  // a calculation of its own progress to.  Once registered, every progress
+  // submission additionally reports `factor` for the target url, and the server
+  // applies `Δself × factor` to it.  Returns a function that removes the
+  // registration (e.g. for use as a React effect cleanup).
+  addContributionTarget(target: ContributionTarget): () => void {
+    this.#contributionTargets.push(target)
     return () => {
-      const index = this.#reportTargets.indexOf(target)
+      const index = this.#contributionTargets.indexOf(target)
       if (index !== -1) {
-        this.#reportTargets.splice(index, 1)
+        this.#contributionTargets.splice(index, 1)
       }
     }
   }
 
-  // Build the list of progress targets for a submission: the self activity (url
-  // omitted) plus one entry per registered report target.
-  #buildProgressUpdates(selfProgress: number): ProgressUpdate[] {
-    return [
-      { progress: selfProgress },
-      ...this.#reportTargets.map((target) => ({
-        url: target.url,
-        progress: selfProgress * target.maxContribution,
-      })),
-    ]
+  // Build the cumulative contribution targets for a submission: one entry per
+  // registered target, carrying the contribution `factor`.  The server derives
+  // each increment from the observed change in self's high-water mark.
+  #buildContributions(): ProgressContribution[] {
+    return this.#contributionTargets.map((target) => ({
+      url: target.url,
+      factor: target.factor,
+    }))
   }
 
   // Set the page state for the current page.  Any JSON-serializable value is
@@ -309,7 +326,7 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
         return
       }
 
-      const result = await this.#auth.client.putProgress(this.#buildProgressUpdates(this.#progress))
+      const result = await this.#auth.client.putProgress(this.#progress, this.#buildContributions())
 
       if (result.status === 'ok') {
         this.#submittedProgress = result.data.progress

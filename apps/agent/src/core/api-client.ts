@@ -6,9 +6,10 @@ type ApiRequestOptions = {
 
 type PageStateResponse = { page_state: any }
 
-// A single progress target.  `url` omitted ⇒ the token-bound "self" activity;
-// entries with a `url` are activities this one reports a calculation against.
-export type ProgressUpdate = { url?: string; progress: number }
+// A cumulative contribution target: `factor` is the share of the self
+// activity's progress that flows to `url`.  The server derives the actual
+// increment from the observed change in self's high-water mark (Δself × factor).
+export type ProgressContribution = { url: string; factor: number }
 export type ProgressResult = { url: string; progress: number }
 type ProgressResponse = { progress: number; others?: ProgressResult[] }
 
@@ -79,11 +80,18 @@ export class ApiClient {
     })
   }
 
-  putProgress(updates: ProgressUpdate[]): Promise<ApiRequestResult<ProgressResponse>> {
+  putProgress(
+    progress: number,
+    increments: ProgressContribution[]
+  ): Promise<ApiRequestResult<ProgressResponse>> {
     return this.#request({
       url: AGENT_ACTIVITY_URL,
       method: 'POST',
-      data: { op: 'set-progress', updates },
+      data: {
+        op: 'set-progress',
+        progress_for_current_page: progress,
+        increments_for_other_pages: increments,
+      },
     })
   }
 

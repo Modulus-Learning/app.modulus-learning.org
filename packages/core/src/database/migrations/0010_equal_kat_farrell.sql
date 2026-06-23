@@ -1,0 +1,2 @@
+ALTER TABLE "progress_events" ADD COLUMN "source_activity_id" uuid;--> statement-breakpoint
+ALTER TABLE "progress_events" ADD CONSTRAINT "progress_events_source_activity_id_activities_id_fk" FOREIGN KEY ("source_activity_id") REFERENCES "public"."activities"("id") ON DELETE restrict ON UPDATE no action;

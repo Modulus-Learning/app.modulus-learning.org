@@ -19,6 +19,13 @@ export const progressEvents = pgTable(
     activity_id: uuid('activity_id')
       .notNull()
       .references(() => activities.id, { onDelete: 'restrict' }),
+    // The activity that *caused* this event, when it is a cumulative
+    // ("umbrella") contribution rather than a direct submission.  NULL for a
+    // direct/self submission; set to the source activity for a contribution
+    // event (where `activity_id` is the cumulative target).
+    source_activity_id: uuid('source_activity_id').references(() => activities.id, {
+      onDelete: 'restrict',
+    }),
     progress: real('progress').notNull(),
   },
   (table) => [

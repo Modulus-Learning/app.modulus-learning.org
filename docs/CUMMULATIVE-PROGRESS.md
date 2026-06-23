@@ -6,11 +6,12 @@ summary: "Design for activities that report a calculation of their own progress 
 
 # Cumulative ('Umbrella') Progress Reporting
 
-> **Status: IN PROGRESS — Phase 1 committed; Phase 2 underway.** This document
+> **Status: IN PROGRESS — Phase 1 committed; Phase 2 implemented.** This document
 > specifies **Phase 1** — the new agent ↔ gradebook API contract — and the
-> **Phase 2** backend (transactional multi-activity storage and sum-based
-> accumulation). Phase 1 is committed; Phase 2 sections below reflect the locked
-> design and are being implemented.
+> **Phase 2** backend (transactional multi-activity writes with idempotent,
+> increment-based accumulation, plus multi-URL reads) and the live demo index
+> roll-up. Both phases are implemented; the remaining work is **Phase 2b**
+> (lazy-create of missing targets).
 > Sections marked _(Phase 2)_ are not yet implemented.
 
 This is the design for **cumulative** (informally "umbrella") progress: letting an
@@ -78,9 +79,9 @@ the command layer; the real multi-activity behaviour is Phase 2.
    `apps/gradebook/src/app/routes/agent/activity/route.ts` — dispatching on an
    `op` discriminator. This is the cleanest "route according to the incoming
    request," and leaves room to batch progress + page-state in one call later.
-2. **Author config via a per-route hook.** A lesson route calls a hook (working
-   name `useReportsAgainst({ url, maxContribution })`) that registers the target
-   with the agent on mount and clears it on unmount. The agent then **auto-expands**
+2. **Author config via a per-route hook.** A lesson route calls a hook
+   (`useContributesTo({ url, factor })`) that registers the target with the agent
+   on mount and clears it on unmount. The agent then **auto-expands**
    each `setProgress(selfValue)` into the multi-target submission, so the
    instrumentation components (`BooleanQuestion`, `MultipleChoice`) stay unchanged.
 
@@ -89,7 +90,8 @@ the command layer; the real multi-activity behaviour is Phase 2.
 ```
 POST /routes/agent/activity        // route.ts (App Router handler)
   { op: 'get-progress',   urls?: string[] }
-  { op: 'set-progress',   updates: [{ url?: string, progress: number }] }
+  { op: 'set-progress',   progress_for_current_page: number,
+                          increments_for_other_pages: [{ url: string, factor: number }] }
   { op: 'get-page-state' }
   { op: 'set-page-state', page_state: unknown }
 ```
@@ -100,14 +102,18 @@ methods all target this single URL.
 
 ### Schemas (`packages/core/.../activity-state/schemas.ts`)
 
-`setProgress` becomes a **list of targets** rather than a scalar:
+`setProgress` carries the self activity's progress plus zero or more cumulative
+contribution targets. (The original Phase 1 cut used a uniform `updates` list with
+absolute values; Phase 2 revised it to the self-progress + `factor` shape below,
+so the server can derive each increment from the idempotent self change — see
+[Why increments](#why-increments-and-no-progress_contributions-table).)
 
 ```ts
 // input
-{ updates: [
-    { url?: string, progress: number },  // url omitted ⇒ the token-bound "self" activity
-    // …zero or more other activities this one reports a calculation against
-] }
+{
+  progress_for_current_page: number,                  // self high-water mark
+  increments_for_other_pages: [{ url: string, factor: number }],  // server applies Δself × factor
+}
 // output
 { progress: number, others?: [{ url: string, progress: number }], new_token?: string }
 ```
@@ -140,34 +146,55 @@ follow:
 - Keeping targets as **URLs (not pre-resolved `activity_id`s)** defers the
   resolve-or-create decision entirely to Phase 2 — the wire format never has to
   change when we tighten or relax that rule (see _Activity existence_ below).
-- The implicit source gives Phase 2 the `(source, target, user)` key it needs to
-  **sum** contributions across reporting activities. A naïve `GREATEST`
-  high-water mark on the target would only ever reflect the single largest
-  contributor, not the aggregate — so the source identity is load-bearing.
+- The implicit source identifies *whose* high-water change drives each target
+  increment, and scopes the write (source and target must share an activity
+  code). Phase 2 anchors the increment to the source's idempotent self change —
+  see [Why increments](#why-increments-and-no-progress_contributions-table).
 
 ### Agent SDK changes (`apps/agent`)
 
 - `ApiClient`: `getProgress` / `putProgress` carry the new list shapes and route
   to the unified endpoint.
-- `ModulusAgent`: stores author-supplied "reports-against" config. On each
-  `setProgress(selfValue)` it builds
-  `updates = [self, { url, progress: selfValue * maxContribution }]`. `getProgress`
-  gains the multi-URL form so a cumulative page can read itself **plus** the
-  activities reporting into it.
+- `ModulusAgent`: stores author-supplied contribution config as a **list** of
+  targets (`addContributionTarget` appends and returns a remover). On each
+  submission it forwards the self progress plus one `{ url, factor }` entry per
+  registered target (Phase 2 shape; the original Phase 1 cut sent absolute
+  pre-multiplied `selfValue × factor` values). `getProgress` gains the multi-URL form so
+  a cumulative page can read itself **plus** the activities reporting into it.
 
 ### Demo wiring (`apps/agent-demo`)
 
-- A new `useReportsAgainst({ url, maxContribution })` hook
-  (`ui/components/use-reports-against.ts`) registers a target with the agent on
+- A `useContributesTo({ url, factor })` hook
+  (`ui/components/use-contributes-to.ts`) registers a target with the agent on
   mount and removes it on unmount.
 - The three existing `calculus-1` lessons (`lesson-01/02/03.tsx`) each call
-  `useReportsAgainst({ url: '/calculus-1', maxContribution: 1 / 12 })`, so working
-  through a lesson now submits both its own progress and its computed contribution
-  to the course index over the new contract.
-- `calculus-1/index.tsx` **stays on its mock progress array for Phase 1.** Turning
-  it into a live (problem-free) activity that reads its own progress plus the
-  reporting activities depends on the multi-URL `getProgress` read, which is Phase
-  2 — wiring it now would only display empty data.
+  `useContributesTo({ url: '/calculus-1', factor: 1 / 12 })`, so working through a
+  lesson now submits both its own progress and its computed contribution to the
+  course index over the new contract.
+- **A leaf can report to more than one accumulator.** Registration is additive at
+  every layer — the agent keeps a *list* of targets, `increments_for_other_pages`
+  is an array, and the server applies each target independently. So a lesson that
+  counts toward both a course index and a wider track simply registers twice:
+
+  ```tsx
+  // a lesson that contributes to two different accumulators
+  useContributesTo({ url: '/calculus-1',        factor: 1 / 12 })
+  useContributesTo({ url: '/calculus-bootcamp', factor: 1 / 30 })
+  ```
+
+  Each registration cleans up on unmount and is accumulated separately:
+  `Δself × 1/12` flows to the course index and `Δself × 1/30` to the bootcamp on
+  the same submission. Factors are independent (no constraint that they sum to
+  anything), and scope is checked **per target** — a parent that shares no activity
+  code with the leaf is skipped + warned while the others (and self) still apply.
+- `calculus-1/index.tsx` is a **live cumulative activity** (Phase 2). It shows its
+  own accumulated total via `modulus.progress()` (the index is itself an activity,
+  with no problems of its own) and a per-child roll-up fetched with
+  `modulus.getProgressFor([childUrls])` — the agent's public wrapper over the
+  multi-URL `get-progress` read. Child paths are resolved to absolute activity
+  URLs before the read; unknown / out-of-scope children come back omitted and
+  render as 0. Navigating back to the index after working a lesson remounts the
+  agent and re-fetches, so the roll-up reflects the latest contributions.
 
 ### Phase 1 boundary
 
@@ -177,12 +204,15 @@ writes, contribution accumulation, multi-URL reads, and `progress_events`-aware
 storage. Phase 1 may preserve self-only behaviour in the command stubs so the
 system compiles and round-trips end-to-end.
 
-## Phase 2 — backend, storage, and accumulation _(Phase 2)_
+## Phase 2 — backend, storage, and accumulation
 
-Locked decisions for the initial Phase 2 cut:
+**Implemented.** Locked decisions for this cut:
 
-- **Sum, not high-water.** A cumulative activity's progress is the **sum of the
-  current contributions from its sources**, maintained transactionally.
+- **Increment, derived from the self high-water change.** A cumulative activity's
+  progress is *accumulated* — each contribution is **added** to it — and the
+  amount added is computed **server-side** from the observed advance of the
+  source's idempotent high-water mark (`Δself × factor`). No per-source breakdown
+  table is needed.
 - **Strict resolution.** A target URL is honored only if it is already a recorded
   activity that **shares an activity code** with the source. Unknown / out-of-code
   targets are skipped (see below). Lazy-creating missing targets is a later
@@ -192,98 +222,88 @@ Locked decisions for the initial Phase 2 cut:
   the whole submission. `result.others` contains only the valid targets.
 - **Activity code derived at request time — no token change.** Scope is checked
   with an `activity_activity_code` self-join (does source share a code with
-  target?), so the Phase 1 token (`activity_id` only) is left untouched. This is a
-  refinement of the earlier sketch, which proposed carrying the code in the token;
-  the join makes that unnecessary. (`activity_codes.url_prefix` is optional and,
-  in practice, often empty — membership via `activity_activity_code` is the
-  authoritative scope.)
+  target?), so the Phase 1 token (`activity_id` only) is left untouched.
+  (`activity_codes.url_prefix` is optional and, in practice, often empty —
+  membership via `activity_activity_code` is the authoritative scope.)
 
-### Why a dedicated `progress_contributions` table
+### Why increments, and no `progress_contributions` table
 
-This table is the crux of Phase 2, so the reasoning is worth recording.
+A cumulative activity (the `calculus-1` index) accumulates progress from its
+children, each contributing `ownProgress × factor` (e.g. `factor = 1/12`). The
+naïve worry is that a plain accumulator can't be made safe: the agent submits on
+every interaction and **retries on failure**, so blindly adding a client-sent
+increment would double-count if a submission commits but its response is lost.
 
-A normal activity's progress is a **high-water mark**: one learner, one activity,
-one number that only goes up — the existing `progress` table, keyed by
-`(activity_id, user_id)` and updated with `GREATEST(new, old)`.
-
-A **cumulative** activity (the `calculus-1` index) is different. Its progress is
-not one thing the learner did; it is the **sum of many contributions** flowing in
-from its children, where each child contributes `ownProgress × maxContribution`:
-
-```
-index progress = contribution(lesson-01) + contribution(lesson-02) + … + contribution(lesson-12)
-```
-
-A high-water mark **cannot** express this. If `progress[index]` were a single
-number that each child wrote to:
-
-- lesson-01 finishes → wants index = `0.083`
-- lesson-02 finishes → wants index = `0.083`
-
-`GREATEST(0.083, 0.083)` is still `0.083` — the second contribution is **lost**. A
-single number has no memory of *who* contributed what, so it cannot add them up.
-To sum, you must remember **each source's current contribution separately**. That
-is exactly what `progress_contributions` holds:
+The fix is to never let the client decide the increment. Self progress is an
+**idempotent high-water mark** (`GREATEST(new, old)`). The server observes the
+*actual advance* of that mark inside the write transaction and applies it,
+scaled, to each target:
 
 ```
-progress_contributions(
-  target_activity_id,   -- the cumulative activity receiving the contribution (the index)
-  source_activity_id,   -- the child activity providing it (lesson-01)
-  user_id,              -- whose progress this is
-  contribution,         -- the current value from THIS source: ownProgress × maxContribution
-  …timestamps
-)
-PRIMARY KEY (target_activity_id, source_activity_id, user_id)
+Δself   = GREATEST(submitted, stored) − stored      -- the real advance, in SQL
+target += Δself × factor                            -- clamped to ≤ 1.0
 ```
 
-The **primary key is the triple** because there is exactly one current
-contribution per *(who, from-which-child, to-which-parent)*. That uniqueness makes
-a write an idempotent **upsert** rather than an append: a child re-submitting at a
-higher value updates its own row in place (GREATEST); a different child writes a
-different row. After two lessons finish you have two rows you can add:
+Because `Δself` is read from the **persisted** mark (not anything the client
+tracks), a retry sees self already at its mark and yields `Δself = 0`:
 
-| target | source    | user | contribution |
-| ------ | --------- | ---- | ------------ |
-| index  | lesson-01 | u    | 0.0833       |
-| index  | lesson-02 | u    | 0.0556       |
+```
+First delivery:  stored self 0.50, submit 0.75 → Δ = 0.25 → target += 0.25 × 1/12
+Lost response, retry: stored 0.75, submit 0.75 → Δ = 0    → target += 0          ✓
+Out-of-order/lower:   stored 0.75, submit 0.50 → Δ = 0    → target += 0          ✓
+```
+
+The cumulative update **inherits self's idempotency**. Totals stay correct
+because across a lesson `Σ Δself = 1.0`, so the target receives `factor × 1.0 =
+1/12`. It is concurrency-safe too: two children hitting the same target each do an
+atomic `SET progress = progress + Δ` under a row lock, so no lost updates. This is
+why the wire value for a target is a **`factor`, not a precomputed increment** —
+the server derives the increment so it can anchor it to the idempotent mark.
+
+This is a deliberate change from an earlier sketch that maintained a dedicated
+`progress_contributions(target, source, user, contribution)` table and stored the
+**sum** of per-source contributions. That table also achieves idempotency (re-applying
+an absolute contribution is a no-op) and additionally makes a target's value
+**reconstructable** from its parts — but at the cost of an extra table, a sum
+recompute on every write, and more joins. The increment approach trades
+reconstructability for a far smaller surface; see the trade-offs below.
 
 ### Write path (`set-progress`, one transaction)
 
-1. **Self** → high-water `progress` update + a self `progress_events` row
-   (`source_activity_id = null`), exactly as Phase 1.
-2. **Per umbrella target:**
+1. **Self** → high-water `progress` update (returns `Δself`, the real advance) +
+   a self `progress_events` row (`source_activity_id = null`), as Phase 1.
+2. **Per target** — only when `Δself > 0` (a retry/no-op skips this entirely):
    1. resolve the activity by URL; verify it shares a code with self (else skip + warn);
-   2. upsert this source's contribution row (`GREATEST`, so it is monotonic);
-   3. recompute the target total: `SELECT sum(contribution) … WHERE target = ? AND user = ?`;
-   4. write that sum to `progress[target]` (so reads and LTI passback see one number);
-   5. record a contribution `progress_events` row (`source_activity_id = source`).
-3. Return `{ progress: self, others: [{ url, progress: sum }] }`.
-
-So `progress_contributions` is the normalized **breakdown** (the addends) and
-`progress[target]` is the maintained **total** (their sum). The breakdown is what
-lets the total actually *be* a sum.
+   2. `progress[target] = LEAST(1.0, progress[target] + Δself × factor)` (upsert);
+   3. record a contribution `progress_events` row (`source_activity_id = source`).
+3. Return `{ progress: self, others: [{ url, progress }] }`.
 
 ### Read path (`get-progress`)
 
-`progress[target]` already holds the maintained total, so a cumulative page load is
-a plain lookup — no recompute. `get-progress({ urls })` returns self plus, for each
-requested URL that shares a code with self, a `{ url, progress }` entry in `others`.
+`progress[target]` already holds the accumulated total, so a cumulative page load
+is a plain lookup — no recompute. `get-progress({ urls })` returns self plus, for
+each requested URL that **shares a code** with self, a `{ url, progress }` entry in
+`others` (resolved in parallel; unknown / out-of-scope URLs are skipped).
 
 ### `progress_events` and history
 
 `progress_events` gains a nullable `source_activity_id`: `null` for direct/self
-submissions, set for contribution events. The dedicated `progress_contributions`
-table is the **current state** (cheap sum, source of truth for the total);
-`progress_events` is the **audit/history** (replayable, "how did we get here"). We
-could instead derive a target's total from the events ("sum the latest event per
-source"), but that is an expensive, fragile query on an ever-growing log; a table
-with one current row per source keeps the sum a trivial aggregate.
+submissions, set to the source for a contribution event (where `activity_id` is
+the cumulative target). Each event's `progress` is the activity's **resulting
+value** at that moment — a consistent snapshot semantics for both self and target
+events; the `source_activity_id` says which source triggered a target snapshot.
 
-**Trade-off worth naming:** the total is denormalized into `progress[target]`.
-`progress_contributions` is authoritative; the `progress` row is a maintained cache
-of their sum. Consistency is preserved by always recomputing the sum inside the
-**same transaction** as the contribution upsert, so a reader (or LTI passback)
-never sees a stale or partial total.
+**Trade-offs worth naming:**
+
+- **Not reconstructable from current state.** Without the per-source breakdown a
+  target's value cannot be rebuilt from scratch — only by replaying events. This
+  is the property the `progress_contributions` table would have preserved. The
+  event log gives an audit trail; full rebuild would mean replaying it.
+- **Reset must clear target + sources together** (so children re-advance and
+  re-contribute). The dev helper `postgres/reset-demo-progress.sh` does, via URL
+  prefix.
+- **Float drift** across a handful of additions is negligible and bounded above by
+  the `LEAST(1.0, …)` clamp.
 
 ### Activity existence (resolve vs. create)
 
@@ -305,8 +325,9 @@ Settled during Phase 1 implementation (open to revision in review):
 
 - `op` values: `get-progress` / `set-progress` / `get-page-state` /
   `set-page-state`.
-- Request fields: `updates` (set-progress), `urls` (get-progress).
-- Response fields: `progress` (self) + optional `others`.
-- Agent API: `ModulusAgent.addReportTarget(target): () => void`, with the
-  `ReportTarget = { url, maxContribution }` type.
-- Demo hook: `useReportsAgainst({ url, maxContribution })`.
+- Request fields: `progress_for_current_page` + `increments_for_other_pages:
+  [{ url, factor }]` (set-progress); `urls` (get-progress).
+- Response fields: `progress` (self) + optional `others: [{ url, progress }]`.
+- Agent API: `ModulusAgent.addContributionTarget(target): () => void`, with the
+  `ContributionTarget = { url, factor }` type.
+- Demo hook: `useContributesTo({ url, factor })`.
