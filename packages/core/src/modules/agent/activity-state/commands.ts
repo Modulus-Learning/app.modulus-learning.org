@@ -32,9 +32,9 @@ export class ActivityStateCommands {
       method: 'getProgress',
       auth: { mode: 'agent' },
       schemas: getProgressSchemas,
-      handler: async (auth) => {
+      handler: async (auth, request) => {
         const new_token = await this.tokenRenewalService.refreshToken(auth)
-        const response = await this.progressService.getProgress(auth)
+        const response = await this.progressService.getProgress(auth, request)
         return { ...response, new_token }
       },
     })

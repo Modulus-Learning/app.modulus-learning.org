@@ -1,8 +1,15 @@
-import { ApiClient } from './api-client.js'
+import { ApiClient, type ProgressUpdate } from './api-client.js'
 import { authenticate } from './auth.js'
 import { EventEmitter } from './event-emitter.js'
 import { createConsoleLogger, type Logger } from './logger.js'
-import type { AgentError, AuthStatus, ModulusAgentEvents, ReadyEvent, User } from './types.js'
+import type {
+  AgentError,
+  AuthStatus,
+  ModulusAgentEvents,
+  ReadyEvent,
+  ReportTarget,
+  User,
+} from './types.js'
 
 // Agent's (internal) authentication state.
 type AuthState =
@@ -41,6 +48,11 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
 
   // Track retry attempts
   #progressRetryAttempt = 0
+
+  // Activities this one reports a calculation of its own progress against
+  // (cumulative / "umbrella" reporting).  Each registered target adds an extra
+  // entry to every progress submission.
+  #reportTargets: ReportTarget[] = []
 
   // ********************** PAGESTATE ****************************
 
@@ -201,6 +213,33 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
     }
   }
 
+  // Register an activity that this activity reports a calculation of its own
+  // progress against (cumulative / "umbrella" reporting).  Once registered,
+  // every progress submission will additionally submit
+  // `ownProgress * maxContribution` for the target url.  Returns a function that
+  // removes the registration (e.g. for use as a React effect cleanup).
+  addReportTarget(target: ReportTarget): () => void {
+    this.#reportTargets.push(target)
+    return () => {
+      const index = this.#reportTargets.indexOf(target)
+      if (index !== -1) {
+        this.#reportTargets.splice(index, 1)
+      }
+    }
+  }
+
+  // Build the list of progress targets for a submission: the self activity (url
+  // omitted) plus one entry per registered report target.
+  #buildProgressUpdates(selfProgress: number): ProgressUpdate[] {
+    return [
+      { progress: selfProgress },
+      ...this.#reportTargets.map((target) => ({
+        url: target.url,
+        progress: selfProgress * target.maxContribution,
+      })),
+    ]
+  }
+
   // Set the page state for the current page.  Any JSON-serializable value is
   // allowed. If the agent is currently connected to a Modulus server, this will
   // submit the page state (in the background).
@@ -270,7 +309,7 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
         return
       }
 
-      const result = await this.#auth.client.putProgress(this.#progress)
+      const result = await this.#auth.client.putProgress(this.#buildProgressUpdates(this.#progress))
 
       if (result.status === 'ok') {
         this.#submittedProgress = result.data.progress

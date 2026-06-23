@@ -6,10 +6,11 @@ summary: "Design for activities that report a calculation of their own progress 
 
 # Cumulative ('Umbrella') Progress Reporting
 
-> **Status: IN PROGRESS.** This document specifies **Phase 1** — the new agent ↔
-> gradebook API contract — and sketches **Phase 2** (backend commands, queries,
-> and storage). Phase 1 is the deliverable currently being built; Phase 2 is
-> described here only well enough to keep the Phase 1 contract forward-compatible.
+> **Status: IN PROGRESS — Phase 1 implemented, pending review.** This document
+> specifies **Phase 1** — the new agent ↔ gradebook API contract — and sketches
+> **Phase 2** (backend commands, queries, and storage). The Phase 1 code is in
+> place; Phase 2 is described here only well enough to keep the Phase 1 contract
+> forward-compatible.
 > Sections marked _(Phase 2)_ are not yet implemented.
 
 This is the design for **cumulative** (informally "umbrella") progress: letting an
@@ -108,7 +109,7 @@ methods all target this single URL.
     // …zero or more other activities this one reports a calculation against
 ] }
 // output
-{ results: [{ url: string, progress: number }], new_token?: string }
+{ progress: number, others?: [{ url: string, progress: number }], new_token?: string }
 ```
 
 `getProgress` takes an **optional list of URLs** rather than `void`:
@@ -117,8 +118,17 @@ methods all target this single URL.
 // input
 { urls?: string[] }                       // additional activities; self always included
 // output
-{ results: [{ url: string, progress: number }], new_token?: string }
+{ progress: number, others?: [{ url: string, progress: number }], new_token?: string }
 ```
+
+**Responses keep self distinct from others.** `progress` is the self
+(token-bound) activity's value — the field the agent already tracks as its
+high-water mark, so its internal progress logic is unchanged. `others` carries
+the per-URL list for the reported-against activities. This small asymmetry is
+deliberate: the token makes self the authenticated subject, and the agent tracks
+it specially, so the wire format reflects that rather than forcing the agent to
+locate "self" inside a uniform array. `others` is **optional and unpopulated in
+Phase 1** — it lights up with the Phase 2 multi-activity work.
 
 `page-state` schemas are unchanged in shape — they simply move under the unified
 endpoint and are not part of the cumulative work.
@@ -147,11 +157,17 @@ follow:
 
 ### Demo wiring (`apps/agent-demo`)
 
-- A lesson (e.g. `calculus-1/lesson-01.tsx`) declares its target + contribution
-  via `useReportsAgainst(...)`; the value reaches the agent.
-- `calculus-1/index.tsx` becomes a real (problem-free) activity that fetches its
-  own progress plus the child URLs via the multi-URL `getProgress`, replacing the
-  mock array.
+- A new `useReportsAgainst({ url, maxContribution })` hook
+  (`ui/components/use-reports-against.ts`) registers a target with the agent on
+  mount and removes it on unmount.
+- The three existing `calculus-1` lessons (`lesson-01/02/03.tsx`) each call
+  `useReportsAgainst({ url: '/calculus-1', maxContribution: 1 / 12 })`, so working
+  through a lesson now submits both its own progress and its computed contribution
+  to the course index over the new contract.
+- `calculus-1/index.tsx` **stays on its mock progress array for Phase 1.** Turning
+  it into a live (problem-free) activity that reads its own progress plus the
+  reporting activities depends on the multi-URL `getProgress` read, which is Phase
+  2 — wiring it now would only display empty data.
 
 ### Phase 1 boundary
 
@@ -195,10 +211,14 @@ raw URL precisely so this policy lives entirely in Phase 2:
   before recording progress against it — so children can report into a cumulative
   page that hasn't been visited/created yet.
 
-## Open naming questions
+## Names as built
 
-Not blocking; to settle during Phase 1 implementation:
+Settled during Phase 1 implementation (open to revision in review):
 
-- `op` values (`get-progress` / `set-progress` / …).
-- The hook name `useReportsAgainst`.
-- Field names `updates` / `results` and `maxContribution`.
+- `op` values: `get-progress` / `set-progress` / `get-page-state` /
+  `set-page-state`.
+- Request fields: `updates` (set-progress), `urls` (get-progress).
+- Response fields: `progress` (self) + optional `others`.
+- Agent API: `ModulusAgent.addReportTarget(target): () => void`, with the
+  `ReportTarget = { url, maxContribution }` type.
+- Demo hook: `useReportsAgainst({ url, maxContribution })`.

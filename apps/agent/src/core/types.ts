@@ -2,6 +2,12 @@
 
 export type User = { id: string; full_name: string }
 
+// An activity that the current activity reports a *calculation* of its own
+// progress against (cumulative / "umbrella" reporting).  `maxContribution` is
+// the normalized (0..1) amount this activity contributes to `url` at full
+// (1.0) own-progress; the submitted value is `ownProgress * maxContribution`.
+export type ReportTarget = { url: string; maxContribution: number }
+
 export type AuthStatus =
   | { status: 'authenticated'; user: User }
   | { status: 'failed'; error: string }

@@ -3,7 +3,12 @@ import type { AgentAuth } from '@/lib/auth.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { ActivityStateMutations, ActivityStateQueries } from '../repository/index.js'
-import type { GetProgressResponse, SetProgressRequest, SetProgressResponse } from '../schemas.js'
+import type {
+  GetProgressRequest,
+  GetProgressResponse,
+  SetProgressRequest,
+  SetProgressResponse,
+} from '../schemas.js'
 
 export class ActivityProgressService extends BaseService {
   private tx: TXManager
@@ -23,18 +28,39 @@ export class ActivityProgressService extends BaseService {
   }
 
   @method
-  async getProgress(auth: AgentAuth): Promise<GetProgressResponse> {
+  async getProgress(auth: AgentAuth, _request: GetProgressRequest): Promise<GetProgressResponse> {
     const progressRecord = await this.queries.getProgress(auth.user_id, auth.activity_id)
+
+    // Phase 1: only self (the token-bound activity) progress is returned.
+    // Multi-URL reads (_request.urls -> `others`) land in Phase 2 alongside the
+    // multi-activity query/storage work.
     return { progress: progressRecord?.progress ?? 0 }
   }
 
   @method
   async setProgress(auth: AgentAuth, request: SetProgressRequest): Promise<SetProgressResponse> {
+    // The self update is the entry with no `url`; entries that carry a `url` are
+    // cumulative ("umbrella") contributions against other activities.
+    const selfUpdate = request.updates.find((update) => update.url == null)
+    const others = request.updates.filter((update) => update.url != null)
+
+    // Phase 1: we accept and observe umbrella updates over the new contract, but
+    // do not yet persist them.  Transactional multi-activity writes and
+    // contribution accumulation land in Phase 2.
+    if (others.length > 0) {
+      this.logger.debug(
+        { activity_id: auth.activity_id, others },
+        'received umbrella progress updates (not yet persisted -- Phase 2)'
+      )
+    }
+
+    const selfProgress = selfUpdate?.progress ?? 0
+
     return await this.tx.withTransaction(async () => {
       const result = await this.mutations.updateProgress({
         user_id: auth.user_id,
         activity_id: auth.activity_id,
-        progress: request.progress,
+        progress: selfProgress,
       })
 
       // TODO: Do we want / need this test?  We could just blindly
@@ -43,7 +69,7 @@ export class ActivityProgressService extends BaseService {
         await this.mutations.recordProgressEvent({
           user_id: auth.user_id,
           activity_id: auth.activity_id,
-          progress: request.progress,
+          progress: selfProgress,
           submitted_at: result.updated_at,
         })
       }

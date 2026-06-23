@@ -10,6 +10,7 @@ import { ProgressBar } from '@/ui/components/lesson-progress-bar'
 import { MathJaxTypeset } from '@/ui/components/mathjax-typeset'
 import { useModulus } from '@/ui/components/modulus-provider'
 import { MultipleChoice } from '@/ui/components/multiple-choice'
+import { useReportsAgainst } from '@/ui/components/use-reports-against'
 import { UserDebugCard } from '@/ui/components/user-debug-card'
 
 const TOTAL_POINTS = 4
@@ -27,6 +28,10 @@ function RouteComponent() {
   )
 
   const { setShowResetButton } = useCourseLayout()
+
+  // This lesson is one of twelve units in Calculus 1; at full marks it
+  // contributes one twelfth of the course index page's cumulative progress.
+  useReportsAgainst({ url: '/calculus-1', maxContribution: 1 / 12 })
 
   useEffect(() => {
     setShowResetButton(true)
