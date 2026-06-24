@@ -75,6 +75,13 @@ Ximera page is instrumented, the agent's OAuth-style authorization, and the
 ingestion endpoints that record activity state. The natural companion to the LTI
 doc — together they are the two integration surfaces.
 
+### [Dynamic Activities (Lazy Create)](./DYNAMIC-ACTIVITIES.md) — Available
+How new activities are materialized on demand from agent traffic, and the
+site-wide admin allowlist (domain / domain+path rules) that governs it. Records
+the decision to lazy-create activities without an activity-code association, the
+analytics consequence for instructors, and the alternatives considered. Companion
+to [Cumulative Progress](./CUMMULATIVE-PROGRESS.md).
+
 ### Activities & Progress — Planned
 The domain reference tying the data model to behaviour: what an activity is, how
 activity codes and enrollment work, how progress is computed and recorded, how

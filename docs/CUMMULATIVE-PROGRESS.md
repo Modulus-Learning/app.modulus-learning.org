@@ -315,9 +315,13 @@ raw URL precisely so this policy lives entirely in the backend:
   skipped + warned. Reuses `findActivityByUrl()` plus the `activity_codes` /
   `activity_activity_code` tables.
 - **Lazy-create (Phase 2b).** When a target URL isn't yet an activity, create the
-  activity row (linked to the source's activity code) inside the same transaction
-  before recording progress — so children can report into a cumulative page that
-  hasn't been visited/created yet.
+  activity row inside the same transaction before recording progress — so children
+  can report into a cumulative page that hasn't been visited/created yet. This is
+  now specified in its own subsystem doc,
+  [Dynamic Activities (Lazy Create)](./DYNAMIC-ACTIVITIES.md), which gates lazy
+  creation behind a site-wide admin allowlist and records the decision to create
+  the row **without** an activity-code association (so an instructor must manually
+  add the URL to their activity code for it to appear in code-scoped roll-ups).
 
 ## Names as built
 
