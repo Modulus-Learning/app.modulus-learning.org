@@ -75,6 +75,13 @@ export class ActivityProgressService extends BaseService {
           progress: self.progress,
           submitted_at: self.updated_at,
         })
+
+        await this.mutations.updateLineItems({
+          user_id: auth.user_id,
+          activity_id: auth.activity_id,
+          progress: self.progress,
+          submitted_at: self.updated_at,
+        })
       }
 
       // 2. Cumulative targets: each receives Δself × factor.  Because Δself is
@@ -128,6 +135,13 @@ export class ActivityProgressService extends BaseService {
       user_id: auth.user_id,
       activity_id: target.id,
       source_activity_id: auth.activity_id,
+      progress: result.progress,
+      submitted_at: result.updated_at,
+    })
+
+    await this.mutations.updateLineItems({
+      user_id: auth.user_id,
+      activity_id: target.id,
       progress: result.progress,
       submitted_at: result.updated_at,
     })

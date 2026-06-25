@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 import {
   foreignKey,
   index,
@@ -33,23 +33,20 @@ export const lineitems = pgTable(
       .notNull()
       .references(() => activities.id, { onDelete: 'cascade' }),
 
-    // Base URL of the line item in the LTI platform
-    lineitem_url: varchar('lineitem_url').notNull(),
-
-    // Last progress value that was successfully submitted to the LTI platform
-    submitted_progress: real('submitted_progress').notNull(),
-
-    // Timestamp of the last successful score submission to the LTI platform.
-    submitted_at: timestamp('submitted_at', { precision: 6, withTimezone: true }),
-
     // LTI platform this line item belongs to
     platform_issuer: varchar('platform_issuer').notNull(),
 
     // LTI deployment this line item belongs to
     deployment_id: varchar('deployment_id').notNull(),
 
+    // Base URL of the line item in the LTI platform
+    lineitem_url: varchar('lineitem_url').notNull(),
+
     // ID of the user in the LTI platform
     lti_user_id: varchar('lti_user_id', { length: 255 }).notNull(),
+
+    // Optional cutoff date as reported by the LTI platform.
+    cutoff_at: timestamp('cutoff_at', { precision: 6, withTimezone: true }),
 
     // Optional ID and name of the associated course in the LTI platform
     // context_id: varchar('course_id'),
@@ -59,19 +56,38 @@ export const lineitems = pgTable(
     // assignment_id: varchar('assignment_id'),
     // assignment_name: varchar('assignment_name'),
 
-    // Optional cutoff date as reported by the LTI platform.
-    cutoff_at: timestamp('cutoff_at', { precision: 6, withTimezone: true }),
+    // When, if ever, the lineitem was deemed no-longer-submittable (either
+    // due to cutoff_at having passed, or a submission error that indicates
+    // further retries will not succeed).
+    dead_at: timestamp('dead_at', { precision: 6, withTimezone: true }),
 
-    // Submission status.  One of 'ready', 'backoff', 'dead'
-    submission_status: varchar('submission_status').notNull().default('ready'),
+    // Last progress value that was successfully submitted to the LTI platform
+    submitted_progress: real('submitted_progress').notNull().default(0),
 
-    // Set to NOW() + <lock timeout period> when a worker claims this line item
-    // for submission.  Set to NOW() + <backoff period> on submission error.
-    // Null when no submission is in flight, and not in a backoff period.
-    submission_locked_until: timestamp('submission_locked_until', {
+    // Timestamp of the last successful score submission to the LTI platform.
+    submitted_at: timestamp('submitted_at', { precision: 6, withTimezone: true }),
+
+    // High-water mark progress value that can be submitted for this lineitem
+    // (based on progress events recieved before cutoff_at)
+    submittable_progress: real('submittable_progress').notNull(),
+
+    // When will this lineitem next be eligible for submission?  Used for
+    // submission throttling and cooldown-after-error
+    submission_eligible_at: timestamp('submission_eligible_at', {
       precision: 6,
       withTimezone: true,
     }),
+
+    // Set to NOW() + <lock timeout period> when a worker claims this line item
+    // for submission.
+    submission_lease_expires_at: timestamp('submission_lease_expires_at', {
+      precision: 6,
+      withTimezone: true,
+    }),
+
+    // Uniquely-generated token set by worker when it claims this line item for
+    // submission.
+    submission_lease_token: uuid('submission_lease_token'),
 
     // Number of consecutive failed submission attempts. Reset to 0 on success.
     // Used to compute backoff.
@@ -99,6 +115,11 @@ export const lineitems = pgTable(
       table.lineitem_url
     ),
     index('lti_lineitems_user_id_activity_id_idx').on(table.user_id, table.activity_id),
+    index('lti_lineitems_eligible_idx')
+      .on(table.platform_issuer, table.submission_eligible_at)
+      .where(
+        sql`${table.dead_at} IS NULL AND ${table.submittable_progress} > ${table.submitted_progress}`
+      ),
   ]
 )
 

@@ -7,11 +7,12 @@ import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { AccessTokenManager } from '../services/access-tokens.js'
 import type {
+  ClaimedLineItem,
   LtiScoreSubmissionMutations,
-  LtiScoreSubmissionQueries,
+  // LtiScoreSubmissionQueries,
   PlatformRecord,
 } from './repository.js'
-import type { PendingSubmission, SubmissionResult } from './types.js'
+import type { SubmissionResult } from './types.js'
 
 type ControlFlow =
   | { action: 'continue' }
@@ -30,7 +31,7 @@ type ControlFlow =
  */
 export class LtiScoreSubmissionProcessor extends BaseService {
   private config: Config
-  private queries: LtiScoreSubmissionQueries
+  // private queries: LtiScoreSubmissionQueries
   private mutations: LtiScoreSubmissionMutations
   private accessTokenManager: AccessTokenManager
   private tx: TXManager
@@ -44,14 +45,14 @@ export class LtiScoreSubmissionProcessor extends BaseService {
     logger: CoreLogger,
     config: Config,
     tx: TXManager,
-    scoreSubmissionQueries: LtiScoreSubmissionQueries,
+    // scoreSubmissionQueries: LtiScoreSubmissionQueries,
     scoreSubmissionMutations: LtiScoreSubmissionMutations,
     accessTokenManager: AccessTokenManager
   ) {
     super(logger, 'app', 'lti')
     this.config = config
     this.tx = tx
-    this.queries = scoreSubmissionQueries
+    // this.queries = scoreSubmissionQueries
     this.mutations = scoreSubmissionMutations
     this.accessTokenManager = accessTokenManager
 
@@ -122,75 +123,33 @@ export class LtiScoreSubmissionProcessor extends BaseService {
 
   @method
   private async processOne(): Promise<ControlFlow> {
-    const pending = await this.claimNextPendingSubmission()
-    if (!pending) {
-      this.logger.trace('No pending submissions found -- idling')
+    const lineitem = await this.mutations.claimNextEligibleLineItem(
+      this.platform.issuer,
+      this.config.lti.score_submission.lease_duration_seconds
+    )
+
+    if (!lineitem) {
+      this.logger.trace('No eligible submissions found -- idling')
       return {
         action: 'idle',
         duration_ms: this.config.lti.score_submission.idle_interval_ms,
       }
     }
 
-    // Handle the case where the pending lineitem's cutoff_at time has passed.
-    if (pending.cutoff_at != null && pending.cutoff_at.getTime() < Date.now()) {
-      // Find the progress as of the cutoff time.
-      const progressAtCutoff = await this.queries.getProgressAtCutoff(
-        pending.user_id,
-        pending.activity_id,
-        pending.cutoff_at
-      )
+    const result = await this.submitScore(lineitem)
 
-      // If there's still progress to submit,
-      if (progressAtCutoff > pending.submitted_progress) {
-        pending.current_progress = progressAtCutoff
-      } else {
-        // The progress value that was present at cutoff time has already
-        // been submitted, and we're already past the cutoff time (so any
-        // further progress events we recieve will not be submittable against
-        // this line item).  Mark the line item as dead, and move on.
-        return await this.handleCutoffSubmission(pending)
-      }
-    }
-
-    const result = await this.submitScore(pending)
-
-    return await this.handleSubmissionResult(pending, result)
+    return await this.handleSubmissionResult(lineitem, result)
   }
 
   @method
-  private claimNextPendingSubmission(): Promise<PendingSubmission | undefined> {
-    return this.tx.withTransaction(async () => {
-      const pendingSubmission = await this.mutations.findNextPendingSubmission(
-        this.platform.issuer,
-        {
-          debounceSeconds: this.config.lti.score_submission.debounce_seconds,
-        }
-      )
-
-      if (pendingSubmission != null) {
-        const claimed = await this.mutations.claimLineItemForSubmission(
-          pendingSubmission.lineitem_id,
-          {
-            lockTimeoutSeconds: this.config.lti.score_submission.lock_timeout_seconds,
-          }
-        )
-
-        if (claimed) {
-          return pendingSubmission
-        }
-      }
-    })
-  }
-
-  @method
-  private async submitScore(pending: PendingSubmission): Promise<SubmissionResult> {
+  private async submitScore(lineitem: ClaimedLineItem): Promise<SubmissionResult> {
     this.logger.debug(
       {
-        lineitem_id: pending.lineitem_id,
-        lineitem_url: pending.lineitem_url,
-        lti_user_id: pending.lti_user_id,
-        issuer: pending.platform_issuer,
-        progress: pending.current_progress,
+        lineitem_id: lineitem.id,
+        lineitem_url: lineitem.lineitem_url,
+        lti_user_id: lineitem.lti_user_id,
+        issuer: lineitem.platform_issuer,
+        progress: lineitem.submittable_progress,
       },
       'submitting score'
     )
@@ -212,19 +171,21 @@ export class LtiScoreSubmissionProcessor extends BaseService {
     headers.append('Content-Type', 'application/x-www-form-urlencoded')
 
     const body = new URLSearchParams({
-      userId: pending.lti_user_id,
-      activityProgress: pending.current_progress < 1 ? 'Submitted' : 'Completed',
+      userId: lineitem.lti_user_id,
+      activityProgress: lineitem.submittable_progress < 1 ? 'Submitted' : 'Completed',
       gradingProgress: 'FullyGraded',
       timestamp: new Date().toISOString(),
-      scoreGiven: pending.current_progress.toString(),
+      scoreGiven: lineitem.submittable_progress.toString(),
       scoreMaximum: '1',
     })
 
-    const response = await fetch(`${pending.lineitem_url}/scores`, {
+    const response = await fetch(`${lineitem.lineitem_url}/scores`, {
       method: 'POST',
       headers,
       body,
+      signal: AbortSignal.timeout(this.config.lti.score_submission.request_timeout_seconds * 1000),
     }).catch((err) => {
+      // TODO: Should we handle TimeoutError (from the AbortSignal) differently?
       this.logger.warn(
         { err, issuer: this.platform.issuer },
         'network error in LTI score submission'
@@ -259,178 +220,176 @@ export class LtiScoreSubmissionProcessor extends BaseService {
 
   @method
   private handleSubmissionResult(
-    pending: PendingSubmission,
+    lineitem: ClaimedLineItem,
     result: SubmissionResult
   ): Promise<ControlFlow> {
     return this.tx.withTransaction(async () => {
-      const { lineitem_id, platform_issuer, deployment_id, current_progress } = pending
+      const { id: lineitem_id, platform_issuer, deployment_id } = lineitem
 
       const now = new Date()
 
-      // Treat superseded failure the same as a success.
+      // Treat successful submissions and 'superseded' failures the same
       if (result.ok || result.category === 'superseded') {
-        // Update submitted progress, mark the lineitem 'ready', unlock it, clear any errors.
-        await this.mutations.updateLineItem(lineitem_id, {
-          submitted_progress: current_progress,
-          submitted_at: now,
-          submission_status: 'ready',
-          submission_locked_until: null,
-          submission_error_count: 0,
-          submission_error_category: null,
-          submission_error_message: null,
-          updated_at: now,
-        })
+        // Release the submission lease and update submitted_progress
+        const wasLeaseValid = await this.mutations.markSubmissionSuccess(
+          lineitem,
+          this.config.lti.score_submission.throttle_seconds
+        )
 
-        const oldPlatformHealth = await this.mutations.getPlatformHealthForUpdate(platform_issuer)
+        // Make further updates only if the lease was still valid.  If it wasn't valid,
+        // that means another worker might already have claimed this lineitem, and could
+        // even have already finished its submission and updated the lineitem table.
+        // Since submission to canvas is idempotent, there's nothing we really have to
+        // update in that case.
+        if (wasLeaseValid) {
+          const oldPlatformHealth = await this.mutations.getPlatformHealthForUpdate(platform_issuer)
 
-        // Mark the platform as healthy and unpaused.
-        await this.mutations.setPlatformHealth(platform_issuer, now, {
-          status: 'healthy',
-          paused_until: null,
-          last_success_at: now,
-          consecutive_failures: 0,
-        })
-
-        // If the platform was previously not healthy, record a single submission
-        // event demarking the transition from not healthy to healthy.
-        if (oldPlatformHealth?.status !== 'healthy') {
-          await this.mutations.recordSubmissionEvent({
-            id: uuidv7(),
-            platform_issuer,
-            deployment_id,
-            lineitem_id,
-            occurred_at: now,
-            outcome: 'recovery',
+          // Mark the platform as healthy and unpaused.
+          await this.mutations.setPlatformHealth(platform_issuer, now, {
+            status: 'healthy',
+            paused_until: null,
+            last_success_at: now,
+            consecutive_failures: 0,
           })
-        }
 
-        this.logger.debug({ lineitem_id, superseded: !result.ok }, 'submitted LTI score')
+          // If the platform was previously not healthy, record a single submission
+          // event demarking the transition from not healthy to healthy.
+          if (oldPlatformHealth?.status !== 'healthy') {
+            await this.mutations.recordSubmissionEvent({
+              id: uuidv7(),
+              platform_issuer,
+              deployment_id,
+              lineitem_id,
+              occurred_at: now,
+              outcome: 'recovery',
+            })
+          }
+          this.logger.debug({ lineitem_id, superseded: !result.ok }, 'submitted LTI score')
+        } else {
+          this.logger.warn({ lineitem_id, superseded: !result.ok }, 'LTI submission lease expired')
+        }
 
         return { action: 'continue' }
       }
 
+      // The submission failed, and based on the error code/message we expect
+      // further submissions to continue failing.  Mark the lineitem dead,
+      // and mark the platform as 'healthy' (this kind of failure is expected,
+      // and points to a functioning connection to the platform).  TODO: Should
+      // we also include lineitems whose submission_error_count exceeds some threshold
+      // here?
       if (result.category === 'lineitem_dead') {
-        // Mark the lineitem as dead.
-        await this.mutations.updateLineItem(lineitem_id, {
-          submission_status: 'dead',
-          submission_locked_until: null,
-          submission_error_count: pending.submission_error_count + 1,
-          submission_error_category: result.category,
-          submission_error_message: result.description,
-          updated_at: now,
-        })
+        const leaseValid = await this.mutations.markSubmissionDead(
+          lineitem,
+          result.category,
+          result.description
+        )
 
-        const oldPlatformHealth = await this.mutations.getPlatformHealthForUpdate(platform_issuer)
+        if (leaseValid) {
+          const oldPlatformHealth = await this.mutations.getPlatformHealthForUpdate(platform_issuer)
 
-        // Mark the platform as healthy and unpaused (the platform identified
-        // the lineitem as dead, but that implies the connection to the platform
-        // itself is healthy).
-        await this.mutations.setPlatformHealth(platform_issuer, now, {
-          status: 'healthy',
-          paused_until: null,
-          last_success_at: now,
-          consecutive_failures: 0,
-        })
-
-        // If the platform was previously not healthy, record a single submission
-        // event demarking the transition from not healthy to healthy.
-        if (oldPlatformHealth?.status !== 'healthy') {
-          await this.mutations.recordSubmissionEvent({
-            id: uuidv7(),
-            platform_issuer,
-            deployment_id,
-            lineitem_id,
-            occurred_at: now,
-            outcome: 'recovery',
+          // Mark the platform as healthy and unpaused (the platform identified
+          // the lineitem as dead, but that implies the connection to the platform
+          // itself is healthy).
+          await this.mutations.setPlatformHealth(platform_issuer, now, {
+            status: 'healthy',
+            paused_until: null,
+            last_success_at: now,
+            consecutive_failures: 0,
           })
-        }
 
-        this.logger.debug({ lineitem_id, message: result.description }, 'marked lineitem dead')
+          // If the platform was previously not healthy, record a single submission
+          // event demarking the transition from not healthy to healthy.
+          if (oldPlatformHealth?.status !== 'healthy') {
+            await this.mutations.recordSubmissionEvent({
+              id: uuidv7(),
+              platform_issuer,
+              deployment_id,
+              lineitem_id,
+              occurred_at: now,
+              outcome: 'recovery',
+            })
+          }
+
+          this.logger.debug({ lineitem_id, message: result.description }, 'marked lineitem dead')
+        } else {
+          this.logger.warn({ lineitem_id }, 'LTI submission lease expired')
+        }
 
         return { action: 'continue' }
       }
 
-      // All remaining errors put the lineitem in 'backoff'.  The error is probably not
-      // this particular line-item's "fault", but on the unlikely chance it is, we set a
-      // backoff so that a different line-item, if available, will be selected for our
-      // next retry.
-      const lineItemBackoff = this.computeBackoffMs(pending.submission_error_count)
-      await this.mutations.updateLineItem(lineitem_id, {
-        submission_status: 'backoff',
-        submission_locked_until: new Date(now.getTime() + lineItemBackoff),
-        submission_error_count: pending.submission_error_count + 1,
-        submission_error_category: result.category,
-        submission_error_message: result.description,
-        updated_at: now,
-      })
+      // For all remaining errors, we increment the failure count for the lineitem,
+      // record the submission failure, and set platform health to 'degraded' or
+      // 'rate-limited'.  The error is probably not this particular line-item's
+      // "fault", but we still throttle future submissions based on the number of
+      // successive failures.
+      const leaseValid = await this.mutations.markSubmissionFailure(
+        lineitem,
+        result.category,
+        result.description,
+        this.computeBackoffMs(lineitem.submission_error_count)
+      )
 
-      // Record the submission error.
-      await this.mutations.recordSubmissionEvent({
-        id: uuidv7(),
-        platform_issuer,
-        deployment_id,
-        lineitem_id,
-        occurred_at: now,
-        outcome: 'failure',
-        category: result.category,
-        http_status: result.status,
-        detail: result.description,
-      })
+      if (leaseValid) {
+        // Record the submission error.
+        await this.mutations.recordSubmissionEvent({
+          id: uuidv7(),
+          platform_issuer,
+          deployment_id,
+          lineitem_id,
+          occurred_at: now,
+          outcome: 'failure',
+          category: result.category,
+          http_status: result.status,
+          detail: result.description,
+        })
 
-      const platformHealth = await this.mutations.getPlatformHealthForUpdate(this.platform.issuer)
-      const consecutive_failures = platformHealth?.consecutive_failures ?? 0
-      const platformBackoff = this.computeBackoffMs(consecutive_failures)
+        const platformHealth = await this.mutations.getPlatformHealthForUpdate(this.platform.issuer)
+        const consecutive_failures = platformHealth?.consecutive_failures ?? 0
+        const platformBackoff = this.computeBackoffMs(consecutive_failures)
 
-      if (result.category === 'rate_limit') {
-        // TODO: See if canvas returns a Retry-After header, and honor
-        // it instead of using consecutive_failures to drive the backoff here.
+        if (result.category === 'rate_limit') {
+          // TODO: See if canvas returns a Retry-After header, and honor
+          // it instead of using consecutive_failures to drive the backoff here.
+          await this.mutations.setPlatformHealth(this.platform.issuer, now, {
+            last_failure_at: now,
+            status: 'rate-limited',
+            paused_until: new Date(now.getTime() + platformBackoff),
+            consecutive_failures: consecutive_failures + 1,
+          })
+
+          return { action: 'idle', duration_ms: platformBackoff }
+        }
+
+        // For now, just go into exponential backoff with status 'degraded'
+        // for all errors.  TODO: add "incident" detection based on
+        // recent errors; set status to 'incident' and notify admins
         await this.mutations.setPlatformHealth(this.platform.issuer, now, {
           last_failure_at: now,
-          status: 'rate-limited',
+          status: 'degraded',
           paused_until: new Date(now.getTime() + platformBackoff),
           consecutive_failures: consecutive_failures + 1,
         })
 
+        this.logger.debug(
+          { lineitem_id, category: result.category, message: result.description },
+          'LTI score submisison failed'
+        )
+
         return { action: 'idle', duration_ms: platformBackoff }
       }
 
-      // For now, just go into exponential backoff with status 'degraded'
-      // for all errors.  TODO: add "incident" detection based on
-      // recent errors; set status to 'incident' and notify admins
-      await this.mutations.setPlatformHealth(this.platform.issuer, now, {
-        last_failure_at: now,
-        status: 'degraded',
-        paused_until: new Date(now.getTime() + platformBackoff),
-        consecutive_failures: consecutive_failures + 1,
-      })
-
-      this.logger.debug(
-        { lineitem_id, category: result.category, message: result.description },
-        'LTI score submisison failed'
-      )
-
-      return { action: 'idle', duration_ms: platformBackoff }
+      this.logger.warn({ lineitem_id }, 'LTI submission lease expired')
+      return { action: 'continue' }
     })
-  }
-
-  async handleCutoffSubmission(pending: PendingSubmission): Promise<ControlFlow> {
-    await this.mutations.updateLineItem(pending.lineitem_id, {
-      submission_status: 'dead',
-      submission_locked_until: null,
-      submission_error_count: 0,
-      submission_error_category: 'lineitem_dead',
-      submission_error_message: 'cutoff time has passed',
-      updated_at: new Date(),
-    })
-
-    return { action: 'continue' }
   }
 
   computeBackoffMs(error_count: number) {
     const { backoff_base_seconds, backoff_error_cap } = this.config.lti.score_submission
     const exponent = Math.min(error_count, backoff_error_cap)
     const seconds = backoff_base_seconds * 2 ** exponent
-    return seconds * 500 * (1 + Math.random())
+    return seconds * 1000 * (0.9 + 0.2 * Math.random())
   }
 }
 

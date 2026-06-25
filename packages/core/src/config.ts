@@ -39,9 +39,11 @@ export const configSchema = z.object({
       // How long to wait after an unexpected error before polling again.
       error_interval_ms: z.coerce.number().default(5_000),
       // Minimum seconds since last progress update before a submission is eligible to be sent
-      debounce_seconds: z.coerce.number().default(10),
-      // How long before a lineitem lock is considered stale, and can be claimed by another worker
-      lock_timeout_seconds: z.coerce.number().default(60),
+      throttle_seconds: z.coerce.number().default(10),
+      // How long before fetch requests to the LTI platform timeout
+      request_timeout_seconds: z.coerce.number().default(60),
+      // How long before a lineitem lease expires, and can be claimed by another worker
+      lease_duration_seconds: z.coerce.number().default(120),
       // Base seconds for calculating backoff after a failed submission attempt
       backoff_base_seconds: z.coerce.number().default(5),
       // Backoff doubles until this many consecutive errors
@@ -111,8 +113,9 @@ export const loadConfigUnchecked = () => {
       score_submission: {
         idle_interval_ms: process.env.LTI_SCORE_SUBMISSION_IDLE_INTERVAL_MS,
         error_interval_ms: process.env.LTI_SCORE_SUBMISSION_ERROR_INTERVAL_MS,
-        debounce_seconds: process.env.LTI_SCORE_SUBMISSION_DEBOUNCE_SECONDS,
-        lock_timeout_seconds: process.env.LTI_SCORE_SUBMISSION_LOCK_TIMEOUT_SECONDS,
+        throttle_seconds: process.env.LTI_SCORE_SUBMISSION_THROTTLE_SECONDS,
+        request_timeout_seconds: process.env.LTI_SCORE_SUBMISSION_REQUEST_TIMEOUT_SECONDS,
+        lease_duration_seconds: process.env.LTI_SCORE_SUBMISSION_LEASE_DURATION_SECONDS,
         backoff_base_seconds: process.env.LTI_SCORE_SUBMISSION_BACKOFF_BASE_SECONDS,
         backoff_error_cap: process.env.LTI_SCORE_SUBMISSION_BACKOFF_ERROR_CAP,
       },

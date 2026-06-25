@@ -4,6 +4,7 @@ import { SignJWT } from 'jose'
 
 import { BaseService } from '@/lib/base-service.js'
 import { SCOPE_AGS_LINEITEM, SCOPE_AGS_RESULT_READONLY, SCOPE_AGS_SCORE } from '../constants.js'
+import type { Config } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
 import type { PlatformRecord } from '../repository/index.js'
@@ -22,14 +23,17 @@ import type { AccessToken, AccessTokenResult } from '../types/access-token.js'
  * when the current one is about to expire.
  */
 export class AccessTokenManager extends BaseService {
+  private config: Config
   private keystore: LtiKeyStore
   private tokens: Record<string, AccessToken> = {}
 
   constructor(deps: {
     logger: CoreLogger
+    config: Config
     ltiKeyStore: LtiKeyStore
   }) {
     super(deps.logger, 'app', 'lti')
+    this.config = deps.config
     this.keystore = deps.ltiKeyStore
   }
 
@@ -67,7 +71,8 @@ export class AccessTokenManager extends BaseService {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body,
-    }).catch((err) => null)
+      signal: AbortSignal.timeout(this.config.lti.score_submission.request_timeout_seconds),
+    }).catch(() => null) // TODO: Should we log here?  Handle TimeoutError differently than other fetch errors?
 
     if (tokenResponse == null) {
       this.logger.warn({ issuer: platform.issuer }, 'network error fetching access token')

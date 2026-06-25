@@ -1,9 +1,10 @@
-import { and, eq, getTableColumns, sql } from 'drizzle-orm'
+import { and, eq, getTableColumns, gte, isNull, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
   activities,
   activityActivityCode,
+  lineitems,
   pageState,
   progress,
   progressEvents,
@@ -26,6 +27,13 @@ export type ProgressEventRecord = typeof progressEvents.$inferSelect
 export type PageStateRecord = typeof pageState.$inferSelect
 export type PageStateInsert = typeof pageState.$inferInsert
 export type PageStateUpdate = Pick<Partial<PageStateInsert>, 'state'>
+
+export type LineItemUpdate = {
+  user_id: string
+  activity_id: string
+  progress: number
+  submitted_at: Date
+}
 
 export class ActivityStateQueries extends BaseService {
   private utils: CoreUtils
@@ -186,6 +194,35 @@ export class ActivityStateMutations extends BaseService {
         target: [pageState.activity_id, pageState.user_id],
         set: { state: values.state },
       })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async updateLineItems({
+    user_id,
+    activity_id,
+    submitted_at,
+    progress,
+  }: LineItemUpdate): Promise<void> {
+    await this.db
+      .get()
+      .update(lineitems)
+      .set({
+        submittable_progress: sql`GREATEST(${lineitems.submittable_progress}, ${progress})`,
+        submission_eligible_at: sql`
+          CASE WHEN ${lineitems.submittable_progress} > ${lineitems.submitted_progress}
+          THEN COALESCE(${lineitems.submission_eligible_at}, now())
+          ELSE GREATEST(${lineitems.submission_eligible_at}, now()) END`,
+        updated_at: sql`now()`,
+      })
+      .where(
+        and(
+          eq(lineitems.user_id, user_id),
+          eq(lineitems.activity_id, activity_id),
+          or(isNull(lineitems.cutoff_at), gte(lineitems.cutoff_at, submitted_at)),
+          isNull(lineitems.dead_at)
+        )
+      )
       .catch(this.utils.wrapDbErrorNew())
   }
 }

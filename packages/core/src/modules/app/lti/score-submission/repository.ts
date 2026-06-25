@@ -1,22 +1,18 @@
-import { and, eq, gt, isNull, lt, lte, max, or, sql } from 'drizzle-orm'
+import { and, asc, eq, getTableColumns, gt, isNull, lt, lte, max, or, sql } from 'drizzle-orm'
 
-import {
-  lineitems,
-  platformHealth,
-  platforms,
-  progress,
-  progressEvents,
-} from '@/database/schema/index.js'
+import { lineitems, platformHealth, platforms, progressEvents } from '@/database/schema/index.js'
 import { submissionEvents } from '@/database/schema/source/lti/lti-submission-events.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { CoreUtils } from '@/lib/utils.js'
-import type { PendingSubmission } from './types.js'
 
 export type LineItemRecord = typeof lineitems.$inferSelect
 export type LineItemInsert = typeof lineitems.$inferInsert
 export type LineItemUpdate = Omit<Partial<LineItemRecord>, 'id'>
+
+export type ClaimedLineItem = LineItemRecord & { submission_lease_token: string }
+
 export type PlatformRecord = typeof platforms.$inferSelect
 export type PlatformInsert = typeof platforms.$inferInsert
 export type PlatformHealthRecord = typeof platformHealth.$inferSelect
@@ -123,124 +119,154 @@ export class LtiScoreSubmissionMutations extends BaseService {
   }
 
   /**
-   * Finds the next line item eligible for score submission for the given platform.
+   * Finds and claims the submission lease of the next line item eligible for submission
+   * for the given platform.
    *
    * A line item is eligible when:
-   * - Its submitted_progress is less than the current progress
-   * - It is not currently locked for submission (or the lock is stale)
-   * - It is not in a backoff period after a failed attempt
-   * - The progress was last updated more than `debounceSeconds` ago (debounce)
+   * - It has unsubmitted progress (i.e. `submittable_progress > submitted_progress`)
+   * - It is not dead (i.e. `dead_at` is NULL)
+   * - Its `submission_eligible_at` timestamp is in the past
+   * - Its submission lease is not being held
    *
-   * Items that have never failed are prioritized over items in retry.
-   * Among items of equal retry status, the oldest progress update is selected.
+   * Among all such line items, the one whose `submission_eligible_at` date is oldest
+   * will be selected.
    *
-   * @param debounceSeconds - Minimum seconds since last progress update (default 10)
+   * @param issuer - The unique `issuer` for the LTI platform
+   * @param leaseTimeoutSeconds - The number of seconds until the claimed lease will expire
+   *
+   * @returns - The claimed lineitem (all fields), or undefined if none were found
    */
   @method
-  async findNextPendingSubmission(
+  async claimNextEligibleLineItem(
     issuer: string,
-    { debounceSeconds }: { debounceSeconds: number }
-  ): Promise<PendingSubmission | undefined> {
-    const rows = await this.db
-      .get()
-      .select({
-        lineitem_id: lineitems.id,
-        lineitem_url: lineitems.lineitem_url,
-        platform_issuer: lineitems.platform_issuer,
-        deployment_id: lineitems.deployment_id,
-        user_id: lineitems.user_id,
-        activity_id: lineitems.activity_id,
-        lti_user_id: lineitems.lti_user_id,
-        submission_error_count: lineitems.submission_error_count,
-        submission_error_category: lineitems.submission_error_category,
-        cutoff_at: lineitems.cutoff_at,
-        current_progress: progress.progress,
-        submitted_progress: lineitems.submitted_progress,
-      })
-      .from(lineitems)
-      .innerJoin(
-        progress,
-        and(
-          eq(lineitems.user_id, progress.user_id),
-          eq(lineitems.activity_id, progress.activity_id)
-        )
-      )
-      .for('update', { of: lineitems, skipLocked: true })
-      .where(
-        and(
-          // Only consider line items matching the given platform
-          eq(lineitems.platform_issuer, issuer),
+    leaseTimeoutSeconds: number
+  ): Promise<ClaimedLineItem | undefined> {
+    const db = this.db.get()
 
-          // Only items where the current progress exceeds what was last submitted to the platform
-          gt(progress.progress, lineitems.submitted_progress),
-
-          // Not actively being updated (at least debounceSeconds have elapsed
-          // since the last progress update was submitted to Modulus)
-          lt(progress.updated_at, sql`NOW() - make_interval(secs => ${debounceSeconds})`),
-
-          // Only items that are ready or in backoff
-          or(eq(lineitems.submission_status, 'ready'), eq(lineitems.submission_status, 'backoff')),
-
-          // Not currently locked (or lock is stale)
-          or(
-            isNull(lineitems.submission_locked_until),
-            lt(lineitems.submission_locked_until, sql`NOW()`)
+    // Subquery that selects the next eligible lineitem.
+    const subquery = db.$with('next').as(
+      db
+        .select({ id: lineitems.id })
+        .from(lineitems)
+        .where(
+          and(
+            eq(lineitems.platform_issuer, issuer),
+            isNull(lineitems.dead_at),
+            gt(lineitems.submittable_progress, lineitems.submitted_progress),
+            lte(lineitems.submission_eligible_at, sql`now()`),
+            or(
+              isNull(lineitems.submission_lease_expires_at),
+              lt(lineitems.submission_lease_expires_at, sql`now()`)
+            )
           )
         )
-      )
-      .orderBy(
-        // Prioritize items that became eligible for submission earliest.  Items become eligible
-        // at the GREATEST of the following timestamps (ignoring nulls):
-        // - 'debounceSeconds' after their most recent progress update
-        // - their 'locked_until' time (if any)
-        sql`GREATEST(${progress.updated_at} + make_interval(secs => ${debounceSeconds}), ${lineitems.submission_locked_until})`
-      )
-      .limit(1)
-      .catch(this.utils.wrapDbErrorNew())
+        .for('update', { skipLocked: true })
+        .orderBy(asc(lineitems.submission_eligible_at))
+        .limit(1)
+    )
 
-    return rows[0]
+    // Find the next eligible lineitem according to the subquery,
+    // claim its lease, and return the entire row.
+    const [lineitem] = (await db
+      .with(subquery)
+      .update(lineitems)
+      .set({
+        submission_lease_expires_at: sql`now() + make_interval(secs => ${leaseTimeoutSeconds})`,
+        submission_lease_token: sql`gen_random_uuid()`,
+      })
+      .from(subquery)
+      .where(eq(lineitems.id, subquery.id))
+      .returning(getTableColumns(lineitems))
+      .catch(this.utils.wrapDbErrorNew())) as ClaimedLineItem[]
+
+    return lineitem
   }
 
-  /**
-   * Attempts to claim a line item for score submission by setting
-   * submission_locked_at. Returns true if the claim succeeded (i.e. the item
-   * was not already locked by another worker).
-   */
   @method
-  async claimLineItemForSubmission(
-    id: string,
-    { lockTimeoutSeconds }: { lockTimeoutSeconds: number }
+  async markSubmissionSuccess(
+    lineitem: ClaimedLineItem,
+    throttle_seconds: number
   ): Promise<boolean> {
-    const rows = await this.db
+    const result = await this.db
       .get()
       .update(lineitems)
       .set({
-        submission_locked_until: sql`NOW() + make_interval(secs => ${lockTimeoutSeconds})`,
-        updated_at: sql`NOW()`,
+        submitted_progress: lineitem.submittable_progress,
+        submitted_at: sql`now()`,
+        submission_eligible_at: sql`now() + make_interval(secs => ${throttle_seconds})`,
+        submission_lease_expires_at: null,
+        submission_lease_token: null,
+        submission_error_count: 0,
+        submission_error_category: null,
+        submission_error_message: null,
       })
       .where(
         and(
-          eq(lineitems.id, id),
-          or(
-            isNull(lineitems.submission_locked_until),
-            lt(lineitems.submission_locked_until, sql`NOW()`)
-          )
+          eq(lineitems.id, lineitem.id),
+          eq(lineitems.submission_lease_token, lineitem.submission_lease_token)
         )
       )
-      .returning({ id: lineitems.id })
       .catch(this.utils.wrapDbErrorNew())
 
-    return rows.length > 0
+    return result.rowCount != null && result.rowCount > 0
   }
 
   @method
-  async updateLineItem(id: string, data: LineItemUpdate): Promise<void> {
-    await this.db
+  async markSubmissionFailure(
+    lineitem: ClaimedLineItem,
+    error_category: string,
+    error_message: string,
+    backoff_seconds: number
+  ): Promise<boolean> {
+    const result = await this.db
       .get()
       .update(lineitems)
-      .set(data)
-      .where(eq(lineitems.id, id))
+      .set({
+        submission_eligible_at: sql`now() + make_interval(secs => ${backoff_seconds})`,
+        submission_lease_expires_at: null,
+        submission_lease_token: null,
+        submission_error_count: sql`${lineitems.submission_error_count} + 1`,
+        submission_error_category: error_category,
+        submission_error_message: error_message,
+      })
+      .where(
+        and(
+          eq(lineitems.id, lineitem.id),
+          eq(lineitems.submission_lease_token, lineitem.submission_lease_token)
+        )
+      )
       .catch(this.utils.wrapDbErrorNew())
+
+    return result.rowCount != null && result.rowCount > 0
+  }
+
+  @method
+  async markSubmissionDead(
+    lineitem: ClaimedLineItem,
+    error_category: string,
+    error_message: string
+  ): Promise<boolean> {
+    const result = await this.db
+      .get()
+      .update(lineitems)
+      .set({
+        dead_at: sql`now()`,
+        submission_eligible_at: null,
+        submission_lease_expires_at: null,
+        submission_lease_token: null,
+        submission_error_count: sql`${lineitems.submission_error_count} + 1`,
+        submission_error_category: error_category,
+        submission_error_message: error_message,
+      })
+      .where(
+        and(
+          eq(lineitems.id, lineitem.id),
+          eq(lineitems.submission_lease_token, lineitem.submission_lease_token)
+        )
+      )
+      .catch(this.utils.wrapDbErrorNew())
+
+    return result.rowCount != null && result.rowCount > 0
   }
 
   @method
@@ -249,8 +275,8 @@ export class LtiScoreSubmissionMutations extends BaseService {
       .get()
       .select()
       .from(platformHealth)
-      .for('update')
       .where(eq(platformHealth.platform_issuer, issuer))
+      .for('update')
       .catch(this.utils.wrapDbErrorNew())
 
     return rows[0]

@@ -1,4 +1,5 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, lte, max, sql } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 
 import {
   launches,
@@ -7,6 +8,8 @@ import {
   platformDeployments,
   type platformHealth,
   platforms,
+  progress,
+  progressEvents,
 } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
@@ -23,6 +26,18 @@ export type PlatformRecord = typeof platforms.$inferSelect
 export type PlatformInsert = typeof platforms.$inferInsert
 export type PlatformHealthRecord = typeof platformHealth.$inferSelect
 export type PlatformHealthInsert = typeof platformHealth.$inferInsert
+
+export type LineItemUpsert = Pick<
+  LineItemInsert,
+  | 'user_id'
+  | 'activity_id'
+  | 'platform_issuer'
+  | 'deployment_id'
+  | 'lineitem_url'
+  | 'lti_user_id'
+  | 'cutoff_at'
+  | 'submittable_progress'
+>
 
 export type LineItemQueryOptions = {
   user_id: string
@@ -99,6 +114,30 @@ export class LtiQueries extends BaseService {
       })
       .catch(this.utils.wrapDbErrorNew())
   }
+
+  @method
+  async getProgressWithCutoff(
+    user_id: string,
+    activity_id: string,
+    cutoff: Date | undefined
+  ): Promise<number> {
+    const [row] = await this.db
+      .get()
+      .select({
+        progress: max(progressEvents.progress),
+      })
+      .from(progressEvents)
+      .where(
+        and(
+          eq(progressEvents.user_id, user_id),
+          eq(progressEvents.activity_id, activity_id),
+          cutoff == null ? undefined : lte(progressEvents.submitted_at, cutoff)
+        )
+      )
+      .catch(this.utils.wrapDbErrorNew())
+
+    return row?.progress ?? 0
+  }
 }
 
 export class LtiMutations extends BaseService {
@@ -150,6 +189,53 @@ export class LtiMutations extends BaseService {
   }
 
   @method
+  async upsertLineItem({
+    user_id,
+    activity_id,
+    platform_issuer,
+    deployment_id,
+    lineitem_url,
+    lti_user_id,
+    cutoff_at,
+    submittable_progress,
+  }: LineItemUpsert): Promise<void> {
+    await this.db
+      .get()
+      .insert(lineitems)
+      .values({
+        id: uuidv7(),
+        user_id,
+        activity_id,
+        platform_issuer,
+        deployment_id,
+        lineitem_url,
+        lti_user_id,
+        cutoff_at,
+        submittable_progress,
+        submission_eligible_at: sql`now()`,
+      })
+      .onConflictDoUpdate({
+        target: [lineitems.user_id, lineitems.activity_id, lineitems.lineitem_url],
+        set: {
+          cutoff_at,
+          submittable_progress,
+          dead_at: null,
+          submission_eligible_at: sql`
+            CASE WHEN ${lineitems.submittable_progress} > ${lineitems.submitted_progress}
+            THEN COALESCE(${lineitems.submission_eligible_at}, now())
+            ELSE GREATEST(${lineitems.submission_eligible_at}, now()) END`,
+          submission_lease_expires_at: null,
+          submission_lease_token: null,
+          submission_error_count: 0,
+          submission_error_category: null,
+          submission_error_message: null,
+          updated_at: sql`now()`,
+        },
+      })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
   async upsertPlatformDeployment(platform_issuer: string, deployment_id: string): Promise<void> {
     await this.db
       .get()
@@ -161,6 +247,25 @@ export class LtiMutations extends BaseService {
       .onConflictDoUpdate({
         target: [platformDeployments.platform_issuer, platformDeployments.deployment_id],
         set: { updated_at: sql`NOW()` },
+      })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async upsertProgress(activity_id: string, user_id: string): Promise<void> {
+    await this.db
+      .get()
+      .insert(progress)
+      .values({
+        activity_id,
+        user_id,
+        progress: 0,
+        created_at: sql`now()`,
+        updated_at: sql`now()`,
+      })
+      .onConflictDoUpdate({
+        target: [progress.activity_id, progress.user_id],
+        set: { progress: progress.progress },
       })
       .catch(this.utils.wrapDbErrorNew())
   }

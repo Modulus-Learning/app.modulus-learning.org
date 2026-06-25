@@ -14,6 +14,7 @@ import {
   type PlatformMessage,
   platformMessageSchema,
 } from '../types/messages/platform-originating/platform-message.js'
+import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { ActivityQueries } from '@/modules/app/activities/repository/index.js'
 import type { LtiSignInService } from '@/modules/app/session/services/lti-sign-in.js'
@@ -27,8 +28,9 @@ type RemoteJWKSet = ReturnType<typeof createRemoteJWKSet>
 
 export class LtiLaunchService extends BaseService {
   // TODO: Move this to a seprate service
-  platformJWKS: Record<string, RemoteJWKSet> = {}
+  private platformJWKS: Record<string, RemoteJWKSet> = {}
 
+  private tx: TXManager
   private ltiQueries: LtiQueries
   private ltiMutations: LtiMutations
   private activityQueries: ActivityQueries
@@ -37,12 +39,14 @@ export class LtiLaunchService extends BaseService {
 
   constructor(deps: {
     logger: CoreLogger
+    tx: TXManager
     queries: LtiQueries
     mutations: LtiMutations
     activities: { queries: ActivityQueries }
     session: { ltiSignInService: LtiSignInService; tokenIssuer: TokenIssuer }
   }) {
     super(deps.logger, 'app', 'lti')
+    this.tx = deps.tx
     this.ltiQueries = deps.queries
     this.ltiMutations = deps.mutations
     this.activityQueries = deps.activities.queries
@@ -120,69 +124,46 @@ export class LtiLaunchService extends BaseService {
     // Sign the user in.
     const signIn = await this.ltiSignInService.signInLti(launch, isInstructor(launch[CLAIM_ROLES]))
 
-    // TODO: We should probably double-check here that activity_code exists, and
-    // that the given activity is included the activity code's list of
-    // activities.
+    // TODO: double-check that activity_code exists, and that the
+    // given activity is included the activity code's list of activities.
     const lineitem_url = launch[CLAIM_AGS_ENDPOINT]?.lineitem
     if (lineitem_url != null) {
-      const lineitem = await this.ltiQueries.findLineItem({
-        user_id: signIn.user.id,
-        activity_id: activity.id,
-        lineitem_url,
-      })
-
       const cutoff_at = parseDateFromArray([
         launch[CLAIM_CUSTOM]['ResourceLink.available.endDateTime'],
         launch[CLAIM_CUSTOM]['Canvas.assignment.lockAt.iso8601'],
       ])
 
-      if (lineitem == null) {
-        await this.ltiMutations.insertLineItem({
-          id: uuidv7(),
+      await this.tx.withTransaction(async () => {
+        await this.ltiMutations.upsertProgress(activity.id, signIn.user.id)
 
+        const submittable_progress = await this.ltiQueries.getProgressWithCutoff(
+          signIn.user.id,
+          activity.id,
+          cutoff_at
+        )
+
+        // If no lineitem record exists, create one.  If a lineitem does
+        // exist, update the existing lineitem to ensure it has the cutoff_at
+        // date supplied in the current launch, an up-to-date submittable_progress
+        // value.  Also, revive the lineitem if has been marked 'dead', mark
+        // it as eligible for submission (though it won't be submitted unless
+        // its submittable progress is greater than its submitted progress),
+        // and _null out_ the current submission lease (if any).  That means,
+        // in the (unlikely) case that the lineitem is currently being submitted,
+        // the submission worker will _not_ save a record of its submission
+        // and instead the lineitem will be selected again for another submission
+        // attempt (using the possibly-updated data).
+        await this.ltiMutations.upsertLineItem({
           user_id: signIn.user.id,
           activity_id: activity.id,
-          lineitem_url,
-          submitted_progress: 0,
-
           platform_issuer: launch.iss,
           deployment_id: launch[CLAIM_DEPLOYMENT_ID],
+          lineitem_url,
           lti_user_id: launch.sub,
-
           cutoff_at,
+          submittable_progress,
         })
-      }
-      // TODO: Revisit the logic here -- it's subtle, and there is a race
-      // condition to address.  Namely, the score submission processor (SSP)
-      // might currently be in the process of submitting this line item, and
-      // might at the end of that process decide to mark the lineitem as dead.
-      // But (see point 1 below) we generally want this incoming launch to
-      // revive dead lineitems, and that applies even in this case: the SSP
-      // should only mark the lineitem dead if an intervening launch hasn't
-      // arrived that would revive it.  At any rate...
-      //
-      // 1. If the lineitem is dead, we revive it: being re-targeted
-      //   by an LTI launch may mean the conditions that caused the lineitem
-      //   to be marked 'dead' have changed, so we revive it and allow the
-      //   score submission processor to take another stab at it (if there's
-      //   unsubmitted progress).
-      else if (lineitem.submission_status === 'dead') {
-        await this.ltiMutations.updateLineItem(lineitem.id, {
-          cutoff_at,
-          submission_status: 'ready',
-          submission_locked_until: null,
-          submission_error_count: 0,
-          submission_error_category: null,
-          submission_error_message: null,
-        })
-      }
-      // 2. If the cutoff_at date has changed (but the lineitem isn't yet dead),
-      //   then update the cutoff_at date.
-      else if (cutoff_at?.getTime() !== lineitem.cutoff_at?.getTime()) {
-        await this.ltiMutations.updateLineItem(lineitem.id, {
-          cutoff_at,
-        })
-      }
+      })
     }
 
     const tokens = await this.tokens.createTokens(signIn)
