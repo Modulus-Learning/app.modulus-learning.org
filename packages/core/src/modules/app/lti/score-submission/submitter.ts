@@ -4,7 +4,7 @@ import type { Config } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { AccessTokenManager } from '../services/access-tokens.js'
 import type { ClaimedLineItem, LtiScoreSubmissionMutations, PlatformRecord } from './repository.js'
-import type { SubmissionResult } from './types.js'
+import type { RateLimitReading, SubmissionResult } from './types.js'
 
 /**
  * The result of a single `processOne` call, reported back to the driver
@@ -22,6 +22,10 @@ export type SubmissionOutcome =
       lineitem_id: string
       deployment_id: string
       result: SubmissionResult
+      // Rate-limit quota headers from the response, when present (feeds the
+      // driver's QuotaGovernor). Independent of `leaseValid` — the request hit
+      // Canvas and consumed quota regardless of who owns the line item.
+      reading?: RateLimitReading
     }
 
 /**
@@ -73,7 +77,7 @@ export class LtiScoreSubmitter extends BaseService {
       return { type: 'idle' }
     }
 
-    const result = await this.submitScore(lineitem)
+    const { result, reading } = await this.submitScore(lineitem)
     const leaseValid = await this.recordResult(lineitem, result)
 
     return {
@@ -82,11 +86,14 @@ export class LtiScoreSubmitter extends BaseService {
       lineitem_id: lineitem.id,
       deployment_id: lineitem.deployment_id,
       result,
+      reading,
     }
   }
 
   @method
-  private async submitScore(lineitem: ClaimedLineItem): Promise<SubmissionResult> {
+  private async submitScore(
+    lineitem: ClaimedLineItem
+  ): Promise<{ result: SubmissionResult; reading?: RateLimitReading }> {
     this.logger.debug(
       {
         lineitem_id: lineitem.id,
@@ -101,10 +108,12 @@ export class LtiScoreSubmitter extends BaseService {
     const accessTokenResult = await this.accessTokenManager.getAccessToken(this.platform)
     if (!accessTokenResult.ok) {
       return {
-        ok: false,
-        category: accessTokenResult.category,
-        description: accessTokenResult.message,
-        status: accessTokenResult.status_code,
+        result: {
+          ok: false,
+          category: accessTokenResult.category,
+          description: accessTokenResult.message,
+          status: accessTokenResult.status_code,
+        },
       }
     }
 
@@ -139,12 +148,15 @@ export class LtiScoreSubmitter extends BaseService {
 
     if (response == null) {
       return {
-        ok: false,
-        category: 'transient',
-        description: 'network error',
+        result: {
+          ok: false,
+          category: 'transient',
+          description: 'network error',
+        },
       }
     }
 
+    const reading = parseRateLimit(response.headers)
     const status = response.status
     const getText = () =>
       response.text().catch((err) => {
@@ -159,7 +171,7 @@ export class LtiScoreSubmitter extends BaseService {
     if (!result.ok && result.category === 'platform_token') {
       this.accessTokenManager.invalidateAccessToken(this.platform, accessToken)
     }
-    return result
+    return { result, reading }
   }
 
   /**
@@ -193,6 +205,31 @@ export class LtiScoreSubmitter extends BaseService {
       result.description,
       computeBackoffMs(this.config, lineitem.submission_error_count)
     )
+  }
+}
+
+/**
+ * Parse Canvas's rate-limit quota headers from a response. Returns `undefined`
+ * when `X-Rate-Limit-Remaining` is absent or unparseable (some low-level errors
+ * and 5xx responses omit them). Header lookup is case-insensitive.
+ */
+function parseRateLimit(headers: Headers, at: number = Date.now()): RateLimitReading | undefined {
+  const remainingRaw = headers.get('X-Rate-Limit-Remaining')
+  if (remainingRaw == null) {
+    return undefined
+  }
+  const remaining = Number.parseFloat(remainingRaw)
+  if (Number.isNaN(remaining)) {
+    return undefined
+  }
+
+  const costRaw = headers.get('X-Request-Cost')
+  const cost = costRaw == null ? undefined : Number.parseFloat(costRaw)
+
+  return {
+    remaining,
+    cost: cost != null && !Number.isNaN(cost) ? cost : undefined,
+    at,
   }
 }
 

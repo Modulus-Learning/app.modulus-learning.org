@@ -34,3 +34,15 @@ export type SubmissionResult =
       status?: number
       text?: string
     }
+
+/**
+ * A reading of Canvas's rate-limit quota headers, captured from a submission
+ * response. `remaining` is `X-Rate-Limit-Remaining`; `cost` is `X-Request-Cost`
+ * (absent on some responses). `at` is when we observed it (ms epoch). Feeds the
+ * driver's `QuotaGovernor`.
+ */
+export type RateLimitReading = {
+  remaining: number
+  cost?: number
+  at: number
+}

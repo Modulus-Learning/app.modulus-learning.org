@@ -1,6 +1,7 @@
 import { v7 as uuidv7 } from 'uuid'
 
 import { BaseService, method } from '@/lib/base-service.js'
+import { QuotaGovernor } from './quota-governor.js'
 import { computeBackoffMs } from './submitter.js'
 import type { Config } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
@@ -49,7 +50,8 @@ export class LtiScoreSubmissionProcessor extends BaseService {
   private config: Config
   private submitter: LtiScoreSubmitter
   private mutations: LtiScoreSubmissionMutations
-  private concurrency: number
+  private maxConcurrency: number
+  private governor: QuotaGovernor
 
   private desiredRunning = false
   private runPromise?: Promise<void>
@@ -75,7 +77,15 @@ export class LtiScoreSubmissionProcessor extends BaseService {
     this.config = config
     this.submitter = submitter
     this.mutations = mutations
-    this.concurrency = Math.max(1, config.lti.score_submission.max_concurrent_submissions)
+
+    const ss = config.lti.score_submission
+    this.maxConcurrency = Math.max(1, ss.max_concurrent_submissions)
+    this.governor = new QuotaGovernor(
+      this.maxConcurrency,
+      ss.quota_reserve_requests,
+      ss.quota_window_ms,
+      ss.quota_ramp_interval_ms
+    )
   }
 
   @method
@@ -119,7 +129,10 @@ export class LtiScoreSubmissionProcessor extends BaseService {
   @method
   private async run(): Promise<void> {
     const { issuer } = this.submitter
-    this.logger.info({ issuer, concurrency: this.concurrency }, 'score submission worker started')
+    this.logger.info(
+      { issuer, max_concurrency: this.maxConcurrency },
+      'score submission worker started'
+    )
 
     while (this.desiredRunning) {
       const now = Date.now()
@@ -139,9 +152,10 @@ export class LtiScoreSubmissionProcessor extends BaseService {
         this.logger.info({ issuer }, 'score submission breaker half-open')
       }
 
-      // half_open → exactly one probe; idle → a single poller; otherwise full pool.
+      // half_open → exactly one probe; idle → a single poller; otherwise the
+      // quota governor's current allowance.
       const halfOpen = this.breaker.state === 'half_open'
-      const target = halfOpen ? 1 : this.idle ? 1 : this.concurrency
+      const target = halfOpen ? 1 : this.idle ? 1 : this.governor.target()
 
       // When the queue is empty, collapse to a single poller paced at
       // idle_interval: let the pool drain to zero, sleep, then allow one probe to
@@ -222,17 +236,30 @@ export class LtiScoreSubmissionProcessor extends BaseService {
     }
     this.idle = false
 
-    // While paused, ignore outcomes from tasks that were already in flight when
-    // the breaker tripped — only the half-open probe is allowed to change state.
-    if (this.breaker.state === 'open') {
+    if (outcome.type === 'error') {
+      // Unexpected/infra error: pause briefly without escalating the platform
+      // failure count. Not recorded as a platform fault. (Don't re-trip if a
+      // sibling already opened the breaker.)
+      if (this.breaker.state !== 'open') {
+        this.breaker.state = 'open'
+        this.breaker.until = Date.now() + this.config.lti.score_submission.error_interval_ms
+      }
       return null
     }
 
-    if (outcome.type === 'error') {
-      // Unexpected/infra error: pause briefly without escalating the platform
-      // failure count. Not recorded as a platform fault.
-      this.breaker.state = 'open'
-      this.breaker.until = Date.now() + this.config.lti.score_submission.error_interval_ms
+    // Feed the quota governor regardless of lease or breaker state — the request
+    // hit Canvas and the reading reflects the (shared) quota. A hard rate-limit
+    // means our estimate was wrong, so reset the governor to re-earn concurrency.
+    if (outcome.reading) {
+      this.governor.record(outcome.reading)
+    }
+    if (!outcome.result.ok && outcome.result.category === 'rate_limit') {
+      this.governor.reset()
+    }
+
+    // While paused, ignore outcomes from tasks that were already in flight when
+    // the breaker tripped — only the half-open probe is allowed to change state.
+    if (this.breaker.state === 'open') {
       return null
     }
 

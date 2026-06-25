@@ -71,11 +71,14 @@ export class AccessTokenManager extends BaseService {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body,
-      signal: AbortSignal.timeout(this.config.lti.score_submission.request_timeout_seconds),
-    }).catch(() => null) // TODO: Should we log here?  Handle TimeoutError differently than other fetch errors?
+      signal: AbortSignal.timeout(this.config.lti.score_submission.request_timeout_seconds * 1000),
+    }).catch((err) => {
+      // TODO: Should we handle TimeoutError differently than other fetch errors?
+      this.logger.warn({ err, issuer: platform.issuer }, 'network error fetching access token')
+      return null
+    })
 
     if (tokenResponse == null) {
-      this.logger.warn({ issuer: platform.issuer }, 'network error fetching access token')
       return {
         ok: false,
         category: 'transient',

@@ -46,6 +46,12 @@ export const configSchema = z.object({
       lease_duration_seconds: z.coerce.number().default(120),
       // Maximum number of concurrent in-flight submissions per platform
       max_concurrent_submissions: z.coerce.number().default(4),
+      // Rate-limit governor: requests-worth of quota headroom to keep in reserve
+      quota_reserve_requests: z.coerce.number().default(2),
+      // Rate-limit governor: window (ms) over which quota readings are aggregated
+      quota_window_ms: z.coerce.number().default(10_000),
+      // Rate-limit governor: minimum interval (ms) between +1 concurrency ramp-ups
+      quota_ramp_interval_ms: z.coerce.number().default(10_000),
       // Base seconds for calculating backoff after a failed submission attempt
       backoff_base_seconds: z.coerce.number().default(5),
       // Backoff doubles until this many consecutive errors
@@ -119,6 +125,9 @@ export const loadConfigUnchecked = () => {
         request_timeout_seconds: process.env.LTI_SCORE_SUBMISSION_REQUEST_TIMEOUT_SECONDS,
         lease_duration_seconds: process.env.LTI_SCORE_SUBMISSION_LEASE_DURATION_SECONDS,
         max_concurrent_submissions: process.env.LTI_SCORE_SUBMISSION_MAX_CONCURRENT_SUBMISSIONS,
+        quota_reserve_requests: process.env.LTI_SCORE_SUBMISSION_QUOTA_RESERVE_REQUESTS,
+        quota_window_ms: process.env.LTI_SCORE_SUBMISSION_QUOTA_WINDOW_MS,
+        quota_ramp_interval_ms: process.env.LTI_SCORE_SUBMISSION_QUOTA_RAMP_INTERVAL_MS,
         backoff_base_seconds: process.env.LTI_SCORE_SUBMISSION_BACKOFF_BASE_SECONDS,
         backoff_error_cap: process.env.LTI_SCORE_SUBMISSION_BACKOFF_ERROR_CAP,
       },
