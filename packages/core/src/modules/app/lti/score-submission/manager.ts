@@ -1,6 +1,7 @@
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_NOT_FOUND } from '@/lib/errors.js'
 import { LtiScoreSubmissionProcessor } from './processor.js'
+import { LtiScoreSubmitter } from './submitter.js'
 import type { Config } from '@/config.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
@@ -75,15 +76,21 @@ export class LtiScoreSubmissionManager extends BaseService {
   }
 
   private addProcessor(platform: PlatformRecord) {
-    const processor = new LtiScoreSubmissionProcessor(
+    const submitter = new LtiScoreSubmitter(
       platform,
       this.logger,
       this.config,
-      this.tx,
-      // this.queries,
       this.mutations,
       this.accessTokenManager
     )
+
+    const processor = new LtiScoreSubmissionProcessor(
+      this.logger,
+      this.config,
+      submitter,
+      this.mutations
+    )
+    processor.start()
 
     this.processors[platform.id] = processor
   }

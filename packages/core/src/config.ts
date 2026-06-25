@@ -44,6 +44,8 @@ export const configSchema = z.object({
       request_timeout_seconds: z.coerce.number().default(60),
       // How long before a lineitem lease expires, and can be claimed by another worker
       lease_duration_seconds: z.coerce.number().default(120),
+      // Maximum number of concurrent in-flight submissions per platform
+      max_concurrent_submissions: z.coerce.number().default(4),
       // Base seconds for calculating backoff after a failed submission attempt
       backoff_base_seconds: z.coerce.number().default(5),
       // Backoff doubles until this many consecutive errors
@@ -116,6 +118,7 @@ export const loadConfigUnchecked = () => {
         throttle_seconds: process.env.LTI_SCORE_SUBMISSION_THROTTLE_SECONDS,
         request_timeout_seconds: process.env.LTI_SCORE_SUBMISSION_REQUEST_TIMEOUT_SECONDS,
         lease_duration_seconds: process.env.LTI_SCORE_SUBMISSION_LEASE_DURATION_SECONDS,
+        max_concurrent_submissions: process.env.LTI_SCORE_SUBMISSION_MAX_CONCURRENT_SUBMISSIONS,
         backoff_base_seconds: process.env.LTI_SCORE_SUBMISSION_BACKOFF_BASE_SECONDS,
         backoff_error_cap: process.env.LTI_SCORE_SUBMISSION_BACKOFF_ERROR_CAP,
       },

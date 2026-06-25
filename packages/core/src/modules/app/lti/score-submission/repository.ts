@@ -216,13 +216,13 @@ export class LtiScoreSubmissionMutations extends BaseService {
     lineitem: ClaimedLineItem,
     error_category: string,
     error_message: string,
-    backoff_seconds: number
+    backoff_ms: number
   ): Promise<boolean> {
     const result = await this.db
       .get()
       .update(lineitems)
       .set({
-        submission_eligible_at: sql`now() + make_interval(secs => ${backoff_seconds})`,
+        submission_eligible_at: sql`now() + make_interval(secs => ${backoff_ms} / 1000.0)`,
         submission_lease_expires_at: null,
         submission_lease_token: null,
         submission_error_count: sql`${lineitems.submission_error_count} + 1`,

@@ -1,398 +1,397 @@
 import { v7 as uuidv7 } from 'uuid'
 
 import { BaseService, method } from '@/lib/base-service.js'
-import { classifyScoreSubmissionResponse } from './error-classifier.js'
-import type { Config } from '@/index.js'
-import type { TXManager } from '@/lib/db-manager.js'
+import { computeBackoffMs } from './submitter.js'
+import type { Config } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
-import type { AccessTokenManager } from '../services/access-tokens.js'
-import type {
-  ClaimedLineItem,
-  LtiScoreSubmissionMutations,
-  // LtiScoreSubmissionQueries,
-  PlatformRecord,
-} from './repository.js'
-import type { SubmissionResult } from './types.js'
+import type { LtiScoreSubmissionMutations } from './repository.js'
+import type { LtiScoreSubmitter, SubmissionOutcome } from './submitter.js'
 
-type ControlFlow =
-  | { action: 'continue' }
-  | { action: 'idle'; duration_ms: number }
-  | { action: 'stop' }
+type BreakerState = 'closed' | 'open' | 'half_open'
+
+type LaneOutcome = SubmissionOutcome | { type: 'error' }
+
+// A platform-health change to persist (transitions only). The in-memory breaker
+// is authoritative for pacing; this is written for observability.
+type HealthAction =
+  | { kind: 'healthy'; recovery: boolean; lineitem_id: string; deployment_id: string }
+  | {
+      kind: 'fault'
+      status: 'degraded' | 'rate-limited'
+      until: number
+      consecutiveFailures: number
+      lineitem_id?: string
+      deployment_id?: string
+      category?: string
+      http_status?: number
+      detail?: string
+    }
 
 /**
- * Processes pending LTI score submissions one at a time.
+ * Lifecycle + pacing layer for a single platform's score submission queue.
  *
- * Each call to `processOne()` finds the next eligible line item, claims it,
- * attempts to submit the score to the LTI platform (e.g. Canvas), and updates
- * the line item's submission state accordingly.
+ * Owns the run state and a bounded pool of concurrent submission tasks, each of
+ * which drives the (stateless) `LtiScoreSubmitter`. Per-item work is coordinated
+ * through the database (fenced leases + `SKIP LOCKED`), so running several tasks
+ * at once is safe. This layer owns everything *platform*-level: pacing the pool,
+ * collapsing to a single poller when the queue is empty, and a circuit breaker
+ * that pauses the whole platform on faults.
  *
- * This service is designed to be called in a polling loop by a host process
- * (e.g. from Next.js instrumentation.ts or a standalone worker script).
+ * Start/stop uses desired-vs-actual reconciliation: `desiredRunning` is what the
+ * caller wants, `runPromise` is the single live run loop, and the two are
+ * reconciled in `ensureRunning()` — so there is never more than one loop, and a
+ * `start()` issued mid-shutdown restarts cleanly once the drain completes.
+ *
+ * NOTE: platform state is in-memory and per-process. Coordinating it across
+ * processes/restarts is deliberately out of scope for now.
  */
 export class LtiScoreSubmissionProcessor extends BaseService {
   private config: Config
-  // private queries: LtiScoreSubmissionQueries
+  private submitter: LtiScoreSubmitter
   private mutations: LtiScoreSubmissionMutations
-  private accessTokenManager: AccessTokenManager
-  private tx: TXManager
+  private concurrency: number
 
-  private platform: PlatformRecord
-  private state: 'running' | 'stopping' | 'stopped'
-  private processQueuePromise?: Promise<void>
+  private desiredRunning = false
+  private runPromise?: Promise<void>
+
+  // The circuit breaker: closed = normal; open = paused until `until`;
+  // half_open = allow a single probe to test the platform.
+  private breaker = { state: 'closed' as BreakerState, until: 0, consecutiveFailures: 0 }
+  // True when the last claim found nothing; collapses the pool to a single poller.
+  private idle = false
+
+  private inFlight = new Set<Promise<void>>()
+  // One-shot signal used to wake the run loop when a task settles or on stop().
+  private signalResolve?: () => void
+  private signalPending = false
 
   constructor(
-    platform: PlatformRecord,
     logger: CoreLogger,
     config: Config,
-    tx: TXManager,
-    // scoreSubmissionQueries: LtiScoreSubmissionQueries,
-    scoreSubmissionMutations: LtiScoreSubmissionMutations,
-    accessTokenManager: AccessTokenManager
+    submitter: LtiScoreSubmitter,
+    mutations: LtiScoreSubmissionMutations
   ) {
     super(logger, 'app', 'lti')
     this.config = config
-    this.tx = tx
-    // this.queries = scoreSubmissionQueries
-    this.mutations = scoreSubmissionMutations
-    this.accessTokenManager = accessTokenManager
-
-    this.platform = platform
-    this.state = 'stopped'
-    this.start()
+    this.submitter = submitter
+    this.mutations = mutations
+    this.concurrency = Math.max(1, config.lti.score_submission.max_concurrent_submissions)
   }
 
   @method
-  async start() {
-    if (this.state === 'running') {
-      return
-    }
-
-    if (this.state === 'stopping') {
-      await this.processQueuePromise
-      await this.start()
-    }
-
-    this.state = 'running'
-    this.processQueuePromise = this.processQueue()
+  start(): void {
+    this.desiredRunning = true
+    this.ensureRunning()
   }
 
+  /**
+   * Signals the run loop to stop and returns a promise that resolves once all
+   * in-flight submissions have drained.
+   */
   @method
-  async stop() {
-    if (this.state === 'running') {
-      this.state = 'stopping'
-    }
-
-    await this.processQueuePromise
+  stop(): Promise<void> {
+    this.desiredRunning = false
+    this.signal()
+    return this.runPromise ?? Promise.resolve()
   }
 
   @method
   status(): 'running' | 'stopping' | 'stopped' {
-    return this.state
+    if (this.runPromise == null) {
+      return 'stopped'
+    }
+    return this.desiredRunning ? 'running' : 'stopping'
+  }
+
+  private ensureRunning(): void {
+    if (this.runPromise != null) {
+      return
+    }
+    if (!this.desiredRunning) {
+      return
+    }
+    this.runPromise = this.run().finally(() => {
+      this.runPromise = undefined
+      this.ensureRunning()
+    })
   }
 
   @method
-  private async processQueue() {
-    const { issuer } = this.platform
+  private async run(): Promise<void> {
+    const { issuer } = this.submitter
+    this.logger.info({ issuer, concurrency: this.concurrency }, 'score submission worker started')
 
-    this.logger.info({ issuer }, 'score submission worker started')
+    while (this.desiredRunning) {
+      const now = Date.now()
 
-    while (this.state === 'running') {
-      try {
-        const result = await this.processOne()
-        switch (result.action) {
-          case 'continue':
-            continue
-          case 'idle':
-            await sleep(result.duration_ms)
-            continue
-          case 'stop':
-            break
+      // Paused: wait out the backoff, then let any pre-pause tasks drain before
+      // probing with a single submission (half-open).
+      if (this.breaker.state === 'open') {
+        if (now < this.breaker.until) {
+          await this.wait(this.breaker.until - now)
+          continue
         }
-      } catch (err) {
-        this.logger.error({ err, issuer }, 'unhandled error in score submission loop')
-        // TODO: backoff?
-        await sleep(this.config.lti.score_submission.error_interval_ms)
+        if (this.inFlight.size > 0) {
+          await this.wait()
+          continue
+        }
+        this.breaker.state = 'half_open'
+        this.logger.info({ issuer }, 'score submission breaker half-open')
       }
+
+      // half_open → exactly one probe; idle → a single poller; otherwise full pool.
+      const halfOpen = this.breaker.state === 'half_open'
+      const target = halfOpen ? 1 : this.idle ? 1 : this.concurrency
+
+      // When the queue is empty, collapse to a single poller paced at
+      // idle_interval: let the pool drain to zero, sleep, then allow one probe to
+      // re-check. Clearing `idle` is optimistic — a probe that finds nothing sets
+      // it again next time; a probe that finds work ramps back up to full target.
+      if (this.idle && this.inFlight.size === 0) {
+        await this.wait(this.config.lti.score_submission.idle_interval_ms)
+        if (!this.desiredRunning) {
+          break
+        }
+        this.idle = false
+      }
+
+      // Top up the pool toward target. (State is necessarily 'closed' or
+      // 'half_open' here and can't change synchronously inside this loop.)
+      while (this.desiredRunning && this.inFlight.size < target) {
+        this.spawnTask()
+        if (halfOpen) {
+          break
+        }
+      }
+
+      if (this.inFlight.size === 0) {
+        // Only reachable when desiredRunning flipped false mid-iteration; the
+        // pending stop signal makes this wait return immediately.
+        await this.wait(this.config.lti.score_submission.idle_interval_ms)
+        continue
+      }
+
+      // Wait for the next task to settle (it will already have updated state).
+      await this.wait()
     }
 
+    await Promise.allSettled([...this.inFlight])
     this.logger.info({ issuer }, 'score submission worker stopped')
-
-    this.processQueuePromise = undefined
-    this.state = 'stopped'
   }
 
-  @method
-  private async processOne(): Promise<ControlFlow> {
-    const lineitem = await this.mutations.claimNextEligibleLineItem(
-      this.platform.issuer,
-      this.config.lti.score_submission.lease_duration_seconds
-    )
+  private spawnTask(): void {
+    const task = this.runOne().finally(() => {
+      this.inFlight.delete(task)
+      this.signal()
+    })
+    this.inFlight.add(task)
+  }
 
-    if (!lineitem) {
-      this.logger.trace('No eligible submissions found -- idling')
+  private async runOne(): Promise<void> {
+    let outcome: LaneOutcome
+    try {
+      outcome = await this.submitter.processOne()
+    } catch (err) {
+      this.logger.error(
+        { err, issuer: this.submitter.issuer },
+        'unhandled error in score submission task'
+      )
+      outcome = { type: 'error' }
+    }
+
+    const action = this.applyOutcome(outcome)
+    if (action) {
+      await this.persistHealth(action).catch((err) =>
+        this.logger.warn(
+          { err, issuer: this.submitter.issuer },
+          'failed to persist platform health'
+        )
+      )
+    }
+  }
+
+  /**
+   * Folds a single task outcome into the in-memory breaker state and returns the
+   * platform-health transition to persist, if any. Synchronous, so concurrent
+   * task settlements can't interleave on breaker state.
+   */
+  private applyOutcome(outcome: LaneOutcome): HealthAction | null {
+    if (outcome.type === 'idle') {
+      this.idle = true
+      return null
+    }
+    this.idle = false
+
+    // While paused, ignore outcomes from tasks that were already in flight when
+    // the breaker tripped — only the half-open probe is allowed to change state.
+    if (this.breaker.state === 'open') {
+      return null
+    }
+
+    if (outcome.type === 'error') {
+      // Unexpected/infra error: pause briefly without escalating the platform
+      // failure count. Not recorded as a platform fault.
+      this.breaker.state = 'open'
+      this.breaker.until = Date.now() + this.config.lti.score_submission.error_interval_ms
+      return null
+    }
+
+    if (!outcome.leaseValid) {
+      // Preempted by another worker; it owns the outcome. No platform signal.
+      return null
+    }
+
+    const { result } = outcome
+
+    // Success, a superseded write, or a dead line item all imply a working
+    // connection to the platform → healthy.
+    if (result.ok || result.category === 'superseded' || result.category === 'lineitem_dead') {
+      const recovery = this.breaker.state !== 'closed'
+      this.close()
       return {
-        action: 'idle',
-        duration_ms: this.config.lti.score_submission.idle_interval_ms,
+        kind: 'healthy',
+        recovery,
+        lineitem_id: outcome.lineitem_id,
+        deployment_id: outcome.deployment_id,
       }
     }
 
-    const result = await this.submitScore(lineitem)
+    // A malformed request is this line item's problem (a coding/data bug), not
+    // the platform's — back off the item (already done) but don't pause.
+    if (result.category === 'malformed') {
+      return null
+    }
 
-    return await this.handleSubmissionResult(lineitem, result)
+    // rate_limit / platform_token / platform_config / transient / unknown → trip.
+    return this.trip(result.category === 'rate_limit' ? 'rate-limited' : 'degraded', {
+      lineitem_id: outcome.lineitem_id,
+      deployment_id: outcome.deployment_id,
+      category: result.category,
+      http_status: result.status,
+      detail: result.description,
+    })
   }
 
-  @method
-  private async submitScore(lineitem: ClaimedLineItem): Promise<SubmissionResult> {
+  private trip(
+    status: 'degraded' | 'rate-limited',
+    item?: {
+      lineitem_id: string
+      deployment_id: string
+      category: string
+      http_status?: number
+      detail: string
+    }
+  ): HealthAction {
+    this.breaker.consecutiveFailures += 1
+    const backoff = computeBackoffMs(this.config, this.breaker.consecutiveFailures)
+    this.breaker.state = 'open'
+    this.breaker.until = Date.now() + backoff
+
     this.logger.debug(
       {
-        lineitem_id: lineitem.id,
-        lineitem_url: lineitem.lineitem_url,
-        lti_user_id: lineitem.lti_user_id,
-        issuer: lineitem.platform_issuer,
-        progress: lineitem.submittable_progress,
+        issuer: this.submitter.issuer,
+        status,
+        backoff_ms: Math.round(backoff),
+        consecutive_failures: this.breaker.consecutiveFailures,
       },
-      'submitting score'
+      'score submission breaker tripped'
     )
 
-    const accessTokenResult = await this.accessTokenManager.getAccessToken(this.platform)
-    if (!accessTokenResult.ok) {
-      return {
-        ok: false,
-        category: accessTokenResult.category,
-        description: accessTokenResult.message,
-        status: accessTokenResult.status_code,
-      }
+    return {
+      kind: 'fault',
+      status,
+      until: this.breaker.until,
+      consecutiveFailures: this.breaker.consecutiveFailures,
+      ...item,
     }
-
-    const { accessToken } = accessTokenResult
-
-    const headers = new Headers()
-    headers.append('Authorization', `Bearer ${accessToken.token}`)
-    headers.append('Content-Type', 'application/x-www-form-urlencoded')
-
-    const body = new URLSearchParams({
-      userId: lineitem.lti_user_id,
-      activityProgress: lineitem.submittable_progress < 1 ? 'Submitted' : 'Completed',
-      gradingProgress: 'FullyGraded',
-      timestamp: new Date().toISOString(),
-      scoreGiven: lineitem.submittable_progress.toString(),
-      scoreMaximum: '1',
-    })
-
-    const response = await fetch(`${lineitem.lineitem_url}/scores`, {
-      method: 'POST',
-      headers,
-      body,
-      signal: AbortSignal.timeout(this.config.lti.score_submission.request_timeout_seconds * 1000),
-    }).catch((err) => {
-      // TODO: Should we handle TimeoutError (from the AbortSignal) differently?
-      this.logger.warn(
-        { err, issuer: this.platform.issuer },
-        'network error in LTI score submission'
-      )
-      return null
-    })
-
-    if (response == null) {
-      return {
-        ok: false,
-        category: 'transient',
-        description: 'network error',
-      }
-    }
-
-    const status = response.status
-    const getText = () =>
-      response.text().catch((err) => {
-        this.logger.warn(
-          { err, status, issuer: this.platform.issuer },
-          'error reading LTI score submission response body'
-        )
-        return ''
-      })
-
-    const result = await classifyScoreSubmissionResponse(status, getText)
-    if (!result.ok && result.category === 'platform_token') {
-      this.accessTokenManager.invalidateAccessToken(this.platform, accessToken)
-    }
-    return result
   }
 
-  @method
-  private handleSubmissionResult(
-    lineitem: ClaimedLineItem,
-    result: SubmissionResult
-  ): Promise<ControlFlow> {
-    return this.tx.withTransaction(async () => {
-      const { id: lineitem_id, platform_issuer, deployment_id } = lineitem
+  private close(): void {
+    if (this.breaker.state !== 'closed') {
+      this.logger.info({ issuer: this.submitter.issuer }, 'score submission breaker closed')
+    }
+    this.breaker.state = 'closed'
+    this.breaker.until = 0
+    this.breaker.consecutiveFailures = 0
+  }
 
-      const now = new Date()
+  private async persistHealth(action: HealthAction): Promise<void> {
+    const now = new Date()
+    const issuer = this.submitter.issuer
 
-      // Treat successful submissions and 'superseded' failures the same
-      if (result.ok || result.category === 'superseded') {
-        // Release the submission lease and update submitted_progress
-        const wasLeaseValid = await this.mutations.markSubmissionSuccess(
-          lineitem,
-          this.config.lti.score_submission.throttle_seconds
-        )
-
-        // Make further updates only if the lease was still valid.  If it wasn't valid,
-        // that means another worker might already have claimed this lineitem, and could
-        // even have already finished its submission and updated the lineitem table.
-        // Since submission to canvas is idempotent, there's nothing we really have to
-        // update in that case.
-        if (wasLeaseValid) {
-          const oldPlatformHealth = await this.mutations.getPlatformHealthForUpdate(platform_issuer)
-
-          // Mark the platform as healthy and unpaused.
-          await this.mutations.setPlatformHealth(platform_issuer, now, {
-            status: 'healthy',
-            paused_until: null,
-            last_success_at: now,
-            consecutive_failures: 0,
-          })
-
-          // If the platform was previously not healthy, record a single submission
-          // event demarking the transition from not healthy to healthy.
-          if (oldPlatformHealth?.status !== 'healthy') {
-            await this.mutations.recordSubmissionEvent({
-              id: uuidv7(),
-              platform_issuer,
-              deployment_id,
-              lineitem_id,
-              occurred_at: now,
-              outcome: 'recovery',
-            })
-          }
-          this.logger.debug({ lineitem_id, superseded: !result.ok }, 'submitted LTI score')
-        } else {
-          this.logger.warn({ lineitem_id, superseded: !result.ok }, 'LTI submission lease expired')
-        }
-
-        return { action: 'continue' }
-      }
-
-      // The submission failed, and based on the error code/message we expect
-      // further submissions to continue failing.  Mark the lineitem dead,
-      // and mark the platform as 'healthy' (this kind of failure is expected,
-      // and points to a functioning connection to the platform).  TODO: Should
-      // we also include lineitems whose submission_error_count exceeds some threshold
-      // here?
-      if (result.category === 'lineitem_dead') {
-        const leaseValid = await this.mutations.markSubmissionDead(
-          lineitem,
-          result.category,
-          result.description
-        )
-
-        if (leaseValid) {
-          const oldPlatformHealth = await this.mutations.getPlatformHealthForUpdate(platform_issuer)
-
-          // Mark the platform as healthy and unpaused (the platform identified
-          // the lineitem as dead, but that implies the connection to the platform
-          // itself is healthy).
-          await this.mutations.setPlatformHealth(platform_issuer, now, {
-            status: 'healthy',
-            paused_until: null,
-            last_success_at: now,
-            consecutive_failures: 0,
-          })
-
-          // If the platform was previously not healthy, record a single submission
-          // event demarking the transition from not healthy to healthy.
-          if (oldPlatformHealth?.status !== 'healthy') {
-            await this.mutations.recordSubmissionEvent({
-              id: uuidv7(),
-              platform_issuer,
-              deployment_id,
-              lineitem_id,
-              occurred_at: now,
-              outcome: 'recovery',
-            })
-          }
-
-          this.logger.debug({ lineitem_id, message: result.description }, 'marked lineitem dead')
-        } else {
-          this.logger.warn({ lineitem_id }, 'LTI submission lease expired')
-        }
-
-        return { action: 'continue' }
-      }
-
-      // For all remaining errors, we increment the failure count for the lineitem,
-      // record the submission failure, and set platform health to 'degraded' or
-      // 'rate-limited'.  The error is probably not this particular line-item's
-      // "fault", but we still throttle future submissions based on the number of
-      // successive failures.
-      const leaseValid = await this.mutations.markSubmissionFailure(
-        lineitem,
-        result.category,
-        result.description,
-        this.computeBackoffMs(lineitem.submission_error_count)
-      )
-
-      if (leaseValid) {
-        // Record the submission error.
+    if (action.kind === 'healthy') {
+      await this.mutations.setPlatformHealth(issuer, now, {
+        status: 'healthy',
+        paused_until: null,
+        last_success_at: now,
+        consecutive_failures: 0,
+      })
+      if (action.recovery) {
         await this.mutations.recordSubmissionEvent({
           id: uuidv7(),
-          platform_issuer,
-          deployment_id,
-          lineitem_id,
+          platform_issuer: issuer,
+          deployment_id: action.deployment_id,
+          lineitem_id: action.lineitem_id,
           occurred_at: now,
-          outcome: 'failure',
-          category: result.category,
-          http_status: result.status,
-          detail: result.description,
+          outcome: 'recovery',
         })
-
-        const platformHealth = await this.mutations.getPlatformHealthForUpdate(this.platform.issuer)
-        const consecutive_failures = platformHealth?.consecutive_failures ?? 0
-        const platformBackoff = this.computeBackoffMs(consecutive_failures)
-
-        if (result.category === 'rate_limit') {
-          // TODO: See if canvas returns a Retry-After header, and honor
-          // it instead of using consecutive_failures to drive the backoff here.
-          await this.mutations.setPlatformHealth(this.platform.issuer, now, {
-            last_failure_at: now,
-            status: 'rate-limited',
-            paused_until: new Date(now.getTime() + platformBackoff),
-            consecutive_failures: consecutive_failures + 1,
-          })
-
-          return { action: 'idle', duration_ms: platformBackoff }
-        }
-
-        // For now, just go into exponential backoff with status 'degraded'
-        // for all errors.  TODO: add "incident" detection based on
-        // recent errors; set status to 'incident' and notify admins
-        await this.mutations.setPlatformHealth(this.platform.issuer, now, {
-          last_failure_at: now,
-          status: 'degraded',
-          paused_until: new Date(now.getTime() + platformBackoff),
-          consecutive_failures: consecutive_failures + 1,
-        })
-
-        this.logger.debug(
-          { lineitem_id, category: result.category, message: result.description },
-          'LTI score submisison failed'
-        )
-
-        return { action: 'idle', duration_ms: platformBackoff }
       }
+      return
+    }
 
-      this.logger.warn({ lineitem_id }, 'LTI submission lease expired')
-      return { action: 'continue' }
+    await this.mutations.setPlatformHealth(issuer, now, {
+      status: action.status,
+      paused_until: new Date(action.until),
+      last_failure_at: now,
+      consecutive_failures: action.consecutiveFailures,
+    })
+    await this.mutations.recordSubmissionEvent({
+      id: uuidv7(),
+      platform_issuer: issuer,
+      deployment_id: action.deployment_id,
+      lineitem_id: action.lineitem_id,
+      occurred_at: now,
+      outcome: 'failure',
+      category: action.category,
+      http_status: action.http_status,
+      detail: action.detail,
     })
   }
 
-  computeBackoffMs(error_count: number) {
-    const { backoff_base_seconds, backoff_error_cap } = this.config.lti.score_submission
-    const exponent = Math.min(error_count, backoff_error_cap)
-    const seconds = backoff_base_seconds * 2 ** exponent
-    return seconds * 1000 * (0.9 + 0.2 * Math.random())
-  }
-}
+  // --- run-loop wakeup signal -------------------------------------------------
+  // `wait()` sleeps until a task settles, an optional timeout elapses, or stop()
+  // is called. `signal()` wakes it; a signal that arrives before the next wait
+  // is coalesced via `signalPending` so wakeups are never missed.
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  private signal(): void {
+    if (this.signalResolve) {
+      const resolve = this.signalResolve
+      this.signalResolve = undefined
+      resolve()
+    } else {
+      this.signalPending = true
+    }
+  }
+
+  private wait(timeoutMs?: number): Promise<void> {
+    if (this.signalPending) {
+      this.signalPending = false
+      return Promise.resolve()
+    }
+    return new Promise<void>((resolve) => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      if (timeoutMs != null) {
+        timer = setTimeout(() => {
+          this.signalResolve = undefined
+          resolve()
+        }, timeoutMs)
+      }
+      this.signalResolve = () => {
+        if (timer) {
+          clearTimeout(timer)
+        }
+        resolve()
+      }
+    })
+  }
 }
