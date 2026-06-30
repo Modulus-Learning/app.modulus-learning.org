@@ -32,6 +32,15 @@ const ThemeSwitch = ({
     setTheme(isDark ? Theme.LIGHT : Theme.DARK)
   }
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    // Only Space or Enter should activate the button, matching native button
+    // behavior. Without this guard every key (including Tab) toggles the theme.
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault()
+      handleThemeChange()
+    }
+  }
+
   const classes = cx('component--theme-switch flex items-center justify-center', className)
 
   return (
@@ -42,7 +51,7 @@ const ThemeSwitch = ({
       tabIndex={0}
       aria-label="Change theme"
       onClick={handleThemeChange}
-      onKeyDown={handleThemeChange}
+      onKeyDown={handleKeyDown}
       {...rest}
     >
       <div className="relative w-[24px] h-[24px] flex items-center justify-center">

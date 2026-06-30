@@ -11,7 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@infonomic/uikit": "^6.7.2",
+    "@infonomic/uikit": "^6.7.6",
     "@modulus-learning/agent": "workspace:*",
     "@tanstack/react-router": "^1.170.8",
     "classnames": "^2.5.1",

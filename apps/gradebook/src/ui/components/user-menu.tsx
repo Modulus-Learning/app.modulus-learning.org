@@ -97,7 +97,15 @@ export function UserMenu({ className, lng, shiftMenu = true }: UserMenuProps): R
                 Account
               </span>
             </Dropdown.Item>
-            <Dropdown.Separator className="my-1 border-t border-t-gray-300 dark:border-t-gray-900 w-[90%] mx-auto" />
+            <Dropdown.Separator
+              // Purely decorative divider. By default Base UI renders this with
+              // role="separator", which some screen readers fold into the menu's
+              // announced item count ("3 items" reported as 4). Hide it from the
+              // accessibility tree so only the actual menu items are counted.
+              role="presentation"
+              aria-hidden="true"
+              className="my-1 border-t border-t-gray-300 dark:border-t-gray-900 w-[90%] mx-auto"
+            />
             <Dropdown.Item>
               <form action={formAction} noValidate className="flex items-center w-full">
                 <button type="button" onClick={handleSignOut} className="flex items-center w-full">

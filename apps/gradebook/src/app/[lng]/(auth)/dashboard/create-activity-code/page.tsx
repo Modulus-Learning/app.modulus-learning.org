@@ -30,7 +30,9 @@ export default async function CreateActivityCode({
           <div className="max-w-[800px] mx-auto mt-[2vh]">
             <Card>
               <Card.Header>
-                <Card.Title>Create Activity Code</Card.Title>
+                <Card.Title>
+                  <h1>Create Activity Code</h1>
+                </Card.Title>
                 <Card.Description>
                   Data will be collected on all activities under the same activity code.
                 </Card.Description>

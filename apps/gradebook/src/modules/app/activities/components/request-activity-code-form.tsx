@@ -72,6 +72,10 @@ export function RequestActivityCodeForm({
             readOnly
             required={true}
             value={formState?.code}
+            // This field has no visible label, so give it an accessible name
+            // directly. (uikit only emits aria-labelledby when a label is
+            // present, so there's no dangling reference to override here.)
+            aria-label="Activity Code"
           />
           <Button size="sm" type="submit" disabled={isPending === true} className="min-w-[160px]">
             {isPending === true ? (
@@ -81,7 +85,7 @@ export function RequestActivityCodeForm({
             )}
           </Button>
         </div>
-        {error && errorText && <ErrorText id="activity=code" text={errorText} />}
+        {error && errorText && <ErrorText id="error-for-activity-code" text={errorText} />}
       </div>
     </form>
   )

@@ -32,7 +32,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@infonomic/crypto": "^2.3.0",
     "@infonomic/schemas": "^2.4.0",
-    "@infonomic/uikit": "^6.7.2",
+    "@infonomic/uikit": "^6.7.6",
     "@modulus-learning/core": "workspace:*",
     "@panva/hkdf": "^1.2.1",
     "argon2": "^0.44.0",
