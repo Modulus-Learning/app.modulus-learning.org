@@ -180,6 +180,7 @@ export function UsersListView({ data, lng }: { data: UsersResponse; lng: Locale 
           />
           <Select
             id="role"
+            ariaLabel="Filter by role"
             name="role"
             size="sm"
             defaultValue="all"
@@ -243,6 +244,7 @@ export function UsersListView({ data, lng }: { data: UsersResponse; lng: Locale 
           <Select
             containerClassName="sm:ml-auto"
             id="page_size"
+            ariaLabel="Rows per page"
             name="page_size"
             size="sm"
             defaultValue="15"

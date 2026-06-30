@@ -48,6 +48,7 @@ export function NewVsReturningUsersView({
           <Select
             size="sm"
             id="year"
+            ariaLabel="Year"
             variant="outlined"
             defaultValue=""
             placeholder="Year"

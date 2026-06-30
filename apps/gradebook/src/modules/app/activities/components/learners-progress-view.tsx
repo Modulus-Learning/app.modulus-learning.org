@@ -231,6 +231,7 @@ export function LearnersProgressView({ data, lng }: { data: ProgressResponse; ln
           <Select
             containerClassName="sm:ml-auto"
             id="page_size"
+            ariaLabel="Rows per page"
             name="page_size"
             size="sm"
             defaultValue="15"

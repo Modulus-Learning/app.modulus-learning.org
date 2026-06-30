@@ -59,6 +59,7 @@ export function RegistrationsPerDayView({
             <Select
               size="sm"
               id="month"
+              ariaLabel="Month"
               variant="outlined"
               defaultValue=""
               placeholder="Month"
@@ -73,6 +74,7 @@ export function RegistrationsPerDayView({
             <Select
               size="sm"
               id="year"
+              ariaLabel="Year"
               variant="outlined"
               defaultValue=""
               placeholder="Year"
