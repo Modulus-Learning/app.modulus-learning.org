@@ -43,9 +43,9 @@ export const configSchema = z.object({
       // How long before a lineitem lease expires, and can be claimed by another worker
       lease_duration_seconds: z.coerce.number().default(120),
       // Maximum number of concurrent in-flight submissions per platform
-      max_concurrent_submissions: z.coerce.number().default(4),
+      max_concurrent_submissions: z.coerce.number().default(20),
       // Rate-limit governor: requests-worth of quota headroom to keep in reserve
-      quota_reserve_requests: z.coerce.number().default(2),
+      quota_reserve_requests: z.coerce.number().default(4),
       // Rate-limit governor: window (ms) over which quota readings are aggregated
       quota_window_ms: z.coerce.number().default(10_000),
       // Rate-limit governor: minimum interval (ms) between +1 concurrency ramp-ups
@@ -61,11 +61,11 @@ export const configSchema = z.object({
       // Incident recovery: clean round-trips required before an incident may resolve
       recovery_min_successes: z.coerce.number().default(50),
       // Incident recovery: breaker-closed seconds after which an incident resolves regardless
-      recovery_hard_cap_seconds: z.coerce.number().default(21_600),
+      recovery_hard_cap_seconds: z.coerce.number().default(86_400),
       // Notifier: active span (seconds) before a high-severity incident pages an admin
-      notify_persist_threshold_seconds: z.coerce.number().default(120),
+      notify_persist_threshold_seconds: z.coerce.number().default(1800),
       // Notifier: sweep cadence in seconds (keep below the persist threshold)
-      notify_poll_interval_seconds: z.coerce.number().default(30),
+      notify_poll_interval_seconds: z.coerce.number().default(300),
     }),
   }),
   oauth: z.object({
