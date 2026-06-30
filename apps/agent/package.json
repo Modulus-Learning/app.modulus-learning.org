@@ -46,14 +46,14 @@
   "keywords": [],
   "author": "",
   "devDependencies": {
-    "@biomejs/biome": "^2.4.15",
-    "@rollup/plugin-commonjs": "^29.0.2",
+    "@biomejs/biome": "^2.5.1",
+    "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",
-    "@rollup/plugin-swc": "^0.4.0",
+    "@rollup/plugin-swc": "^0.4.1",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
-    "@swc/core": "^1.15.40",
-    "rollup": "^4.60.4",
+    "@swc/core": "^1.15.43",
+    "rollup": "^4.62.2",
     "rollup-plugin-delete": "^3.0.2",
     "rollup-plugin-dts": "^6.4.1",
     "rollup-plugin-swc3": "^0.12.1",
@@ -64,7 +64,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@rollup/plugin-babel": "^7.0.0",
+    "@rollup/plugin-babel": "^7.1.0",
     "@rollup/plugin-image": "^3.0.3",
     "rollup-plugin-postcss": "^4.0.2"
   }
