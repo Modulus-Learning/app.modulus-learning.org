@@ -56,6 +56,18 @@ export const configSchema = z.object({
       backoff_base_seconds: z.coerce.number().default(5),
       // Backoff doubles until this many consecutive errors
       backoff_error_cap: z.coerce.number().default(5),
+      // Incident detection: consecutive non-clean failures that trip the breaker / open an incident
+      incident_trip_threshold: z.coerce.number().default(5),
+      // Incident recovery: failure-free seconds required before an incident may resolve
+      recovery_quiet_window_seconds: z.coerce.number().default(3_600),
+      // Incident recovery: clean round-trips required before an incident may resolve
+      recovery_min_successes: z.coerce.number().default(50),
+      // Incident recovery: breaker-closed seconds after which an incident resolves regardless
+      recovery_hard_cap_seconds: z.coerce.number().default(21_600),
+      // Notifier: active span (seconds) before a high-severity incident pages an admin
+      notify_persist_threshold_seconds: z.coerce.number().default(120),
+      // Notifier: sweep cadence in seconds (keep below the persist threshold)
+      notify_poll_interval_seconds: z.coerce.number().default(30),
     }),
   }),
   oauth: z.object({
@@ -130,6 +142,14 @@ export const loadConfigUnchecked = () => {
         quota_ramp_interval_ms: process.env.LTI_SCORE_SUBMISSION_QUOTA_RAMP_INTERVAL_MS,
         backoff_base_seconds: process.env.LTI_SCORE_SUBMISSION_BACKOFF_BASE_SECONDS,
         backoff_error_cap: process.env.LTI_SCORE_SUBMISSION_BACKOFF_ERROR_CAP,
+        incident_trip_threshold: process.env.LTI_SCORE_SUBMISSION_INCIDENT_TRIP_THRESHOLD,
+        recovery_quiet_window_seconds:
+          process.env.LTI_SCORE_SUBMISSION_RECOVERY_QUIET_WINDOW_SECONDS,
+        recovery_min_successes: process.env.LTI_SCORE_SUBMISSION_RECOVERY_MIN_SUCCESSES,
+        recovery_hard_cap_seconds: process.env.LTI_SCORE_SUBMISSION_RECOVERY_HARD_CAP_SECONDS,
+        notify_persist_threshold_seconds:
+          process.env.LTI_SCORE_SUBMISSION_NOTIFY_PERSIST_THRESHOLD_SECONDS,
+        notify_poll_interval_seconds: process.env.LTI_SCORE_SUBMISSION_NOTIFY_POLL_INTERVAL_SECONDS,
       },
     },
     oauth: {
