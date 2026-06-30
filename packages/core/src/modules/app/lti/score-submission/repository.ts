@@ -1,7 +1,12 @@
 import { and, asc, eq, getTableColumns, gt, isNull, lt, lte, max, or, sql } from 'drizzle-orm'
 
-import { lineitems, platformHealth, platforms, progressEvents } from '@/database/schema/index.js'
-import { submissionEvents } from '@/database/schema/source/lti/lti-submission-events.js'
+import {
+  lineitems,
+  platformHealth,
+  platforms,
+  progressEvents,
+  submissionFailures,
+} from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
@@ -21,8 +26,8 @@ export type PlatformHealthUpdate = Omit<
   Partial<PlatformHealthRecord>,
   'platform_issuer' | 'created_at' | 'updated_at'
 >
-export type SubmissionEventRecord = typeof submissionEvents.$inferSelect
-export type SubmissionEventInsert = typeof submissionEvents.$inferInsert
+export type SubmissionFailureRecord = typeof submissionFailures.$inferSelect
+export type SubmissionFailureInsert = typeof submissionFailures.$inferInsert
 
 export class LtiScoreSubmissionQueries extends BaseService {
   private utils: CoreUtils
@@ -68,16 +73,16 @@ export class LtiScoreSubmissionQueries extends BaseService {
   }
 
   @method
-  async getSubmissionEventsForPlatformSince(
+  async getSubmissionFailuresForPlatformSince(
     issuer: string,
     timestamp: Date
-  ): Promise<SubmissionEventRecord[]> {
+  ): Promise<SubmissionFailureRecord[]> {
     return await this.db
       .get()
-      .query.submissionEvents.findMany({
+      .query.submissionFailures.findMany({
         where: and(
-          eq(submissionEvents.platform_issuer, issuer),
-          gt(submissionEvents.occurred_at, timestamp)
+          eq(submissionFailures.platform_issuer, issuer),
+          gt(submissionFailures.occurred_at, timestamp)
         ),
       })
       .catch(this.utils.wrapDbErrorNew())
@@ -304,8 +309,12 @@ export class LtiScoreSubmissionMutations extends BaseService {
   }
 
   @method
-  async recordSubmissionEvent(event: SubmissionEventInsert) {
-    await this.db.get().insert(submissionEvents).values(event).catch(this.utils.wrapDbErrorNew())
+  async recordSubmissionFailure(failure: SubmissionFailureInsert) {
+    await this.db
+      .get()
+      .insert(submissionFailures)
+      .values(failure)
+      .catch(this.utils.wrapDbErrorNew())
   }
 
   // @method

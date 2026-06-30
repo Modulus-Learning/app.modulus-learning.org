@@ -353,16 +353,6 @@ export class LtiScoreSubmissionProcessor extends BaseService {
         last_success_at: now,
         consecutive_failures: 0,
       })
-      if (action.recovery) {
-        await this.mutations.recordSubmissionEvent({
-          id: uuidv7(),
-          platform_issuer: issuer,
-          deployment_id: action.deployment_id,
-          lineitem_id: action.lineitem_id,
-          occurred_at: now,
-          outcome: 'recovery',
-        })
-      }
       return
     }
 
@@ -372,14 +362,13 @@ export class LtiScoreSubmissionProcessor extends BaseService {
       last_failure_at: now,
       consecutive_failures: action.consecutiveFailures,
     })
-    await this.mutations.recordSubmissionEvent({
+    await this.mutations.recordSubmissionFailure({
       id: uuidv7(),
       platform_issuer: issuer,
       deployment_id: action.deployment_id,
       lineitem_id: action.lineitem_id,
       occurred_at: now,
-      outcome: 'failure',
-      category: action.category,
+      category: action.category ?? 'unknown',
       http_status: action.http_status,
       detail: action.detail,
     })
