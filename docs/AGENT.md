@@ -155,16 +155,18 @@ single `activity_id`, and a `renew_after` hint — never PII.
 ## Server-Side Ingestion
 
 Once authenticated, the agent talks to four `agent`-mode commands
-(`modules/agent/activity-state/commands.ts`), exposed by the host under
-`/routes/agent/activity/{progress,page-state}` and called by the client's
-`ApiClient`:
+(`modules/agent/activity-state/commands.ts`), exposed by the host under a single
+unified endpoint, `POST /routes/agent/activity`. The request body's `op`
+discriminator selects the command; the route dispatches on it and rejects an
+unknown `op` before reaching the core. The client's `ApiClient` posts to this one
+URL (`AGENT_ACTIVITY_URL`):
 
 | Command | API call | Effect |
 | --- | --- | --- |
-| `getProgress` | `GET …/progress` | read the learner's progress for this activity |
-| `setProgress` | `PUT …/progress` | record progress (0–1) |
-| `getPageState` | `GET …/page-state` | read saved page state |
-| `setPageState` | `PUT …/page-state` | save page state |
+| `getProgress` | `POST …/activity` `{ op: 'get-progress' }` | read the learner's progress for this activity |
+| `setProgress` | `POST …/activity` `{ op: 'set-progress' }` | record progress (0–1) |
+| `getPageState` | `POST …/activity` `{ op: 'get-page-state' }` | read saved page state |
+| `setPageState` | `POST …/activity` `{ op: 'set-page-state' }` | save page state |
 
 Three things are true of all four:
 
