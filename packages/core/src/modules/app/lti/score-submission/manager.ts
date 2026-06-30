@@ -88,7 +88,8 @@ export class LtiScoreSubmissionManager extends BaseService {
       this.logger,
       this.config,
       submitter,
-      this.mutations
+      this.mutations,
+      this.queries
     )
     processor.start()
 

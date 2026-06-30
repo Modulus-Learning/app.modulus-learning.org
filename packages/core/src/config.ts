@@ -36,8 +36,6 @@ export const configSchema = z.object({
     score_submission: z.object({
       // How long to wait after finding no pending submissions before polling again.
       idle_interval_ms: z.coerce.number().default(5_000),
-      // How long to wait after an unexpected error before polling again.
-      error_interval_ms: z.coerce.number().default(5_000),
       // Minimum seconds since last progress update before a submission is eligible to be sent
       throttle_seconds: z.coerce.number().default(10),
       // How long before fetch requests to the LTI platform timeout
@@ -132,7 +130,6 @@ export const loadConfigUnchecked = () => {
       },
       score_submission: {
         idle_interval_ms: process.env.LTI_SCORE_SUBMISSION_IDLE_INTERVAL_MS,
-        error_interval_ms: process.env.LTI_SCORE_SUBMISSION_ERROR_INTERVAL_MS,
         throttle_seconds: process.env.LTI_SCORE_SUBMISSION_THROTTLE_SECONDS,
         request_timeout_seconds: process.env.LTI_SCORE_SUBMISSION_REQUEST_TIMEOUT_SECONDS,
         lease_duration_seconds: process.env.LTI_SCORE_SUBMISSION_LEASE_DURATION_SECONDS,

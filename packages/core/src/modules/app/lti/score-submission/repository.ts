@@ -1,8 +1,22 @@
-import { and, asc, eq, getTableColumns, gt, isNull, lt, lte, max, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  eq,
+  getTableColumns,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  max,
+  or,
+  sql,
+} from 'drizzle-orm'
 
 import {
   lineitems,
   platformHealth,
+  platformIncidents,
   platforms,
   progressEvents,
   submissionFailures,
@@ -28,6 +42,15 @@ export type PlatformHealthUpdate = Omit<
 >
 export type SubmissionFailureRecord = typeof submissionFailures.$inferSelect
 export type SubmissionFailureInsert = typeof submissionFailures.$inferInsert
+export type IncidentRecord = typeof platformIncidents.$inferSelect
+export type IncidentInsert = typeof platformIncidents.$inferInsert
+export type IncidentAggregateUpdate = {
+  last_failure_at: Date
+  failure_count: number
+  distinct_affected_lineitems: number
+  categories_seen: string[]
+  severity: string
+}
 
 export class LtiScoreSubmissionQueries extends BaseService {
   private utils: CoreUtils
@@ -83,6 +106,19 @@ export class LtiScoreSubmissionQueries extends BaseService {
         where: and(
           eq(submissionFailures.platform_issuer, issuer),
           gt(submissionFailures.occurred_at, timestamp)
+        ),
+      })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async getOpenIncidentForPlatform(issuer: string): Promise<IncidentRecord | undefined> {
+    return await this.db
+      .get()
+      .query.platformIncidents.findFirst({
+        where: and(
+          eq(platformIncidents.platform_issuer, issuer),
+          isNull(platformIncidents.resolved_at)
         ),
       })
       .catch(this.utils.wrapDbErrorNew())
@@ -314,6 +350,52 @@ export class LtiScoreSubmissionMutations extends BaseService {
       .get()
       .insert(submissionFailures)
       .values(failure)
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async openIncident(incident: IncidentInsert) {
+    await this.db
+      .get()
+      .insert(platformIncidents)
+      .values(incident)
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async updateIncidentAggregates(id: string, fields: IncidentAggregateUpdate) {
+    await this.db
+      .get()
+      .update(platformIncidents)
+      .set({ ...fields, updated_at: sql`now()` })
+      .where(eq(platformIncidents.id, id))
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  /**
+   * Backfills the incident pointer onto the failure-log rows of an incident's
+   * opening burst, so the log and the incident's counters agree.
+   */
+  @method
+  async backfillFailureIncident(incident_id: string, failure_ids: string[]) {
+    if (failure_ids.length === 0) {
+      return
+    }
+    await this.db
+      .get()
+      .update(submissionFailures)
+      .set({ incident_id })
+      .where(inArray(submissionFailures.id, failure_ids))
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async closeIncident(id: string, resolved_at: Date) {
+    await this.db
+      .get()
+      .update(platformIncidents)
+      .set({ resolved_at, updated_at: sql`now()` })
+      .where(eq(platformIncidents.id, id))
       .catch(this.utils.wrapDbErrorNew())
   }
 

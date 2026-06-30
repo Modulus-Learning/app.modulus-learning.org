@@ -1,32 +1,13 @@
-import { v7 as uuidv7 } from 'uuid'
-
 import { BaseService, method } from '@/lib/base-service.js'
+import { IncidentTracker } from './incident-tracker.js'
 import { QuotaGovernor } from './quota-governor.js'
-import { computeBackoffMs } from './submitter.js'
 import type { Config } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
-import type { LtiScoreSubmissionMutations } from './repository.js'
+import type { FailureInfo, IncidentEffect } from './incident-tracker.js'
+import type { LtiScoreSubmissionMutations, LtiScoreSubmissionQueries } from './repository.js'
 import type { LtiScoreSubmitter, SubmissionOutcome } from './submitter.js'
 
-type BreakerState = 'closed' | 'open' | 'half_open'
-
 type LaneOutcome = SubmissionOutcome | { type: 'error' }
-
-// A platform-health change to persist (transitions only). The in-memory breaker
-// is authoritative for pacing; this is written for observability.
-type HealthAction =
-  | { kind: 'healthy'; recovery: boolean; lineitem_id: string; deployment_id: string }
-  | {
-      kind: 'fault'
-      status: 'degraded' | 'rate-limited'
-      until: number
-      consecutiveFailures: number
-      lineitem_id?: string
-      deployment_id?: string
-      category?: string
-      http_status?: number
-      detail?: string
-    }
 
 /**
  * Lifecycle + pacing layer for a single platform's score submission queue.
@@ -34,31 +15,34 @@ type HealthAction =
  * Owns the run state and a bounded pool of concurrent submission tasks, each of
  * which drives the (stateless) `LtiScoreSubmitter`. Per-item work is coordinated
  * through the database (fenced leases + `SKIP LOCKED`), so running several tasks
- * at once is safe. This layer owns everything *platform*-level: pacing the pool,
- * collapsing to a single poller when the queue is empty, and a circuit breaker
- * that pauses the whole platform on faults.
+ * at once is safe. Platform-level state — the circuit breaker and incident
+ * detection — lives in an `IncidentTracker`; the governor sizes concurrency from
+ * quota headroom. Both are in-memory and per-process (single-process for now).
+ *
+ * The tracker is fed outcomes synchronously and returns ordered DB `effects`,
+ * which are drained through a FIFO queue so writes land in decision order (a
+ * failure row exists before it is backfilled; an incident exists before a later
+ * failure references it).
  *
  * Start/stop uses desired-vs-actual reconciliation: `desiredRunning` is what the
  * caller wants, `runPromise` is the single live run loop, and the two are
  * reconciled in `ensureRunning()` — so there is never more than one loop, and a
  * `start()` issued mid-shutdown restarts cleanly once the drain completes.
- *
- * NOTE: platform state is in-memory and per-process. Coordinating it across
- * processes/restarts is deliberately out of scope for now.
  */
 export class LtiScoreSubmissionProcessor extends BaseService {
   private config: Config
   private submitter: LtiScoreSubmitter
   private mutations: LtiScoreSubmissionMutations
+  private queries: LtiScoreSubmissionQueries
   private maxConcurrency: number
   private governor: QuotaGovernor
+  private tracker: IncidentTracker
 
   private desiredRunning = false
   private runPromise?: Promise<void>
+  // Reconcile any persisted open incident exactly once, on first run.
+  private reconciled = false
 
-  // The circuit breaker: closed = normal; open = paused until `until`;
-  // half_open = allow a single probe to test the platform.
-  private breaker = { state: 'closed' as BreakerState, until: 0, consecutiveFailures: 0 }
   // True when the last claim found nothing; collapses the pool to a single poller.
   private idle = false
 
@@ -67,16 +51,22 @@ export class LtiScoreSubmissionProcessor extends BaseService {
   private signalResolve?: () => void
   private signalPending = false
 
+  // FIFO queue of persistence effects emitted by the tracker.
+  private effectQueue: IncidentEffect[] = []
+  private drainPromise: Promise<void> = Promise.resolve()
+
   constructor(
     logger: CoreLogger,
     config: Config,
     submitter: LtiScoreSubmitter,
-    mutations: LtiScoreSubmissionMutations
+    mutations: LtiScoreSubmissionMutations,
+    queries: LtiScoreSubmissionQueries
   ) {
     super(logger, 'app', 'lti')
     this.config = config
     this.submitter = submitter
     this.mutations = mutations
+    this.queries = queries
 
     const ss = config.lti.score_submission
     this.maxConcurrency = Math.max(1, ss.max_concurrent_submissions)
@@ -86,6 +76,7 @@ export class LtiScoreSubmissionProcessor extends BaseService {
       ss.quota_window_ms,
       ss.quota_ramp_interval_ms
     )
+    this.tracker = new IncidentTracker(submitter.issuer, config, this.logger)
   }
 
   @method
@@ -134,27 +125,34 @@ export class LtiScoreSubmissionProcessor extends BaseService {
       'score submission worker started'
     )
 
+    await this.reconcileOpenIncident()
+
     while (this.desiredRunning) {
       const now = Date.now()
 
+      // Time-based incident recovery (close after sustained quiet).
+      this.enqueue(this.tracker.tick(now))
+
+      let breaker = this.tracker.breaker
+
       // Paused: wait out the backoff, then let any pre-pause tasks drain before
       // probing with a single submission (half-open).
-      if (this.breaker.state === 'open') {
-        if (now < this.breaker.until) {
-          await this.wait(this.breaker.until - now)
+      if (breaker.state === 'open') {
+        if (now < breaker.until) {
+          await this.wait(breaker.until - now)
           continue
         }
         if (this.inFlight.size > 0) {
           await this.wait()
           continue
         }
-        this.breaker.state = 'half_open'
-        this.logger.info({ issuer }, 'score submission breaker half-open')
+        this.tracker.promoteToHalfOpen()
+        breaker = this.tracker.breaker
       }
 
       // half_open → exactly one probe; idle → a single poller; otherwise the
       // quota governor's current allowance.
-      const halfOpen = this.breaker.state === 'half_open'
+      const halfOpen = breaker.state === 'half_open'
       const target = halfOpen ? 1 : this.idle ? 1 : this.governor.target()
 
       // When the queue is empty, collapse to a single poller paced at
@@ -190,7 +188,27 @@ export class LtiScoreSubmissionProcessor extends BaseService {
     }
 
     await Promise.allSettled([...this.inFlight])
+    await this.drainPromise
     this.logger.info({ issuer }, 'score submission worker stopped')
+  }
+
+  /** Adopt or hard-cap-close any persisted open incident, once on first run. */
+  private async reconcileOpenIncident(): Promise<void> {
+    if (this.reconciled) {
+      return
+    }
+    this.reconciled = true
+    try {
+      const open = await this.queries.getOpenIncidentForPlatform(this.submitter.issuer)
+      if (open) {
+        this.enqueue(this.tracker.adopt(open, Date.now()))
+      }
+    } catch (err) {
+      this.logger.warn(
+        { err, issuer: this.submitter.issuer },
+        'failed to reconcile open incident on startup'
+      )
+    }
   }
 
   private spawnTask(): void {
@@ -213,43 +231,32 @@ export class LtiScoreSubmissionProcessor extends BaseService {
       outcome = { type: 'error' }
     }
 
-    const action = this.applyOutcome(outcome)
-    if (action) {
-      await this.persistHealth(action).catch((err) =>
-        this.logger.warn(
-          { err, issuer: this.submitter.issuer },
-          'failed to persist platform health'
-        )
-      )
-    }
+    this.applyOutcome(outcome)
   }
 
   /**
-   * Folds a single task outcome into the in-memory breaker state and returns the
-   * platform-health transition to persist, if any. Synchronous, so concurrent
-   * task settlements can't interleave on breaker state.
+   * Classifies a single task outcome and folds it into the tracker (synchronous,
+   * so concurrent settlements can't interleave on breaker/incident state),
+   * enqueueing whatever DB effects the tracker emits.
    */
-  private applyOutcome(outcome: LaneOutcome): HealthAction | null {
+  private applyOutcome(outcome: LaneOutcome): void {
+    const now = Date.now()
+
     if (outcome.type === 'idle') {
       this.idle = true
-      return null
+      return
     }
     this.idle = false
 
     if (outcome.type === 'error') {
-      // Unexpected/infra error: pause briefly without escalating the platform
-      // failure count. Not recorded as a platform fault. (Don't re-trip if a
-      // sibling already opened the breaker.)
-      if (this.breaker.state !== 'open') {
-        this.breaker.state = 'open'
-        this.breaker.until = Date.now() + this.config.lti.score_submission.error_interval_ms
-      }
-      return null
+      // An internal exception that prevented the attempt: counts as a failure.
+      this.applyFailure({ category: 'internal' }, now)
+      return
     }
 
-    // Feed the quota governor regardless of lease or breaker state — the request
-    // hit Canvas and the reading reflects the (shared) quota. A hard rate-limit
-    // means our estimate was wrong, so reset the governor to re-earn concurrency.
+    // Feed the quota governor regardless of lease — the request hit Canvas and
+    // the reading reflects the (shared) quota. A hard rate-limit means our
+    // estimate was wrong, so reset the governor to re-earn concurrency.
     if (outcome.reading) {
       this.governor.record(outcome.reading)
     }
@@ -257,121 +264,98 @@ export class LtiScoreSubmissionProcessor extends BaseService {
       this.governor.reset()
     }
 
-    // While paused, ignore outcomes from tasks that were already in flight when
-    // the breaker tripped — only the half-open probe is allowed to change state.
-    if (this.breaker.state === 'open') {
-      return null
-    }
-
     if (!outcome.leaseValid) {
       // Preempted by another worker; it owns the outcome. No platform signal.
-      return null
+      return
     }
 
     const { result } = outcome
 
-    // Success, a superseded write, or a dead line item all imply a working
-    // connection to the platform → healthy.
+    // Success, a superseded write, or a dead line item are all clean round-trips
+    // (we reached Canvas and acted on its response).
     if (result.ok || result.category === 'superseded' || result.category === 'lineitem_dead') {
-      const recovery = this.breaker.state !== 'closed'
-      this.close()
-      return {
-        kind: 'healthy',
-        recovery,
-        lineitem_id: outcome.lineitem_id,
-        deployment_id: outcome.deployment_id,
-      }
-    }
-
-    // A malformed request is this line item's problem (a coding/data bug), not
-    // the platform's — back off the item (already done) but don't pause.
-    if (result.category === 'malformed') {
-      return null
-    }
-
-    // rate_limit / platform_token / platform_config / transient / unknown → trip.
-    return this.trip(result.category === 'rate_limit' ? 'rate-limited' : 'degraded', {
-      lineitem_id: outcome.lineitem_id,
-      deployment_id: outcome.deployment_id,
-      category: result.category,
-      http_status: result.status,
-      detail: result.description,
-    })
-  }
-
-  private trip(
-    status: 'degraded' | 'rate-limited',
-    item?: {
-      lineitem_id: string
-      deployment_id: string
-      category: string
-      http_status?: number
-      detail: string
-    }
-  ): HealthAction {
-    this.breaker.consecutiveFailures += 1
-    const backoff = computeBackoffMs(this.config, this.breaker.consecutiveFailures)
-    this.breaker.state = 'open'
-    this.breaker.until = Date.now() + backoff
-
-    this.logger.debug(
-      {
-        issuer: this.submitter.issuer,
-        status,
-        backoff_ms: Math.round(backoff),
-        consecutive_failures: this.breaker.consecutiveFailures,
-      },
-      'score submission breaker tripped'
-    )
-
-    return {
-      kind: 'fault',
-      status,
-      until: this.breaker.until,
-      consecutiveFailures: this.breaker.consecutiveFailures,
-      ...item,
-    }
-  }
-
-  private close(): void {
-    if (this.breaker.state !== 'closed') {
-      this.logger.info({ issuer: this.submitter.issuer }, 'score submission breaker closed')
-    }
-    this.breaker.state = 'closed'
-    this.breaker.until = 0
-    this.breaker.consecutiveFailures = 0
-  }
-
-  private async persistHealth(action: HealthAction): Promise<void> {
-    const now = new Date()
-    const issuer = this.submitter.issuer
-
-    if (action.kind === 'healthy') {
-      await this.mutations.setPlatformHealth(issuer, now, {
-        status: 'healthy',
-        paused_until: null,
-        last_success_at: now,
-        consecutive_failures: 0,
-      })
+      this.enqueue(
+        this.tracker.recordClean(
+          { lineitem_id: outcome.lineitem_id, deployment_id: outcome.deployment_id },
+          now
+        )
+      )
       return
     }
 
-    await this.mutations.setPlatformHealth(issuer, now, {
-      status: action.status,
-      paused_until: new Date(action.until),
-      last_failure_at: now,
-      consecutive_failures: action.consecutiveFailures,
-    })
-    await this.mutations.recordSubmissionFailure({
-      id: uuidv7(),
-      platform_issuer: issuer,
-      deployment_id: action.deployment_id,
-      lineitem_id: action.lineitem_id,
-      occurred_at: now,
-      category: action.category ?? 'unknown',
-      http_status: action.http_status,
-      detail: action.detail,
-    })
+    // Everything else (incl. malformed) counts toward the breaker / incident.
+    this.applyFailure(
+      {
+        category: result.category,
+        lineitem_id: outcome.lineitem_id,
+        deployment_id: outcome.deployment_id,
+        http_status: result.status,
+        detail: result.description,
+      },
+      now
+    )
+  }
+
+  /**
+   * Folds a failure into the tracker and, if it just tripped the breaker
+   * (closed/half_open → open), resets the governor so concurrency re-ramps
+   * conservatively from cold-start after the platform recovers.
+   */
+  private applyFailure(info: FailureInfo, now: number): void {
+    const before = this.tracker.breaker.state
+    this.enqueue(this.tracker.recordFailure(info, now))
+    if (this.tracker.breaker.state === 'open' && before !== 'open') {
+      this.governor.reset()
+    }
+  }
+
+  // --- effect persistence (FIFO) ---------------------------------------------
+
+  private enqueue(effects: IncidentEffect[]): void {
+    if (effects.length === 0) {
+      return
+    }
+    this.effectQueue.push(...effects)
+    this.drainPromise = this.drainPromise.then(() => this.drainOnce())
+  }
+
+  private async drainOnce(): Promise<void> {
+    while (this.effectQueue.length > 0) {
+      const effect = this.effectQueue.shift()
+      if (!effect) {
+        return
+      }
+      await this.executeEffect(effect).catch((err) =>
+        this.logger.warn(
+          { err, issuer: this.submitter.issuer, kind: effect.kind },
+          'failed to persist incident effect'
+        )
+      )
+    }
+  }
+
+  private async executeEffect(effect: IncidentEffect): Promise<void> {
+    const issuer = this.submitter.issuer
+    switch (effect.kind) {
+      case 'logFailure':
+        await this.mutations.recordSubmissionFailure(effect.failure)
+        break
+      case 'openIncident':
+        await this.mutations.openIncident(effect.incident)
+        break
+      case 'backfillFailures':
+        await this.mutations.backfillFailureIncident(effect.incidentId, effect.failureIds)
+        break
+      case 'updateIncident':
+        await this.mutations.updateIncidentAggregates(effect.id, effect.fields)
+        break
+      case 'closeIncident':
+        await this.mutations.closeIncident(effect.id, effect.resolvedAt)
+        break
+      case 'setHealth':
+        await this.mutations.setPlatformHealth(issuer, effect.at, effect.data)
+        break
+    }
   }
 
   // --- run-loop wakeup signal -------------------------------------------------
