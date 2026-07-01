@@ -316,6 +316,9 @@ export class LtiScoreSubmissionProcessor extends BaseService {
       return
     }
     this.effectQueue.push(...effects)
+    // Chain each drain off the previous so effects persist incrementally during
+    // the run, serialized in enqueue order (a failure row before its backfill, an
+    // incident before dependents). `run` awaits the tail as a shutdown flush.
     this.drainPromise = this.drainPromise.then(() => this.drainOnce())
   }
 

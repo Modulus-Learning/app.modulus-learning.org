@@ -5,6 +5,7 @@ import {
   getTableColumns,
   gt,
   inArray,
+  isNotNull,
   isNull,
   lt,
   lte,
@@ -121,6 +122,47 @@ export class LtiScoreSubmissionQueries extends BaseService {
           isNull(platformIncidents.resolved_at)
         ),
       })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  /**
+   * Incidents due to be paged: high-severity, open, not-yet-paged, and whose
+   * *active span* (`last_failure_at - opened_at`) has reached the persist
+   * threshold. Global (all platforms), oldest first.
+   */
+  @method
+  async getIncidentsToPage(persistSeconds: number): Promise<IncidentRecord[]> {
+    return await this.db
+      .get()
+      .select()
+      .from(platformIncidents)
+      .where(
+        and(
+          isNull(platformIncidents.resolved_at),
+          isNull(platformIncidents.notified_at),
+          eq(platformIncidents.severity, 'high'),
+          sql`${platformIncidents.last_failure_at} - ${platformIncidents.opened_at} >= make_interval(secs => ${persistSeconds})`
+        )
+      )
+      .orderBy(asc(platformIncidents.opened_at))
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  /** Resolved incidents that were paged but have not yet had an all-clear sent. */
+  @method
+  async getIncidentsToAllClear(): Promise<IncidentRecord[]> {
+    return await this.db
+      .get()
+      .select()
+      .from(platformIncidents)
+      .where(
+        and(
+          isNotNull(platformIncidents.resolved_at),
+          isNotNull(platformIncidents.notified_at),
+          isNull(platformIncidents.resolved_notified_at)
+        )
+      )
+      .orderBy(asc(platformIncidents.resolved_at))
       .catch(this.utils.wrapDbErrorNew())
   }
 
@@ -397,6 +439,36 @@ export class LtiScoreSubmissionMutations extends BaseService {
       .set({ resolved_at, updated_at: sql`now()` })
       .where(eq(platformIncidents.id, id))
       .catch(this.utils.wrapDbErrorNew())
+  }
+
+  /**
+   * Idempotently claims the right to page for an incident: stamps `notified_at`
+   * only if still unset. Returns true if this caller won the claim (and should
+   * deliver the page); false if another sweep already did.
+   */
+  @method
+  async claimIncidentPage(id: string): Promise<boolean> {
+    const result = await this.db
+      .get()
+      .update(platformIncidents)
+      .set({ notified_at: sql`now()`, updated_at: sql`now()` })
+      .where(and(eq(platformIncidents.id, id), isNull(platformIncidents.notified_at)))
+      .catch(this.utils.wrapDbErrorNew())
+
+    return result.rowCount != null && result.rowCount > 0
+  }
+
+  /** Idempotently claims the right to send an incident's all-clear. */
+  @method
+  async claimIncidentAllClear(id: string): Promise<boolean> {
+    const result = await this.db
+      .get()
+      .update(platformIncidents)
+      .set({ resolved_notified_at: sql`now()`, updated_at: sql`now()` })
+      .where(and(eq(platformIncidents.id, id), isNull(platformIncidents.resolved_notified_at)))
+      .catch(this.utils.wrapDbErrorNew())
+
+    return result.rowCount != null && result.rowCount > 0
   }
 
   // @method

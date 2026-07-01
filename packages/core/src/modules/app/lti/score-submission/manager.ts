@@ -1,5 +1,7 @@
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_NOT_FOUND } from '@/lib/errors.js'
+import { LoggingIncidentSink } from './incident-sink.js'
+import { LtiIncidentNotifier } from './notifier.js'
 import { LtiScoreSubmissionProcessor } from './processor.js'
 import { LtiScoreSubmitter } from './submitter.js'
 import type { Config } from '@/config.js'
@@ -20,6 +22,7 @@ export class LtiScoreSubmissionManager extends BaseService {
   private tx: TXManager
 
   private processors: Record<string, LtiScoreSubmissionProcessor>
+  private notifier: LtiIncidentNotifier
 
   constructor(deps: {
     logger: CoreLogger
@@ -37,10 +40,18 @@ export class LtiScoreSubmissionManager extends BaseService {
     this.accessTokenManager = deps.accessTokenManager
 
     this.processors = {}
+    this.notifier = new LtiIncidentNotifier(
+      this.logger,
+      this.config,
+      this.queries,
+      this.mutations,
+      new LoggingIncidentSink(this.logger)
+    )
   }
 
   @method
   async startAll() {
+    this.notifier.start()
     const platforms = await this.queries.getAllPlatforms()
     for (const platform of platforms) {
       if (this.processors[platform.id] == null) {
@@ -53,7 +64,10 @@ export class LtiScoreSubmissionManager extends BaseService {
 
   @method
   async stopAll() {
-    await Promise.allSettled(Object.values(this.processors).map((processor) => processor.stop()))
+    await Promise.allSettled([
+      ...Object.values(this.processors).map((processor) => processor.stop()),
+      this.notifier.stop(),
+    ])
   }
 
   @method
