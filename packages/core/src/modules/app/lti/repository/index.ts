@@ -218,17 +218,12 @@ export class LtiMutations extends BaseService {
         target: [lineitems.user_id, lineitems.activity_id, lineitems.lineitem_url],
         set: {
           cutoff_at,
-          submittable_progress,
+          submittable_progress: sql`GREATEST(${lineitems.submittable_progress}, ${submittable_progress})`,
           dead_at: null,
           submission_eligible_at: sql`
             CASE WHEN ${lineitems.submittable_progress} > ${lineitems.submitted_progress}
             THEN COALESCE(${lineitems.submission_eligible_at}, now())
             ELSE GREATEST(${lineitems.submission_eligible_at}, now()) END`,
-          submission_lease_expires_at: null,
-          submission_lease_token: null,
-          submission_error_count: 0,
-          submission_error_category: null,
-          submission_error_message: null,
           updated_at: sql`now()`,
         },
       })
