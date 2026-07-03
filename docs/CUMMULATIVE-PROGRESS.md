@@ -10,9 +10,24 @@ summary: "Design for activities that report a calculation of their own progress 
 > specifies **Phase 1** — the new agent ↔ gradebook API contract — and the
 > **Phase 2** backend (transactional multi-activity writes with idempotent,
 > increment-based accumulation, plus multi-URL reads) and the live demo index
-> roll-up. Both phases are implemented; the remaining work is **Phase 2b**
-> (lazy-create of missing targets).
-> Sections marked _(Phase 2)_ are not yet implemented.
+> roll-up. Both phases are implemented.
+>
+> **Update — the activity-code scope gate has been removed.** Earlier cuts of
+> Phase 2 (described below) gated umbrella contributions and reads on the source
+> and target **sharing an activity code**, and deferred creation of unknown
+> targets to a "Phase 2b." That gate contradicted the core model — the author is
+> authoritative about which pages a lesson reports into, and Modulus stores no
+> page→page relationship — and, worse, was incompatible with creating targets on
+> demand (a freshly created row shares no code with anyone). **As built now:**
+> a `set-progress` submission **accepts every target URL unconditionally** and
+> **lazy-creates** the activity row when the URL is unseen; there is **no**
+> activity-code scope check on either the write or read path. Activity codes are
+> orthogonal to umbrella reporting. The only planned restriction on lazy-create is
+> a future **URL allow/deny policy** (a whitelist), applied identically here and
+> on the OAuth self path — see [Dynamic Activities](./DYNAMIC-ACTIVITIES.md),
+> whose "coded vs un-coded" authorization model is **superseded** by this change.
+> The passages below that describe the `sharesActivityCode` gate are retained for
+> history; read them through this update.
 
 This is the design for **cumulative** (informally "umbrella") progress: letting an
 activity report a *calculation of its own progress* against one or more **other**
@@ -185,8 +200,8 @@ follow:
   Each registration cleans up on unmount and is accumulated separately:
   `Δself × 1/12` flows to the course index and `Δself × 1/30` to the bootcamp on
   the same submission. Factors are independent (no constraint that they sum to
-  anything), and scope is checked **per target** — a parent that shares no activity
-  code with the leaf is skipped + warned while the others (and self) still apply.
+  anything). Each target is applied on its own (and lazy-created if unseen); there
+  is no per-target activity-code scope check (superseded — see the status note).
 - `calculus-1/index.tsx` is a **live cumulative activity** (Phase 2). It shows its
   own accumulated total via `modulus.progress()` (the index is itself an activity,
   with no problems of its own) and a per-child roll-up fetched with
@@ -213,18 +228,24 @@ system compiles and round-trips end-to-end.
   amount added is computed **server-side** from the observed advance of the
   source's idempotent high-water mark (`Δself × factor`). No per-source breakdown
   table is needed.
-- **Strict resolution.** A target URL is honored only if it is already a recorded
-  activity that **shares an activity code** with the source. Unknown / out-of-code
-  targets are skipped (see below). Lazy-creating missing targets is a later
-  **Phase 2b**.
-- **Skip + warn on a bad target.** The learner's own (self) progress is **always**
-  persisted; an invalid umbrella target is logged and skipped rather than failing
-  the whole submission. `result.others` contains only the valid targets.
-- **Activity code derived at request time — no token change.** Scope is checked
-  with an `activity_activity_code` self-join (does source share a code with
-  target?), so the Phase 1 token (`activity_id` only) is left untouched.
-  (`activity_codes.url_prefix` is optional and, in practice, often empty —
-  membership via `activity_activity_code` is the authoritative scope.)
+- **Unconditional resolution + lazy-create.** ~~A target URL is honored only if it
+  is already a recorded activity that shares an activity code with the source.~~
+  **(Superseded.)** Every target URL is honored; when the URL is unseen the
+  activity row is **lazy-created** in the same transaction. There is **no**
+  activity-code scope check — codes are orthogonal to umbrella reporting. (A
+  future URL allow/deny policy is the only planned gate; not built yet.)
+- **Reject authoring errors; clamp value glitches.** The learner's own (self)
+  progress is **always** persisted. *Structural* authoring errors — a duplicate
+  target URL, a self-referencing target, or a URL over the 255-char column limit
+  — **reject the whole request** (they fail identically every submission, so
+  failing loudly surfaces the misconfiguration). *Value* glitches — a
+  `progress`/`factor` outside `[0,1]` — are **clamped**, never rejected, so a
+  transient glitch can't discard real progress. `result.others` lists each
+  applied target.
+- **No token change.** Resolution is purely by URL
+  (`findActivityByUrl` / lazy-create), so the Phase 1 token (`activity_id` only)
+  is left untouched. The `activity_activity_code` self-join that formerly scoped
+  contributions is gone.
 
 ### Why increments, and no `progress_contributions` table
 
@@ -270,20 +291,29 @@ reconstructability for a far smaller surface; see the trade-offs below.
 
 ### Write path (`set-progress`, one transaction)
 
-1. **Self** → high-water `progress` update (returns `Δself`, the real advance) +
-   a self `progress_events` row (`source_activity_id = null`), as Phase 1.
+0. **Serialize per learner** — take a transaction-scoped advisory lock keyed by
+   `user_id` (`pg_advisory_xact_lock`), so two concurrent submissions for the same
+   user can't deadlock on overlapping target row locks acquired in differing order.
+1. **Self** → high-water `progress` update (submitted value clamped to `[0,1]`;
+   returns `Δself`, the real advance) + a self `progress_events` row
+   (`source_activity_id = null`), as Phase 1.
 2. **Per target** — only when `Δself > 0` (a retry/no-op skips this entirely):
-   1. resolve the activity by URL; verify it shares a code with self (else skip + warn);
-   2. `progress[target] = LEAST(1.0, progress[target] + Δself × factor)` (upsert);
-   3. record a contribution `progress_events` row (`source_activity_id = source`).
+   1. resolve the activity by URL, **lazy-creating** it if unseen (no code check);
+   2. `progress[target] = LEAST(1.0, GREATEST(0, progress[target] + Δself × factor))`
+      (upsert), which also reports whether the high-water mark actually advanced;
+   3. **only if it advanced**, record a contribution `progress_events` row
+      (`source_activity_id = source`) and nudge line items — a clamped no-op writes
+      nothing.
 3. Return `{ progress: self, others: [{ url, progress }] }`.
 
 ### Read path (`get-progress`)
 
 `progress[target]` already holds the accumulated total, so a cumulative page load
 is a plain lookup — no recompute. `get-progress({ urls })` returns self plus, for
-each requested URL that **shares a code** with self, a `{ url, progress }` entry in
-`others` (resolved in parallel; unknown / out-of-scope URLs are skipped).
+each requested URL that resolves to a known activity, a `{ url, progress }` entry
+in `others` (resolved in parallel; there is no activity-code scope check).
+Reads are **side-effect-free**: an unknown URL is simply omitted (the agent
+renders a missing entry as `0`) — the read path never lazy-creates.
 
 ### `progress_events` and history
 
@@ -308,20 +338,23 @@ events; the `source_activity_id` says which source triggered a target snapshot.
 ### Activity existence (resolve vs. create)
 
 A target URL may or may not yet be a recorded activity. The contract carries the
-raw URL precisely so this policy lives entirely in the backend:
+raw URL precisely so this policy lives entirely in the backend. **As built:**
 
-- **Strict (this cut).** A target is honored only if it is already a recorded
-  activity that shares a code with the source. Unknown / out-of-code targets are
-  skipped + warned. Reuses `findActivityByUrl()` plus the `activity_codes` /
-  `activity_activity_code` tables.
-- **Lazy-create (Phase 2b).** When a target URL isn't yet an activity, create the
-  activity row inside the same transaction before recording progress — so children
-  can report into a cumulative page that hasn't been visited/created yet. This is
-  now specified in its own subsystem doc,
-  [Dynamic Activities (Lazy Create)](./DYNAMIC-ACTIVITIES.md), which gates lazy
-  creation behind a site-wide admin allowlist and records the decision to create
-  the row **without** an activity-code association (so an instructor must manually
-  add the URL to their activity code for it to appear in code-scoped roll-ups).
+- **Lazy-create, unconditional (this cut).** When a target URL isn't yet an
+  activity, its row is created inside the same transaction (a bare `activities`
+  row — `id` + `url`, **no** activity-code association) before the contribution is
+  applied. There is no scope check, so a child can report into a cumulative page
+  that has never been visited or created. `findActivityByUrl()` resolves an
+  existing row; a `uuidv7()` insert with `ON CONFLICT (url) DO NOTHING` handles the
+  create (and a cross-user create race — the loser re-resolves the winning row).
+- **Future — URL allow/deny policy.** The only planned restriction is a
+  site-wide URL allowlist, applied identically here and on the OAuth self path,
+  discussed in [Dynamic Activities](./DYNAMIC-ACTIVITIES.md). Note that doc's
+  earlier "coded vs un-coded" authorization model is **superseded**: with the
+  `sharesActivityCode` gate removed there is no coded/un-coded distinction to make
+  — every activity (created or pre-existing) is treated the same for umbrella
+  reporting, and activity-code membership matters only for the separate concern of
+  code-scoped analytics.
 
 ## Names as built
 

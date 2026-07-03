@@ -1,7 +1,27 @@
-import { and, asc, eq, getTableColumns, gt, isNull, lt, lte, max, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  eq,
+  getTableColumns,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  max,
+  or,
+  sql,
+} from 'drizzle-orm'
 
-import { lineitems, platformHealth, platforms, progressEvents } from '@/database/schema/index.js'
-import { submissionEvents } from '@/database/schema/source/lti/lti-submission-events.js'
+import {
+  lineitems,
+  platformHealth,
+  platformIncidents,
+  platforms,
+  progressEvents,
+  submissionFailures,
+} from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
@@ -21,8 +41,17 @@ export type PlatformHealthUpdate = Omit<
   Partial<PlatformHealthRecord>,
   'platform_issuer' | 'created_at' | 'updated_at'
 >
-export type SubmissionEventRecord = typeof submissionEvents.$inferSelect
-export type SubmissionEventInsert = typeof submissionEvents.$inferInsert
+export type SubmissionFailureRecord = typeof submissionFailures.$inferSelect
+export type SubmissionFailureInsert = typeof submissionFailures.$inferInsert
+export type IncidentRecord = typeof platformIncidents.$inferSelect
+export type IncidentInsert = typeof platformIncidents.$inferInsert
+export type IncidentAggregateUpdate = {
+  last_failure_at: Date
+  failure_count: number
+  distinct_affected_lineitems: number
+  categories_seen: string[]
+  severity: string
+}
 
 export class LtiScoreSubmissionQueries extends BaseService {
   private utils: CoreUtils
@@ -68,18 +97,72 @@ export class LtiScoreSubmissionQueries extends BaseService {
   }
 
   @method
-  async getSubmissionEventsForPlatformSince(
+  async getSubmissionFailuresForPlatformSince(
     issuer: string,
     timestamp: Date
-  ): Promise<SubmissionEventRecord[]> {
+  ): Promise<SubmissionFailureRecord[]> {
     return await this.db
       .get()
-      .query.submissionEvents.findMany({
+      .query.submissionFailures.findMany({
         where: and(
-          eq(submissionEvents.platform_issuer, issuer),
-          gt(submissionEvents.occurred_at, timestamp)
+          eq(submissionFailures.platform_issuer, issuer),
+          gt(submissionFailures.occurred_at, timestamp)
         ),
       })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async getOpenIncidentForPlatform(issuer: string): Promise<IncidentRecord | undefined> {
+    return await this.db
+      .get()
+      .query.platformIncidents.findFirst({
+        where: and(
+          eq(platformIncidents.platform_issuer, issuer),
+          isNull(platformIncidents.resolved_at)
+        ),
+      })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  /**
+   * Incidents due to be paged: high-severity, open, not-yet-paged, and whose
+   * *active span* (`last_failure_at - opened_at`) has reached the persist
+   * threshold. Global (all platforms), oldest first.
+   */
+  @method
+  async getIncidentsToPage(persistSeconds: number): Promise<IncidentRecord[]> {
+    return await this.db
+      .get()
+      .select()
+      .from(platformIncidents)
+      .where(
+        and(
+          isNull(platformIncidents.resolved_at),
+          isNull(platformIncidents.notified_at),
+          eq(platformIncidents.severity, 'high'),
+          sql`${platformIncidents.last_failure_at} - ${platformIncidents.opened_at} >= make_interval(secs => ${persistSeconds})`
+        )
+      )
+      .orderBy(asc(platformIncidents.opened_at))
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  /** Resolved incidents that were paged but have not yet had an all-clear sent. */
+  @method
+  async getIncidentsToAllClear(): Promise<IncidentRecord[]> {
+    return await this.db
+      .get()
+      .select()
+      .from(platformIncidents)
+      .where(
+        and(
+          isNotNull(platformIncidents.resolved_at),
+          isNotNull(platformIncidents.notified_at),
+          isNull(platformIncidents.resolved_notified_at)
+        )
+      )
+      .orderBy(asc(platformIncidents.resolved_at))
       .catch(this.utils.wrapDbErrorNew())
   }
 
@@ -304,8 +387,88 @@ export class LtiScoreSubmissionMutations extends BaseService {
   }
 
   @method
-  async recordSubmissionEvent(event: SubmissionEventInsert) {
-    await this.db.get().insert(submissionEvents).values(event).catch(this.utils.wrapDbErrorNew())
+  async recordSubmissionFailure(failure: SubmissionFailureInsert) {
+    await this.db
+      .get()
+      .insert(submissionFailures)
+      .values(failure)
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async openIncident(incident: IncidentInsert) {
+    await this.db
+      .get()
+      .insert(platformIncidents)
+      .values(incident)
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async updateIncidentAggregates(id: string, fields: IncidentAggregateUpdate) {
+    await this.db
+      .get()
+      .update(platformIncidents)
+      .set({ ...fields, updated_at: sql`now()` })
+      .where(eq(platformIncidents.id, id))
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  /**
+   * Backfills the incident pointer onto the failure-log rows of an incident's
+   * opening burst, so the log and the incident's counters agree.
+   */
+  @method
+  async backfillFailureIncident(incident_id: string, failure_ids: string[]) {
+    if (failure_ids.length === 0) {
+      return
+    }
+    await this.db
+      .get()
+      .update(submissionFailures)
+      .set({ incident_id })
+      .where(inArray(submissionFailures.id, failure_ids))
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async closeIncident(id: string, resolved_at: Date) {
+    await this.db
+      .get()
+      .update(platformIncidents)
+      .set({ resolved_at, updated_at: sql`now()` })
+      .where(eq(platformIncidents.id, id))
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  /**
+   * Idempotently claims the right to page for an incident: stamps `notified_at`
+   * only if still unset. Returns true if this caller won the claim (and should
+   * deliver the page); false if another sweep already did.
+   */
+  @method
+  async claimIncidentPage(id: string): Promise<boolean> {
+    const result = await this.db
+      .get()
+      .update(platformIncidents)
+      .set({ notified_at: sql`now()`, updated_at: sql`now()` })
+      .where(and(eq(platformIncidents.id, id), isNull(platformIncidents.notified_at)))
+      .catch(this.utils.wrapDbErrorNew())
+
+    return result.rowCount != null && result.rowCount > 0
+  }
+
+  /** Idempotently claims the right to send an incident's all-clear. */
+  @method
+  async claimIncidentAllClear(id: string): Promise<boolean> {
+    const result = await this.db
+      .get()
+      .update(platformIncidents)
+      .set({ resolved_notified_at: sql`now()`, updated_at: sql`now()` })
+      .where(and(eq(platformIncidents.id, id), isNull(platformIncidents.resolved_notified_at)))
+      .catch(this.utils.wrapDbErrorNew())
+
+    return result.rowCount != null && result.rowCount > 0
   }
 
   // @method
