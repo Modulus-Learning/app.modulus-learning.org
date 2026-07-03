@@ -326,6 +326,20 @@ Only the first two rows are "clean round-trips" that reset the breaker's failure
 counter; every other row increments it. The next section explains how that counter
 drives platform-level behavior.
 
+> **Known issue — `timestamp` is POST-time, not earned-time.** The `timestamp` we send
+> is `new Date().toISOString()` (submission time), whereas AGS defines it as "when the
+> score was *modified in the tool*" — i.e. when the learner reached the high-water mark,
+> which is the `submitted_at` of the progress event that established `submittable_progress`.
+> Canvas also uses `timestamp` for ordering (it rejects a stamp older than the last one it
+> recorded — the `superseded` path above), so this is not purely cosmetic. Sending
+> earned-time would be more spec-faithful and give cleaner idempotency, and it is now
+> *safe* because `submittable_progress` is monotonic (a higher HWM always comes from a
+> later event, so per-item stamps stay monotonically increasing). It is not yet done
+> because the submitter only has the HWM *value*, not the establishing event's time — that
+> would need a persisted `submittable_progress_at` column fed by the ingestion and launch
+> paths. Tracked in [SCORE-SUBMISSION-TODO](./SCORE-SUBMISSION-TODO.md). We also do not
+> send the optional `submission.submittedAt`; deliberately, as it buys little for our model.
+
 ## Error handling, in three tiers
 
 Failures are handled at three levels, each more conservative — more reluctant to

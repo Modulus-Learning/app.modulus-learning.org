@@ -6,6 +6,23 @@ summary: "How new activities are materialized on demand ('lazy-created') from ag
 
 # Dynamic Activities (Lazy Create)
 
+> **Status: PARTIALLY SUPERSEDED.** The umbrella-target half of this design has
+> since been simplified. As built, `set-progress` **accepts every target URL
+> unconditionally and lazy-creates** the activity row on miss (a bare
+> `activities` row — `id` + `url`, no code association). Critically, the
+> **activity-code scope gate (`sharesActivityCode`) has been removed entirely**,
+> which means the **"coded vs un-coded" authorization model this document builds
+> its central decision around no longer exists** — there is nothing to bifurcate,
+> because *no* activity (created or pre-existing) is scope-checked for umbrella
+> reporting. Activity codes matter only for the separate concern of code-scoped
+> analytics. What **survives** as future work is the **site-wide URL allow/deny
+> policy** (the allowlist below): the *only* planned restriction on lazy-create,
+> applied identically to the OAuth self path and the umbrella-target path. It is
+> **not yet implemented** — the current cut is allow-all. Read the "authorization
+> model (coded vs un-coded)" and Option A/B/C discussion below as **historical
+> rationale**; the allowlist/policy-table and admin-surface sections remain the
+> plan of record for the future gate.
+
 This document describes **lazy activity creation** — letting Modulus materialize
 an `activities` row on demand when an agent reports against a URL that is not yet
 recorded — and the **site-wide admin policy** that governs when that is allowed.
@@ -148,6 +165,13 @@ future enhancement is an admin/instructor affordance to surface "un-coded"
 activities and link them to a code (see [Future work](#future-work)).
 
 ## Authorization model (coded vs un-coded)
+
+> **Superseded.** This section is retained as history. It reconciles a
+> `sharesActivityCode` gate that **no longer exists** — the gate was removed
+> wholesale, so there is no coded/un-coded distinction and no bifurcation. Every
+> activity is treated identically for umbrella reporting; code membership governs
+> only code-scoped analytics. The future lazy-create gate is a single URL
+> allow/deny check (the site policy above), not the scheme below.
 
 Because Option C produces activities with **no** code membership, the existing
 `sharesActivityCode` gate would exclude them from cumulative contributions and
