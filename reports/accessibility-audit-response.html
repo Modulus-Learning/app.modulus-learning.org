@@ -1,0 +1,625 @@
+<title>MODULUS Accessibility Audit Response</title>
+<style>
+  :root {
+    --ground: #f4f6f8;
+    --surface: #ffffff;
+    --surface-2: #eef1f4;
+    --ink: #19202a;
+    --ink-2: #3a4653;
+    --muted: #62707d;
+    --hairline: #e2e7ec;
+    --hairline-2: #d3dae1;
+    --accent: #0e6e77;
+    --accent-2: #0a565d;
+
+    --good: #16733f;
+    --good-bg: #e3f1e9;
+    --good-line: #bfe0cd;
+    --pending: #98600f;
+    --pending-bg: #f6edda;
+    --pending-line: #e7d4ac;
+    --neutral: #4f5a66;
+    --neutral-bg: #e9edf1;
+    --neutral-line: #d3dae1;
+
+    --sev-crit: #bd3a2c;
+    --sev-serious: #bd4a10;
+    --sev-moderate: #8a6008;
+    --sev-minor: #64707c;
+
+    --shadow: 0 1px 2px rgba(20, 30, 45, .04), 0 8px 24px -12px rgba(20, 30, 45, .12);
+
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+    --maxw: 68rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0f151b;
+      --surface: #161e26;
+      --surface-2: #1e2831;
+      --ink: #e8ecf0;
+      --ink-2: #c2ccd5;
+      --muted: #93a0ad;
+      --hairline: #26313b;
+      --hairline-2: #313d48;
+      --accent: #4bc0ca;
+      --accent-2: #79d4dc;
+
+      --good: #46c883;
+      --good-bg: #14311f;
+      --good-line: #235536;
+      --pending: #e2ac41;
+      --pending-bg: #362a13;
+      --pending-line: #574321;
+      --neutral: #9aa6b2;
+      --neutral-bg: #212a33;
+      --neutral-line: #313d48;
+
+      --sev-crit: #f0685b;
+      --sev-serious: #f08a4d;
+      --sev-moderate: #dba844;
+      --sev-minor: #93a0ad;
+
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -14px rgba(0, 0, 0, .5);
+    }
+  }
+
+  :root[data-theme="light"] {
+    --ground: #f4f6f8; --surface: #ffffff; --surface-2: #eef1f4;
+    --ink: #19202a; --ink-2: #3a4653; --muted: #62707d;
+    --hairline: #e2e7ec; --hairline-2: #d3dae1;
+    --accent: #0e6e77; --accent-2: #0a565d;
+    --good: #16733f; --good-bg: #e3f1e9; --good-line: #bfe0cd;
+    --pending: #98600f; --pending-bg: #f6edda; --pending-line: #e7d4ac;
+    --neutral: #4f5a66; --neutral-bg: #e9edf1; --neutral-line: #d3dae1;
+    --sev-crit: #bd3a2c; --sev-serious: #bd4a10; --sev-moderate: #8a6008; --sev-minor: #64707c;
+    --shadow: 0 1px 2px rgba(20, 30, 45, .04), 0 8px 24px -12px rgba(20, 30, 45, .12);
+  }
+  :root[data-theme="dark"] {
+    --ground: #0f151b; --surface: #161e26; --surface-2: #1e2831;
+    --ink: #e8ecf0; --ink-2: #c2ccd5; --muted: #93a0ad;
+    --hairline: #26313b; --hairline-2: #313d48;
+    --accent: #4bc0ca; --accent-2: #79d4dc;
+    --good: #46c883; --good-bg: #14311f; --good-line: #235536;
+    --pending: #e2ac41; --pending-bg: #362a13; --pending-line: #574321;
+    --neutral: #9aa6b2; --neutral-bg: #212a33; --neutral-line: #313d48;
+    --sev-crit: #f0685b; --sev-serious: #f08a4d; --sev-moderate: #dba844; --sev-minor: #93a0ad;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -14px rgba(0, 0, 0, .5);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 clamp(1.1rem, 4vw, 2.5rem); }
+
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  /* ---------- Header ---------- */
+  header.masthead {
+    border-bottom: 1px solid var(--hairline);
+    background:
+      radial-gradient(120% 140% at 100% 0%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 60%),
+      var(--surface);
+  }
+  .eyebrow {
+    font-family: var(--sans);
+    font-size: .72rem;
+    font-weight: 650;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    margin: 0 0 .9rem;
+    display: flex; align-items: center; gap: .6rem;
+  }
+  .eyebrow::before {
+    content: ""; width: 1.6rem; height: 2px; background: var(--accent); border-radius: 2px;
+  }
+  header.masthead .inner { padding: clamp(2.4rem, 6vw, 4rem) 0 clamp(1.8rem, 4vw, 2.6rem); }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(2rem, 5vw, 3.1rem);
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0 0 .5rem;
+  }
+  .lede {
+    font-size: clamp(1.02rem, 2.2vw, 1.18rem);
+    color: var(--ink-2);
+    max-width: 46ch;
+    margin: 0 0 1.8rem;
+  }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: .35rem 2.2rem;
+    border-top: 1px solid var(--hairline);
+    padding-top: 1.3rem;
+  }
+  .meta div { display: flex; flex-direction: column; gap: .1rem; }
+  .meta dt {
+    font-size: .68rem; font-weight: 650; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .meta dd { margin: 0; font-size: .95rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .meta dd .mono { font-family: var(--mono); font-size: .86rem; }
+
+  /* ---------- Sections ---------- */
+  section { padding: clamp(2.2rem, 5vw, 3.4rem) 0; }
+  section + section { border-top: 1px solid var(--hairline); }
+  .sec-head { margin-bottom: 1.6rem; }
+  .sec-head .eyebrow { margin-bottom: .5rem; }
+  h2 {
+    font-family: var(--serif); font-weight: 600;
+    font-size: clamp(1.4rem, 3vw, 1.9rem); line-height: 1.15;
+    letter-spacing: -0.01em; margin: 0 0 .4rem; text-wrap: balance;
+  }
+  h2 .count {
+    font-family: var(--sans); font-size: .95rem; font-weight: 600;
+    color: var(--muted); font-variant-numeric: tabular-nums;
+  }
+  .sec-sub { color: var(--ink-2); max-width: 62ch; margin: 0; }
+
+  /* ---------- KPI row ---------- */
+  .kpis {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 1px; background: var(--hairline);
+    border: 1px solid var(--hairline); border-radius: 14px; overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .kpi { background: var(--surface); padding: 1.3rem 1.35rem; display: flex; flex-direction: column; gap: .3rem; }
+  .kpi .n { font-family: var(--serif); font-size: clamp(2rem, 4.5vw, 2.8rem); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .kpi .l { font-size: .8rem; color: var(--muted); font-weight: 550; letter-spacing: .02em; }
+  .kpi.big .n { color: var(--ink); }
+  .kpi.good .n { color: var(--good); }
+  .kpi.pending .n { color: var(--pending); }
+  .kpi.neutral .n { color: var(--neutral); }
+
+  /* ---------- Meter ---------- */
+  .meter-wrap { margin-top: 1.6rem; }
+  .meter {
+    display: flex; height: 15px; border-radius: 8px; overflow: hidden;
+    background: var(--surface-2); border: 1px solid var(--hairline);
+  }
+  .meter span { display: block; height: 100%; }
+  .meter .s-good { background: var(--good); }
+  .meter .s-pending { background: var(--pending); }
+  .meter .s-neutral { background: var(--neutral); }
+  .meter span + span { box-shadow: -2px 0 0 var(--surface); }
+  .legend { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; margin-top: .9rem; }
+  .legend .item { display: flex; align-items: center; gap: .5rem; font-size: .84rem; color: var(--ink-2); }
+  .legend .dot { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .dot.good { background: var(--good); }
+  .dot.pending { background: var(--pending); }
+  .dot.neutral { background: var(--neutral); }
+
+  /* ---------- Callout ---------- */
+  .callout {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px; padding: 1.2rem 1.4rem; box-shadow: var(--shadow);
+  }
+  .callout.warn { border-left-color: var(--pending); }
+  .callout h3 { margin: 0 0 .45rem; font-family: var(--sans); font-size: 1rem; font-weight: 680; letter-spacing: .01em; }
+  .callout p { margin: 0 0 .6rem; color: var(--ink-2); font-size: .95rem; }
+  .callout p:last-child { margin-bottom: 0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
+
+  /* ---------- Tables ---------- */
+  .table-scroll { overflow-x: auto; border: 1px solid var(--hairline); border-radius: 12px; box-shadow: var(--shadow); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: .92rem; }
+  thead th {
+    text-align: left; font-family: var(--sans); font-size: .69rem; font-weight: 680;
+    letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+    padding: .8rem 1rem; border-bottom: 1px solid var(--hairline-2);
+    background: var(--surface-2); position: sticky; top: 0; white-space: nowrap;
+  }
+  tbody td { padding: .85rem 1rem; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: color-mix(in oklab, var(--accent) 4%, var(--surface)); }
+  .col-id { font-family: var(--mono); font-size: .82rem; color: var(--muted); font-variant-numeric: tabular-nums; width: 2.6rem; }
+  .finding { font-weight: 620; color: var(--ink); line-height: 1.35; }
+  .resolution { color: var(--muted); font-size: .86rem; margin-top: .2rem; line-height: 1.4; }
+  .resolution code, .loc code { font-family: var(--mono); font-size: .82em; background: var(--surface-2); padding: .05em .35em; border-radius: 4px; }
+  .col-loc { color: var(--ink-2); font-size: .86rem; white-space: nowrap; }
+  .col-wcag { font-family: var(--mono); font-size: .8rem; color: var(--ink-2); white-space: nowrap; }
+
+  /* severity chip */
+  .sev { display: inline-flex; align-items: center; gap: .4rem; font-size: .74rem; font-weight: 600; letter-spacing: .02em; white-space: nowrap; color: var(--ink-2); }
+  .sev::before { content: ""; width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--sev-minor); }
+  .sev.crit { color: var(--sev-crit); }
+  .sev.crit::before { background: var(--sev-crit); }
+  .sev.serious { color: var(--sev-serious); }
+  .sev.serious::before { background: var(--sev-serious); }
+  .sev.moderate::before { background: var(--sev-moderate); }
+  .sev.minor::before { background: var(--sev-minor); }
+  .sev.bp { color: var(--muted); }
+  .sev.bp::before { background: var(--muted); border-radius: 2px; }
+
+  /* status pill */
+  .pill { display: inline-flex; align-items: center; gap: .4rem; padding: .18rem .6rem; border-radius: 999px; font-size: .74rem; font-weight: 650; letter-spacing: .01em; white-space: nowrap; border: 1px solid transparent; }
+  .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .pill.good { color: var(--good); background: var(--good-bg); border-color: var(--good-line); }
+  .pill.good::before { background: var(--good); }
+  .pill.pending { color: var(--pending); background: var(--pending-bg); border-color: var(--pending-line); }
+  .pill.pending::before { background: var(--pending); }
+  .pill.neutral { color: var(--neutral); background: var(--neutral-bg); border-color: var(--neutral-line); }
+  .pill.neutral::before { background: var(--neutral); }
+
+  .section-badge { margin-left: auto; }
+
+  ul.clean { margin: .4rem 0 0; padding-left: 1.1rem; color: var(--ink-2); }
+  ul.clean li { margin-bottom: .3rem; }
+
+  footer { border-top: 1px solid var(--hairline); padding: 2rem 0 3rem; color: var(--muted); font-size: .85rem; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: .4rem 1.5rem; justify-content: space-between; }
+
+  .tag { font-family: var(--mono); font-size: .82rem; color: var(--accent-2); }
+
+  @media (max-width: 720px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    tbody tr td { transition: background .12s ease; }
+  }
+
+  @media print {
+    @page { size: Letter; margin: 13mm; }
+
+    /* Force the light theme for print regardless of the viewer's setting, and
+       print background colours (pills, meter, severity dots, callout rules). */
+    :root, :root[data-theme="dark"], :root[data-theme="light"] {
+      --ground: #ffffff; --surface: #ffffff; --surface-2: #f1f4f6;
+      --ink: #17202a; --ink-2: #38434f; --muted: #5b6773;
+      --hairline: #d9dfe5; --hairline-2: #c9d1d9;
+      --accent: #0c5f68; --accent-2: #0a4d55;
+      --good: #146436; --good-bg: #e6f2ea; --good-line: #bfe0cd;
+      --pending: #8a570d; --pending-bg: #f6eedc; --pending-line: #e7d4ac;
+      --neutral: #4a5560; --neutral-bg: #eceff2; --neutral-line: #d3dae1;
+      --sev-crit: #b23528; --sev-serious: #b0450f; --sev-moderate: #7e5807; --sev-minor: #5f6b77;
+      --shadow: none;
+    }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    body { background: #fff; }
+    header.masthead { background: #fff; }
+    header.masthead .inner { padding-top: 0; }
+    section { padding: 1.3rem 0; }
+    .table-scroll { overflow: visible; box-shadow: none; border-radius: 8px; }
+    .callout, .kpis { box-shadow: none; }
+
+    /* Keep related blocks together; repeat table headers across page breaks. */
+    .sec-head { break-after: avoid; }
+    .kpis, .callout, .meter-wrap { break-inside: avoid; }
+    thead { display: table-header-group; }
+    tbody tr { break-inside: avoid; }
+    thead th { position: static; padding: .45rem .6rem; }
+    tbody td { padding: .5rem .6rem; }
+    table { min-width: 0; font-size: .78rem; }
+    h1 { font-size: 2.1rem; }
+    .kpi .n { font-size: 2rem; }
+    a { color: var(--ink); text-decoration: none; }
+  }
+</style>
+
+<header class="masthead">
+  <div class="wrap inner">
+    <p class="eyebrow">Accessibility Audit Response</p>
+    <h1>MODULUS Gradebook — WCAG 2.1 audit remediation</h1>
+    <p class="lede">Our response to the 33 findings in the MODULUS website accessibility audit (report&nbsp;02), with the status and resolution of each.</p>
+    <dl class="meta">
+      <div><dt>Product</dt><dd>MODULUS Gradebook</dd></div>
+      <div><dt>Standard</dt><dd>WCAG 2.1 A / AA</dd></div>
+      <div><dt>Source</dt><dd>Audit report 02 · 33 findings</dd></div>
+      <div><dt>Prepared</dt><dd>3 July 2026</dd></div>
+      <div><dt>Shared components</dt><dd><span class="mono">@infonomic/uikit 6.7.7</span></dd></div>
+    </dl>
+  </div>
+</header>
+
+<main>
+  <!-- SUMMARY -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">At a glance</p>
+        <h2>31 of 33 findings addressed</h2>
+        <p class="sec-sub">Every finding has been actioned or has a documented decision. Two findings are not changed — one is informational (logged by the auditor), and one we assess as a false positive and would like to discuss.</p>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi big"><span class="n">33</span><span class="l">Total findings</span></div>
+        <div class="kpi good"><span class="n">18</span><span class="l">Resolved &amp; verified</span></div>
+        <div class="kpi pending"><span class="n">13</span><span class="l">Fixed — verification underway</span></div>
+        <div class="kpi neutral"><span class="n">2</span><span class="l">Not actioned (see notes)</span></div>
+      </div>
+
+      <div class="meter-wrap">
+        <div class="meter" role="img" aria-label="18 resolved, 13 fixed, 2 not actioned, out of 33 findings">
+          <span class="s-good" style="width:54.5%"></span>
+          <span class="s-pending" style="width:39.4%"></span>
+          <span class="s-neutral" style="width:6.1%"></span>
+        </div>
+        <div class="legend">
+          <span class="item"><span class="dot good"></span>Resolved &amp; verified — implemented and confirmed in the running app</span>
+          <span class="item"><span class="dot pending"></span>Fixed — implemented; final screen-reader / signed-in verification underway</span>
+          <span class="item"><span class="dot neutral"></span>Not actioned — informational, or assessed as correct-as-built</span>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:1.8rem">
+        <div class="callout">
+          <h3>Where the fixes live</h3>
+          <p>Many findings sit in our shared component library, <span class="tag">@infonomic/uikit</span>, rather than the app itself — the search field, select, checkbox, copy button, pagination and tabs. Those were fixed centrally and released as <span class="mono">6.7.7</span>, so they resolve everywhere the component is used, not just on the page where each was reported.</p>
+        </div>
+        <div class="callout">
+          <h3>How we verified</h3>
+          <p>Type-checking and linting on every change; the app driven in-browser (light &amp; dark themes, keyboard operation, rendered-DOM inspection). The tab keyboard behaviour and sign-in page were confirmed hands-on. Remaining items await a signed-in screen-reader pass over the authenticated dashboard.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESOLVED -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head" style="display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap">
+        <div>
+          <p class="eyebrow">Resolved &amp; verified</p>
+          <h2>Confirmed fixed <span class="count">· 18 findings</span></h2>
+        </div>
+        <span class="pill good section-badge">Resolved</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Finding &amp; resolution</th><th>Location</th><th>WCAG</th><th>Severity</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="col-id">1</td>
+              <td><div class="finding">Theme switcher activated on Tab / Shift</div><div class="resolution">Key handling changed so the switcher activates only on <kbd>Space</kbd>&nbsp;/&nbsp;<kbd>Enter</kbd>.</div></td>
+              <td class="col-loc">Global</td><td class="col-wcag">2.1.1 A</td><td><span class="sev moderate">Moderate</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">2</td>
+              <td><div class="finding">Profile menu reported the wrong item count</div><div class="resolution">Removed the <code>role="separator"</code> divider that was being counted.</div></td>
+              <td class="col-loc">Global</td><td class="col-wcag">1.3.1 A</td><td><span class="sev moderate">Moderate</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">3</td>
+              <td><div class="finding">Footer focus indicator contrast too low</div><div class="resolution">Darkened the focus colour to meet the 3:1 non-text-contrast minimum.</div></td>
+              <td class="col-loc">Footer</td><td class="col-wcag">1.4.11 AA</td><td><span class="sev moderate">Moderate</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">4</td>
+              <td><div class="finding">“Create activity code” should be an <code>h1</code></div><div class="resolution">Page heading is now a top-level <code>h1</code>.</div></td>
+              <td class="col-loc">Create Activity Code</td><td class="col-wcag">1.3.1 A</td><td><span class="sev minor">Minor</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">6</td>
+              <td><div class="finding">Field helper texts not associated with inputs</div><div class="resolution">Helper texts wired to their inputs via <code>aria-describedby</code>.</div></td>
+              <td class="col-loc">Create Activity Code</td><td class="col-wcag">1.3.1 A</td><td><span class="sev minor">Minor</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">7</td>
+              <td><div class="finding">“Activity code” field had no accessible name</div><div class="resolution">Field now exposes a valid accessible name.</div></td>
+              <td class="col-loc">Create Activity Code</td><td class="col-wcag">3.3.2 A</td><td><span class="sev serious">Serious</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">8</td>
+              <td><div class="finding">Multiple unnamed <code>form</code> elements</div><div class="resolution">Form structure on the create-activity-code page corrected.</div></td>
+              <td class="col-loc">Create Activity Code</td><td class="col-wcag">4.1.2 A</td><td><span class="sev minor">Minor</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">11</td>
+              <td><div class="finding">Focus indicator lost on tab &amp; tab-panel</div><div class="resolution">Removed an <code>outline:none</code>; tabs and panels now show a visible focus ring. Confirmed by keyboard.</div></td>
+              <td class="col-loc">Activity Code — Edit</td><td class="col-wcag">2.1.1 / 2.4.7</td><td><span class="sev serious">Serious</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">12</td>
+              <td><div class="finding">Cancel-button focus contrast (1.8:1)</div><div class="resolution">Darkened the shared focus ring to <span class="mono">#666</span> (5.8:1). <span class="tag">uikit 6.7.7</span></div></td>
+              <td class="col-loc">Activity Code — Edit</td><td class="col-wcag">1.1.1 A</td><td><span class="sev serious">Serious</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">13</td>
+              <td><div class="finding">Invisible “no action” button in Remove Member dialog</div><div class="resolution">Removed it; focus now opens on the labelled <strong>Close</strong> button (whose accessible-name typo was also fixed).</div></td>
+              <td class="col-loc">Activity Code — Edit</td><td class="col-wcag">2.1.1 / 2.4.7</td><td><span class="sev moderate">Moderate</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">14</td>
+              <td><div class="finding">Tabs not switchable by keyboard</div><div class="resolution">Enabled arrow-key activation on the tablist; with the restored ring, tabs now switch and show focus. Confirmed by keyboard.</div></td>
+              <td class="col-loc">Activity Code — Edit</td><td class="col-wcag">2.1.1 A</td><td><span class="sev crit">Critical</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">16</td>
+              <td><div class="finding">Members should be an unordered list</div><div class="resolution">Already implemented as a <code>&lt;ul&gt;</code>/<code>&lt;li&gt;</code> list with each action inside its item.</div></td>
+              <td class="col-loc">Activity Code — Edit</td><td class="col-wcag">1.3.1 A</td><td><span class="sev moderate">Moderate</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">20</td>
+              <td><div class="finding">Search clear / search buttons had no focus indicator</div><div class="resolution">Removed the <code>outline:none</code> that suppressed the ring. <span class="tag">uikit 6.7.7</span></div></td>
+              <td class="col-loc">Learners</td><td class="col-wcag">2.4.7 AA</td><td><span class="sev serious">Serious</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">22</td>
+              <td><div class="finding">Search <code>aria-labelledby</code> pointed to a missing id</div><div class="resolution">Resolved in an earlier component-library accessibility pass. <span class="tag">uikit 6.7.6</span></div></td>
+              <td class="col-loc">Learners</td><td class="col-wcag">4.1.2 A</td><td><span class="sev serious">Serious</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">30</td>
+              <td><div class="finding">Multiple unnamed forms on the sign-in page</div><div class="resolution">Each of the three forms (password, GitHub, Google) now has an <code>aria-label</code>.</div></td>
+              <td class="col-loc">Sign In</td><td class="col-wcag">4.1.2 A</td><td><span class="sev minor">Minor</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">31</td>
+              <td><div class="finding">Required “*” read as part of the label</div><div class="resolution">Asterisk marked <code>aria-hidden</code>; required state still conveyed by <code>aria-required</code>. <span class="tag">uikit 6.7.7</span></div></td>
+              <td class="col-loc">Sign In</td><td class="col-wcag">—</td><td><span class="sev bp">Best practice</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">32</td>
+              <td><div class="finding">“Remember me” checkbox had no focus indicator</div><div class="resolution">Checkbox now shows a focus ring when keyboard-focused, checked or not. <span class="tag">uikit 6.7.7</span></div></td>
+              <td class="col-loc">Sign In</td><td class="col-wcag">2.4.7 AA</td><td><span class="sev moderate">Moderate</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">33</td>
+              <td><div class="finding">“Sign In” should be an <code>h2</code></div><div class="resolution">Rendered as a real <code>h2</code>, matching the “Start Activity” heading level.</div></td>
+              <td class="col-loc">Sign In</td><td class="col-wcag">1.3.1 A</td><td><span class="sev minor">Minor</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- FIXED -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head" style="display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap">
+        <div>
+          <p class="eyebrow">Fixed — verification underway</p>
+          <h2>Implemented, pending a signed-in pass <span class="count">· 13 findings</span></h2>
+          <p class="sec-sub">These live on the authenticated dashboard. The code is complete, type-checked and merged; a final screen-reader / signed-in walkthrough will move them to resolved.</p>
+        </div>
+        <span class="pill pending section-badge">Fixed</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Finding &amp; resolution</th><th>Location</th><th>WCAG</th><th>Severity</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="col-id">9</td>
+              <td><div class="finding">Screen readers not notified on page change</div><div class="resolution">Focus is moved to the new page’s <code>h1</code> after each client navigation.</div></td>
+              <td class="col-loc">Global (SPA)</td><td class="col-wcag">Best practice</td><td><span class="sev bp">Best practice</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">10</td>
+              <td><div class="finding">“Copy” button had no accessible name</div><div class="resolution">Added a descriptive <code>aria-label</code>.</div></td>
+              <td class="col-loc">Activity Codes</td><td class="col-wcag">4.1.2 / 3.3.2</td><td><span class="sev crit">Critical</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">15</td>
+              <td><div class="finding">Autocomplete announced raw data before the value</div><div class="resolution">Added <code>itemToStringValue</code> so the screen reader hears the person’s name, not the serialized object.</div></td>
+              <td class="col-loc">Activity Code — Edit</td><td class="col-wcag">4.1.2 A</td><td><span class="sev minor">Minor</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">17</td>
+              <td><div class="finding">Analytics card focus contrast (1.6:1)</div><div class="resolution">Cards now show a contrast-compliant focus ring via <code>focus-within</code>.</div></td>
+              <td class="col-loc">Analytics</td><td class="col-wcag">2.4.7 / 2.1.1</td><td><span class="sev moderate">Moderate</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">18</td>
+              <td><div class="finding">Breadcrumb focus differed by browser / too faint</div><div class="resolution">Added an explicit <code>focus-visible</code> ring (5.8:1) so Safari no longer falls back to its faint default.</div></td>
+              <td class="col-loc">Activities</td><td class="col-wcag">2.4.7 AA</td><td><span class="sev minor">Minor</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">19</td>
+              <td><div class="finding">Card titles were not real headings</div><div class="resolution">Refactored to the link-overlay pattern: each card has a real <code>h2</code> whose link covers the card, so the page is navigable by heading.</div></td>
+              <td class="col-loc">Analytics</td><td class="col-wcag">1.3.1 A</td><td><span class="sev minor">Minor</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">21</td>
+              <td><div class="finding">Search buttons unnamed + <code>arial-label</code> typo + redundant role</div><div class="resolution">Fixed the misspelled attribute (so the names apply) and removed the redundant <code>role="button"</code>. <span class="tag">uikit 6.7.7</span></div></td>
+              <td class="col-loc">Learners</td><td class="col-wcag">4.1.2 A</td><td><span class="sev serious">Serious</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">23</td>
+              <td><div class="finding">Pagination controls not operable</div><div class="resolution">Enabled controls were already links; the disabled controls (First/Prev, current page) are now <code>&lt;button&gt;</code> elements instead of bare <code>&lt;div&gt;</code>.</div></td>
+              <td class="col-loc">Learners</td><td class="col-wcag">1.3.1 A</td><td><span class="sev crit">Critical</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">25</td>
+              <td><div class="finding">Sortable columns lacked sort state</div><div class="resolution">Added <code>aria-sort</code> to sortable headers plus a visually-hidden “sortable” hint on the controls.</div></td>
+              <td class="col-loc">Learners</td><td class="col-wcag">4.1.2 A</td><td><span class="sev moderate">Moderate</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">26</td>
+              <td><div class="finding">Copy buttons in table cells had no names</div><div class="resolution">Disambiguated with <code>aria-label</code> — “Copy URL” and “Copy launch URL”.</div></td>
+              <td class="col-loc">Activities</td><td class="col-wcag">4.1.2 A</td><td><span class="sev serious">Serious</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">27</td>
+              <td><div class="finding">Page <code>&lt;title&gt;</code> didn’t update on navigation</div><div class="resolution">Dashboard routes now set a per-page title (e.g. <em>Modulus – Learners</em>), which the built-in route announcer reads aloud.</div></td>
+              <td class="col-loc">Global (SPA)</td><td class="col-wcag">2.4.2 A</td><td><span class="sev moderate">Moderate</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">28</td>
+              <td><div class="finding">Stat cards should be a list / group</div><div class="resolution">Wrapped the stats in a labelled <code>role="group"</code>.</div></td>
+              <td class="col-loc">Completion</td><td class="col-wcag">1.3.1 A</td><td><span class="sev minor">Minor</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">29</td>
+              <td><div class="finding">Page sections lacked semantic headings</div><div class="resolution">Section titles promoted to <code>h2</code> so the page structure is exposed.</div></td>
+              <td class="col-loc">Completion</td><td class="col-wcag">1.3.1 A</td><td><span class="sev minor">Minor</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- NOT ACTIONED -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head" style="display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap">
+        <div>
+          <p class="eyebrow">Not actioned</p>
+          <h2>Documented decisions <span class="count">· 2 findings</span></h2>
+        </div>
+        <span class="pill neutral section-badge">For discussion</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Finding &amp; decision</th><th>Location</th><th>WCAG</th><th>Severity</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="col-id">5</td>
+              <td><div class="finding">Heading levels skipped (footer <code>h3</code>)</div><div class="resolution">Acknowledged — logged by the auditor as informational (“not really practical to fix”). Footer headings are structural site-wide; left as-is.</div></td>
+              <td class="col-loc">Footer</td><td class="col-wcag">1.3.1 A</td><td><span class="sev bp">Best practice</span></td>
+            </tr>
+            <tr>
+              <td class="col-id">24</td>
+              <td><div class="finding">“Pages per view” has <code>role="combobox"</code></div><div class="resolution"><strong>Assessed as a false positive.</strong> The control renders <code>role="combobox"</code> with the full supporting ARIA (<code>aria-haspopup</code>, <code>aria-expanded</code>, <code>aria-controls</code>, <code>aria-labelledby</code>) — the valid ARIA&nbsp;1.2 select-only combobox pattern. Removing the role would break it. We’d welcome the auditor’s confirmation.</div></td>
+              <td class="col-loc">Learners</td><td class="col-wcag">4.1.2 A</td><td><span class="sev minor">Minor</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout warn" style="margin-top:1.6rem">
+        <h3>One question for the auditor — finding 24</h3>
+        <p>Finding 24 is the only point where we’d propose <em>not</em> making the recommended change. The <code>role="combobox"</code> reported here is, in our reading, the current WAI-ARIA select-only combobox pattern (a button that expands a listbox), correctly supported by <code>aria-expanded</code> / <code>aria-controls</code>. The “remove the role” guidance matches the older ARIA 1.1 model where <code>combobox</code> required a descendant text input. If you agree, we’ll mark it closed; if you’re seeing a specific AT failure, we’ll dig in further.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>MODULUS Gradebook · Accessibility audit response (report 02)</span>
+    <span>Prepared 3 July 2026 · Shared components released as <span class="tag">@infonomic/uikit 6.7.7</span></span>
+  </div>
+</footer>
