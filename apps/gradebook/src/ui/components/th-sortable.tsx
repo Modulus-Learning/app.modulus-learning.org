@@ -91,8 +91,10 @@ export function TableHeadingCellSortable({
     }
   }
 
+  const ariaSort = desc == null ? 'none' : desc ? 'descending' : 'ascending'
+
   return (
-    <Table.HeadingCell className={className} {...rest}>
+    <Table.HeadingCell className={className} aria-sort={ariaSort} {...rest}>
       <button
         type="button"
         className={cx('flex font-bold text-[0.975rem] gap-1 pl-[2px] pr-[6px] hover:underline', {
@@ -101,6 +103,8 @@ export function TableHeadingCellSortable({
         onClick={handleOnSort(desc !== true)}
       >
         <span>{label}</span>
+        {/* Communicate that this column is sortable to screen-reader users. */}
+        <span className="sr-only"> sortable</span>
         {getSortIcon()}
       </button>
     </Table.HeadingCell>

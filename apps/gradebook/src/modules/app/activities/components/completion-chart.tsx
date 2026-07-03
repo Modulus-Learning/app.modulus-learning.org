@@ -72,7 +72,7 @@ export function CompletionChart({ data }: { data: ProgressResponse }) {
 
   return (
     <div className="flex flex-col gap-6 mb-12">
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-3" role="group" aria-label="Learner statistics">
         <Card>
           <Card.Header className="flex flex-row items-center justify-between space-y-0 pb-2">
             <Card.Title className="text-sm font-medium">Total Students</Card.Title>
@@ -123,7 +123,9 @@ export function CompletionChart({ data }: { data: ProgressResponse }) {
       </div>
       <Card className="col-span-4">
         <Card.Header>
-          <Card.Title>Learner Activity</Card.Title>
+          <Card.Title>
+            <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>Learner Activity</h2>
+          </Card.Title>
           <Card.Description>
             {`Distribution of 5,000 students completing activity ${data?.included?.activity_code?.code} over a 3-month period`}
           </Card.Description>
@@ -140,7 +142,9 @@ export function CompletionChart({ data }: { data: ProgressResponse }) {
       </Card>
       <Card>
         <Card.Header>
-          <Card.Title>Activity Insights</Card.Title>
+          <Card.Title>
+            <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>Activity Insights</h2>
+          </Card.Title>
           <Card.Description>Analysis of student completion patterns.</Card.Description>
         </Card.Header>
         <Card.Content>

@@ -37,13 +37,16 @@ export function ActivityCodeContainer({
       onValueChange={handleOnTabValueChange}
       className="p-0 overflow-hidden min-h-[500px]"
     >
-      <Tabs.List className="p-0 border-t-0 border-r-0 gap-0 border-l-0 border-b-1 rounded-none">
+      <Tabs.List
+        activateOnFocus
+        className="p-0 border-t-0 border-r-0 gap-0 border-l-0 border-b-1 rounded-none"
+      >
         <Tabs.Trigger
           value="detailsTab"
           render={
             <Button
               className={cx(
-                'rounded-none outline-none border-gray-300 dark:border-gray-400 border-t-0 border-r-0 border-l-0',
+                'rounded-none border-gray-300 dark:border-gray-400 border-t-0 border-r-0 border-l-0',
                 {
                   'border-b-1 bg-gray-50 dark:bg-canvas-700': currentTab === 'detailsTab',
                 }
@@ -61,7 +64,7 @@ export function ActivityCodeContainer({
           render={
             <Button
               className={cx(
-                'rounded-none outline-none border-gray-300 dark:border-gray-400 border-t-0 border-r-0 border-l-0',
+                'rounded-none border-gray-300 dark:border-gray-400 border-t-0 border-r-0 border-l-0',
                 {
                   'border-b-1  bg-gray-50 dark:bg-canvas-700': currentTab === 'membersTab',
                 }
@@ -76,10 +79,18 @@ export function ActivityCodeContainer({
         </Tabs.Trigger>
       </Tabs.List>
 
-      <Tabs.Content value="detailsTab" keepMounted={true}>
+      <Tabs.Content
+        value="detailsTab"
+        keepMounted={true}
+        className="focus-visible:[outline:2px_solid_var(--ring-noeffect)] focus-visible:[outline-offset:-2px]"
+      >
         <UpdateActivityCodeForm activityCode={activityCode} activities={activities} lng={lng} />
       </Tabs.Content>
-      <Tabs.Content value="membersTab" keepMounted={true}>
+      <Tabs.Content
+        value="membersTab"
+        keepMounted={true}
+        className="focus-visible:[outline:2px_solid_var(--ring-noeffect)] focus-visible:[outline-offset:-2px]"
+      >
         <ActivityCodeMembersPanel
           activityCodeId={activityCode.id}
           initialMembers={members}

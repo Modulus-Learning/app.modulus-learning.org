@@ -207,7 +207,7 @@ function RemoveMemberConfirmModal({
       <Modal.Container className="sm:max-w-[480px]">
         <Modal.Header className="flex items-center justify-between mb-4">
           <h3 className="m-0">{isSelf ? 'Leave this activity code?' : 'Remove member?'}</h3>
-          <IconButton arial-label="Close" size="xs" onClick={onCancel}>
+          <IconButton aria-label="Close" size="xs" onClick={onCancel}>
             <CloseIcon width="14px" height="14px" svgClassName="white-icon" />
           </IconButton>
         </Modal.Header>
@@ -226,9 +226,6 @@ function RemoveMemberConfirmModal({
           )}
         </Modal.Content>
         <Modal.Actions>
-          <button data-autofocus type="button" tabIndex={0} className="sr-only">
-            no action
-          </button>
           <Button size="md" intent="noeffect" onClick={onCancel} disabled={isPending}>
             Cancel
           </Button>

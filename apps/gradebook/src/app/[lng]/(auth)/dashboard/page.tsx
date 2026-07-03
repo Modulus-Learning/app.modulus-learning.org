@@ -67,6 +67,7 @@ export default async function ActivityList({
                             variant="outlined"
                             size="xs"
                             intent="noeffect"
+                            aria-label={`Copy activity code ${activityCode.code}`}
                             text={activityCode.code}
                           />
                           <LangLink className="pb-0.75" href={adminPath}>

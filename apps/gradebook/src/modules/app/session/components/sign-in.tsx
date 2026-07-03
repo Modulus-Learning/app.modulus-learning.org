@@ -107,7 +107,9 @@ export function SignIn({
     <Card className="sm:max-w-[400px] dark:border-gray-600">
       <Card.Header className="pb-1">
         <Card.Title className={cx('font-semibold', { 'text-[1.5rem]': style === 'compact' })}>
-          {t('Sign In')}
+          {/* Render as a real h2 (matching the "Start Activity" heading level)
+              while inheriting the Card.Title typography. */}
+          <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>{t('Sign In')}</h2>
         </Card.Title>
         <Card.Description>
           Sign in to your account. {t('Don’t have an account yet?')}{' '}
@@ -147,7 +149,13 @@ export function SignIn({
       </Card.Header>
 
       <Card.Content>
-        <form action={signInFormAction} onSubmit={handleOnSubmit} noValidate className="pt-2 mb-2">
+        <form
+          action={signInFormAction}
+          onSubmit={handleOnSubmit}
+          noValidate
+          aria-label={t('Sign in with email and password')}
+          className="pt-2 mb-2"
+        >
           <input type="hidden" name="callback_url" value={callback} />
           <div className="form-elements flex flex-col gap-4 mt-0">
             <div>
@@ -210,7 +218,7 @@ export function SignIn({
           </div>
         </div>
         <div className="flex flex-col gap-4 w-full mb-4">
-          <form action={gitHubFormAction}>
+          <form action={gitHubFormAction} aria-label={t('Sign in with GitHub')}>
             <input type="hidden" name="source" value={source} />
             {callback != null && <input type="hidden" name="callbackUrl" value={callback} />}
             <Button
@@ -228,7 +236,7 @@ export function SignIn({
               )}
             </Button>
           </form>
-          <form action={googleFormAction}>
+          <form action={googleFormAction} aria-label={t('Sign in with Google')}>
             <input type="hidden" name="source" value={source} />
             {callback != null && <input type="hidden" name="callbackUrl" value={callback} />}
             <Button

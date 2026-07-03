@@ -236,6 +236,7 @@ export function ActivitiesView({
                           variant="outlined"
                           size="xs"
                           intent="noeffect"
+                          aria-label="Copy URL"
                           text={activity.url}
                         />
                         <a
@@ -257,6 +258,7 @@ export function ActivitiesView({
                           variant="outlined"
                           size="xs"
                           intent="noeffect"
+                          aria-label="Copy launch URL"
                           text={`${config.publicServerUrl}/${activityCode.code}/${activity.url}`}
                         />
                         <a

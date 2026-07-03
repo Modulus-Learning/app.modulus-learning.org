@@ -30,7 +30,10 @@
     "Sign Up": "Registrarse",
     "Sign Out": "Cerrar Sesión",
     "Submit": "Enviar",
-    "Cancel": "Cancelar"
+    "Cancel": "Cancelar",
+    "Sign in with email and password": "Iniciar sesión con correo electrónico y contraseña",
+    "Sign in with GitHub": "Iniciar sesión con GitHub",
+    "Sign in with Google": "Iniciar sesión con Google"
   },
   "register": {
     "Sign Up": "Registrarse",

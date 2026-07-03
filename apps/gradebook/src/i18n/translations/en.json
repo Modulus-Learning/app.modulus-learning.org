@@ -30,7 +30,10 @@
     "Sign Up": "Sign Up",
     "Sign Out": "Sign Out",
     "Submit": "Submit",
-    "Cancel": "Cancel"
+    "Cancel": "Cancel",
+    "Sign in with email and password": "Sign in with email and password",
+    "Sign in with GitHub": "Sign in with GitHub",
+    "Sign in with Google": "Sign in with Google"
   },
   "register": {
     "Sign Up": "Sign Up",
