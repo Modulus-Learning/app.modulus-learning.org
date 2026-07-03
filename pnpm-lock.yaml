@@ -82,8 +82,8 @@ importers:
   apps/agent-demo/react:
     dependencies:
       '@infonomic/uikit':
-        specifier: ^6.7.6
-        version: 6.7.6(@date-fns/tz@1.5.0)(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^6.7.7
+        version: 6.7.7(@date-fns/tz@1.5.0)(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@modulus-learning/agent':
         specifier: workspace:*
         version: link:../../agent
@@ -189,8 +189,8 @@ importers:
         specifier: ^2.4.0
         version: 2.4.0
       '@infonomic/uikit':
-        specifier: ^6.7.6
-        version: 6.7.6(@date-fns/tz@1.5.0)(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^6.7.7
+        version: 6.7.7(@date-fns/tz@1.5.0)(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@modulus-learning/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -1612,8 +1612,8 @@ packages:
   '@infonomic/schemas@2.4.0':
     resolution: {integrity: sha512-FFt69fDyhYdNiWabxUq/cBCsvenh1OVkj/ZrbjmGhPGkrDTY7N20KqysC46mFFmUzrTnLfMRAyy2f7sT1ZScwg==}
 
-  '@infonomic/uikit@6.7.6':
-    resolution: {integrity: sha512-j7DHucmkRqUFaJooVDt3/1r9g73ttfrYVQS7C01cGmpT5ody3W60mFKA2U4TEXi93GKU9PfIsWrBIpW4odgaQQ==}
+  '@infonomic/uikit@6.7.7':
+    resolution: {integrity: sha512-AQY3a4BQkwiPLtxD3Iz50G2oH85bIB//HA/NKDGFy1z3/m9OlT3YVnJMlfVwvuWniNKoyfXRIjjc4+iBfCUiwQ==}
     peerDependencies:
       react: ^19.0.0
       react-dom: ^19.0.0
@@ -7585,7 +7585,7 @@ snapshots:
       dotenv: 17.4.2
       zod: 4.4.3
 
-  '@infonomic/uikit@6.7.6(@date-fns/tz@1.5.0)(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@infonomic/uikit@6.7.7(@date-fns/tz@1.5.0)(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@base-ui/react': 1.6.0(@date-fns/tz@1.5.0)(@types/react@19.2.17)(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       classnames: 2.5.1
