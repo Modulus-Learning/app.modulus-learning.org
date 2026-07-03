@@ -22,3 +22,13 @@ html {
 .root {
   isolation: isolate;
 }
+
+/**
+ * a11y: after a client-side navigation, RouteFocusManager moves focus to the
+ * page's <h1> so screen-reader/keyboard users land in the new content. That
+ * focus is programmatic (not keyboard), so suppress the focus ring for it while
+ * keeping it for genuine keyboard focus.
+ */
+#main-content h1:focus:not(:focus-visible) {
+  outline: none;
+}

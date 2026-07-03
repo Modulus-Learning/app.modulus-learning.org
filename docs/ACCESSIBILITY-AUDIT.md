@@ -36,9 +36,29 @@ First implementation pass complete and the uikit fixes are **released** in
   passed — arrow keys switch tabs with a visible ring; the Remove Member dialog no
   longer has the phantom tab stop and opens focus on a labelled Close button).
 - **🛠 Code-complete, awaiting an authenticated verification pass** (auth-gated
-  dashboard pages): findings 10, 17, 21, 25, 26, 28, 29. The code is confirmed
+  dashboard pages): findings 10, 21, 25, 26, 28, 29, **9 + 27** (SPA navigation),
+  and **17, 18, 19** (analytics cards + breadcrumb focus). The code is confirmed
   present in the app source and the released uikit assets; they move to ✅ once
   seen in-browser while signed in.
+
+**SPA navigation (9, 27):** dashboard routes now export per-page `generateMetadata`
+so `document.title` reflects the current page (e.g. *Modulus - Learners*) — which
+Next.js's built-in `aria-live` route announcer reads on each client navigation,
+notifying screen-reader users. A new `RouteFocusManager` (mounted in the
+authenticated layout) additionally moves focus to the new page's `<h1>` after
+navigation, keying off `usePathname()` so query-only updates (pagination, search,
+sort) don't steal focus. Routes compile clean; the `getMeta`→`<title>` pipeline is
+verified on public pages.
+
+**Analytics cards + breadcrumbs (17, 18, 19):** the analytics link-cards were
+refactored to the "link overlay" pattern — each card is now a plain container
+with a real `<h2>` heading whose link's `::after` covers the whole card (so the
+card stays clickable, the accessible name is just the title, and the page is
+navigable by headings). The card shows a contrast-compliant focus ring via
+`focus-within` (this also resolves 17 — that ring is a card, not a `noeffect`
+button, so the uikit token change did not cover it). Breadcrumb links get an
+explicit `focus-visible` ring (`--ring-noeffect`, 5.8:1) so Safari no longer
+falls back to its ~1.6:1 default.
 :::
 
 ## Legend
@@ -72,7 +92,7 @@ described (High / Medium / Low).
 | 6  | Associate field helper texts (`aria-describedby`) | 1.3.1 A | Minor | App | — | ✅ Resolved |
 | 7  | "Activity code" field has no accessible name | 3.3.2 A | Serious | App | — | ✅ Resolved |
 | 8  | Multiple unnamed forms (create activity code) | 4.1.2 A | Minor | App | — | ✅ Resolved |
-| 9  | SPA nav not announced (focus `h1`) | Best Practice | Best Practice | App | Medium | ☐ Open |
+| 9  | SPA nav not announced (focus `h1`) | Best Practice | Best Practice | App | Medium | 🛠 Fixed |
 | 10 | "Copy" button unnamed | 4.1.2 / 3.3.2 A | **Critical** | App | High | 🛠 Fixed |
 | 11 | Focus indicator lost on tab / tabpanel | 2.1.1 / 2.4.7 A/AA | Serious | App | Medium | ✅ Resolved |
 | 12 | Focus indicator contrast on cancel buttons | 1.1.1 A | Serious | UIKit | Medium | ✅ Resolved |
@@ -80,9 +100,9 @@ described (High / Medium / Low).
 | 14 | Tabs not keyboard-navigable (arrow keys) | 2.1.1 A | **Critical** | App | Medium | ✅ Resolved |
 | 15 | Autocomplete reads raw data before value | 4.1.2 A | Minor | UIKit | Low | 🔍 Investigating |
 | 16 | Members should be an unordered list | 1.3.1 A | Moderate | App | — | ✅ Resolved |
-| 17 | Focus indicator contrast on analytics cards | 2.4.7 / 2.1.1 | Moderate | App / UIKit | Medium | 🛠 Fixed |
-| 18 | Breadcrumb focus differs Safari/Chrome | 2.4.7 AA | Minor | App | Medium | ☐ Open |
-| 19 | Card headings need semantic headings + link overlay | 1.3.1 A | Minor | App | Medium | ☐ Open |
+| 17 | Focus indicator contrast on analytics cards | 2.4.7 / 2.1.1 | Moderate | App | Medium | 🛠 Fixed |
+| 18 | Breadcrumb focus differs Safari/Chrome | 2.4.7 AA | Minor | App | Medium | 🛠 Fixed |
+| 19 | Card headings need semantic headings + link overlay | 1.3.1 A | Minor | App | Medium | 🛠 Fixed |
 | 20 | Search clear/search buttons no focus indicator | 2.4.7 AA | Serious | UIKit | High | ✅ Resolved |
 | 21 | Search buttons unnamed + `arial-label` typo + redundant role | 4.1.2 A | Serious | UIKit | High | 🛠 Fixed |
 | 22 | Search `aria-labelledby` points to non-existent id | 4.1.2 A | Serious | UIKit | High | ✅ Resolved |
@@ -90,7 +110,7 @@ described (High / Medium / Low).
 | 24 | "Pages per view" has incorrect `role="combobox"` | 4.1.2 A | Minor | Base UI | Low | 🔍 Investigating |
 | 25 | Sortable columns need `aria-sort` + "sortable" hint | 4.1.2 A | Moderate | App | High | 🛠 Fixed |
 | 26 | Copy buttons in table cells need accessible names | 4.1.2 A | Serious | App | High | 🛠 Fixed |
-| 27 | SPA does not update page `<title>` | 2.4.2 A | Moderate | App | Medium | ☐ Open |
+| 27 | SPA does not update page `<title>` | 2.4.2 A | Moderate | App | Medium | 🛠 Fixed |
 | 28 | Stats cards should be a list / `role="group"` | 1.3.1 A | Minor | App | High | 🛠 Fixed |
 | 29 | Page sections need semantic headings | 1.3.1 A | Minor | App | High | 🛠 Fixed |
 | 30 | Multiple unnamed forms on login | 4.1.2 A | Minor | App | High | ✅ Resolved |

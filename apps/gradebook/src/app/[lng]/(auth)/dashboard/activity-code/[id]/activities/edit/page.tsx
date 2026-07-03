@@ -1,13 +1,24 @@
 import { notFound, redirect } from 'next/navigation'
 
 import { Container, Section } from '@infonomic/uikit/react'
+import type { Metadata } from 'next'
 
 import { getCoreUserRequestContext } from '@/core-adapter'
+import { getMeta } from '@/lib/meta'
 import { ActivityCodeContainer } from '@/modules/app/activities/components/activity-code-container'
 import { getActivities } from '@/modules/app/activities/get-activities'
 import { listActivityCodeMembers } from '@/modules/app/activities/list-activity-code-members'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
 import type { Locale } from '@/i18n/i18n-config'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ lng: Locale; id: string }>
+}): Promise<Metadata> {
+  const { lng } = await params
+  return getMeta(lng, { title: 'Edit Activity Code' })
+}
 
 export default async function Activities({
   params,

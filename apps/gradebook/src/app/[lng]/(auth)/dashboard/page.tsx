@@ -1,10 +1,21 @@
 import { Button, Container, CopyButton, Section, Table } from '@infonomic/uikit/react'
+import type { Metadata } from 'next'
 
 import { LangLink } from '@/i18n/components/lang-link'
+import { getMeta } from '@/lib/meta'
 import { getActivityCodes } from '@/modules/app/activities/get-activity-codes'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
 import { LocalDateTime } from '@/ui/components/local-date-time'
 import type { Locale } from '@/i18n/i18n-config'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ lng: Locale }>
+}): Promise<Metadata> {
+  const { lng } = await params
+  return getMeta(lng, { title: 'Activity Codes' })
+}
 
 export default async function ActivityList({
   params,

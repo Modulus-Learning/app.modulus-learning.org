@@ -1,11 +1,22 @@
 import { notFound } from 'next/navigation'
 
 import { Container, Section } from '@infonomic/uikit/react'
+import type { Metadata } from 'next'
 
+import { getMeta } from '@/lib/meta'
 import { ActivitiesView } from '@/modules/app/activities/components/activities-view'
 import { getActivities } from '@/modules/app/activities/get-activities'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
 import type { Locale } from '@/i18n/i18n-config'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ lng: Locale; id: string }>
+}): Promise<Metadata> {
+  const { lng } = await params
+  return getMeta(lng, { title: 'Activities' })
+}
 
 export default async function Activities({
   params,

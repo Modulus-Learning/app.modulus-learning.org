@@ -8,6 +8,7 @@ import { getMeta } from '@/lib/meta'
 import { UserSessionProvider } from '@/modules/app/session/provider'
 import { getUserSession } from '@/modules/app/session/storage'
 import { AppBarInside } from '@/ui/components/app-bar-inside'
+import { RouteFocusManager } from '@/ui/components/route-focus-manager'
 import { SiteFooter } from '@/ui/components/site-footer'
 import { Providers } from '../providers'
 import { DocumentRoot } from '../root'
@@ -43,6 +44,7 @@ export default async function AuthLayout({
         <UserSessionProvider session={userSession}>
           <div className="layout-container root flex min-h-screen flex-col">
             <AppBarInside lng={lng} />
+            <RouteFocusManager />
             <main id="main-content" className="flex flex-1 flex-col">
               {children}
             </main>

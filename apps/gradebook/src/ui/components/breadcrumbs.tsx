@@ -30,7 +30,7 @@ export function Breadcrumbs({
           <LangLink
             lng={lng}
             href={homePath}
-            className="m-0 text inline-flex items-center font-medium text-gray-900 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"
+            className="m-0 text inline-flex items-center font-medium text-gray-900 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white rounded-[2px] focus-visible:[outline:2px_solid_var(--ring-noeffect)] focus-visible:[outline-offset:2px]"
           >
             <svg
               role="presentation"
@@ -67,7 +67,7 @@ export function Breadcrumbs({
                     <LangLink
                       lng={lng}
                       href={breadcrumb.href}
-                      className="text m-0 font-medium text-gray-900 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"
+                      className="text m-0 font-medium text-gray-900 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white rounded-[2px] focus-visible:[outline:2px_solid_var(--ring-noeffect)] focus-visible:[outline-offset:2px]"
                     >
                       {truncate(breadcrumb.label, 40, true)}
                     </LangLink>

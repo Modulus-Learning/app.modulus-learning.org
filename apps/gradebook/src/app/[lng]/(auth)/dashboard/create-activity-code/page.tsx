@@ -1,8 +1,19 @@
 import { Card, Container, Section } from '@infonomic/uikit/react'
+import type { Metadata } from 'next'
 
+import { getMeta } from '@/lib/meta'
 import { CreateActivityCodeForm } from '@/modules/app/activities/components/create-activity-code-form'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
 import type { Locale } from '@/i18n/i18n-config'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ lng: Locale }>
+}): Promise<Metadata> {
+  const { lng } = await params
+  return getMeta(lng, { title: 'Create Activity Code' })
+}
 
 export default async function CreateActivityCode({
   params,

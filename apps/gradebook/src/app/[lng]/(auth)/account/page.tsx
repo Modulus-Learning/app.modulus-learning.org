@@ -1,11 +1,22 @@
 import { notFound } from 'next/navigation'
 
 import { Container, Section } from '@infonomic/uikit/react'
+import type { Metadata } from 'next'
 
+import { getMeta } from '@/lib/meta'
 import { AccountContainer } from '@/modules/app/account/components/account-container'
 import { getAccount } from '@/modules/app/account/get-account'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
 import type { Locale } from '@/i18n/i18n-config'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ lng: Locale }>
+}): Promise<Metadata> {
+  const { lng } = await params
+  return getMeta(lng, { title: 'Account' })
+}
 
 export default async function AccountPage({
   params,

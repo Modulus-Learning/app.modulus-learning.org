@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 
 import { Button, Card, Container, Section } from '@infonomic/uikit/react'
@@ -46,161 +47,107 @@ export function ActivityCodeMenu({
 
       <Container className="mb-8">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {/* 1. Learners and Progress */}
-          <Card
-            render={
-              <Link
-                href={`/dashboard/activity-code/${activityCode.id}/learners`}
-                className="transition-all hover:scale-[1.02]"
-              />
-            }
-            hover={true}
-            className={cardClassName}
+          <AnalyticsCard
+            href={`/dashboard/activity-code/${activityCode.id}/learners`}
+            icon={<Users className="h-5 w-5" />}
+            title="Learners"
+            description="Learners and current progress per activity."
           >
-            <Card.Header className={cardHeaderClassName}>
-              <Card.Title className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Learners
-              </Card.Title>
-              <Card.Description>Learners and current progress per activity.</Card.Description>
-            </Card.Header>
-            <Card.Content className={cardContentClassName}>
-              <div className="rounded-md border p-2">
-                <TableSkeleton />
-              </div>
-            </Card.Content>
-            <Card.Footer className={cardFooterClassName}>
-              <div className="flex w-full items-center justify-between text-sm text-muted-foreground">
-                <span>View details</span>
-                <ChevronRight className="h-4 w-4" />
-              </div>
-            </Card.Footer>
-          </Card>
+            <TableSkeleton />
+          </AnalyticsCard>
 
-          {/* 2. Activities */}
-
-          <Card
-            render={
-              <Link
-                href={`/dashboard/activity-code/${activityCode.id}/activities`}
-                className="transition-all hover:scale-[1.02]"
-              />
-            }
-            hover={true}
-            className={cardClassName}
+          <AnalyticsCard
+            href={`/dashboard/activity-code/${activityCode.id}/activities`}
+            icon={<Link2 className="h-5 w-5" />}
+            title="Activities"
+            description="Table of activity URLs."
           >
-            <Card.Header className={cardHeaderClassName}>
-              <Card.Title className="flex items-center gap-2">
-                <Link2 className="h-5 w-5" />
-                Activities
-              </Card.Title>
-              <Card.Description>Table of activity URLs.</Card.Description>
-            </Card.Header>
-            <Card.Content className={cardContentClassName}>
-              <div className="rounded-md border p-2">
-                <TableSkeleton rows={4} />
-              </div>
-            </Card.Content>
-            <Card.Footer className={cardFooterClassName}>
-              <div className="flex w-full items-center justify-between text-sm text-muted-foreground">
-                <span>View details</span>
-                <ChevronRight className="h-4 w-4" />
-              </div>
-            </Card.Footer>
-          </Card>
+            <TableSkeleton rows={4} />
+          </AnalyticsCard>
 
-          {/* 3. Enrollment */}
-
-          <Card
-            render={<Link href="#" className="transition-all hover:scale-[1.02]" />}
-            hover={true}
-            className={cardClassName}
+          <AnalyticsCard
+            href="#"
+            icon={<Calendar className="h-5 w-5" />}
+            title="Enrollment"
+            description="Time distribution of learners enrolling / starting their first activity."
           >
-            <Card.Header className={cardHeaderClassName}>
-              <Card.Title className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Enrollment
-              </Card.Title>
-              <Card.Description>
-                Time distribution of learners enrolling / starting their first activity.
-              </Card.Description>
-            </Card.Header>
-            <Card.Content className={cardContentClassName}>
-              <div className="rounded-md border p-2">
-                <HistogramSkeleton />
-              </div>
-            </Card.Content>
-            <Card.Footer className={cardFooterClassName}>
-              <div className="flex w-full items-center justify-between text-sm text-muted-foreground">
-                <span>View details</span>
-                <ChevronRight className="h-4 w-4" />
-              </div>
-            </Card.Footer>
-          </Card>
+            <HistogramSkeleton />
+          </AnalyticsCard>
 
-          {/* 4. Completion Data */}
-
-          <Card
-            render={
-              <Link
-                href={`/dashboard/activity-code/${activityCode.id}/completion`}
-                className="transition-all hover:scale-[1.02]"
-              />
-            }
-            hover={true}
-            className={cardClassName}
+          <AnalyticsCard
+            href={`/dashboard/activity-code/${activityCode.id}/completion`}
+            icon={<BarChart3 className="h-5 w-5" />}
+            title="Completion Data"
+            description="Time distribution of learners completing activities."
           >
-            <Card.Header className={cardHeaderClassName}>
-              <Card.Title className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Completion Data
-              </Card.Title>
-              <Card.Description>
-                Time distribution of learners completing activities.
-              </Card.Description>
-            </Card.Header>
-            <Card.Content className={cardContentClassName}>
-              <div className="rounded-md border p-2">
-                <HistogramSkeleton variant="completion" />
-              </div>
-            </Card.Content>
-            <Card.Footer className={cardFooterClassName}>
-              <div className="flex w-full items-center justify-between text-sm text-muted-foreground">
-                <span>View details</span>
-                <ChevronRight className="h-4 w-4" />
-              </div>
-            </Card.Footer>
-          </Card>
+            <HistogramSkeleton variant="completion" />
+          </AnalyticsCard>
 
-          {/* 5. Activities Metrics */}
-
-          <Card
-            render={<Link href="#" className="transition-all hover:scale-[1.02]" />}
-            hover={true}
-            className={cardClassName}
+          <AnalyticsCard
+            href="#"
+            icon={<ClipboardList className="h-5 w-5" />}
+            title="Activity Metrics"
+            description="Event distribution for activity."
           >
-            <Card.Header className={cardHeaderClassName}>
-              <Card.Title className="flex items-center gap-2">
-                <ClipboardList className="h-5 w-5" />
-                Activity Metrics
-              </Card.Title>
-              <Card.Description>Event distribution for activity.</Card.Description>
-            </Card.Header>
-            <Card.Content className={cardContentClassName}>
-              <div className="rounded-md border p-2">
-                <HistogramSkeleton variant="events" />
-              </div>
-            </Card.Content>
-            <Card.Footer className={cardFooterClassName}>
-              <div className="flex w-full items-center justify-between text-sm text-muted-foreground">
-                <span>View details</span>
-                <ChevronRight className="h-4 w-4" />
-              </div>
-            </Card.Footer>
-          </Card>
+            <HistogramSkeleton variant="events" />
+          </AnalyticsCard>
         </div>
       </Container>
     </Section>
+  )
+}
+
+/**
+ * Analytics link-card using the "link overlay" pattern
+ * (https://inclusive-components.design/cards/#thepseudocontenttrick): the card
+ * itself is a plain container with a real <h2> heading, and the heading's link
+ * carries an ::after that covers the whole card — so the card is clickable while
+ * the accessible link name is just the title, and screen-reader users can still
+ * navigate the page by its headings. The card shows a focus ring via
+ * `focus-within` when the link is focused.
+ */
+function AnalyticsCard({
+  href,
+  icon,
+  title,
+  description,
+  children,
+}: {
+  href: string
+  icon: ReactNode
+  title: string
+  description: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <Card
+      hover={true}
+      className={`${cardClassName} relative transition-all hover:scale-[1.02] focus-within:[outline:2px_solid_var(--ring-noeffect)] focus-within:[outline-offset:2px]`}
+    >
+      <Card.Header className={cardHeaderClassName}>
+        <Card.Title className="flex items-center gap-2">
+          {icon}
+          <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>
+            <Link
+              href={href}
+              className="outline-none after:absolute after:inset-0 after:content-['']"
+            >
+              {title}
+            </Link>
+          </h2>
+        </Card.Title>
+        <Card.Description>{description}</Card.Description>
+      </Card.Header>
+      <Card.Content className={cardContentClassName}>
+        <div className="rounded-md border p-2">{children}</div>
+      </Card.Content>
+      <Card.Footer className={cardFooterClassName}>
+        <div className="flex w-full items-center justify-between text-sm text-muted-foreground">
+          <span>View details</span>
+          <ChevronRight className="h-4 w-4" />
+        </div>
+      </Card.Footer>
+    </Card>
   )
 }
 
