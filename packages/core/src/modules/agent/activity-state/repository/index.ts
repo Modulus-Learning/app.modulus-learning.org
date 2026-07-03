@@ -1,9 +1,8 @@
 import { and, eq, getTableColumns, gte, isNull, or, sql } from 'drizzle-orm'
-import { alias } from 'drizzle-orm/pg-core'
+import { v7 as uuidv7 } from 'uuid'
 
 import {
   activities,
-  activityActivityCode,
   lineitems,
   pageState,
   progress,
@@ -19,6 +18,9 @@ export type ProgressRecord = typeof progress.$inferSelect
 // `updated` is true when the high-water mark advanced (or there was no prior
 // row); `increase` is the actual numeric advance (Δself) -- 0 on a no-op/retry.
 export type ProgressUpdateRecord = ProgressRecord & { updated: boolean; increase: number }
+// `increased` is true when the increment actually advanced the (clamped)
+// high-water mark -- false for a no-op (amount 0, or an already-capped target).
+export type ProgressIncrementRecord = ProgressRecord & { increased: boolean }
 export type ProgressUpdate = Omit<typeof progress.$inferInsert, 'created_at' | 'updated_at'>
 
 export type ProgressEventInsert = typeof progressEvents.$inferInsert
@@ -76,26 +78,6 @@ export class ActivityStateQueries extends BaseService {
       .query.activities.findFirst({ where: eq(activities.url, url) })
       .catch(this.utils.wrapDbErrorNew())
   }
-
-  // True if `source_id` and `target_id` are both members of (at least) one
-  // common activity code -- the scope within which one activity is allowed to
-  // report a cumulative contribution against another.
-  @method
-  async sharesActivityCode(source_id: string, target_id: string): Promise<boolean> {
-    const source = alias(activityActivityCode, 'source')
-    const target = alias(activityActivityCode, 'target')
-
-    const rows = await this.db
-      .get()
-      .select({ one: sql`1` })
-      .from(source)
-      .innerJoin(target, eq(source.activity_code_id, target.activity_code_id))
-      .where(and(eq(source.activity_id, source_id), eq(target.activity_id, target_id)))
-      .limit(1)
-      .catch(this.utils.wrapDbErrorNew())
-
-    return rows.length > 0
-  }
 }
 
 export class ActivityStateMutations extends BaseService {
@@ -110,20 +92,21 @@ export class ActivityStateMutations extends BaseService {
 
   @method
   async updateProgress(values: ProgressUpdate): Promise<ProgressUpdateRecord> {
+    const clamped = Math.min(1, Math.max(0, values.progress))
     const [result] = await this.db
       .get()
       .insert(progress)
       .values({
         user_id: values.user_id,
         activity_id: values.activity_id,
-        progress: values.progress,
+        progress: clamped,
         created_at: sql`NOW()`,
         updated_at: sql`NOW()`,
       })
       .onConflictDoUpdate({
         target: [progress.activity_id, progress.user_id],
         set: {
-          progress: sql`GREATEST(${values.progress}, ${progress.progress})`,
+          progress: sql`GREATEST(${clamped}, ${progress.progress})`,
           updated_at: sql`NOW()`,
         },
       })
@@ -147,13 +130,14 @@ export class ActivityStateMutations extends BaseService {
 
   // Add `amount` to an activity's progress (the cumulative / "umbrella" target
   // write), clamped to a maximum of 1.0.  Creates the row if absent.  `amount`
-  // is the caller-computed Δself × factor.
+  // is the caller-computed Δself × factor.  Reports `increased` so the caller can
+  // skip the event/line-item writes on a no-op.
   @method
   async incrementProgress(values: {
     activity_id: string
     user_id: string
     amount: number
-  }): Promise<ProgressRecord> {
+  }): Promise<ProgressIncrementRecord> {
     const [result] = await this.db
       .get()
       .insert(progress)
@@ -167,16 +151,62 @@ export class ActivityStateMutations extends BaseService {
       .onConflictDoUpdate({
         target: [progress.activity_id, progress.user_id],
         set: {
-          progress: sql`LEAST(1.0, ${progress.progress} + ${values.amount})`,
+          // Clamp both ends: the upper bound is the cumulative cap, and the
+          // lower bound keeps a garbage/negative amount from *decreasing* an
+          // existing target (which would break its monotonicity).  With a
+          // clamped factor and Δself ≥ 0 the lower clamp is unreachable in
+          // normal operation -- it is defense-in-depth.
+          progress: sql`LEAST(1.0, GREATEST(0, ${progress.progress} + ${values.amount}))`,
           updated_at: sql`NOW()`,
         },
       })
-      .returning()
+      .returning({
+        ...getTableColumns(progress),
+        // True when the resulting (clamped) value exceeds what was there before
+        // -- new value > old value, or, for a freshly-created row, > 0.  False on
+        // a no-op (a 0 amount, or a target already at the cap).
+        increased: sql<boolean>`${progress.progress} > COALESCE(OLD.progress, 0)`,
+      })
       .catch(this.utils.wrapDbErrorNew())
 
     this.utils.assertExists(result, { message: 'incremented progress record is null' })
 
     return result
+  }
+
+  // Lazy-create a bare `activities` row for a URL Modulus hasn't seen before (an
+  // umbrella target named by an authored page).  No activity-code association --
+  // codes are orthogonal to umbrella reporting.  Safe against a concurrent create
+  // of the same URL by another user: on the unique-`url` conflict we do nothing
+  // and return undefined, leaving the caller to re-resolve the winning row.
+  @method
+  async createActivity(values: {
+    url: string
+    name?: string
+  }): Promise<ActivityRecord | undefined> {
+    const [result] = await this.db
+      .get()
+      .insert(activities)
+      .values({ id: uuidv7(), url: values.url, name: values.name ?? null })
+      .onConflictDoNothing({ target: activities.url })
+      .returning()
+      .catch(this.utils.wrapDbErrorNew())
+
+    return result
+  }
+
+  // Serialize all progress writes for a single learner within the current
+  // transaction.  Prevents the deadlock where two concurrent set-progress
+  // requests for one user acquire overlapping target row locks in opposing
+  // order.  Keyed only by user_id, so cross-user traffic never contends (barring
+  // benign hash collisions).  Must be called inside `withTransaction` so the
+  // lock rides -- and releases with -- the transaction.
+  @method
+  async acquireUserLock(user_id: string): Promise<void> {
+    await this.db
+      .get()
+      .execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${user_id}, 0))`)
+      .catch(this.utils.wrapDbErrorNew())
   }
 
   @method

@@ -12,6 +12,9 @@ import { z } from 'zod'
  * applies `Δself × factor` to `url`.  Deriving the increment from the idempotent
  * self change makes the umbrella update idempotent too (a retried submission sees
  * no self change and so contributes nothing).
+ *
+ * `factor` is required to be finite (z.number() automatically does this).  Values
+ * outside of `[0,1]` will be clamped rather than rejecting the whole submission.
  */
 const progressUpdateSchema = z.object({
   url: z.string(),
@@ -50,11 +53,20 @@ export const getProgressSchemas = {
  * The request carries the self activity's progress (an idempotent high-water
  * mark) plus zero or more cumulative contribution targets (by url + factor) that
  * this activity reports a calculation against.
+ *
+ * `progress_for_current_page` must be a finite number; values outside of `[0,1]`
+ * will be clamped.  Duplicate target URLs are an authoring error and are rejected here;
+ * a self-referencing target (a URL matching the current activity) is rejected by
+ * the server.
  */
 export const setProgressSchemas = {
   input: z.object({
     progress_for_current_page: z.number(),
-    increments_for_other_pages: z.array(progressUpdateSchema),
+    increments_for_other_pages: z
+      .array(progressUpdateSchema)
+      .refine((targets) => new Set(targets.map((t) => t.url)).size === targets.length, {
+        message: 'increments_for_other_pages contains duplicate target URLs',
+      }),
   }),
   output: z.object({
     // Resulting self (token-bound activity) high-water-mark progress.
