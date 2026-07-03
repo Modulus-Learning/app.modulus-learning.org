@@ -66,6 +66,9 @@ export const configSchema = z.object({
       notify_persist_threshold_seconds: z.coerce.number().default(1800),
       // Notifier: sweep cadence in seconds (keep below the persist threshold)
       notify_poll_interval_seconds: z.coerce.number().default(300),
+      // Manager: cadence (seconds) for reconciling running processors against the
+      // platforms table, so newly-registered platforms start without a redeploy
+      platform_reconcile_interval_seconds: z.coerce.number().default(60),
     }),
   }),
   oauth: z.object({
@@ -147,6 +150,8 @@ export const loadConfigUnchecked = () => {
         notify_persist_threshold_seconds:
           process.env.LTI_SCORE_SUBMISSION_NOTIFY_PERSIST_THRESHOLD_SECONDS,
         notify_poll_interval_seconds: process.env.LTI_SCORE_SUBMISSION_NOTIFY_POLL_INTERVAL_SECONDS,
+        platform_reconcile_interval_seconds:
+          process.env.LTI_SCORE_SUBMISSION_PLATFORM_RECONCILE_INTERVAL_SECONDS,
       },
     },
     oauth: {
