@@ -114,6 +114,13 @@ export function ActivityCodeMembersPanel({
           helpText="Optionally add other instructors to this activity code."
           mode="none"
           items={items}
+          // Each item's value is an InstructorSearchResult object; without this
+          // the screen reader announces its raw serialized form. Convert it to a
+          // human-readable string (name, falling back to email).
+          itemToStringValue={(itemValue: unknown) => {
+            const instructor = itemValue as InstructorSearchResult
+            return instructor.full_name ?? instructor.email ?? ''
+          }}
           value={inputValue}
           onValueChange={(value: string) => {
             setInputValue(value)

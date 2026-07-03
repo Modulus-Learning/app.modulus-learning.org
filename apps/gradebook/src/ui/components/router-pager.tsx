@@ -50,7 +50,7 @@ export function RouterPager({
               <Pagination.First
                 render={
                   item.disabled === true ? (
-                    <div />
+                    <button type="button" disabled />
                   ) : (
                     <LangLink
                       lng={lng}
@@ -78,7 +78,7 @@ export function RouterPager({
               <Pagination.Previous
                 render={
                   item.disabled === true ? (
-                    <div />
+                    <button type="button" disabled />
                   ) : (
                     <LangLink
                       lng={lng}
@@ -110,7 +110,7 @@ export function RouterPager({
               <Pagination.Number
                 render={
                   item.disabled === true ? (
-                    <div />
+                    <button type="button" disabled />
                   ) : (
                     <LangLink
                       lng={lng}
@@ -140,7 +140,7 @@ export function RouterPager({
               <Pagination.Next
                 render={
                   item.disabled === true ? (
-                    <div />
+                    <button type="button" disabled />
                   ) : (
                     <LangLink
                       lng={lng}
@@ -165,7 +165,7 @@ export function RouterPager({
               <Pagination.Last
                 render={
                   item.disabled === true ? (
-                    <div />
+                    <button type="button" disabled />
                   ) : (
                     <LangLink
                       lng={lng}

@@ -37,9 +37,11 @@ First implementation pass complete and the uikit fixes are **released** in
   longer has the phantom tab stop and opens focus on a labelled Close button).
 - **🛠 Code-complete, awaiting an authenticated verification pass** (auth-gated
   dashboard pages): findings 10, 21, 25, 26, 28, 29, **9 + 27** (SPA navigation),
-  and **17, 18, 19** (analytics cards + breadcrumb focus). The code is confirmed
-  present in the app source and the released uikit assets; they move to ✅ once
-  seen in-browser while signed in.
+  **17, 18, 19** (analytics cards + breadcrumb focus), and **15, 23** (autocomplete
+  announcement + pagination). The code is confirmed present in the app source and
+  the released uikit assets; they move to ✅ once seen in-browser while signed in.
+- **➖ Won't fix:** finding **24** — assessed as a valid ARIA 1.2 select-only
+  combobox pattern (see Investigations); recommend confirming with the auditor.
 
 **SPA navigation (9, 27):** dashboard routes now export per-page `generateMetadata`
 so `document.title` reflects the current page (e.g. *Modulus - Learners*) — which
@@ -69,7 +71,7 @@ falls back to its ~1.6:1 default.
 - 🛠 **Fixed** — code complete; pending a uikit release and/or in-app verification before it is reported as Resolved.
 - ☐ **Open** — planned, not yet started.
 - 🔍 **Investigating** — needs live reproduction or dependency work before we can commit to an approach.
-- ➖ **Acknowledged** — logged by the auditor as informational / not practical to fix.
+- ➖ **Acknowledged / Won't fix** — logged by the auditor as informational, not practical to fix, or assessed as correct-as-built (see the note for the reason).
 
 **Fix location**
 
@@ -98,7 +100,7 @@ described (High / Medium / Low).
 | 12 | Focus indicator contrast on cancel buttons | 1.1.1 A | Serious | UIKit | Medium | ✅ Resolved |
 | 13 | sr-only "no action" button in Remove Member dialog | 2.1.1 / 2.4.7 | Moderate | App | Medium | ✅ Resolved |
 | 14 | Tabs not keyboard-navigable (arrow keys) | 2.1.1 A | **Critical** | App | Medium | ✅ Resolved |
-| 15 | Autocomplete reads raw data before value | 4.1.2 A | Minor | UIKit | Low | 🔍 Investigating |
+| 15 | Autocomplete reads raw data before value | 4.1.2 A | Minor | App | Medium | 🛠 Fixed |
 | 16 | Members should be an unordered list | 1.3.1 A | Moderate | App | — | ✅ Resolved |
 | 17 | Focus indicator contrast on analytics cards | 2.4.7 / 2.1.1 | Moderate | App | Medium | 🛠 Fixed |
 | 18 | Breadcrumb focus differs Safari/Chrome | 2.4.7 AA | Minor | App | Medium | 🛠 Fixed |
@@ -106,8 +108,8 @@ described (High / Medium / Low).
 | 20 | Search clear/search buttons no focus indicator | 2.4.7 AA | Serious | UIKit | High | ✅ Resolved |
 | 21 | Search buttons unnamed + `arial-label` typo + redundant role | 4.1.2 A | Serious | UIKit | High | 🛠 Fixed |
 | 22 | Search `aria-labelledby` points to non-existent id | 4.1.2 A | Serious | UIKit | High | ✅ Resolved |
-| 23 | Pagination controls not operable | 1.3.1 A | **Critical** | App / UIKit | Medium | 🔍 Investigating |
-| 24 | "Pages per view" has incorrect `role="combobox"` | 4.1.2 A | Minor | Base UI | Low | 🔍 Investigating |
+| 23 | Pagination controls not operable | 1.3.1 A | **Critical** | App | Medium | 🛠 Fixed |
+| 24 | "Pages per view" has incorrect `role="combobox"` | 4.1.2 A | Minor | Base UI | — | ➖ Won't fix (valid pattern) |
 | 25 | Sortable columns need `aria-sort` + "sortable" hint | 4.1.2 A | Moderate | App | High | 🛠 Fixed |
 | 26 | Copy buttons in table cells need accessible names | 4.1.2 A | Serious | App | High | 🛠 Fixed |
 | 27 | SPA does not update page `<title>` | 2.4.2 A | Moderate | App | Medium | 🛠 Fixed |
@@ -223,22 +225,28 @@ verified the exact source locations.
   (unchecked) state, so no visible indicator appears. Ensure the ring shows on
   `:focus-visible` regardless of checked state.
 
-## Under investigation
+## Investigations (15, 23, 24)
 
-These need live reproduction or dependency work before we commit to an approach.
-
-- **23 — Pagination not operable (Critical).** Our `RouterPager`
-  (`ui/components/router-pager.tsx`) actually renders navigation **links**
-  (`LangLink`), not `div`s, so this may already be partly addressed or point at a
-  different pager. Needs reproduction against the audited build before we decide.
-- **24 — "Pages per view" `role="combobox"`.** The role is injected by Base UI's
-  `Select.Trigger`, not authored by us, so "just remove the attribute" isn't
-  directly possible — this likely needs a Base UI upgrade or is acceptable under
-  current ARIA guidance. To be confirmed.
-- **15 — Autocomplete announces raw data.** The instructor-search `Autocomplete`
-  (uikit) momentarily exposes a behind-the-scenes value to the screen reader
-  before the visible label. Needs investigation into the component's live-region
-  / value rendering.
+- **23 — Pagination not operable (Critical). 🛠 Fixed.** Our `RouterPager`
+  (`ui/components/router-pager.tsx`) renders enabled pager controls as navigation
+  **links** (`LangLink` → `<a>`), which are operable — the flagged `<div>`s were
+  the **disabled** controls (First/Prev on page 1, the current page), which were
+  rendered as bare `<div />` placeholders. Those are now disabled `<button>`
+  elements, so every pager control is a proper button/link. Needs a signed-in
+  glance to confirm.
+- **15 — Autocomplete announces raw data. 🛠 Fixed.** Each instructor option's
+  `value` is an `InstructorSearchResult` object; with no string conversion, Base
+  UI's `Autocomplete` serialized it for the screen reader. Added an
+  `itemToStringValue` that maps the object to its name (falling back to email).
+  Needs a screen-reader check to confirm the announcement.
+- **24 — "Pages per view" `role="combobox"`. ➖ Won't fix (valid pattern).** We
+  assessed this as a **false positive**. Base UI's `Select.Trigger` renders
+  `role="combobox"` together with the full supporting ARIA (`aria-haspopup`,
+  `aria-expanded`, `aria-controls`, `aria-labelledby`, `aria-required`) — this is
+  the valid ARIA 1.2 / APG **select-only combobox** pattern (a button that
+  expands a listbox). The auditor's "remove it" advice reflects the older ARIA
+  1.1 model where `combobox` required a descendant text input; removing the role
+  here would break the pattern. Recommend confirming with the auditor.
 
 ## Notes for the auditor
 
