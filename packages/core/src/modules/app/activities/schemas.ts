@@ -207,7 +207,7 @@ export type ProgressRequest = z.infer<typeof progressRequestSchema>
 export const createActivityCodeRequestSchema = z.strictObject({
   code: z
     .string()
-    .min(10, 'activity_code must be a string with a minimum of 10 characters')
+    .min(5, 'activity_code must be a string with a minimum of 5 characters')
     .max(60, 'activity_code must be a string with a maximum of 200 characters')
     .regex(/^[a-zA-Z0-9-]+$/, 'activity_code must be alphanumeric with dashes'),
   url_prefix: z.string().max(255).nullable().optional(),
