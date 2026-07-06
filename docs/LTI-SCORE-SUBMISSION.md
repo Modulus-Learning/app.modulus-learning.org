@@ -502,6 +502,20 @@ probe in `half_open`. Per-item work is coordinated entirely through the database
 + `SKIP LOCKED` + fencing), so horizontal scale across processes stays *safe* at the
 item level, even though breaker / incident state is single-process for now.
 
+The manager applies the *same* desired-vs-actual idea one level up: a **reconcile loop**
+(`platform_reconcile_interval_seconds`, default 60s) diffs the `platforms` table against
+its running processors — starting a driver for a newly-registered platform and
+stopping+dropping one whose platform is gone — so onboarding needs no redeploy. The loop
+is the sole discovery path (registration requests may land on an instance that isn't
+running the workers, so an in-process call can't reach the manager). It is self-healing:
+a missed registration is picked up on the next tick, and startup reconciles everything.
+Because the loop only needs eventual convergence, a periodic poll suffices;
+`LISTEN/NOTIFY` would only trade up-to-one-interval latency for immediacy and, being
+best-effort, would still need this reconcile as its correctness backstop — so it is left
+as a possible future fast-path layered on top, not a replacement. If several instances
+ever run the loop, each reconciles independently; per-item work stays safe via lease
+fencing (shared breaker / governor state is the separate multi-process concern).
+
 ## Invariants
 
 The properties the whole design preserves:
@@ -539,8 +553,8 @@ Under `lti.score_submission` ([config.ts](../packages/core/src/config.ts)):
 | `lease_duration_seconds` | 120 | how long a claim hides an item from other workers |
 | `backoff_base_seconds` | 5 | base of the exponential backoff (per-item and breaker) |
 | `backoff_error_cap` | 5 | exponent cap on the backoff |
-| `max_concurrent_submissions` | 4 | upper bound on the per-platform concurrency pool |
-| `quota_reserve_requests` | 2 | quota headroom the governor keeps in reserve |
+| `max_concurrent_submissions` | 20 | upper bound on the per-platform concurrency pool |
+| `quota_reserve_requests` | 4 | quota headroom the governor keeps in reserve |
 | `quota_window_ms` | 10000 | window over which the governor aggregates quota readings |
 | `quota_ramp_interval_ms` | 10000 | minimum interval between +1 governor ramp-ups |
 
@@ -554,6 +568,7 @@ Incident / notification knobs (values are starting points to tune post-launch):
 | `recovery_hard_cap_seconds` | 86400 | breaker-closed duration after which an incident resolves regardless |
 | `notify_persist_threshold_seconds` | 1800 | active span before a high-severity incident pages |
 | `notify_poll_interval_seconds` | 300 | sweep cadence (keep below the persist threshold) |
+| `platform_reconcile_interval_seconds` | 60 | manager cadence for reconciling processors against the `platforms` table |
 
 `error_interval_ms` is retired: an internal exception now counts as an ordinary failure
 and uses the breaker's exponential backoff rather than a fixed pause.
