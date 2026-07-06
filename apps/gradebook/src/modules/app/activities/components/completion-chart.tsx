@@ -137,6 +137,8 @@ export function CompletionChart({ data }: { data: ProgressResponse }) {
             barDataKey="students"
             xAxisDataKey="week"
             data={activityData}
+            tooltipUnit="students"
+            ariaLabel="Learner activity by week"
           />
         </Card.Content>
       </Card>

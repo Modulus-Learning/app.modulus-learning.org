@@ -1,6 +1,7 @@
 'use client'
 
 import { LoaderRing } from '@infonomic/uikit/react'
+import type { TooltipContentProps } from 'recharts'
 import {
   Bar,
   BarChart,
@@ -14,26 +15,26 @@ import {
 
 import { useTheme } from '@/ui/theme/provider'
 
-function CustomTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean
-  payload?: any
-  label?: string
-}) {
-  if (active && payload?.length) {
-    return (
-      <div className="border-radius-md py-2 px-4 background">
-        <p>{label}</p>
-        {payload.map(({ fill, name, value }: { fill: string; name: string; value: number }) => (
-          <p key={name} style={{ color: fill }}>{`${name}: ${value} users`}</p>
-        ))}
-      </div>
-    )
-  }
-  return null
+// The wrapper must stay mounted, with role="status" / aria-live, so screen
+// readers announce tooltip changes during keyboard navigation — matching
+// the contract of recharts' DefaultTooltipContent.
+function CustomTooltip({ active, payload, label, accessibilityLayer }: TooltipContentProps) {
+  return (
+    <div
+      className="border-radius-md py-2 px-4 background"
+      role={accessibilityLayer ? 'status' : undefined}
+      aria-live={accessibilityLayer ? 'assertive' : undefined}
+    >
+      {active && payload?.length ? (
+        <>
+          <p>{label}</p>
+          {payload.map(({ fill, name, value }) => (
+            <p key={name} style={{ color: fill }}>{`${name}: ${value} users`}</p>
+          ))}
+        </>
+      ) : null}
+    </div>
+  )
 }
 
 export function BarChartStacked({
@@ -81,7 +82,6 @@ export function BarChartStacked({
               tickFormatter={(value) => `${value.toLocaleString()}`}
             />
             <Tooltip
-              // @ts-expect-error
               content={CustomTooltip}
               cursor={{ fill: theme === 'dark' ? '#303030' : '#EEEEEE' }}
               contentStyle={{

@@ -1,6 +1,7 @@
 'use client'
 
 import { LoaderRing } from '@infonomic/uikit/react'
+import type { TooltipContentProps } from 'recharts'
 import {
   Bar,
   BarChart as BarChartBase,
@@ -13,24 +14,32 @@ import {
 
 import { useTheme } from '@/ui/theme/provider'
 
+// The wrapper must stay mounted, with role="status" / aria-live, so screen
+// readers announce tooltip changes during keyboard navigation — matching
+// the contract of recharts' DefaultTooltipContent.
 function CustomTooltip({
   active,
   payload,
   label,
-}: {
-  active?: boolean
-  payload?: any
-  label?: string
-}) {
-  if (active && payload?.length) {
-    return (
-      <div className="border-radius-md py-2 px-4 background">
-        <p>{label}</p>
-        <p>{payload[0].value} users</p>
-      </div>
-    )
-  }
-  return null
+  accessibilityLayer,
+  unit,
+}: TooltipContentProps & { unit?: string }) {
+  return (
+    <div
+      className="border-radius-md py-2 px-4 background"
+      role={accessibilityLayer ? 'status' : undefined}
+      aria-live={accessibilityLayer ? 'assertive' : undefined}
+    >
+      {active && payload?.length ? (
+        <>
+          <p>{label}</p>
+          <p>
+            {payload[0].value} {unit ?? 'users'}
+          </p>
+        </>
+      ) : null}
+    </div>
+  )
 }
 
 export function BarChart({
@@ -39,12 +48,16 @@ export function BarChart({
   barDataKey,
   xAxisDataKey,
   data,
+  tooltipUnit,
+  ariaLabel,
 }: {
   className: string
   status: 'busy' | 'idle'
   barDataKey: string
   xAxisDataKey: string
   data: any[]
+  tooltipUnit?: string
+  ariaLabel?: string
 }) {
   const { theme } = useTheme()
   return (
@@ -63,7 +76,7 @@ export function BarChart({
       )}
       {status === 'idle' && (
         <ResponsiveContainer width="100%" height="100%">
-          <BarChartBase data={data}>
+          <BarChartBase data={data} aria-label={ariaLabel}>
             <CartesianGrid
               strokeDasharray="2"
               vertical={false}
@@ -83,8 +96,7 @@ export function BarChart({
               tickFormatter={(value) => `${value.toLocaleString()}`}
             />
             <Tooltip
-              // @ts-expect-error
-              content={CustomTooltip}
+              content={(props) => <CustomTooltip {...props} unit={tooltipUnit} />}
               cursor={{ fill: theme === 'dark' ? '#303030' : '#EEEEEE' }}
               contentStyle={{
                 backgroundColor: '#303030',
