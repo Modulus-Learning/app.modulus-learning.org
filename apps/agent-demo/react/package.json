@@ -13,7 +13,7 @@
   "dependencies": {
     "@infonomic/uikit": "^6.7.7",
     "@modulus-learning/agent": "workspace:*",
-    "@tanstack/react-router": "^1.170.16",
+    "@tanstack/react-router": "^1.170.17",
     "classnames": "^2.5.1",
     "jwt-decode": "^4.0.0",
     "react": "19.2.7",
@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.2",
-    "@tanstack/router-plugin": "^1.168.18",
+    "@tanstack/router-plugin": "^1.168.19",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
@@ -29,6 +29,6 @@
     "postcss": "^8.5.16",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
-    "vite": "^8.1.0"
+    "vite": "^8.1.3"
   }
 }
