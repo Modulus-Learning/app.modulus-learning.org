@@ -166,8 +166,8 @@ export function ActivityCodeMembersPanel({
                   </span>
                 </div>
                 <Button
-                  size="sm"
-                  variant="text"
+                  size="xs"
+                  variant="outlined"
                   intent="danger"
                   onClick={() => requestRemoveMember(member)}
                   disabled={isPending}
