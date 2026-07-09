@@ -100,7 +100,7 @@ const prepareLogContext = (command: string, authMode: AuthMode, ctx: any) => {
   } else if (authMode === 'user') {
     logContext.user_id = ctx.userAuth.id
   } else if (authMode === 'admin') {
-    logContext.admin_id = ctx.adminAuth.id
+    logContext.admin_id = ctx.adminAuth.admin_id
   }
 
   return logContext
