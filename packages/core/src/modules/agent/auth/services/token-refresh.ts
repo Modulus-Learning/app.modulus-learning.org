@@ -21,14 +21,16 @@ export class TokenRefreshService extends BaseService {
 
   @method
   async refreshToken(auth: AgentAuth): Promise<string | undefined> {
-    this.logger.info(
-      `Checking if token renewal is needed (${auth.renew_after * 1000 - Date.now()} ms left)`
-    )
-    if (Date.now() < auth.renew_after * 1000) {
+    const ms_until_renew = auth.renew_after * 1000 - Date.now()
+    this.logger.trace({ ms_until_renew }, 'checking if token renewal is needed')
+    if (ms_until_renew > 0) {
       return undefined
     }
 
-    this.logger.info('Renewing token!')
+    this.logger.debug(
+      { user_id: auth.user_id, activity_id: auth.activity_id },
+      'renewing agent token'
+    )
 
     const user = await this.queries.getUser(auth.user_id)
     if (user == null) {
