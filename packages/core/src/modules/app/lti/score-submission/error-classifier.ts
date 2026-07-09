@@ -2,25 +2,26 @@
  * Classifier for error responses from Canvas LMS's AGS score-submission
  * endpoint (POST /api/lti/courses/:course_id/line_items/:line_item_id/scores).
  *
- * Categories:
- *   platform      — the developer key / registration itself is broken; every
- *                   AGS submission against this key will keep failing until
- *                   fixed at the platform level (token signing, scopes,
- *                   key activation, etc.).
- *   deployment    — a deployment install or its account-chain binding is the
- *                   problem; *probe sibling deployments / sibling sub-accounts
- *                   before deciding how broadly to pause*, because a context
- *                   control can make this error as narrow as one course.
- *   lineitem_dead — the specific line item, course, user, or assignment is
- *                   the problem; the key and deployment are otherwise healthy.
- *                   Don't attempt to resubmit this line-item.
- *   malformed     — the request is structurally wrong; almost always a coding
- *                   bug in the tool. Do not retry until the tool is fixed.
- *   other         — transient (5xx, gateway, rate-limit), stale-write, or an
- *                   unrecognized response; usually safe to retry with backoff.
+ * Categories (see `SubmissionErrorCategory` in ./types.ts):
+ *   platform_config — the developer key / registration itself is broken (scopes
+ *                     not granted, key inactive at the account level); every AGS
+ *                     submission against this key keeps failing until fixed at
+ *                     the platform level.
+ *   platform_token  — the access token is bad (rejected, insufficient scope,
+ *                     unknown/inactive key); a token-level auth problem.
+ *   lineitem_dead   — the specific line item, course, user, or assignment is
+ *                     the problem (deleted, concluded, not bound to this key);
+ *                     the key is otherwise healthy.  Don't resubmit this line-item.
+ *   malformed       — the request is structurally wrong; almost always a coding
+ *                     bug in the tool.  For now, just back off and retry.
+ *   rate_limit      — 403 quota exhausted or operator-blocked; back off and retry.
+ *   superseded      — Canvas already has a newer score for this line item; the
+ *                     write is stale and can be dropped.
+ *   transient       — 5xx / gateway / temporary; safe to retry with backoff.
+ *   unknown         — unrecognized response; default handling.
  *
- * The Response body is read via response.clone(), so callers can still read
- * the original Response themselves.
+ * The response body is not read here directly; the caller supplies a `getText`
+ * accessor so this function stays independent of the Response object.
  */
 
 import type { SubmissionErrorCategory, SubmissionResult } from './types.js'

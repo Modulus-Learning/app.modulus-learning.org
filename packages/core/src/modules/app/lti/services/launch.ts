@@ -144,15 +144,18 @@ export class LtiLaunchService extends BaseService {
 
         // If no lineitem record exists, create one.  If a lineitem does
         // exist, update the existing lineitem to ensure it has the cutoff_at
-        // date supplied in the current launch, an up-to-date submittable_progress
-        // value.  Also, revive the lineitem if has been marked 'dead', mark
-        // it as eligible for submission (though it won't be submitted unless
-        // its submittable progress is greater than its submitted progress),
-        // and _null out_ the current submission lease (if any).  That means,
-        // in the (unlikely) case that the lineitem is currently being submitted,
-        // the submission worker will _not_ save a record of its submission
-        // and instead the lineitem will be selected again for another submission
-        // attempt (using the possibly-updated data).
+        // date supplied in the current launch and an up-to-date
+        // submittable_progress value.  Also revive the lineitem if it has been
+        // marked 'dead' and mark it as eligible for submission (though it won't
+        // be submitted unless its submittable progress exceeds its submitted
+        // progress).
+        //
+        // This deliberately leaves the submission lease and error counters
+        // untouched: launch and the submission worker are separate writers on
+        // this row, and clobbering an in-flight lease here would break fencing.
+        // A submission already in progress finishes and records its result under
+        // its own fencing token; the updated data is picked up on the next
+        // eligible pass.  (See LTI-SCORE-SUBMISSION.md.)
         await this.ltiMutations.upsertLineItem({
           user_id: signIn.user.id,
           activity_id: activity.id,

@@ -37,8 +37,8 @@ export const OPTIONS = async (): Promise<NextResponse> => {
  * dispatches on the `op` discriminator in the request body to the relevant
  * activity-state command:
  *
- *   { op: 'get-progress',   urls?: string[] }
- *   { op: 'set-progress',   updates: [{ url?, progress }] }
+ *   { op: 'get-progress', urls?: string[] }
+ *   { op: 'set-progress', progress_for_current_page, increments_for_other_pages }
  *   { op: 'get-page-state' }
  *   { op: 'set-page-state', page_state }
  *

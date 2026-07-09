@@ -13,8 +13,9 @@ import type { Config } from '@/config.js'
 /**
  * Service for managing JSON web key sets for communicating with LTI platforms.
  *
- * TODO: Add persistent storage for these keys -- for now, we're just storing
- * them in memory (and regenerating them every time the app restarts).
+ * The keypair is loaded from config (`config.lti.jwks`) at startup, so it is
+ * stable across restarts.  Key rotation (publishing a new key while keeping
+ * recent public keys in the JWKS) is not yet implemented.
  */
 export class LtiKeyStore {
   constructor(
