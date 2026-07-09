@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, gt } from 'drizzle-orm'
 
 import { activities, agentAuthCodes, users } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
@@ -67,10 +67,12 @@ export class AgentAuthMutations extends BaseService {
 
   @method
   async claimAuthCode(code: string): Promise<AuthCodeRecord | undefined> {
+    // Single-use *and* time-bounded: an expired code no longer matches, so it is
+    // never claimed (and is left in place for the housekeeping worker to prune).
     const [authCode] = await this.db
       .get()
       .delete(agentAuthCodes)
-      .where(eq(agentAuthCodes.code, code))
+      .where(and(eq(agentAuthCodes.code, code), gt(agentAuthCodes.expires_at, new Date())))
       .returning()
       .catch(this.utils.wrapDbErrorNew())
 
