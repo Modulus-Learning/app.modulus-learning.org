@@ -264,15 +264,15 @@ export class ActivityQueries extends BaseService {
     const limit = page_size
     const offset = (page - 1) * page_size
 
-    // Get the column to order by
-    let orderByColumn: any
-    if (order === 'full_name') {
-      orderByColumn = users.full_name
-    } else if (order === 'updated_at') {
-      orderByColumn = progress.updated_at
-    } else if (order === 'progress') {
-      orderByColumn = progress.progress
+    // Get the column to order by.  Falls back to `updated_at` (the schema
+    // default) so an unmapped `order` value can never leave the column
+    // undefined and hand `asc(undefined)` to Drizzle.
+    const orderByColumns = {
+      full_name: users.full_name,
+      updated_at: progress.updated_at,
+      progress: progress.progress,
     }
+    const orderByColumn = orderByColumns[order] ?? progress.updated_at
 
     return await this.db
       .get()
