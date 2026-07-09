@@ -204,7 +204,7 @@ const CANVAS_CUSTOM_LAUNCH_FIELDS = {
   'Canvas.course.id': '$Canvas.course.id',
   'Canvas.course.name': '$Canvas.course.name',
   'Canvas.course.startAt': '$Canvas.course.startAt',
-  'Canvas.course.endAt': '$Canvas.course.startAt',
+  'Canvas.course.endAt': '$Canvas.course.endAt',
   'Canvas.course.gradePassbackSetting': '$Canvas.course.gradePassbackSetting',
   'Canvas.enrollment.enrollmentState': '$Canvas.enrollment.enrollmentState',
   'Canvas.module.id': '$Canvas.module.id',
