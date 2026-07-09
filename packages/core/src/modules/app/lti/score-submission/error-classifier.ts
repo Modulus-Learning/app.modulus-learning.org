@@ -358,7 +358,8 @@ export async function classifyScoreSubmissionResponse(
   }
 
   for (const rule of RULES) {
-    if (rule.status === status && rule.match?.(text)) {
+    // A rule with no matcher is the catch-all for its status code.
+    if (rule.status === status && (rule.match == null || rule.match(text))) {
       return {
         ok: false,
         category: rule.category,
