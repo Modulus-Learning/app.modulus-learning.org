@@ -282,27 +282,22 @@ export class LtiLaunchService extends BaseService {
       }).log(this.logger)
     }
 
-    // Create a platform deployment record (if one doesn't already exist)
-    await this.ltiMutations.upsertPlatformDeployment(issuer, launch[CLAIM_DEPLOYMENT_ID])
-
     // TODO: Any other validations that apply to all LtiMessages?
 
-    // Verify that the launch nonce is valid and unused.
-    const storedNonce = await this.ltiQueries.findNonce(launch.nonce)
-    if (storedNonce == null) {
+    // Verify that the launch nonce is valid and unused.  claimNonce atomically
+    // marks the nonce used only if it currently exists and is unused, so two
+    // concurrent replays of the same id_token cannot both pass.
+    const nonceClaimed = await this.ltiMutations.claimNonce(launch.nonce)
+    if (!nonceClaimed) {
       throw ERR_INVALID_LAUNCH({
-        message: 'lti launch nonce not found',
+        message: 'lti launch nonce invalid or already used',
       }).log(this.logger)
     }
 
-    if (storedNonce.used) {
-      throw ERR_INVALID_LAUNCH({
-        message: 'lti launch nonce already used',
-      }).log(this.logger)
-    }
-
-    // TODO: we need to clean up old nonces.
-    await this.ltiMutations.markNonceUsed(launch.nonce)
+    // Create a platform deployment record (if one doesn't already exist).
+    // Deliberately done only after the nonce is claimed, so a rejected replay
+    // performs no writes.
+    await this.ltiMutations.upsertPlatformDeployment(issuer, launch[CLAIM_DEPLOYMENT_ID])
 
     return launch
   }

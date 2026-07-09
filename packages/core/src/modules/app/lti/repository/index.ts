@@ -82,14 +82,6 @@ export class LtiQueries extends BaseService {
   }
 
   @method
-  async findNonce(nonce: string): Promise<NonceRecord | undefined> {
-    return await this.db
-      .get()
-      .query.nonces.findFirst({ where: eq(nonces.nonce, nonce) })
-      .catch(this.utils.wrapDbErrorNew())
-  }
-
-  @method
   async findPlatformByIssuer(issuer: string): Promise<PlatformRecord | undefined> {
     return await this.db
       .get()
@@ -165,13 +157,20 @@ export class LtiMutations extends BaseService {
   }
 
   @method
-  async markNonceUsed(nonce: string): Promise<void> {
-    await this.db
+  async claimNonce(nonce: string): Promise<boolean> {
+    // Atomically consume the nonce: mark it used only if it currently exists
+    // and is still unused, returning whether the claim succeeded.  Zero rows
+    // means the nonce is unknown or already consumed -- both are an
+    // invalid/replayed launch.
+    const claimed = await this.db
       .get()
       .update(nonces)
       .set({ used: true })
-      .where(eq(nonces.nonce, nonce))
+      .where(and(eq(nonces.nonce, nonce), eq(nonces.used, false)))
+      .returning({ nonce: nonces.nonce })
       .catch(this.utils.wrapDbErrorNew())
+
+    return claimed.length > 0
   }
 
   @method
