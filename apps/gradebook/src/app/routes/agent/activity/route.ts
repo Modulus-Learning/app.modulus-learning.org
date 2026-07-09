@@ -1,6 +1,23 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
 import { getCoreAgentRequestContext, getCoreCommands } from '@/core-adapter'
+import { getLogger } from '@/lib/logger'
+
+// Maps a core error code to the appropriate HTTP status.
+const errorStatus = (code: string): number => {
+  switch (code) {
+    case 'ERR_UNAUTHORIZED':
+      return 401
+    case 'ERR_VALIDATION':
+      return 400
+    case 'ERR_FORBIDDEN':
+      return 403
+    case 'ERR_NOT_FOUND':
+      return 404
+    default:
+      return 500
+  }
+}
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -68,8 +85,13 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
   }
 
   if (!result.ok) {
-    // TODO: Decide on a response shape for reporting errors in this route.
-    return NextResponse.json({ status: 'failed' }, { status: 500, headers })
+    const { code, message } = result.error
+    const status = errorStatus(code)
+    getLogger()[status >= 500 ? 'error' : 'warn'](
+      { requestId: auth.requestId, op, code, message },
+      'agent activity-state command failed'
+    )
+    return NextResponse.json({ status: 'error', code }, { status, headers })
   }
 
   return NextResponse.json({ status: 'success', ...result.data }, { headers })
