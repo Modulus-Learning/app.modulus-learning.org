@@ -19,6 +19,7 @@ const AGENT_ACTIVITY_URL = '/routes/agent/activity'
 export type ApiRequestResult<T> =
   | { status: 'ok'; data: T }
   | { status: 'network-error'; error: string }
+  | { status: 'client-error'; code: number; text: string }
   | { status: 'server-error'; code: number; text: string }
   | { status: 'session-expired'; baseUrl: string }
 
@@ -63,7 +64,16 @@ export class ApiClient {
         return { status: 'session-expired', baseUrl: this.#baseUrl }
       }
 
-      return { status: 'server-error', code: response.status, text: await response.text() }
+      const text = await response.text()
+
+      // A non-401 4xx is terminal: the request is malformed, forbidden, or
+      // targets something that doesn't exist, so retrying it won't help.  Only
+      // 5xx (and other non-4xx failures) are transient enough to retry.
+      if (response.status >= 400 && response.status < 500) {
+        return { status: 'client-error', code: response.status, text }
+      }
+
+      return { status: 'server-error', code: response.status, text }
     } catch (err) {
       return { status: 'network-error', error: `${err}` }
     }

@@ -110,6 +110,28 @@ describe('ModulusAgent authenticated request state machine', () => {
     expect(agent.lastError()?.type).toBe('session-expired')
   })
 
+  it('treats a non-401 client error as terminal, without retrying or losing the connection', async () => {
+    const client = makeClient({
+      putProgress: vi.fn(async () => ({ status: 'client-error', code: 400, text: 'bad' })),
+    })
+    const agent = makeAgent(client)
+    await ready(agent)
+
+    const errored = nextEvent(agent, 'error')
+    agent.setProgress(0.5)
+    await errored
+
+    expect(agent.lastError()?.type).toBe('request-rejected')
+    expect(agent.lastError()?.retriable).toBe(false)
+    // Attempted exactly once -- no retries.
+    expect(client.putProgress).toHaveBeenCalledTimes(1)
+    // A request-level rejection is not a connectivity loss: the session stays
+    // authenticated and connected.
+    expect(agent.isConnectionLost()).toBe(false)
+    expect(agent.isConnected()).toBe(true)
+    expect(agent.isAuthenticated()).toBe(true)
+  })
+
   it('retries a server error four times with backoff, then reports connection lost', async () => {
     const client = makeClient({
       putProgress: vi.fn(async () => ({ status: 'server-error', code: 500, text: 'boom' })),

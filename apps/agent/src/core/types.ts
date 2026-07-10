@@ -22,6 +22,7 @@ export type AgentError = {
     | 'init-failed'
     | 'network-error'
     | 'server-error'
+    | 'request-rejected'
     | 'session-expired'
     | 'submission-failed'
     | 'invalid-call'

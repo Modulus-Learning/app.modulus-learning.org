@@ -482,6 +482,24 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
         return false
       }
 
+      if (result.status === 'client-error') {
+        // A non-401 4xx is terminal: the request is malformed, forbidden, or
+        // targets something that doesn't exist, so retrying won't help.  Report
+        // the error but leave the session authenticated and the connection
+        // intact -- this is a request-level rejection, not a connectivity loss.
+        const error: AgentError = {
+          type: 'request-rejected',
+          context,
+          message: `Request rejected while ${gerund} ${noun} (HTTP ${result.code})`,
+          retriable: false,
+        }
+
+        this.#lastError = error
+        this.emit('error', error)
+
+        return false
+      }
+
       if (attempt >= 4) {
         const error: AgentError =
           result.status === 'server-error'
