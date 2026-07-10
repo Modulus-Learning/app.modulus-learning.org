@@ -1,2 +1,2 @@
-import { ModulusAgent } from '@/core/agent.js'
-export default ModulusAgent
+import { createModulusAgent } from '@/core/agent.js'
+export default createModulusAgent

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 
-import { ModulusAgent } from '@modulus-learning/agent'
+import { createModulusAgent, type ModulusAgent } from '@modulus-learning/agent'
 import { type ModulusWidgetPosition, setupModulusAvatar } from '@modulus-learning/agent/ui/vanilla'
 
 const ModulusContext = createContext<ModulusAgent | null>(null)
@@ -21,7 +21,7 @@ export const ModulusProvider: React.FC<Props> = ({ children, widgetPosition = 'b
   const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: we monitor pathname.
-  const modulus = useMemo(() => new ModulusAgent(), [pathname])
+  const modulus = useMemo(() => createModulusAgent(), [pathname])
 
   useEffect(() => {
     const handle = setupModulusAvatar(modulus, { position: widgetPosition })

@@ -1,4 +1,4 @@
-import { ModulusAgent } from '@modulus-learning/agent'
+import { createModulusAgent } from '@modulus-learning/agent'
 import { setupModulusAvatar } from '@modulus-learning/agent/ui/vanilla'
 
 import { setupDebugPanel } from './debug-panel'
@@ -6,7 +6,7 @@ import { setupMultipleChoiceQuestions } from './multiple-choice'
 import { setupProgressIndicator } from './progress-indicator'
 import { setupResetButton } from './reset-button'
 
-const agent = new ModulusAgent()
+const agent = createModulusAgent()
 
 const title = document.getElementById('assignment-title')
 if (title !== null) {

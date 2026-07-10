@@ -16,7 +16,7 @@ type ProgressResponse = { progress: number; others?: ProgressResult[] }
 // The single unified agent activity-state endpoint.
 const AGENT_ACTIVITY_URL = '/routes/agent/activity'
 
-type ApiRequestResult<T> =
+export type ApiRequestResult<T> =
   | { status: 'ok'; data: T }
   | { status: 'network-error'; error: string }
   | { status: 'server-error'; code: number; text: string }

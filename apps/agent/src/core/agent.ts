@@ -1,4 +1,4 @@
-import { ApiClient, type ProgressContribution } from './api-client.js'
+import { ApiClient, type ApiRequestResult, type ProgressContribution } from './api-client.js'
 import { authenticate } from './auth.js'
 import { EventEmitter } from './event-emitter.js'
 import { createSilentLogger, type Logger } from './logger.js'
@@ -18,7 +18,24 @@ type AuthState =
   | { status: 'failed'; baseUrl?: string | undefined; error: string }
   | { status: 'expired'; baseUrl: string }
 
-export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
+// The dependencies the agent needs to run: its logger and the collaborators for
+// authentication and API access.  `createModulusAgent` wires in the real
+// implementations; this package's own tests construct `ModulusAgentImpl`
+// directly with fakes to drive the agent through its authentication and request
+// paths without a live server or browser redirect.
+export interface ModulusAgentDeps {
+  logger?: Logger
+  authenticate: typeof authenticate
+  createClient: (baseUrl: string, token: string) => ApiClient
+}
+
+// The agent implementation.  This class is not part of the package's public
+// API -- callers construct an agent with `createModulusAgent` and refer to it by
+// the `ModulusAgent` type (both exported below).  It is exported from this
+// module only so that this package's tests can construct it directly with
+// substituted collaborators; the package entry (./index.ts) does not re-export
+// it, and the package `exports` map blocks deep imports.
+export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
   // ********************** TOP-LEVEL STATE **********************
 
   // Has the Modulus agent finished initializing itself?
@@ -32,6 +49,10 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
 
   // Optional logger.
   #logger?: Logger
+
+  // Injectable collaborators (see ModulusAgentDeps).
+  #authenticate: ModulusAgentDeps['authenticate']
+  #createClient: ModulusAgentDeps['createClient']
 
   // ********************** PROGRESS *****************************
 
@@ -71,9 +92,13 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
 
   // ********************** Initialization ***********************
 
-  constructor(logger?: Logger) {
+  // Construct the agent with its dependencies supplied explicitly.  Callers use
+  // `createModulusAgent`, which passes the real implementations; tests pass fakes.
+  constructor(deps: ModulusAgentDeps) {
     super()
-    this.#logger = logger ?? createSilentLogger()
+    this.#logger = deps.logger ?? createSilentLogger()
+    this.#authenticate = deps.authenticate
+    this.#createClient = deps.createClient
     this.#initialize()
   }
 
@@ -315,313 +340,132 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
     }
   }
 
-  async #submitProgressInner() {
-    this.#progressRetryAttempt = 0
-
-    while (this.#progress > this.#submittedProgress) {
-      if (this.#auth.status !== 'authenticated') {
-        // The session expired while waiting to retry submission.  The
-        // session-expired event will have already been emitted, so it should be
-        // safe to just return.
-        return
-      }
-
-      const result = await this.#auth.client.putProgress(this.#progress, this.#buildContributions())
-
-      if (result.status === 'ok') {
-        this.#submittedProgress = result.data.progress
+  async #submitProgressInner(): Promise<boolean> {
+    return this.#runWithRetry({
+      context: 'progress',
+      verb: 'submit',
+      shouldRun: () => this.#progress > this.#submittedProgress,
+      call: (client) => client.putProgress(this.#progress, this.#buildContributions()),
+      onSuccess: (data) => {
+        this.#submittedProgress = data.progress
         this.emit('progress-submitted', { progress: this.#submittedProgress })
-        this.#progressRetryAttempt = 0
-
-        if (this.isConnectionLost()) {
-          this.#auth.connectionLost = false
-          this.emit('connection-restored')
-        }
-
-        // Check if we need to submit progress again
-        continue
-      }
-
-      if (result.status === 'session-expired') {
-        // Only emit session-expired once
-        if (this.#auth.status === 'authenticated') {
-          const error: AgentError = {
-            type: 'session-expired',
-            context: 'progress',
-            message: 'Session expired or invalid',
-            retriable: false,
-          }
-
-          this.#lastError = error
-          this.#auth = {
-            status: 'expired',
-            baseUrl: result.baseUrl,
-          }
-          this.emit('error', error)
-          this.emit('session-expired')
-        }
-
-        // We're no longer unauthenticated -- stop trying to submit progress
-        return
-      }
-
-      if (this.#progressRetryAttempt >= 4) {
-        const error: AgentError =
-          result.status === 'server-error'
-            ? {
-                type: 'server-error',
-                context: 'progress',
-                message: 'Server error while submitting progress',
-                retriable: true,
-              }
-            : {
-                type: 'network-error',
-                context: 'progress',
-                message: `Network error while submitting progress: ${result.error}`,
-                retriable: true,
-              }
-
-        this.#lastError = error
-        this.emit('error', error)
-
-        if (this.isConnectionLost() === false) {
-          this.#auth.connectionLost = true
-          this.emit('connection-lost')
-        }
-
-        // We've exhausted our retries -- the connection is now 'lost', so stop
-        // trying to submit progress
-        return
-      }
-
-      const delay = 1000 * 2 ** this.#progressRetryAttempt
-      this.#progressRetryAttempt += 1
-
-      this.emit('retry', {
-        type: 'progress',
-        attempt: this.#progressRetryAttempt,
-        nextRetryMs: delay,
-      })
-
-      await new Promise((resolve) => setTimeout(resolve, delay))
-    }
+      },
+      syncAttempt: (attempt) => {
+        this.#progressRetryAttempt = attempt
+      },
+    })
   }
 
-  async #submitPageStateInner() {
-    this.#pageStateRetryAttempt = 0
-
-    while (!this.#pageStateInSync) {
-      if (this.#auth.status !== 'authenticated') {
-        // The session expired while waiting to retry submission.  The
-        // session-expired event will have already been emitted, so it should be
-        // safe to just return.
-        return
-      }
-
-      const pageStateToSubmit = this.#pageState
-      const result = await this.#auth.client.putPageState(pageStateToSubmit)
-
-      if (result.status === 'ok') {
-        // The page state could have been updated while the submission (of
-        // pageStateToSubmit) was in progress -- if so, we shouldn't set
-        // pageStateInSync to true.
-        if (this.#pageState === pageStateToSubmit) {
+  async #submitPageStateInner(): Promise<boolean> {
+    // Snapshot the value handed to each attempt so a success only marks the
+    // state in-sync when the page state hasn't changed again mid-flight.
+    let submitted: any
+    return this.#runWithRetry({
+      context: 'pagestate',
+      verb: 'submit',
+      shouldRun: () => !this.#pageStateInSync,
+      call: (client) => {
+        submitted = this.#pageState
+        return client.putPageState(submitted)
+      },
+      onSuccess: () => {
+        if (this.#pageState === submitted) {
           this.#pageStateInSync = true
         }
         this.emit('pagestate-submitted')
-        this.#pageStateRetryAttempt = 0
-
-        if (this.isConnectionLost()) {
-          this.#auth.connectionLost = false
-          this.emit('connection-restored')
-        }
-
-        // Check if we need to submit page state again
-        continue
-      }
-
-      if (result.status === 'session-expired') {
-        // Only emit session-expired once
-        if (this.#auth.status === 'authenticated') {
-          const error: AgentError = {
-            type: 'session-expired',
-            context: 'pagestate',
-            message: 'Session expired or invalid',
-            retriable: false,
-          }
-
-          this.#lastError = error
-          this.#auth = {
-            status: 'expired',
-            baseUrl: result.baseUrl,
-          }
-          this.emit('error', error)
-          this.emit('session-expired')
-        }
-
-        // We're no longer unauthenticated -- stop trying to submit page state
-        return
-      }
-
-      if (this.#pageStateRetryAttempt >= 4) {
-        const error: AgentError =
-          result.status === 'server-error'
-            ? {
-                type: 'server-error',
-                context: 'pagestate',
-                message: 'Server error while submitting page state',
-                retriable: true,
-              }
-            : {
-                type: 'network-error',
-                context: 'pagestate',
-                message: `Network error while submitting page state: ${result.error}`,
-                retriable: true,
-              }
-
-        this.#lastError = error
-        this.emit('error', error)
-
-        if (this.isConnectionLost() === false) {
-          this.#auth.connectionLost = true
-          this.emit('connection-lost')
-        }
-
-        // We've exhausted our retries -- the connection is now 'lost', so stop
-        // trying to submit progress
-        return
-      }
-
-      const delay = 1000 * 2 ** this.#pageStateRetryAttempt
-      this.#pageStateRetryAttempt += 1
-
-      this.emit('retry', {
-        type: 'pagestate',
-        attempt: this.#pageStateRetryAttempt,
-        nextRetryMs: delay,
-      })
-
-      await new Promise((resolve) => setTimeout(resolve, delay))
-    }
+      },
+      syncAttempt: (attempt) => {
+        this.#pageStateRetryAttempt = attempt
+      },
+    })
   }
 
   async #fetchProgress(): Promise<boolean> {
-    let attempt = 0
-
-    while (true) {
-      if (this.#auth.status !== 'authenticated') {
-        return false
-      }
-
-      const result = await this.#auth.client.getProgress()
-
-      if (result.status === 'ok') {
-        const progress = result.data.progress
+    let done = false
+    return this.#runWithRetry({
+      context: 'progress',
+      verb: 'fetch',
+      shouldRun: () => !done,
+      call: (client) => client.getProgress(),
+      onSuccess: (data) => {
+        const progress = data.progress
         this.#progress = progress
         this.#submittedProgress = progress
         this.emit('progress-changed', { progress })
         this.emit('progress-submitted', { progress })
-
-        if (this.isConnectionLost()) {
-          this.#auth.connectionLost = false
-          this.emit('connection-restored')
-        }
-
-        return true
-      }
-
-      if (result.status === 'session-expired') {
-        // Only emit session-expired once
-        if (this.#auth.status === 'authenticated') {
-          const error: AgentError = {
-            type: 'session-expired',
-            context: 'progress',
-            message: 'Session expired or invalid',
-            retriable: false,
-          }
-
-          this.#lastError = error
-          this.#auth = {
-            status: 'expired',
-            baseUrl: result.baseUrl,
-          }
-          this.emit('error', error)
-          this.emit('session-expired')
-        }
-
-        return false
-      }
-
-      if (attempt >= 4) {
-        const error: AgentError =
-          result.status === 'server-error'
-            ? {
-                type: 'server-error',
-                context: 'progress',
-                message: 'Server error while fetching progress',
-                retriable: true,
-              }
-            : {
-                type: 'network-error',
-                context: 'progress',
-                message: `Network error while fetching progress: ${result.error}`,
-                retriable: true,
-              }
-
-        this.#lastError = error
-        this.emit('error', error)
-
-        if (this.isConnectionLost() === false) {
-          this.#auth.connectionLost = true
-          this.emit('connection-lost')
-        }
-
-        return false
-      }
-
-      const delay = 1000 * 2 ** attempt
-      attempt += 1
-
-      this.emit('retry', {
-        type: 'progress',
-        attempt,
-        nextRetryMs: delay,
-      })
-
-      await new Promise((resolve) => setTimeout(resolve, delay))
-    }
+        done = true
+      },
+    })
   }
 
   async #fetchPageState(): Promise<boolean> {
-    let attempt = 0
-
-    while (true) {
-      if (this.#auth.status !== 'authenticated') {
-        return false
-      }
-
-      const result = await this.#auth.client.getPageState()
-
-      if (result.status === 'ok') {
-        const pageState = result.data.page_state
+    let done = false
+    return this.#runWithRetry({
+      context: 'pagestate',
+      verb: 'fetch',
+      shouldRun: () => !done,
+      call: (client) => client.getPageState(),
+      onSuccess: (data) => {
+        const pageState = data.page_state
         this.#pageState = pageState
         this.#pageStateInSync = true
         this.emit('pagestate-changed', { pageState })
+        done = true
+      },
+    })
+  }
 
-        if (this.isConnectionLost()) {
+  // Shared retry/backoff state machine for the agent's authenticated requests.
+  // Repeatedly runs `call` while `shouldRun()` holds, invoking `onSuccess` on
+  // each successful response.  A `session-expired` result transitions the agent
+  // to the expired state (emitting `session-expired` once); a failing request is
+  // retried up to four times with exponential backoff, after which the
+  // connection is marked lost.  Returns true when the operation completes
+  // without giving up, false when it bails (session expired, connection lost, or
+  // the session was already gone).
+  async #runWithRetry<T>(opts: {
+    context: 'progress' | 'pagestate'
+    verb: 'submit' | 'fetch'
+    shouldRun: () => boolean
+    call: (client: ApiClient) => Promise<ApiRequestResult<T>>
+    onSuccess: (data: T) => void
+    syncAttempt?: (attempt: number) => void
+  }): Promise<boolean> {
+    const { context, verb, shouldRun, call, onSuccess, syncAttempt } = opts
+    const noun = context === 'progress' ? 'progress' : 'page state'
+    const gerund = verb === 'submit' ? 'submitting' : 'fetching'
+
+    let attempt = 0
+    syncAttempt?.(0)
+
+    while (shouldRun()) {
+      if (this.#auth.status !== 'authenticated') {
+        // The session ended while we were waiting to retry.  The session-expired
+        // event has already been emitted, so there is nothing more to do here.
+        return false
+      }
+
+      const result = await call(this.#auth.client)
+
+      if (result.status === 'ok') {
+        onSuccess(result.data)
+        attempt = 0
+        syncAttempt?.(0)
+
+        if (this.#auth.status === 'authenticated' && this.#auth.connectionLost) {
           this.#auth.connectionLost = false
           this.emit('connection-restored')
         }
 
-        return true
+        continue
       }
 
       if (result.status === 'session-expired') {
-        // Only emit session-expired once
+        // Only transition (and emit) once.
         if (this.#auth.status === 'authenticated') {
           const error: AgentError = {
             type: 'session-expired',
-            context: 'pagestate',
+            context,
             message: 'Session expired or invalid',
             retriable: false,
           }
@@ -635,7 +479,6 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
           this.emit('session-expired')
         }
 
-        // We're no longer unauthenticated -- stop trying to fetch page state
         return false
       }
 
@@ -644,21 +487,21 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
           result.status === 'server-error'
             ? {
                 type: 'server-error',
-                context: 'pagestate',
-                message: 'Server error while fetching page state',
+                context,
+                message: `Server error while ${gerund} ${noun}`,
                 retriable: true,
               }
             : {
                 type: 'network-error',
-                context: 'pagestate',
-                message: `Network error while fetching page state: ${result.error}`,
+                context,
+                message: `Network error while ${gerund} ${noun}: ${result.error}`,
                 retriable: true,
               }
 
         this.#lastError = error
         this.emit('error', error)
 
-        if (this.isConnectionLost() === false) {
+        if (this.#auth.status === 'authenticated' && this.#auth.connectionLost === false) {
           this.#auth.connectionLost = true
           this.emit('connection-lost')
         }
@@ -668,21 +511,24 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
 
       const delay = 1000 * 2 ** attempt
       attempt += 1
+      syncAttempt?.(attempt)
 
       this.emit('retry', {
-        type: 'pagestate',
+        type: context,
         attempt,
         nextRetryMs: delay,
       })
 
       await new Promise((resolve) => setTimeout(resolve, delay))
     }
+
+    return true
   }
 
   async #initialize() {
     await this.#logger?.log('Beginning agent initialization')
 
-    const result = await authenticate(this.#logger)
+    const result = await this.#authenticate(this.#logger)
 
     if (result.status === 'authenticated') {
       await this.#logger?.log(
@@ -692,7 +538,7 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
       this.#auth = {
         status: 'authenticated',
         user: result.user,
-        client: new ApiClient(result.baseUrl, result.token),
+        client: this.#createClient(result.baseUrl, result.token),
         connectionLost: false,
       }
     } else if (result.status === 'failed') {
@@ -763,3 +609,20 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
     }
   }
 }
+
+// Create a Modulus agent, wiring in the real authentication flow and API client.
+// This is the public way to construct an agent; the implementation class is not
+// exported from the package.
+export function createModulusAgent(logger?: Logger): ModulusAgentImpl {
+  return new ModulusAgentImpl({
+    logger,
+    authenticate,
+    createClient: (baseUrl, token) => new ApiClient(baseUrl, token),
+  })
+}
+
+// The public agent type: the instance surface returned by `createModulusAgent`.
+// Being the instance type (rather than the class), it exposes the agent's
+// methods but not its constructor, so the injectable dependencies never appear
+// in the public API.
+export type ModulusAgent = ReturnType<typeof createModulusAgent>
