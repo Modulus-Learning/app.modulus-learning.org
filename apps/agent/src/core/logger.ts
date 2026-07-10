@@ -2,6 +2,16 @@ export interface Logger {
   log(...msgs: unknown[]): Promise<void>
 }
 
+// The default logger for the agent.  Emits nothing -- the agent runs inside
+// learners' browsers on third-party content pages, so console commentary (and
+// any token material in it) is off by default.  Content authors can opt in by
+// passing `createConsoleLogger()` / `createDebugLogger()` to the agent.
+export const createSilentLogger = (): Logger => {
+  return {
+    async log() {},
+  }
+}
+
 export const createConsoleLogger = (): Logger => {
   return {
     async log(...msgs) {

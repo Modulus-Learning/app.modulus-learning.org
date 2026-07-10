@@ -291,7 +291,10 @@ const handleAuthCodeResponse = async (
     code_verifier,
   }
 
-  await logger?.log('Token request parameters:', JSON.stringify(requestParams))
+  await logger?.log(
+    'Token request parameters:',
+    JSON.stringify({ ...requestParams, code_verifier: '[redacted]' })
+  )
 
   const requestUrl = new URL('/routes/agent/token', issuer)
   await logger?.log('Posting token request to', requestUrl.toString())
@@ -308,7 +311,7 @@ const handleAuthCodeResponse = async (
       const { api_base_url, access_token, user } = await response.json()
       await logger?.log(
         'Received token response:',
-        JSON.stringify({ access_token, api_base_url, user })
+        JSON.stringify({ access_token: '[redacted]', api_base_url, user })
       )
       window.localStorage.setItem(MODULUS_BASE_URL_STORAGE_KEY, issuer)
       return {

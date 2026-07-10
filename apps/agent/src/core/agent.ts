@@ -1,7 +1,7 @@
 import { ApiClient, type ProgressContribution } from './api-client.js'
 import { authenticate } from './auth.js'
 import { EventEmitter } from './event-emitter.js'
-import { createConsoleLogger, type Logger } from './logger.js'
+import { createSilentLogger, type Logger } from './logger.js'
 import type {
   AgentError,
   AuthStatus,
@@ -73,7 +73,7 @@ export class ModulusAgent extends EventEmitter<ModulusAgentEvents> {
 
   constructor(logger?: Logger) {
     super()
-    this.#logger = logger ?? createConsoleLogger()
+    this.#logger = logger ?? createSilentLogger()
     this.#initialize()
   }
 
