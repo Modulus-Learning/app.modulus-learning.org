@@ -7,6 +7,7 @@ export type ModulusWidgetStatus =
   | 'connected'
   | 'connection-lost'
   | 'session-expired'
+  | 'load-failed'
   | 'error'
 
 export type ModulusWidgetSyncState = 'saved' | 'saving' | 'unsaved'
@@ -39,6 +40,7 @@ export const statusLabels: Record<ModulusWidgetStatus, string> = {
   connected: 'Connected to Modulus',
   'connection-lost': 'Connection lost — retrying',
   'session-expired': 'Your session has ended — re-open this assignment from your course',
+  'load-failed': "Couldn't load your saved work",
   error: 'Modulus not connected',
 }
 
@@ -54,6 +56,7 @@ export function getWidgetStatus(agent: ModulusAgent): ModulusWidgetStatus {
   if (auth.status === 'none') return 'disconnected'
   if (auth.status === 'failed') return 'error'
   if (auth.status === 'expired') return 'session-expired'
+  if (!agent.isInitialStateLoaded()) return 'load-failed'
   if (agent.isConnectionLost()) return 'connection-lost'
   return 'connected'
 }

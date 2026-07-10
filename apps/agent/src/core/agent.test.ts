@@ -197,4 +197,66 @@ describe('ModulusAgent authenticated request state machine', () => {
     expect(agent.isConnected()).toBe(true)
     expect(agent.submittedProgress()).toBe(0.5)
   })
+
+  it('keeps a successful auth authenticated when initial state fails to load, and holds page-state writes', async () => {
+    const client = makeClient({
+      getProgress: vi.fn(async () => ({ status: 'client-error', code: 400, text: 'bad' })),
+    })
+    const agent = makeAgent(client)
+    await ready(agent)
+
+    // A failed initial fetch must not undo a successful authentication.
+    expect(agent.authStatus().status).toBe('authenticated')
+    expect(agent.isAuthenticated()).toBe(true)
+    expect(agent.isInitialStateLoaded()).toBe(false)
+    expect(agent.lastError()?.type).toBe('init-failed')
+
+    // Progress and page-state writes are both held until the load failure is
+    // resolved -- they never sync one-sidedly.
+    agent.setProgress(0.5)
+    agent.setPageState({ a: 1 })
+    await Promise.resolve()
+    expect(client.putProgress).not.toHaveBeenCalled()
+    expect(client.putPageState).not.toHaveBeenCalled()
+  })
+
+  it('recovers via reloadInitialState() once the server responds', async () => {
+    let fail = true
+    const client = makeClient({
+      getProgress: vi.fn(async () =>
+        fail ? { status: 'client-error', code: 400, text: 'x' } : okProgress(0.6)
+      ),
+    })
+    const agent = makeAgent(client)
+    await ready(agent)
+    expect(agent.isInitialStateLoaded()).toBe(false)
+
+    fail = false
+    await agent.reloadInitialState()
+
+    expect(agent.isInitialStateLoaded()).toBe(true)
+    expect(agent.progress()).toBe(0.6)
+
+    // Page-state writes now go through.
+    const submitted = nextEvent(agent, 'pagestate-submitted')
+    agent.setPageState({ a: 1 })
+    await submitted
+    expect(client.putPageState).toHaveBeenCalled()
+  })
+
+  it('startFreshFromLocalState() overwrites the server with local page state and unblocks writes', async () => {
+    const client = makeClient({
+      getProgress: vi.fn(async () => ({ status: 'client-error', code: 400, text: 'x' })),
+    })
+    const agent = makeAgent(client)
+    await ready(agent)
+    expect(agent.isInitialStateLoaded()).toBe(false)
+
+    const submitted = nextEvent(agent, 'pagestate-submitted')
+    agent.startFreshFromLocalState()
+    await submitted
+
+    expect(agent.isInitialStateLoaded()).toBe(true)
+    expect(client.putPageState).toHaveBeenCalled()
+  })
 })

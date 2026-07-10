@@ -47,6 +47,13 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
   // Last error emitted, if any.
   #lastError: AgentError | undefined = undefined
 
+  // Whether the initial progress + page state were successfully loaded from the
+  // server after authentication.  False when auth succeeded but the initial
+  // fetch failed: the session stays authenticated, page-state submission is
+  // held, and the widget offers the learner a way to recover (retry / start
+  // fresh / reload).
+  #initialStateLoaded = true
+
   // Optional logger.
   #logger?: Logger
 
@@ -170,6 +177,13 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
     return this.#auth.status === 'authenticated' && this.#auth.connectionLost
   }
 
+  // Did the agent successfully load the learner's saved progress and page state
+  // from the server during initialization?  False when authentication succeeded
+  // but the initial fetch failed.
+  isInitialStateLoaded(): boolean {
+    return this.#initialStateLoaded
+  }
+
   // Get the progress value for the current page.
   progress(): number {
     return this.#progress
@@ -217,6 +231,7 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
       authenticated: this.#auth.status === 'authenticated',
       authStatus: this.authStatus(),
       connectionLost: this.isConnectionLost(),
+      initialStateLoaded: this.#initialStateLoaded,
       progress: {
         current: this.#progress,
         submitted: this.#submittedProgress,
@@ -310,10 +325,53 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
     }
   }
 
+  // Re-attempt the initial progress + page state load after it failed during
+  // initialization.  On success, clears the load-failed state; on failure, the
+  // agent stays in the load-failed state.
+  async reloadInitialState(): Promise<void> {
+    if (this.#auth.status !== 'authenticated') {
+      return
+    }
+
+    await this.#loadInitialState()
+
+    if (this.#initialStateLoaded) {
+      this.emit('initial-state-changed', { loaded: true })
+    }
+  }
+
+  // Give up on loading the server's saved state and proceed with the local
+  // state, overwriting whatever the server holds.  Only meaningful after the
+  // initial load failed: clears the load-failed state and pushes the current
+  // (local) page state to the server.
+  startFreshFromLocalState() {
+    if (this.#auth.status !== 'authenticated' || this.#initialStateLoaded) {
+      return
+    }
+
+    this.#initialStateLoaded = true
+    this.#pageStateInSync = false
+    this.emit('initial-state-changed', { loaded: true })
+
+    // Syncing is unblocked now, so push whatever we hold locally.  Progress and
+    // page state resume together.
+    this.#submitProgress()
+    this.#submitPageState()
+  }
+
   // ********************** Internal methods ***********************
 
+  // Whether the agent can currently sync updates to the server.  Progress and
+  // page state are gated on this together: if the agent can't send one, it does
+  // not send the other, so a one-sided hold can never let progress and page
+  // state drift apart.  False until the initial state has loaded, and whenever
+  // the session isn't authenticated.
+  #canSync(): boolean {
+    return this.#auth.status === 'authenticated' && this.#initialStateLoaded
+  }
+
   async #submitProgress() {
-    if (this.#submittingProgress || this.#auth.status !== 'authenticated') {
+    if (this.#submittingProgress || !this.#canSync()) {
       return
     }
 
@@ -327,7 +385,7 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
   }
 
   async #submitPageState() {
-    if (this.#submittingPageState || this.#auth.status !== 'authenticated') {
+    if (this.#submittingPageState || !this.#canSync()) {
       return
     }
 
@@ -614,17 +672,21 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
     await this.#logger?.log('Loading initial progress and page state')
 
     const results = await Promise.all([this.#fetchProgress(), this.#fetchPageState()])
-    if (results.some((val) => val === false)) {
-      await this.#logger?.log('Failed to load initial progress / page state')
 
-      // TODO: For now, treat errors here as an authentication failure.
-      // Technically this isn't correct -- we already authenticated
-      // successfully, so we really should keep #auth.status = 'authenticated'
-      // and separately signal that the initial state failed to load.  The
-      // question is: what should the page do in that case?  If it goes
-      // interactive, and the user interacts and generates new page state, we
-      // then have to figure out how to merge that page with the state from the
-      // server (once we eventually load it).
+    if (results.every((val) => val === true)) {
+      this.#initialStateLoaded = true
+      return
+    }
+
+    await this.#logger?.log('Failed to load initial progress / page state')
+
+    // Authentication already succeeded, so a failed initial fetch must not undo
+    // it.  If the session ended mid-load, #runWithRetry has already moved us to
+    // the expired state -- leave it.  Otherwise stay authenticated but record
+    // that the initial state did not load: page-state submission is held (see
+    // #submitPageState) and the widget offers the learner a way to recover.
+    if (this.#auth.status === 'authenticated') {
+      this.#initialStateLoaded = false
 
       this.#lastError = {
         type: 'init-failed',
@@ -633,12 +695,8 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
         retriable: false,
       }
 
-      this.#auth = {
-        status: 'failed',
-        error: this.#lastError.message,
-      }
-
       this.emit('error', this.#lastError)
+      this.emit('initial-state-changed', { loaded: false })
     }
   }
 }

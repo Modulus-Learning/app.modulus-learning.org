@@ -82,4 +82,7 @@ export type ModulusAgentEvents = {
 
   // The user's session has expired.
   'session-expired': []
+
+  // The initial progress + page state load (after auth) succeeded or failed.
+  'initial-state-changed': [event: { loaded: boolean }]
 }
