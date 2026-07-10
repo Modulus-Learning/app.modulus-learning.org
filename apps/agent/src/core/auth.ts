@@ -4,6 +4,7 @@ import type { User } from './types.js'
 type AuthResult =
   | { status: 'none' }
   | { status: 'authenticated'; baseUrl: string; user: User; token: string }
+  | { status: 'expired' }
   | { status: 'failed'; baseUrl?: string | undefined; error: string }
 
 export const authenticate = async (logger: Logger | undefined): Promise<AuthResult> => {
@@ -245,6 +246,16 @@ const handleAuthCodeResponse = async (
       issuer,
       redirect_uri: getOAuthRedirectUri(),
     })
+
+    // `access_denied` means the gradebook refused the authorization request --
+    // almost always because the learner's Modulus session cookie is gone.  This
+    // is the common learner session-expiry path, so surface it as a distinct
+    // "session has ended" state (rather than a generic failure) so the widget
+    // can prompt a re-launch from the LMS.
+    if (error === 'access_denied') {
+      return { status: 'expired' }
+    }
+
     return {
       status: 'failed',
       error: OAUTH_ERRORS.includes(error) ? error : 'malformed_response',

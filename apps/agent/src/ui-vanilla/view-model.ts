@@ -38,7 +38,7 @@ export const statusLabels: Record<ModulusWidgetStatus, string> = {
   disconnected: 'Not connected to Modulus',
   connected: 'Connected to Modulus',
   'connection-lost': 'Connection lost — retrying',
-  'session-expired': 'Session expired',
+  'session-expired': 'Your session has ended — re-open this assignment from your course',
   error: 'Modulus not connected',
 }
 

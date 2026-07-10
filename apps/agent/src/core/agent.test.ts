@@ -35,14 +35,19 @@ const makeClient = (over: Partial<MockClient> = {}): MockClient => ({
   ...over,
 })
 
-const makeAgent = (client: MockClient): ModulusAgentImpl => {
+const AUTHENTICATED = {
+  status: 'authenticated',
+  baseUrl: BASE_URL,
+  user: USER,
+  token: 'tok',
+}
+
+const makeAgent = (
+  client: MockClient,
+  auth: Awaited<ReturnType<ModulusAgentDeps['authenticate']>> = AUTHENTICATED as never
+): ModulusAgentImpl => {
   const deps: ModulusAgentDeps = {
-    authenticate: (async () => ({
-      status: 'authenticated',
-      baseUrl: BASE_URL,
-      user: USER,
-      token: 'tok',
-    })) as ModulusAgentDeps['authenticate'],
+    authenticate: (async () => auth) as ModulusAgentDeps['authenticate'],
     createClient: () => client as unknown as ApiClient,
   }
   return new ModulusAgentImpl(deps)
@@ -78,6 +83,19 @@ describe('ModulusAgent authenticated request state machine', () => {
     expect(agent.progress()).toBe(0.4)
     expect(agent.submittedProgress()).toBe(0.4)
     expect(client.getProgress).toHaveBeenCalledTimes(1)
+  })
+
+  it('maps an access_denied page-load result to the expired (signed-out) state', async () => {
+    const client = makeClient()
+    const agent = makeAgent(client, { status: 'expired' })
+    await ready(agent)
+
+    expect(agent.authStatus().status).toBe('expired')
+    expect(agent.isAuthenticated()).toBe(false)
+    expect(agent.isConnected()).toBe(false)
+    expect(agent.lastError()?.type).toBe('session-expired')
+    // We never authenticated, so no initial state is fetched.
+    expect(client.getProgress).not.toHaveBeenCalled()
   })
 
   it('submits progress and emits progress-submitted on success', async () => {

@@ -9,11 +9,13 @@ export const revalidate = 0
  * Authorization endpoint for OAuth 2.0 authorization code flow with PKCE.
  *
  * Expects an OAuth authorization code request in the query string.  If a user
- * is logged in, generates an auth code for that user and returns it (embedded
- * in the query string of an HTTP redirect to the specified redirect_uri).  If a
- * user is not logged in, stores the auth code request and redirects the user to
- * a sign-in page.  Once they've authenticated, we'll generate an auth code
- * and redirect back as normal.
+ * is logged in, generates an auth code for that user and redirects back to the
+ * specified redirect_uri with the code (and `state`) in the query string.  If a
+ * user is not logged in, redirects back to the redirect_uri with
+ * `error=access_denied`; the agent surfaces that as a "session has ended" state
+ * and prompts the learner to re-launch from their LMS.  (A dedicated sign-in
+ * page that stores the request and resumes it after authentication is not
+ * implemented -- see the non-LMS sign-in flow follow-up.)
  */
 export const GET = async (request: NextRequest) => {
   // Extract request parameters.

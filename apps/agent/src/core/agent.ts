@@ -16,7 +16,7 @@ type AuthState =
   | { status: 'none' }
   | { status: 'authenticated'; user: User; client: ApiClient; connectionLost: boolean }
   | { status: 'failed'; baseUrl?: string | undefined; error: string }
-  | { status: 'expired'; baseUrl: string }
+  | { status: 'expired'; baseUrl?: string }
 
 // The dependencies the agent needs to run: its logger and the collaborators for
 // authentication and API access.  `createModulusAgent` wires in the real
@@ -559,6 +559,21 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
         client: this.#createClient(result.baseUrl, result.token),
         connectionLost: false,
       }
+    } else if (result.status === 'expired') {
+      await this.#logger?.log('Modulus session has ended -- re-launch required')
+
+      this.#lastError = {
+        type: 'session-expired',
+        context: 'auth',
+        message: 'Session has ended',
+        retriable: false,
+      }
+
+      this.#auth = {
+        status: 'expired',
+      }
+
+      this.emit('error', this.#lastError)
     } else if (result.status === 'failed') {
       await this.#logger?.log('Modulus agent failed to authenticate')
 
