@@ -8,7 +8,7 @@ export type JWTSignerConfig = {
   privateKey: string
   issuer: string
   audience: string
-  expires: { access: number; refresh: number }
+  expires: { access: number; refresh: number; agent: number }
 }
 
 export type JWTWithExpiration = {

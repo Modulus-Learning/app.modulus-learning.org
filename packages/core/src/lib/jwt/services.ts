@@ -27,7 +27,10 @@ export class JWTSigner extends BaseService {
   }
 
   @method
-  async sign(payload: JWTPayload, type: 'access' | 'refresh'): Promise<JWTWithExpiration> {
+  async sign(
+    payload: JWTPayload,
+    type: 'access' | 'refresh' | 'agent'
+  ): Promise<JWTWithExpiration> {
     const expiration_in_ms = Date.now() + this.config.expires[type] * 1000
 
     const token = await new SignJWT(payload)

@@ -250,10 +250,13 @@ Flagged in the code, worth knowing before relying on these paths:
   exists and outcomes are recorded to `user_logins`, but lockout/back-off on
   repeated failures is a `TODO`, as are timing-attack mitigations on
   password sign-in.
-- **Agent token expiry quirk.** `AgentTokenIssuer` signs the agent access token
-  with the `'refresh'` expiry setting (`jwtSign.sign(payload, 'refresh')`); the
-  short-lived behaviour is driven by `renew_after` rather than a dedicated
-  agent-token TTL. A cleanup is noted in the code.
+- **Agent token lifetime.** `AgentTokenIssuer` signs the agent access token with
+  its own expiry (`sign(payload, 'agent')`; `config.jwt.expires.agent` ←
+  `AGENT_JWT_EXPIRES_IN`, defaulting to the refresh expiry). The real revocation
+  cadence is `renew_after` (`config.jwt.agent.renewAfterSeconds` ←
+  `AGENT_JWT_RENEW_AFTER_SECONDS`, ~60s): past it, every request re-validates that
+  the user is still enabled and the activity still exists before re-minting the
+  token, so `exp` only bounds a fully idle tab.
 - **Agent refresh-token rotation.** `agent_refresh_tokens` carries `used_at` for
   rotation/replay detection; confirm the issuing/rotation path is fully wired as
   the agent matures.

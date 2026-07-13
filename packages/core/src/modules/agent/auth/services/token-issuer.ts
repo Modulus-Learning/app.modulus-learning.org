@@ -1,15 +1,18 @@
+import type { Config } from '@/config.js'
 import type { JWTSigner } from '@/lib/jwt/services.js'
 import type { AccessTokenPayload, SignInResult } from '../types.js'
 
 export class AgentTokenIssuer {
   private jwtSign: JWTSigner
+  private renewAfterSeconds: number
 
-  constructor(deps: { jwtSign: JWTSigner }) {
+  constructor(deps: { jwtSign: JWTSigner; config: Config }) {
     this.jwtSign = deps.jwtSign
+    this.renewAfterSeconds = deps.config.jwt.agent.renewAfterSeconds
   }
 
   createAccessToken({ user, activity }: SignInResult): Promise<string> {
-    const renew_after = Math.floor(Date.now() / 1000 + 60) // 1 minute
+    const renew_after = Math.floor(Date.now() / 1000 + this.renewAfterSeconds)
 
     const payload: AccessTokenPayload = {
       user: {
@@ -20,6 +23,6 @@ export class AgentTokenIssuer {
       renew_after,
     }
 
-    return this.jwtSign.sign(payload, 'refresh').then((value) => value.token)
+    return this.jwtSign.sign(payload, 'agent').then((value) => value.token)
   }
 }

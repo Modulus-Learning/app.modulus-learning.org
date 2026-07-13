@@ -21,6 +21,10 @@ export const configSchema = z.object({
     expires: z.object({
       access: z.coerce.number(),
       refresh: z.coerce.number(),
+      agent: z.coerce.number(),
+    }),
+    agent: z.object({
+      renewAfterSeconds: z.coerce.number().default(60),
     }),
   }),
   postgres: z.object({
@@ -119,6 +123,10 @@ export const loadConfigUnchecked = () => {
       expires: {
         access: process.env.API_JWT_ACCESS_TOKEN_EXPIRES_IN,
         refresh: process.env.API_JWT_REFRESH_TOKEN_EXPIRES_IN,
+        agent: process.env.AGENT_JWT_EXPIRES_IN ?? process.env.API_JWT_REFRESH_TOKEN_EXPIRES_IN,
+      },
+      agent: {
+        renewAfterSeconds: process.env.AGENT_JWT_RENEW_AFTER_SECONDS,
       },
     },
     postgres: {
