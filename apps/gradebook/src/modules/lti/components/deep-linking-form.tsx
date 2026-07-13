@@ -170,7 +170,7 @@ export function DeepLinkingForm({
           </h2>
           <form action={formAction} noValidate onSubmit={handleSubmit}>
             <input type="hidden" id="launch_id" name="launch_id" value={launchId} />
-            <input type="hidden" name="activity_code" value={activityCode} />
+            <input type="hidden" name="activity_code_id" value={selectedActivityCode?.id ?? ''} />
             <input type="hidden" name="activity_url" value={activityUrl} />
             {activityCodes.length > 0 ? (
               <>
@@ -186,8 +186,11 @@ export function DeepLinkingForm({
                       label: ac.code,
                     }))}
                   />
-                  {formState.errors?.activity_code && (
-                    <ErrorText id="activity_code_error" text={formState.errors.activity_code[0]} />
+                  {formState.errors?.activity_code_id && (
+                    <ErrorText
+                      id="activity_code_id_error"
+                      text={formState.errors.activity_code_id[0]}
+                    />
                   )}
                 </div>
                 {activityCode && (

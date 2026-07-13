@@ -72,12 +72,10 @@ export class LtiCommands {
     })
   }
 
-  // TODO: Should the deep linking flow require an authenticated user (and
-  // use authMode: 'user' instead?)
   @cached get handleDeepLink() {
     return this.utils.createCommand({
       method: 'handleDeepLink',
-      auth: { mode: 'none' },
+      auth: { mode: 'user', abilities: ['activity_codes:update_own'] },
       schemas: {
         input: deepLinkRequestSchema,
         output: deepLinkResponseSchema,

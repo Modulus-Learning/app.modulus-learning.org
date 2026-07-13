@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 
-import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
+import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import type { DeepLinkingFormState } from '../@types'
 
@@ -15,7 +15,7 @@ export const deepLinking = async (
 
   const validationResult = core.app.lti.handleDeepLink.schemas.input.safeParse({
     activity_url: formData.get('activity_url'),
-    activity_code: formData.get('activity_code'),
+    activity_code_id: formData.get('activity_code_id'),
     launch_id: formData.get('launch_id'),
   })
   if (!validationResult.success) {
@@ -27,7 +27,14 @@ export const deepLinking = async (
     }
   }
 
-  const ctx = await getCoreRequestContext()
+  const ctx = await getCoreUserRequestContext()
+  if (ctx == null) {
+    return {
+      status: 'failed',
+      message: 'You must be signed in to configure this link.',
+    }
+  }
+
   const result = await core.app.lti.handleDeepLink(ctx, validationResult.data)
   if (!result.ok) {
     log.error({

@@ -3,18 +3,18 @@ import * as crypto from 'node:crypto'
 import { v7 as uuidv7 } from 'uuid'
 
 import { BaseService, method } from '@/lib/base-service.js'
+import { ERR_FORBIDDEN } from '@/lib/errors.js'
 import {
-  CLAIM_CUSTOM,
   CLAIM_DEEP_LINKING_CONTENT,
   CLAIM_DEEP_LINKING_DATA,
   CLAIM_DEEP_LINKING_MSG,
-  CLAIM_DEEP_LINKING_SETTINGS,
   CLAIM_DEPLOYMENT_ID,
   CLAIM_MESSAGE_TYPE,
   CLAIM_VERSION,
 } from '../constants.js'
 import { ERR_DEEP_LINKING } from '../errors.js'
 import type { UrlBuilder } from '@/config.js'
+import type { UserAuth } from '@/lib/auth.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
 import type {
@@ -23,7 +23,6 @@ import type {
 } from '@/modules/app/activities/repository/index.js'
 import type { LtiQueries } from '../repository/index.js'
 import type { DeepLinkRequest, DeepLinkResponse } from '../schemas.js'
-import type { DeepLinkingRequest } from '../types/messages/platform-originating/deep-linking-request.js'
 import type {
   DeepLinkingContentItem,
   DeepLinkingResponse,
@@ -52,11 +51,10 @@ export class LtiDeepLinkingService extends BaseService {
   }
 
   @method
-  async handleDeepLink({
-    launch_id,
-    activity_code,
-    activity_url,
-  }: DeepLinkRequest): Promise<DeepLinkResponse> {
+  async handleDeepLink(
+    userAuth: UserAuth,
+    { launch_id, activity_code_id, activity_url }: DeepLinkRequest
+  ): Promise<DeepLinkResponse> {
     // NOTE: When an instructor submits the deep linking form we ensure the
     // activity exists and associate it with the given activity code here, so
     // that newly-entered URLs are registered against the code immediately.
@@ -67,37 +65,53 @@ export class LtiDeepLinkingService extends BaseService {
     // with the code that is never used.  This is preferable to losing the
     // association entirely, and the join is idempotent on re-submission.
 
-    const launchItem = await this.ltiQueries.findLaunch(launch_id)
-    if (launchItem == null) {
+    const pending = await this.ltiQueries.findPendingDeepLink(launch_id)
+    if (pending == null) {
       throw ERR_DEEP_LINKING({
-        message: 'launch not found',
+        message: 'deep-link launch not found',
       }).log(this.logger)
     }
 
-    if (launchItem.expires_at < new Date()) {
-      throw ERR_DEEP_LINKING({
-        message: 'launch has expired',
+    // The caller must be the instructor who initiated this deep-link launch.
+    if (pending.user_id !== userAuth.id) {
+      throw ERR_FORBIDDEN({
+        message: 'deep-link launch belongs to a different user',
+        logExtra: { launch_id, user_id: userAuth.id },
       }).log(this.logger)
     }
 
-    // TODO: Rather than storing the whole launch as a JSON string, pick out the
-    // fields we need during launch and store those in separate columns.
-    const launch: DeepLinkingRequest = JSON.parse(launchItem.launch)
+    if (pending.expires_at < new Date()) {
+      throw ERR_DEEP_LINKING({
+        message: 'deep-link launch has expired',
+      }).log(this.logger)
+    }
 
-    const platform = await this.ltiQueries.findPlatformByIssuer(launch.iss)
+    const platform = await this.ltiQueries.findPlatformByIssuer(pending.issuer)
     if (platform == null) {
       throw ERR_DEEP_LINKING({
         message: 'platform not found',
       }).log(this.logger)
     }
 
-    const activityCodeRecord =
-      await this.activityQueries.findActivityCodeByPublicCode(activity_code)
+    const activityCodeRecord = await this.activityQueries.findActivityCodeById(activity_code_id)
     if (activityCodeRecord == null) {
       throw ERR_DEEP_LINKING({
         message: 'activity code not found',
       }).log(this.logger)
     }
+
+    // The caller must be a member of the activity code they are linking to.
+    const isMember = await this.activityQueries.isMember(activity_code_id, userAuth.id)
+    if (!isMember) {
+      throw ERR_FORBIDDEN({
+        message: 'not a member of this activity code',
+        logExtra: { activity_code_id, user_id: userAuth.id },
+      }).log(this.logger)
+    }
+
+    // Build the durable launch URL from the code's canonical public code rather
+    // than a client-supplied string.
+    const activity_code = activityCodeRecord.code
 
     if (
       activityCodeRecord.url_prefix != null &&
@@ -137,10 +151,7 @@ export class LtiDeepLinkingService extends BaseService {
       custom: customFields,
     }
 
-    const message =
-      launch[CLAIM_CUSTOM].modulus_deep_link_context === 'assignment'
-        ? 'Assignment configured!'
-        : 'Link configured!'
+    const message = pending.context === 'assignment' ? 'Assignment configured!' : 'Link configured!'
 
     const response: DeepLinkingResponse = {
       iss: platform.client_id,
@@ -148,17 +159,15 @@ export class LtiDeepLinkingService extends BaseService {
       nonce,
       [CLAIM_MESSAGE_TYPE]: 'LtiDeepLinkingResponse',
       [CLAIM_VERSION]: '1.3.0',
-      [CLAIM_DEPLOYMENT_ID]: launch[CLAIM_DEPLOYMENT_ID],
-      [CLAIM_DEEP_LINKING_DATA]: launch[CLAIM_DEEP_LINKING_SETTINGS].data,
+      [CLAIM_DEPLOYMENT_ID]: pending.deployment_id,
+      [CLAIM_DEEP_LINKING_DATA]: pending.deep_linking_data ?? undefined,
       [CLAIM_DEEP_LINKING_CONTENT]: [link],
       [CLAIM_DEEP_LINKING_MSG]: message,
     }
 
     const jwt = await this.ltiKeyStore.signPlatformMessage(response)
 
-    const return_url = launch[CLAIM_DEEP_LINKING_SETTINGS].deep_link_return_url
-
-    return { jwt, return_url }
+    return { jwt, return_url: pending.return_url }
   }
 }
 

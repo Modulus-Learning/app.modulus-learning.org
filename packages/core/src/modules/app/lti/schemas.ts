@@ -71,7 +71,7 @@ export type LaunchRequest = z.infer<typeof launchRequestSchema>
 
 export const deepLinkRequestSchema = z.strictObject({
   launch_id: z.string(),
-  activity_code: z.string(),
+  activity_code_id: z.uuid(),
   activity_url: z.url(),
 })
 

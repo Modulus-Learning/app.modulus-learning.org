@@ -5,6 +5,7 @@ import { BaseService, method } from '@/lib/base-service.js'
 import {
   CLAIM_AGS_ENDPOINT,
   CLAIM_CUSTOM,
+  CLAIM_DEEP_LINKING_SETTINGS,
   CLAIM_DEPLOYMENT_ID,
   CLAIM_MESSAGE_TYPE,
   CLAIM_ROLES,
@@ -180,15 +181,27 @@ export class LtiLaunchService extends BaseService {
   }
 
   private async handleDeepLinkLaunch(launch: DeepLinkingRequest): Promise<LaunchResponse> {
+    // Sign the user in first, so we can record who the pending deep-link belongs
+    // to (checked when they complete the deep-link form).
+    const signIn = await this.ltiSignInService.signInLti(launch, isInstructor(launch[CLAIM_ROLES]))
+
+    // Persist only the fields the deep-link response is built from (see
+    // LtiDeepLinkingService.handleDeepLink), not the whole id_token.
+    const settings = launch[CLAIM_DEEP_LINKING_SETTINGS]
+    const context = launch[CLAIM_CUSTOM].modulus_deep_link_context
+
     const launch_id = uuidv7()
-    await this.ltiMutations.insertLaunch({
+    await this.ltiMutations.insertPendingDeepLink({
       id: launch_id,
-      launch: JSON.stringify(launch),
+      user_id: signIn.user.id,
+      issuer: launch.iss,
+      deployment_id: launch[CLAIM_DEPLOYMENT_ID],
+      deep_linking_data: settings.data != null ? String(settings.data) : null,
+      return_url: settings.deep_link_return_url,
+      context: typeof context === 'string' ? context : null,
       expires_at: new Date(Date.now() + 1000 * 60 * 60 * 1),
     })
 
-    // Sign the user in.
-    const signIn = await this.ltiSignInService.signInLti(launch, isInstructor(launch[CLAIM_ROLES]))
     const tokens = await this.tokens.createTokens(signIn)
 
     return {

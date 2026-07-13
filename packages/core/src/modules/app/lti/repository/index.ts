@@ -2,9 +2,9 @@ import { and, eq, lte, max, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
 import {
-  launches,
   lineitems,
   nonces,
+  pendingDeepLinks,
   platformDeployments,
   type platformHealth,
   platforms,
@@ -18,8 +18,8 @@ import type { CoreUtils } from '@/lib/utils.js'
 
 export type NonceRecord = typeof nonces.$inferSelect
 export type NonceInsert = typeof nonces.$inferInsert
-export type LaunchRecord = typeof launches.$inferSelect
-export type LaunchInsert = typeof launches.$inferInsert
+export type PendingDeepLinkRecord = typeof pendingDeepLinks.$inferSelect
+export type PendingDeepLinkInsert = typeof pendingDeepLinks.$inferInsert
 export type LineItemRecord = typeof lineitems.$inferSelect
 export type LineItemInsert = typeof lineitems.$inferInsert
 export type PlatformRecord = typeof platforms.$inferSelect
@@ -74,10 +74,10 @@ export class LtiQueries extends BaseService {
   }
 
   @method
-  async findLaunch(launchId: string): Promise<LaunchRecord | undefined> {
+  async findPendingDeepLink(id: string): Promise<PendingDeepLinkRecord | undefined> {
     return await this.db
       .get()
-      .query.launches.findFirst({ where: eq(launches.id, launchId) })
+      .query.pendingDeepLinks.findFirst({ where: eq(pendingDeepLinks.id, id) })
       .catch(this.utils.wrapDbErrorNew())
   }
 
@@ -147,8 +147,8 @@ export class LtiMutations extends BaseService {
   }
 
   @method
-  async insertLaunch(launch: LaunchInsert): Promise<void> {
-    await this.db.get().insert(launches).values(launch).catch(this.utils.wrapDbErrorNew())
+  async insertPendingDeepLink(record: PendingDeepLinkInsert): Promise<void> {
+    await this.db.get().insert(pendingDeepLinks).values(record).catch(this.utils.wrapDbErrorNew())
   }
 
   @method

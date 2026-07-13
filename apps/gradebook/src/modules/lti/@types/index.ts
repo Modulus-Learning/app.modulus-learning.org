@@ -1,7 +1,7 @@
 export type DeepLinkingFormState = {
   errors?: {
     activity_url?: string[]
-    activity_code?: string[]
+    activity_code_id?: string[]
   }
   message?: string
   status: 'success' | 'failed' | 'idle'
