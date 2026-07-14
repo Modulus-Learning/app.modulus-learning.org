@@ -10,6 +10,7 @@ import { stdSerializers } from 'pino'
 import { getServerConfig } from '@/config'
 import { getCoreCommands, getCoreRequestContext, getCoreUserRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
+import { safeCallbackPath } from '@/lib/safe-redirect'
 import { getUserSession, setUserSession } from './storage'
 import type {
   GoogleFormState,
@@ -234,7 +235,11 @@ export async function handleGoogleOAuthResponse(
 
   await setUserSession(result.tokens)
 
-  return redirect(callbackUrl != null && callbackUrl !== '/' ? callbackUrl : '/dashboard?m=welcome')
+  return redirect(
+    callbackUrl != null && callbackUrl !== '/'
+      ? safeCallbackPath(callbackUrl, '/dashboard?m=welcome')
+      : '/dashboard?m=welcome'
+  )
 }
 
 export async function unlinkGoogleAccount(): Promise<GoogleFormState> {

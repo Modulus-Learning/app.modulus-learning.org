@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
 import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
+import { safeCallbackPath } from '@/lib/safe-redirect'
 import { setUserSession } from '../session/storage'
 import { registrationStep1Schema, registrationStep2Schema, registrationStep3Schema } from './@types'
 import type {
@@ -155,5 +156,5 @@ export const registrationStep3 = async (
   }
 
   await setUserSession(result.data)
-  return redirect(validationResult.data.callback_url ?? '/?m=welcome')
+  return redirect(safeCallbackPath(validationResult.data.callback_url, '/?m=welcome'))
 }

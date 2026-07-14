@@ -2,6 +2,8 @@ import { checkBoxAsBooleanSchema } from '@infonomic/schemas'
 import type { UserTokens } from '@modulus-learning/core'
 import { z } from 'zod'
 
+import { isSafeCallbackPath } from '@/lib/safe-redirect'
+
 export type { UserSession } from '@modulus-learning/core'
 
 export const accessTokenSchema = z.object({
@@ -59,7 +61,12 @@ export const signInSchema = z.object({
     .max(32, 'Password must be less than 32 characters')
     .regex(/^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$/, 'Invalid password.'),
   remember_me: checkBoxAsBooleanSchema().optional().prefault(false),
-  callback_url: z.string().optional(),
+  callback_url: z
+    .string()
+    .optional()
+    .refine((v) => v == null || v === '' || isSafeCallbackPath(v), {
+      message: 'Invalid callback URL.',
+    }),
 })
 
 export interface GitHubFormState {

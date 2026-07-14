@@ -1,6 +1,8 @@
 import { passwordSchema } from '@infonomic/schemas'
 import { object, string } from 'zod'
 
+import { isSafeCallbackPath } from '@/lib/safe-redirect'
+
 export const registrationStep1Schema = object({
   full_name: string({
     error: (issue) => (issue.input === undefined ? 'Name is required.' : undefined),
@@ -59,7 +61,11 @@ export const registrationStep3Schema = object({
   confirm_password: string({
     error: (issue) => (issue.input === undefined ? 'Please confirm your password.' : undefined),
   }),
-  callback_url: string().optional(),
+  callback_url: string()
+    .optional()
+    .refine((v) => v == null || v === '' || isSafeCallbackPath(v), {
+      message: 'Invalid callback URL.',
+    }),
 }).superRefine(({ confirm_password, password }, ctx) => {
   if (confirm_password !== password) {
     ctx.issues.push({

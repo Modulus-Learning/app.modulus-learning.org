@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
 import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
+import { safeCallbackPath } from '@/lib/safe-redirect'
 import { type SignInFormState, signInSchema } from './@types'
 import { deleteUserSession, setUserSession } from './storage'
 
@@ -67,7 +68,9 @@ export async function signIn(
   await setUserSession(signInResult.data)
 
   return redirect(
-    callback_url != null && callback_url !== '/' ? callback_url : '/dashboard?m=welcome'
+    callback_url != null && callback_url !== '/'
+      ? safeCallbackPath(callback_url, '/dashboard?m=welcome')
+      : '/dashboard?m=welcome'
   )
 }
 
