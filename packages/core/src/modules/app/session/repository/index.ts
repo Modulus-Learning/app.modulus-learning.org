@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { permissions, roles, roleUser, userLogins, users } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
@@ -118,6 +118,25 @@ export class SessionMutations extends BaseService {
       .catch(this.utils.wrapDbErrorNew())
 
     this.utils.assertExists(user, { message: 'newly created user is null' })
+
+    return user
+  }
+
+  @method
+  async createLtiUserIfAbsent(data: UserInsert): Promise<UserRecord | undefined> {
+    // Concurrency-safe insert for the LTI first-launch path: if a competing
+    // launch already inserted a row for this (lti_iss, lti_sub), the partial
+    // unique index makes this a no-op and nothing is returned.
+    const [user] = await this.db
+      .get()
+      .insert(users)
+      .values(data)
+      .onConflictDoNothing({
+        target: [users.lti_iss, users.lti_sub],
+        where: sql`${users.lti_iss} IS NOT NULL AND ${users.lti_sub} IS NOT NULL`,
+      })
+      .returning()
+      .catch(this.utils.wrapDbErrorNew())
 
     return user
   }

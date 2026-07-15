@@ -1,5 +1,14 @@
-import { relations } from 'drizzle-orm'
-import { boolean, index, integer, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
+import { relations, sql } from 'drizzle-orm'
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core'
 
 import { timestamps } from '../common.js'
 import { activityCodeMember } from './activity-code-member.js'
@@ -34,6 +43,9 @@ export const users = pgTable(
     index('full_name_idx').on(table.full_name),
     index('github_id').on(table.github_id),
     index('google_id').on(table.google_id),
+    uniqueIndex('users_lti_identity_idx')
+      .on(table.lti_iss, table.lti_sub)
+      .where(sql`${table.lti_iss} IS NOT NULL AND ${table.lti_sub} IS NOT NULL`),
   ]
 )
 

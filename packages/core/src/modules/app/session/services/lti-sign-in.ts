@@ -41,11 +41,29 @@ export class LtiSignInService extends BaseService {
       user = await this.queries.findUserByEmail(credentials.email)
     }
 
+    let isNewUser = false
     if (user == null) {
       const roles = isInstructor ? ['everyone', 'instructor'] : ['everyone', 'learner']
-      user = await this.createLTIUser(credentials, roles)
-      this.logger.info({ user_id: user.id }, 'created new user via lti')
-    } else {
+      const created = await this.createLTIUser(credentials, roles)
+      if (created != null) {
+        user = created
+        isNewUser = true
+        this.logger.info({ user_id: user.id }, 'created new user via lti')
+      } else {
+        // A concurrent launch created the account first; adopt the winning row and
+        // continue as if we had found an existing user.
+        user = await this.queries.findUserByLtiId(credentials.iss, credentials.sub)
+      }
+    }
+
+    if (user == null) {
+      throw ERR_UNAUTHORIZED({
+        message: 'lti sign-in could not resolve a user',
+        logExtra: { iss: credentials.iss },
+      })
+    }
+
+    if (!isNewUser) {
       if (!user.is_enabled) {
         this.logger.warn(
           {
@@ -115,10 +133,13 @@ export class LtiSignInService extends BaseService {
     return toSignInResult(user, abilities)
   }
 
-  private async createLTIUser(credentials: LtiCredentials, roles: string[]): Promise<UserRecord> {
+  private async createLTIUser(
+    credentials: LtiCredentials,
+    roles: string[]
+  ): Promise<UserRecord | undefined> {
     const roleIds = await this.queries.findRoleIdsByMachineName(roles)
 
-    const user = await this.mutations.createUser({
+    const user = await this.mutations.createLtiUserIfAbsent({
       id: uuidv7(),
       full_name: credentials.name,
       email: credentials.email,
@@ -129,6 +150,10 @@ export class LtiSignInService extends BaseService {
       last_provider: 'lti',
       // TODO: More fields?
     })
+
+    if (user == null) {
+      return undefined
+    }
 
     await this.mutations.addUserToRoles(user.id, roleIds)
 
