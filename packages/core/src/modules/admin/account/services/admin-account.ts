@@ -156,11 +156,6 @@ export class AdminAccountService extends BaseService {
       }).log(this.logger)
     }
 
-    // Prune email change requests older than 24 hours
-    // TODO: Move this to a job queue task
-    const pruneDate = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    await this.mutations.pruneEmailChangeRequests(pruneDate)
-
     // TODO: Does anything here need to be wrapped in a transaction?
 
     const accountVersion = await this.mutations.getAccountVersionForUpdate(request.id)

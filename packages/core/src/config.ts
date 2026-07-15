@@ -27,6 +27,10 @@ export const configSchema = z.object({
       renewAfterSeconds: z.coerce.number().default(60),
     }),
   }),
+  jobs: z.object({
+    // How often the housekeeping worker prunes short-lived tables (seconds).
+    housekeepingIntervalSeconds: z.coerce.number().default(3600),
+  }),
   postgres: z.object({
     connectionString: z.string(),
   }),
@@ -128,6 +132,9 @@ export const loadConfigUnchecked = () => {
       agent: {
         renewAfterSeconds: process.env.AGENT_JWT_RENEW_AFTER_SECONDS,
       },
+    },
+    jobs: {
+      housekeepingIntervalSeconds: process.env.HOUSEKEEPING_INTERVAL_SECONDS,
     },
     postgres: {
       connectionString: process.env.POSTGRES_CONNECTION_STRING,

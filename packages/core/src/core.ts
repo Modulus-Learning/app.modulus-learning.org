@@ -13,6 +13,7 @@ import { CoreUtils } from './lib/utils.js'
 import { createAdminRegistry, getAdminCommands } from './modules/admin/index.js'
 import { createAgentRegistry, getAgentCommands } from './modules/agent/index.js'
 import { createAppRegistry, getAppCommands } from './modules/app/index.js'
+import { startHousekeepingWorker } from './workers/housekeeping.js'
 import { startScoreSubmissionWorker } from './workers/score-submission.js'
 
 const createJwtSigner = (deps: { logger: CoreLogger; config: Config }) =>
@@ -116,11 +117,19 @@ export const initCore = async ({
 
   const startBackgroundJobs = (): StopHandle => {
     const stopScoreSubmission = startScoreSubmissionWorker(registry.app.lti.scoreSubmissionManager)
+    const stopHousekeeping = startHousekeepingWorker({
+      logger: registry.logger,
+      intervalMs: config.jobs.housekeepingIntervalSeconds * 1000,
+      mutations: {
+        agentAuth: registry.agent.auth.mutations,
+        lti: registry.app.lti.mutations,
+        registration: registry.app.registration.mutations,
+        account: registry.app.account.mutations,
+      },
+    })
 
     return async () => {
-      // NOTE: this should probably use Promise.all or Promise.allSettled if
-      // there are multiple background jobs to stop.
-      await stopScoreSubmission()
+      await Promise.allSettled([stopScoreSubmission(), stopHousekeeping()])
     }
   }
 

@@ -1,4 +1,4 @@
-import { and, eq, lte, max, sql } from 'drizzle-orm'
+import { and, eq, lt, lte, max, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
 import {
@@ -149,6 +149,30 @@ export class LtiMutations extends BaseService {
   @method
   async insertPendingDeepLink(record: PendingDeepLinkInsert): Promise<void> {
     await this.db.get().insert(pendingDeepLinks).values(record).catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async pruneExpiredNonces(olderThan: Date): Promise<number> {
+    const deleted = await this.db
+      .get()
+      .delete(nonces)
+      .where(lt(nonces.created_at, olderThan))
+      .returning({ nonce: nonces.nonce })
+      .catch(this.utils.wrapDbErrorNew())
+
+    return deleted.length
+  }
+
+  @method
+  async pruneExpiredDeepLinks(): Promise<number> {
+    const deleted = await this.db
+      .get()
+      .delete(pendingDeepLinks)
+      .where(lt(pendingDeepLinks.expires_at, new Date()))
+      .returning({ id: pendingDeepLinks.id })
+      .catch(this.utils.wrapDbErrorNew())
+
+    return deleted.length
   }
 
   @method

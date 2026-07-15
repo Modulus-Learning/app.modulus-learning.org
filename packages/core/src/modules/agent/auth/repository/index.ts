@@ -1,4 +1,4 @@
-import { and, eq, gt } from 'drizzle-orm'
+import { and, eq, gt, lt } from 'drizzle-orm'
 
 import { activities, agentAuthCodes, users } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
@@ -78,5 +78,17 @@ export class AgentAuthMutations extends BaseService {
       .catch(this.utils.wrapDbErrorNew())
 
     return authCode
+  }
+
+  @method
+  async pruneExpiredAuthCodes(): Promise<number> {
+    const deleted = await this.db
+      .get()
+      .delete(agentAuthCodes)
+      .where(lt(agentAuthCodes.expires_at, new Date()))
+      .returning({ code: agentAuthCodes.code })
+      .catch(this.utils.wrapDbErrorNew())
+
+    return deleted.length
   }
 }

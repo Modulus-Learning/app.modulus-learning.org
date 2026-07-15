@@ -55,9 +55,6 @@ export class RegistrationService extends BaseService {
     agreed_to_terms,
     gtoken,
   }: PreRegistrationRequest): Promise<PreRegistrationResponse> {
-    // TODO: Move this to a scheduled job
-    await this.mutations.pruneRegistrations()
-
     // Perform reCaptcha check if gtoken was included in the request and/or if
     // recaptcha is mandatory (in which case check will fail if gtoken was not
     // included)

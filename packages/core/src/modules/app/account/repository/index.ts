@@ -198,12 +198,14 @@ export class AccountMutations extends BaseService {
   }
 
   @method
-  async pruneEmailChangeRequests(cutoff: Date) {
-    await this.db
+  async pruneEmailChangeRequests(cutoff: Date): Promise<number> {
+    const deleted = await this.db
       .get()
       .delete(emailChangeRequests)
       .where(lt(emailChangeRequests.created_at, cutoff))
-      .execute()
+      .returning({ id: emailChangeRequests.id })
       .catch(this.utils.wrapDbErrorNew())
+
+    return deleted.length
   }
 }

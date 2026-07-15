@@ -175,14 +175,15 @@ export class RegistrationMutations extends BaseService {
   }
 
   @method
-  async pruneRegistrations(): Promise<void> {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
-    await this.db
+  async pruneRegistrations(cutoff: Date): Promise<number> {
+    const deleted = await this.db
       .get()
       .delete(registrations)
-      .where(lt(registrations.created_at, oneHourAgo))
-      .execute()
+      .where(lt(registrations.created_at, cutoff))
+      .returning({ id: registrations.id })
       .catch(this.utils.wrapDbErrorNew())
+
+    return deleted.length
   }
 
   @method
