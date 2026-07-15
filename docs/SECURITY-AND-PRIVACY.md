@@ -93,8 +93,11 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
   rejects a disabled user, and re-fetches abilities — so a disabled account or
   revoked role takes effect at the next refresh
   ([AUTHN-AUTHZ → Sessions](./AUTHN-AUTHZ.md#sessions--token-refresh)).
-- **Bot mitigation.** The gradebook integrates reCAPTCHA (legacy and Enterprise)
-  for public-facing flows such as registration.
+- **Bot mitigation.** Public self-service flows (self-registration, password
+  sign-in) currently have **no bot mitigation** — no CAPTCHA and no failed-login
+  lockout. In practice nearly all accounts are provisioned via trusted LTI
+  launches rather than public self-registration, but hardening the
+  public paths remains an open item (see Open Questions).
 - **Actor separation.** Learner, admin, and agent tokens are distinguished by
   payload schema (and the admin discriminator), so a token minted for one actor
   cannot be used as another.
@@ -135,6 +138,15 @@ All activity scores are **normalized to 0–1.0** before storage and passback, s
 grade reporting is consistent regardless of an activity's internal scoring model,
 and AGS submissions always use `scoreMaximum: 1`.
 
+**Progress is client-asserted.** Progress and page state are computed in the
+learner's browser by the agent and submitted under the learner's own
+activity-scoped token; the server does not independently verify them. A learner
+can assert any progress (up to 1.0) for their *own* launched activity — this is
+inherent to instrumenting third-party content. The security boundary is
+**isolation** (a learner can only ever write their own progress for the activity
+they launched), not tamper-proof grading, so instructors should treat Modulus
+progress as self-reported.
+
 ## Auditing
 
 The `user_logins` table is an **append-only** audit of authentication events —
@@ -155,8 +167,9 @@ flagged directly in the code:
   and pending `registrations` / `email_change_requests` are kept is **not yet
   defined**. The schema is built to support age-based pruning; the policy is
   yours to set.
-- **Failed-login throttling.** `failed_login_attempts` is recorded but lockout /
-  back-off and timing-attack mitigations are not yet enforced
+- **Bot mitigation & failed-login throttling.** Public self-service flows have no
+  CAPTCHA, and while `failed_login_attempts` is recorded, lockout / back-off and
+  timing-attack mitigations are not yet enforced
   ([AUTHN-AUTHZ → Honest Notes](./AUTHN-AUTHZ.md#honest-notes--open-questions)).
 - **Key persistence.** The LTI tool keystore and the agent's per-platform JWKS
   caches are in-memory and reset on restart; persistence (and rotation strategy)
