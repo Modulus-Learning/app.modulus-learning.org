@@ -21,8 +21,10 @@ allowBuilds:
   argon2: true
   bcrypt: true
   core-js: true
+  cpu-features: false
   esbuild: true
   lightningcss-cli: true
   protobufjs: true
   sharp: true
   simple-git-hooks: true
+  ssh2: false
