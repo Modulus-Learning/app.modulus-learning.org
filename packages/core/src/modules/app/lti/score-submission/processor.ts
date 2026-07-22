@@ -55,28 +55,28 @@ export class LtiScoreSubmissionProcessor extends BaseService {
   private effectQueue: IncidentEffect[] = []
   private drainPromise: Promise<void> = Promise.resolve()
 
-  constructor(
-    logger: CoreLogger,
-    config: Config,
-    submitter: LtiScoreSubmitter,
-    mutations: LtiScoreSubmissionMutations,
+  constructor(deps: {
+    logger: CoreLogger
+    config: Config
+    submitter: LtiScoreSubmitter
+    mutations: LtiScoreSubmissionMutations
     queries: LtiScoreSubmissionQueries
-  ) {
-    super(logger, 'app', 'lti')
-    this.config = config
-    this.submitter = submitter
-    this.mutations = mutations
-    this.queries = queries
+  }) {
+    super(deps.logger, 'app', 'lti')
+    this.config = deps.config
+    this.submitter = deps.submitter
+    this.mutations = deps.mutations
+    this.queries = deps.queries
 
-    const ss = config.lti.score_submission
-    this.maxConcurrency = Math.max(1, ss.max_concurrent_submissions)
+    const { score_submission } = deps.config.lti
+    this.maxConcurrency = Math.max(1, score_submission.max_concurrent_submissions)
     this.governor = new QuotaGovernor(
       this.maxConcurrency,
-      ss.quota_reserve_requests,
-      ss.quota_window_ms,
-      ss.quota_ramp_interval_ms
+      score_submission.quota_reserve_requests,
+      score_submission.quota_window_ms,
+      score_submission.quota_ramp_interval_ms
     )
-    this.tracker = new IncidentTracker(submitter.issuer, config, this.logger)
+    this.tracker = new IncidentTracker(deps.submitter.issuer, deps.config, this.logger)
   }
 
   @method

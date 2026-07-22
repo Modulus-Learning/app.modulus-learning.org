@@ -1,5 +1,6 @@
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_NOT_FOUND } from '@/lib/errors.js'
+import { HttpLtiAgsClient } from './ags-client.js'
 import { LoggingIncidentSink } from './incident-sink.js'
 import { LtiIncidentNotifier } from './notifier.js'
 import { LtiScoreSubmissionProcessor } from './processor.js'
@@ -148,21 +149,27 @@ export class LtiScoreSubmissionManager extends BaseService {
   }
 
   private addProcessor(platform: PlatformRecord) {
-    const submitter = new LtiScoreSubmitter(
+    const agsClient = new HttpLtiAgsClient({
+      logger: this.logger,
+      config: this.config,
       platform,
-      this.logger,
-      this.config,
-      this.mutations,
-      this.accessTokenManager
-    )
+      accessTokenManager: this.accessTokenManager,
+    })
 
-    const processor = new LtiScoreSubmissionProcessor(
-      this.logger,
-      this.config,
+    const submitter = new LtiScoreSubmitter({
+      logger: this.logger,
+      config: this.config,
+      scoreSubmissionMutations: this.mutations,
+      agsClient,
+    })
+
+    const processor = new LtiScoreSubmissionProcessor({
+      logger: this.logger,
+      config: this.config,
       submitter,
-      this.mutations,
-      this.queries
-    )
+      mutations: this.mutations,
+      queries: this.queries,
+    })
     processor.start()
 
     this.processors[platform.id] = processor
