@@ -12,11 +12,15 @@ import {
   ActivityStateMutations,
   ActivityStateQueries,
 } from '@/modules/agent/activity-state/repository/index.js'
+import { ActivityProgressService } from '@/modules/agent/activity-state/services/progress.js'
 import {
   LtiScoreSubmissionMutations,
   LtiScoreSubmissionQueries,
 } from '@/modules/app/lti/score-submission/repository.js'
+import { LtiScoreSubmitter } from '@/modules/app/lti/score-submission/submitter.js'
+import { testConfig } from '@/test-support/config.js'
 import type { DB } from '@/database/index.js'
+import type { LtiAgsClient } from '@/modules/app/lti/score-submission/ags-client.js'
 
 // The load-bearing SQL under test relies on Postgres-18 features (OLD/NEW
 // references in RETURNING, among others), so pin the image accordingly.
@@ -45,6 +49,14 @@ export type TestRepos = {
   activityMutations: ActivityStateMutations
 }
 
+// Service-layer seam for the 7.1b composition tests: the real service over the
+// real DB (`ActivityProgressService` needs no fakes), plus a factory that builds
+// a submitter around an injected (fake) AGS client.
+export type TestServices = {
+  activityProgress: ActivityProgressService
+  makeSubmitter: (agsClient: LtiAgsClient) => LtiScoreSubmitter
+}
+
 export type TestHarness = {
   db: DB
   pool: Pool
@@ -52,6 +64,7 @@ export type TestHarness = {
   tx: TXManagerImpl
   utils: CoreUtils
   repos: TestRepos
+  services: TestServices
   truncateAll: () => Promise<void>
   teardown: () => Promise<void>
 }
@@ -62,7 +75,7 @@ export type TestHarness = {
  *     ephemeral `postgres:18` container via testcontainers.
  *   - Materializes the live schema straight from `schema/index.ts` with
  *     drizzle-kit's `pushSchema` -- deliberately *not* from the committed
- *     migrations, which on this branch may lag the schema source.
+ *     migrations, which may lag the schema source.
  *   - Hand-wires the repositories under test over the real DB.
  *
  * Call once per test file in `before`, `teardown()` in `after`, and
@@ -104,6 +117,22 @@ export async function setupTestHarness(): Promise<TestHarness> {
     activityMutations: new ActivityStateMutations(deps),
   }
 
+  const services: TestServices = {
+    activityProgress: new ActivityProgressService({
+      logger,
+      tx,
+      queries: repos.activityQueries,
+      mutations: repos.activityMutations,
+    }),
+    makeSubmitter: (agsClient) =>
+      new LtiScoreSubmitter({
+        logger,
+        config: testConfig,
+        scoreSubmissionMutations: repos.scoreMutations,
+        agsClient,
+      }),
+  }
+
   const truncateAll = async (): Promise<void> => {
     await pool.query(`TRUNCATE ${TABLES.join(', ')} RESTART IDENTITY CASCADE`)
   }
@@ -115,5 +144,5 @@ export async function setupTestHarness(): Promise<TestHarness> {
     }
   }
 
-  return { db, pool, dbManager, tx, utils, repos, truncateAll, teardown }
+  return { db, pool, dbManager, tx, utils, repos, services, truncateAll, teardown }
 }
