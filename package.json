@@ -16,7 +16,7 @@
     "db:init": "pnpm --filter @modulus-learning/core db:init",
     "db:init:test": "pnpm --filter @modulus-learning/core db:init:test",
     "lint": "turbo run lint --continue",
-    "lint:check": "biome check $(rg --files packages/core/src apps/agent/src apps/gradebook/src apps/agent-demo/react/src apps/agent-demo/vanilla/src -g '*.ts' -g '*.tsx') --diagnostic-level=error",
+    "lint:check": "biome check $(find packages/core/src apps/agent/src apps/gradebook/src apps/agent-demo/react/src apps/agent-demo/vanilla/src -type f \\( -name '*.ts' -o -name '*.tsx' \\)) --diagnostic-level=error",
     "typecheck": "turbo run typecheck --continue",
     "test": "turbo run test",
     "test:integration": "turbo run test:integration --concurrency=1",
