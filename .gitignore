@@ -28,6 +28,7 @@ yarn-error.log*
 
 # local env files
 .env.local
+.env.test
 .env.development.local
 .env.test.local
 .env.production.local
@@ -49,4 +50,3 @@ postgres/backups
 # settings.json) is tracked; machine-local permission grants are not.
 .claude/settings.local.json
 .claude/settings.bak
-

@@ -1,7 +1,6 @@
 /*
-  POSTGRES script to drop and recreate the development database.
-  NOTE: Only do this if you are sure you have exported the latest configuration,
-  and know how to use the config_installer installation profile.
+  Drop and recreate a local Modulus development or test database.
+  The calling script refuses database names that do not end in _dev or _test.
 */
 
 DO $$

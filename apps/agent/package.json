@@ -24,8 +24,10 @@
     "devlti": "rollup -c -w",
     "lint": "biome check --write --unsafe --diagnostic-level=error",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --mode=jsdom && vitest run --mode=node --passWithNoTests",
+    "test:jsdom": "vitest run --mode=jsdom",
+    "test:node": "vitest run --mode=node --passWithNoTests",
+    "test:watch": "vitest --mode=jsdom"
   },
   "files": [
     "dist"

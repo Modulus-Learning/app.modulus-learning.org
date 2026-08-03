@@ -1,6 +1,9 @@
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql'
-import { pushSchema } from 'drizzle-kit/api'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { config as loadEnv } from 'dotenv'
 import { drizzle } from 'drizzle-orm/node-postgres'
+import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Pool } from 'pg'
 import { pino } from 'pino'
 
@@ -22,25 +25,39 @@ import { testConfig } from '@/test-support/config.js'
 import type { DB } from '@/database/index.js'
 import type { LtiAgsClient } from '@/modules/app/lti/score-submission/ags-client.js'
 
-// The load-bearing SQL under test relies on Postgres-18 features (OLD/NEW
-// references in RETURNING, among others), so pin the image accordingly.
-const POSTGRES_IMAGE = 'postgres:18'
+const MIGRATIONS_FOLDER = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../database/migrations'
+)
 
-// Tables the integration suite writes to. TRUNCATE ... CASCADE clears dependents
-// regardless of order, but listing the whole set keeps each pass hermetic.
-const TABLES = [
-  'lti_submission_failures',
-  'lti_platform_incidents',
-  'lti_platform_health',
-  'lti_lineitems',
-  'lti_platform_deployments',
-  'lti_platforms',
-  'progress_events',
-  'page_state',
-  'progress',
-  'activities',
-  'users',
-]
+/** Refuse integration-test DDL and truncation against a non-test database. */
+export function assertTestDatabase(connectionString: string | undefined): string {
+  if (!connectionString) {
+    throw new Error(
+      'POSTGRES_CONNECTION_STRING is not set. Copy packages/core/.env.test.example to .env.test.'
+    )
+  }
+
+  let databaseName: string
+  try {
+    const url = new URL(connectionString)
+    if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') {
+      throw new Error('protocol must be postgres: or postgresql:')
+    }
+    databaseName = decodeURIComponent(url.pathname.replace(/^\//, ''))
+  } catch (error) {
+    throw new Error(`POSTGRES_CONNECTION_STRING is not a valid URL: ${(error as Error).message}`)
+  }
+
+  if (!databaseName.endsWith('_test')) {
+    throw new Error(
+      `Refusing to run integration tests against database '${databaseName}'. ` +
+        `The database name must end in '_test'.`
+    )
+  }
+
+  return connectionString
+}
 
 export type TestRepos = {
   scoreQueries: LtiScoreSubmissionQueries
@@ -70,39 +87,28 @@ export type TestHarness = {
 }
 
 /**
- * Brings up a Postgres the integration suite can own end-to-end:
- *   - Connects to `TEST_POSTGRES_CONNECTION_STRING` when set; otherwise starts an
- *     ephemeral `postgres:18` container via testcontainers.
- *   - Materializes the live schema straight from `schema/index.ts` with
- *     drizzle-kit's `pushSchema` -- deliberately *not* from the committed
- *     migrations, which may lag the schema source.
+ * Connects to the dedicated `_test` database supplied by `.env.test` or CI:
+ *   - Accepts `POSTGRES_CONNECTION_STRING`; the former
+ *     `TEST_POSTGRES_CONNECTION_STRING` remains a compatibility override.
+ *   - Applies the committed Drizzle migrations, making migration completeness
+ *     part of the integration gate instead of bypassing history with a schema push.
  *   - Hand-wires the repositories under test over the real DB.
  *
  * Call once per test file in `before`, `teardown()` in `after`, and
  * `truncateAll()` in `beforeEach`.
  */
 export async function setupTestHarness(): Promise<TestHarness> {
-  const external = process.env.TEST_POSTGRES_CONNECTION_STRING
-  let container: StartedPostgreSqlContainer | undefined
-  let connectionString: string
+  // CI normally provides the variable directly; local runs use the ignored
+  // package-level file. dotenv preserves an already-defined CI value.
+  loadEnv({ path: '.env.test', quiet: true })
 
-  if (external != null && external.length > 0) {
-    connectionString = external
-  } else {
-    container = await new PostgreSqlContainer(POSTGRES_IMAGE).start()
-    connectionString = container.getConnectionUri()
-  }
+  const connectionString = assertTestDatabase(
+    process.env.TEST_POSTGRES_CONNECTION_STRING ?? process.env.POSTGRES_CONNECTION_STRING
+  )
 
   const pool = new Pool({ connectionString, max: 10 })
   const db = drizzle(pool, { schema })
-
-  // `pushSchema` types its DB param as a relations-less PgDatabase; our
-  // schema-typed instance is structurally fine at runtime, so bridge the types.
-  const { apply } = await pushSchema(
-    schema as Record<string, unknown>,
-    db as unknown as Parameters<typeof pushSchema>[1]
-  )
-  await apply()
+  await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER })
 
   const logger = createCoreLogger({ pinoLogger: pino({ level: 'silent' }) })
   const utils = new CoreUtils({ logger })
@@ -134,13 +140,26 @@ export async function setupTestHarness(): Promise<TestHarness> {
   }
 
   const truncateAll = async (): Promise<void> => {
-    await pool.query(`TRUNCATE ${TABLES.join(', ')} RESTART IDENTITY CASCADE`)
+    const result = await pool.query<{ table_name: string }>(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+        AND table_name <> '__drizzle_migrations'
+    `)
+    const tables = result.rows.map(
+      ({ table_name }) => `"public"."${table_name.replaceAll('"', '""')}"`
+    )
+    if (tables.length > 0) {
+      await pool.query(`TRUNCATE ${tables.join(', ')} RESTART IDENTITY CASCADE`)
+    }
   }
 
   const teardown = async (): Promise<void> => {
-    await pool.end()
-    if (container != null) {
-      await container.stop()
+    try {
+      await truncateAll()
+    } finally {
+      await pool.end()
     }
   }
 

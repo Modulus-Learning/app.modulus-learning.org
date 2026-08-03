@@ -39,7 +39,14 @@
       "inputs": ["src/**/*.ts", "src/**/*.tsx", "tsconfig.json"]
     },
     "test": {
+      "dependsOn": ["^build"],
       "outputs": []
+    },
+    "test:integration": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "outputs": [],
+      "env": ["POSTGRES_CONNECTION_STRING", "TEST_POSTGRES_CONNECTION_STRING"]
     },
     "start": {
       "cache": false,

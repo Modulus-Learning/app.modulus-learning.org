@@ -60,24 +60,29 @@ pnpm build        pnpm lint        pnpm typecheck        pnpm test
 
 `pnpm lint` runs Biome with `--write --unsafe`, so it **modifies files**. A
 `lint-staged` pre-commit hook runs `biome check --write` on staged files.
+`pnpm lint:check` is the read-only lint gate used by CI. `pnpm run ci` runs that
+gate, typechecking, all unit tests, and the database integration suite.
 
 ### Tests differ per package — check before you run
 
 | Package | Runner |
 |---|---|
 | `packages/core` | `node:test` via `tsx` — **not vitest** |
-| `apps/gradebook` | vitest (jsdom default, node mode available) |
-| `apps/agent` | vitest (node) |
+| `apps/gradebook` | vitest (jsdom and node modes, both in `pnpm test`) |
+| `apps/agent` | vitest (jsdom and node modes, both in `pnpm test`) |
 
 ```sh
 pnpm -F @modulus-learning/core test              # *.test.ts
-pnpm -F @modulus-learning/core test:integration  # *.itest.ts — needs Postgres running
+pnpm -F @modulus-learning/core test:integration  # *.itest.ts — needs modulus_test
 pnpm -F @modulus-learning/core test:one <path>   # single file
 pnpm -F @modulus-learning/gradebook exec vitest run --mode=jsdom <path>
 pnpm -F @modulus-learning/agent exec vitest run <path>
 ```
 
 `pnpm test` does **not** cover core's `*.itest.ts` integration tests.
+Run them from the root with `pnpm test:integration`, or run the complete local
+CI gate with `pnpm run ci`. See `docs/TESTING.md` for test database setup and file
+naming conventions.
 
 ### Database
 
@@ -88,6 +93,11 @@ pnpm -F @modulus-learning/core drizzle:generate   # after schema changes
 pnpm -F @modulus-learning/core drizzle:migrate
 pnpm -F @modulus-learning/core drizzle:seed
 ```
+
+For integration tests, copy `packages/core/.env.test.example` to
+`packages/core/.env.test`, start the local Postgres 18 service, and run
+`pnpm db:init:test`. The lifecycle scripts and the TypeScript harness both
+refuse a database name that does not end in `_test`.
 
 ## Conventions
 
@@ -117,9 +127,9 @@ pnpm -F @modulus-learning/core drizzle:seed
   `./publish-packages.sh`. The auto-publish GitHub Action is disabled (no npm
   token). `changeset publish` / `pnpm release:npm` **cannot** publish under
   passkey-only 2FA — that is why the shell script exists.
-- **There is no CI on pull requests yet.** `.github/workflows/` holds only
-  `release.yml` (push to `main`) and `clean-up-weekly.yml`. Nothing checks a PR
-  automatically, so run lint, typecheck, and tests locally and say what you ran.
+- **CI runs on pull requests and pushes to `develop` / `main`.** The workflow
+  calls the same `pnpm run ci` aggregate available locally and provisions a
+  PostgreSQL 18 `modulus_test` service for integration tests.
 - **`pnpm dev:seed` is declared in `turbo.json` but no package implements it.**
   Use `pnpm -F @modulus-learning/core drizzle:seed`.
 - **`DEPLOYMENT_MODE`** selects `all-in-one` (default), `frontend`, or `admin`.

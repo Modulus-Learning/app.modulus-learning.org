@@ -1,76 +1,112 @@
 #!/usr/bin/env bash
 
-###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-#
-# FUNCTION: get_required_input
-# Get user input from the terminal.
-# Params: $1 = the message prompting the user.
-# Params: $2 = the error message if no input is received.
-#
-###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-get_required_input() {
-  if [ -z "$1" -o -z "$2" ]; then
-    echo "get_required_input requires a prompt and an error message as first and second parameters." >&2
-    exit 1
-  fi
+# Shared configuration and safety checks for local database lifecycle scripts.
+# Callers may set ENV_FILE before sourcing this file.
 
-  while true; do
-    echo -n "$1" >&2
-    read input
-    if [ -z "$input" ]; then
-      echo "$2" >&2
-    else
-      break
-    fi
-  done
-  echo $input
-}
-
-###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-#
-# FUNCTION: check_conf_var
-# Sanity check to ensure variable is defined, and exit if not
-# Params: $1 = Name of the variable
-#
-###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
 check_conf_var() {
-  if [[ -z ${!1} ]]
-  then
-    echo "$1 not defined"
+  if [[ -z "${!1:-}" ]]; then
+    echo "$1 not defined" >&2
     CONF_BAD=true
   fi
 }
 
-###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-#
-# Source .env file, and make sure necessary params are defined
-#
-###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
-if [[ -e "../../.env" ]]
-then
-  source "../../.env"
+urldecode() {
+  local encoded="$1"
+  if [[ "${encoded}" =~ %([^0-9A-Fa-f]|[0-9A-Fa-f][^0-9A-Fa-f]|[0-9A-Fa-f]?$) ]]; then
+    echo "Malformed percent escape in PostgreSQL connection string" >&2
+    return 1
+  fi
+  encoded="${encoded//\\/\\\\}"
+  printf '%b' "${encoded//%/\\x}"
+}
+
+parse_pg_url() {
+  local url="$1"
+  if [[ "${url}" != postgres://* && "${url}" != postgresql://* ]]; then
+    echo "POSTGRES_CONNECTION_STRING must start with postgres:// or postgresql://" >&2
+    CONF_BAD=true
+    return
+  fi
+
+  local rest="${url#*://}"
+  if [[ "${rest}" != *@* ]]; then
+    echo "POSTGRES_CONNECTION_STRING must contain user:password@" >&2
+    CONF_BAD=true
+    return
+  fi
+
+  # Split on the last @ so a percent-decoded password may contain @.
+  local userinfo="${rest%@*}"
+  local hostpart="${rest##*@}"
+  if [[ "${userinfo}" != *:* || "${hostpart}" != */* ]]; then
+    echo "POSTGRES_CONNECTION_STRING must contain user:password@host/database" >&2
+    CONF_BAD=true
+    return
+  fi
+
+  POSTGRES_USER="$(urldecode "${userinfo%%:*}")" || { CONF_BAD=true; return; }
+  POSTGRES_PASSWORD="$(urldecode "${userinfo#*:}")" || { CONF_BAD=true; return; }
+
+  local hostport="${hostpart%%/*}"
+  local dbpath="${hostpart#*/}"
+  if [[ "${hostport}" == *:* ]]; then
+    POSTGRES_HOSTNAME="${hostport%%:*}"
+    POSTGRES_PORT="${hostport#*:}"
+  else
+    POSTGRES_HOSTNAME="${hostport}"
+    POSTGRES_PORT=5432
+  fi
+  POSTGRES_DATABASE="${dbpath%%\?*}"
+}
+
+check_safe_database_name() {
+  if [[ "${POSTGRES_DATABASE}" != *_dev && "${POSTGRES_DATABASE}" != *_test ]]; then
+    echo "Refusing to operate on database '${POSTGRES_DATABASE}'." >&2
+    echo "Database lifecycle scripts only accept names ending in '_dev' or '_test'." >&2
+    CONF_BAD=true
+  fi
+}
+
+check_identifier() {
+  local label="$1"
+  local value="$2"
+  if [[ ! "${value}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    echo "${label} must be a simple PostgreSQL identifier: '${value}'" >&2
+    CONF_BAD=true
+  fi
+}
+
+: "${ENV_FILE:=../../.env}"
+
+if [[ -f "${ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
 else
-  echo ".env not found"
+  echo "Environment file not found: ${ENV_FILE}" >&2
   exit 1
 fi
 
 CONF_BAD=false
+check_conf_var POSTGRES_CONNECTION_STRING
+if ${CONF_BAD}; then exit 1; fi
+
+parse_pg_url "${POSTGRES_CONNECTION_STRING}"
+if ${CONF_BAD}; then exit 1; fi
+
 check_conf_var POSTGRES_USER
 check_conf_var POSTGRES_PASSWORD
-if $CONF_BAD; then exit 1; fi
+check_conf_var POSTGRES_HOSTNAME
+check_conf_var POSTGRES_PORT
+check_conf_var POSTGRES_DATABASE
+check_safe_database_name
+check_identifier POSTGRES_USER "${POSTGRES_USER}"
+check_identifier POSTGRES_DATABASE "${POSTGRES_DATABASE}"
+if ${CONF_BAD}; then exit 1; fi
 
-# Escape for postgresql -- the password will appear in our generated sql as a
-# single-quoted string literal, so we need to insert a ' character before
-# every ' in the original password.  No other escaping is necessary.
-# https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-CONSTANTS
-POSTGRES_PASSWORD_ESC=$(sed -e "s/[']/'&/g" <<< $POSTGRES_PASSWORD)
+POSTGRES_ADMIN_USER="${POSTGRES_ADMIN_USER:-postgres}"
+check_identifier POSTGRES_ADMIN_USER "${POSTGRES_ADMIN_USER}"
+if ${CONF_BAD}; then exit 1; fi
 
-# Escape for sed -- we'll use the password as a sed replacement pattern,
-# meaning we must insert a \ character before every \, / and & character
-# in the sql-escaped password from above.
-# https://stackoverflow.com/questions/407523/escape-a-string-for-a-sed-replace-pattern/2705678#2705678
-POSTGRES_PASSWORD_ESC=$(sed -e 's/[\/&]/\\&/g' <<< $POSTGRES_PASSWORD_ESC)
-
-# Don't take database name from .env -- instead, hard code it to development db name.
-# This way, accidentally running these scripts server-side will never affect the production db.
-POSTGRES_DATABASE=modulus_dev
+# Escape the password first as a PostgreSQL string literal, then for a sed
+# replacement delimited by `|`. Identifiers are restricted to safe characters.
+POSTGRES_PASSWORD_ESC=$(printf '%s' "${POSTGRES_PASSWORD}" | sed -e "s/'/''/g" -e 's/[\\&|]/\\&/g')

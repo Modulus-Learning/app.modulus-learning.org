@@ -132,9 +132,10 @@ retention and FERPA considerations, and the threat model.
 ### Accessibility — Planned
 The accessibility posture and conformance statement (VPAT) for the application.
 
-### Testing — Planned
-The testing layout across the core and host application, and how to run each
-suite.
+### [Testing Strategy](./TESTING.md) — Available
+The unit and integration test boundaries, file naming and runtime conventions,
+dedicated PostgreSQL test database lifecycle, fixture responsibilities, local
+commands, and the minimum pull-request CI gate.
 
 ### Contributing, Governance & License — Planned
 How to contribute, the project's governance model, and licensing. Some of these

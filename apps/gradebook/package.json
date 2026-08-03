@@ -13,9 +13,10 @@
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
     "lint": "biome check --write --unsafe --diagnostic-level=error",
     "typecheck": "tsc --noEmit",
-    "test": "vitest --mode=jsdom",
-    "test:jsdom": "vitest --mode=jsdom",
-    "test:node": "vitest --mode=node"
+    "test": "vitest run --mode=jsdom && vitest run --mode=node --passWithNoTests",
+    "test:jsdom": "vitest run --mode=jsdom",
+    "test:node": "vitest run --mode=node --passWithNoTests",
+    "test:watch": "vitest --mode=jsdom"
   },
   "engines": {
     "node": "^18.20.2 || >=20.9.0"
