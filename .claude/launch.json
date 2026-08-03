@@ -1,0 +1,34 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gradebook",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@modulus-learning/gradebook", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "gradebook-lti",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@modulus-learning/gradebook", "devlti"],
+      "port": 3000
+    },
+    {
+      "name": "agent",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@modulus-learning/agent", "dev"]
+    },
+    {
+      "name": "postgres",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd postgres && ./postgres.sh up"],
+      "port": 5432
+    },
+    {
+      "name": "adminer",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd postgres && ./postgres.sh --profile adminer up"],
+      "port": 9000
+    }
+  ]
+}

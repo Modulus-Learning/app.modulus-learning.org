@@ -45,3 +45,8 @@ postgres/backups
 # vercel
 .vercel
 
+# Claude Code — the shared workflow config (commands, skills, rules,
+# settings.json) is tracked; machine-local permission grants are not.
+.claude/settings.local.json
+.claude/settings.bak
+
