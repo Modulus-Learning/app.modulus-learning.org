@@ -1,10 +1,13 @@
 # Unit and integration testing strategy + CI baseline — analysis
 
 Date: 2026-08-03
-Status: baseline implemented and verified in the working tree; follow-up phases proposed
+Status: baseline implemented on `chore/testing-refactor`; draft PR #2 is open
+against `develop` and its hosted CI validation is green; follow-up phases proposed
 Related:
 - `docs/TESTING.md` — operational guide for the adopted baseline
 - `packages/core/src/test-support` — current core integration harness and fixtures
+- `.github/workflows/ci.yml` — shared push and pull-request validation workflow
+- GitHub PR #2 — `chore(testing): add testing and CI baseline`
 - Byline reference: `packages/db-postgres/src/database`, package Vitest configs,
   test database helpers, and `.github/workflows/ci.yml`
 
@@ -232,6 +235,12 @@ Core unit tests no longer load `.env`; configuration needed by a unit test is an
 explicit fixture value. This is a useful boundary to preserve through the
 refactor.
 
+Gradebook's Vitest setup loads an optional `.env.test` first and fills missing
+values from the committed, non-secret `.env.example`. It deliberately does not
+load a developer's `.env`. This makes local and hosted unit tests deterministic,
+prevents accidental dependence on machine-local secrets, and gives future tests
+a package-specific override path without requiring CI secrets.
+
 ### Fixture policy
 
 The current `test-support` folder should evolve by responsibility rather than
@@ -296,6 +305,39 @@ CI is the required merge gate.
 | Existing unit behavior remains green in correct environments | Verified after reclassifying encryption tests |
 | Workspace typechecking remains green | Verified |
 | Read-only minimum lint gate is green | Verified for TypeScript sources |
+| A clean GitHub checkout can run the complete aggregate command | Verified by PR #2 `validate` on commit `4035ee8` |
+
+## Pull-request validation and review handoff
+
+The baseline is published for review as draft GitHub PR #2:
+
+- base: `develop`;
+- head: `chore/testing-refactor`;
+- implementation checkpoint validated before this spec-only handoff update:
+  `4035ee8`;
+- hosted workflow: `CI / validate` passed in 2 minutes 11 seconds;
+- local verification: workspace unit tests, workspace typechecking, the
+  TypeScript lint gate, and the 45-test PostgreSQL integration suite passed.
+
+Clean-checkout CI found three assumptions that were hidden by the development
+machine. They were corrected before this handoff:
+
+1. the first lint command depended on `rg`, which is not installed on the
+   standard Ubuntu runner; source discovery now uses portable `find`;
+2. Gradebook typechecking depended on ignored Next-generated declarations;
+   its typecheck command now runs `next typegen` before `tsc --noEmit`;
+3. Gradebook unit tests loaded an ignored `.env`; Vitest now uses the optional
+   `.env.test` plus committed `.env.example` fixture chain described above.
+
+The root `.gitignore` also excludes `.pnpm/` and `.pnpm-store/` so sandbox-local
+package stores cannot enter a commit. The branch was clean and synchronized with
+its remote after the successful hosted run.
+
+Review should concentrate on the durable choices rather than treating this as a
+coverage-complete test programme: the `_test` safety invariant, migration-backed
+schema setup, shared-database serialization, dynamic truncation, application
+runtime conventions, and the scope of the minimum CI gate. The known deliberate
+limitations remain documented under Risks, Follow-up phases, and Out of scope.
 
 ## Risks and mitigations
 
