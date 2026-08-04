@@ -5,7 +5,8 @@ import { useSearchParams } from 'next/navigation'
 import { Card, Select } from '@infonomic/uikit/react'
 
 import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
-import { BarChart } from '@/ui/components/bar-chart'
+import { AccessibleBarChart } from '@/ui/components/bar-chart'
+import { summarizeRegistrations } from '../chart-summaries'
 import type { Locale } from '@/i18n/i18n-config'
 import type { RegistrationsPerMonth } from '../@types'
 
@@ -56,12 +57,15 @@ export function RegistrationsPerMonthView({
         </Card.Title>
       </Card.Header>
       <Card.Content>
-        <BarChart
+        <AccessibleBarChart
           className="w-full h-[200px]"
-          status={'idle'}
-          barDataKey="value"
-          xAxisDataKey="name"
+          status="idle"
           data={result.data}
+          title="Registrations Per Month"
+          description={`Monthly registration counts for ${result.meta.year}.`}
+          summary={summarizeRegistrations(result.data, result.meta.year.toString())}
+          category={{ dataKey: 'name', label: 'Month' }}
+          series={{ dataKey: 'value', label: 'Registrations', unit: 'registrations' }}
         />
       </Card.Content>
     </Card>

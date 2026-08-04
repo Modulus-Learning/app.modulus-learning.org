@@ -5,8 +5,9 @@ import { useSearchParams } from 'next/navigation'
 import { Card, Select } from '@infonomic/uikit/react'
 
 import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
-import { BarChartStacked } from '@/ui/components/bar-chart-stacked'
+import { AccessibleBarChartStacked } from '@/ui/components/bar-chart-stacked'
 import { useTheme } from '@/ui/theme/provider'
+import { summarizeNewVsReturningUsers } from '../chart-summaries'
 import type { Locale } from '@/i18n/i18n-config'
 import type { NewVsReturningUsers } from '../@types'
 
@@ -22,9 +23,19 @@ export function NewVsReturningUsersView({
   const searchParams = new URLSearchParams(readOnlySearchParams)
   const { theme } = useTheme()
 
-  const dataKey = [
-    { key: 'new', color: theme === 'dark' ? '#FFFFFF' : '#CCCCCC' },
-    { key: 'returning', color: theme === 'dark' ? 'var(--primary-100)' : 'var(--primary-400)' },
+  const series = [
+    {
+      dataKey: 'new' as const,
+      label: 'New users',
+      unit: 'users',
+      color: theme === 'dark' ? '#FFFFFF' : '#CCCCCC',
+    },
+    {
+      dataKey: 'returning' as const,
+      label: 'Returning users',
+      unit: 'users',
+      color: theme === 'dark' ? 'var(--primary-100)' : 'var(--primary-400)',
+    },
   ]
 
   function handleOnYearChange(value: unknown): void {
@@ -63,11 +74,15 @@ export function NewVsReturningUsersView({
         </Card.Title>
       </Card.Header>
       <Card.Content>
-        <BarChartStacked
+        <AccessibleBarChartStacked
           className="w-full h-[200px]"
-          status={'idle'}
+          status="idle"
           data={result.data}
-          dataKey={dataKey}
+          title="New vs Returning Users"
+          description={`Monthly comparison of new and returning users for ${result.meta.year}.`}
+          summary={summarizeNewVsReturningUsers(result.data, result.meta.year)}
+          category={{ dataKey: 'name', label: 'Month' }}
+          series={series}
         />
       </Card.Content>
     </Card>
