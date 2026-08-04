@@ -55,7 +55,7 @@ export function NewVsReturningUsersView({
     <Card>
       <Card.Header>
         <Card.Title className="text-[1.3rem] font-semibold flex items-center justify-between">
-          <span>New vs Returning Users</span>
+          <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>New vs Returning Users</h2>
           <Select
             size="sm"
             id="year"

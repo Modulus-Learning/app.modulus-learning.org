@@ -38,7 +38,7 @@ export function MonthlyActiveUsersView({
     <Card>
       <Card.Header>
         <Card.Title className="text-[1.3rem] font-semibold flex items-center justify-between">
-          <span>Monthly Active Users</span>
+          <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>Monthly Active Users</h2>
           <Select
             size="sm"
             id="year"

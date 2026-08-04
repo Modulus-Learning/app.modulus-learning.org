@@ -56,7 +56,7 @@ export function RegistrationsPerDayView({
     <Card>
       <Card.Header>
         <Card.Title className="text-[1.3rem] font-semibold flex items-center justify-between">
-          <span>Registrations Per Day</span>
+          <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>Registrations Per Day</h2>
           <div className="flex items-center gap-2">
             <Select
               size="sm"

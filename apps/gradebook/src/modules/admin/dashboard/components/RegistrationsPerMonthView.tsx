@@ -38,7 +38,7 @@ export function RegistrationsPerMonthView({
     <Card>
       <Card.Header>
         <Card.Title className="text-[1.3rem] font-semibold flex items-center justify-between">
-          <span>Registrations Per Month</span>
+          <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>Registrations Per Month</h2>
           <Select
             size="sm"
             id="year"
