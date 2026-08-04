@@ -1,7 +1,8 @@
 # Gradebook chart accessibility — implementation plan
 
 Date: 2026-08-04
-Status: approved for implementation on `feat/charts`
+Status: implemented on `feat/charts`; automated verification passed; manual
+visual and assistive-technology verification pending
 Related:
 
 - `specs/2026-08-04-chart-accessibility-analysis.md` — approved analysis and renderer decision
@@ -71,7 +72,7 @@ graphic and its alternative:
 The chart-height class applies only to the visual plot. The summary and table
 must remain in normal document flow so a fixed chart height cannot clip them.
 
-## Task 1 — Record the Decision and Execution Plan
+## Task 1 — Record the Decision and Execution Plan — Complete
 
 Commit: `specs(a11y): added chart accessibility implementation plan`
 
@@ -92,7 +93,7 @@ Acceptance criteria:
   presented as real activity data; and
 - no production implementation is included in this commit.
 
-## Task 2 — Build the Shared Accessible Chart Composition
+## Task 2 — Build the Shared Accessible Chart Composition — Complete
 
 Commit: `feat(a11y): added accessible chart composition`
 
@@ -136,7 +137,7 @@ pnpm -F @modulus-learning/gradebook exec vitest run --mode=jsdom \
 pnpm -F @modulus-learning/gradebook typecheck
 ```
 
-## Task 3 — Migrate the Administration Dashboard Charts
+## Task 3 — Migrate the Administration Dashboard Charts — Complete
 
 Commit: `feat(admin): added accessible chart summaries and tables`
 
@@ -175,7 +176,7 @@ pnpm -F @modulus-learning/gradebook exec vitest run --mode=jsdom \
 pnpm -F @modulus-learning/gradebook typecheck
 ```
 
-## Task 4 — Migrate and Clarify the Learner Activity Chart
+## Task 4 — Migrate and Clarify the Learner Activity Chart — Complete
 
 Commit: `fix(activities): clarified accessible learner chart data`
 
@@ -208,7 +209,7 @@ pnpm -F @modulus-learning/gradebook exec vitest run --mode=jsdom \
 pnpm -F @modulus-learning/gradebook typecheck
 ```
 
-## Task 5 — Repository Verification and Pull Request
+## Task 5 — Repository Verification and Pull Request — Automated Checks Complete
 
 No standalone commit is required unless verification uncovers a code or
 documentation correction. Any correction belongs in a focused conventional
@@ -234,6 +235,25 @@ Then:
 
 Do not run Playwright, a headless browser, or an equivalent automated browser
 check. Do not merge the pull request.
+
+## Implementation Handoff
+
+The branch implements Tasks 1–4 in separate commits, with two additional
+focused corrections from review: the native SVG title/description decision was
+made explicit in the implementation and audit log, and all administration
+chart titles were promoted to semantic `h2` elements.
+
+Automated results on 2026-08-04:
+
+- gradebook jsdom suite: 28 tests passed across 5 files;
+- gradebook Node suite: 9 tests passed and 1 existing configuration test was
+  skipped across 4 files;
+- gradebook Next.js type generation and TypeScript check: passed; and
+- scoped Biome check: passed with 11 existing warnings in files outside this
+  change.
+
+No browser automation or headless browser was used. The public accessibility
+statement remains unchanged pending the manual matrix below.
 
 ## Manual Acceptance and Handoff
 

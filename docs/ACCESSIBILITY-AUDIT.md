@@ -69,8 +69,6 @@ falls back to its ~1.6:1 default.
 
 - ✅ **Resolved** — implemented and verified.
 - 🛠 **Fixed** — code complete; pending a uikit release and/or in-app verification before it is reported as Resolved.
-- 🚧 **In progress** — implementation is active on a feature branch; automated
-  and manual verification are not complete.
 - ☐ **Open** — planned, not yet started.
 - 🔍 **Investigating** — needs live reproduction or dependency work before we can commit to an approach.
 - ➖ **Acknowledged / Won't fix** — logged by the auditor as informational, not practical to fix, or assessed as correct-as-built (see the note for the reason).
@@ -121,7 +119,7 @@ described (High / Medium / Low).
 | 31 | Required "*" can sit outside the label text | — | Best Practice | UIKit | Medium | ✅ Resolved |
 | 32 | "Remember me" checkbox has no focus indicator | 2.4.7 AA | Moderate | UIKit | Medium | ✅ Resolved |
 | 33 | "Sign In" should be an `h2` | 1.3.1 A | Minor | App | Medium | ✅ Resolved |
-| 34 | Charts produce competing SVG and live-region speech | 1.1.1 / 4.1.2 A | Serious | App | High | 🚧 In progress |
+| 34 | Charts produce competing SVG and live-region speech | 1.1.1 / 4.1.2 A | Serious | App | High | 🛠 Fixed |
 
 ## Resolved findings (1–8, 16)
 
@@ -253,8 +251,8 @@ verified the exact source locations.
 
 ## Chart Finding (34)
 
-- **34 — Charts produce competing SVG and live-region speech (Serious). 🚧 In
-  progress.** Follow-up testing found that Recharts' application-mode arrow
+- **34 — Charts produce competing SVG and live-region speech (Serious). 🛠
+  Fixed.** Follow-up testing found that Recharts' application-mode arrow
   navigation and assertive tooltip live region can speak at the same time as
   SVG axis labels in Safari/VoiceOver and Chrome/VoiceOver. The approved fix
   retains Recharts as a visual renderer but disables its accessibility layer,
@@ -265,9 +263,10 @@ verified the exact source locations.
   the SVG root or axes. Implementation covers the shared chart wrappers, four
   administration charts, and the Learner Activity sample chart. See
   `specs/2026-08-04-chart-accessibility-analysis.md` and
-  `specs/2026-08-04-chart-accessibility-implementation-plan.md`. Move this item
-  to **Fixed** after automated verification and to **Resolved** only after the
-  documented NVDA/VoiceOver browser matrix passes.
+  `specs/2026-08-04-chart-accessibility-implementation-plan.md`.
+  Automated component, summary, full gradebook test, typecheck, and scoped lint
+  verification pass on `feat/charts`. Move this item to **Resolved** only after
+  the documented NVDA/VoiceOver browser matrix passes.
 
 ## Notes for the auditor
 
