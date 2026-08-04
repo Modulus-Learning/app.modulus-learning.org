@@ -119,6 +119,7 @@ described (High / Medium / Low).
 | 31 | Required "*" can sit outside the label text | — | Best Practice | UIKit | Medium | ✅ Resolved |
 | 32 | "Remember me" checkbox has no focus indicator | 2.4.7 AA | Moderate | UIKit | Medium | ✅ Resolved |
 | 33 | "Sign In" should be an `h2` | 1.3.1 A | Minor | App | Medium | ✅ Resolved |
+| 34 | Charts produce competing SVG and live-region speech | 1.1.1 / 4.1.2 A | Serious | App | High | 🛠 Fixed |
 
 ## Resolved findings (1–8, 16)
 
@@ -247,6 +248,28 @@ verified the exact source locations.
   expands a listbox). The auditor's "remove it" advice reflects the older ARIA
   1.1 model where `combobox` required a descendant text input; removing the role
   here would break the pattern. Recommend confirming with the auditor.
+
+## Chart Finding (34)
+
+- **34 — Charts produce competing SVG and live-region speech (Serious). 🛠
+  Fixed.** Follow-up testing found that Recharts' application-mode arrow
+  navigation and assertive tooltip live region can speak at the same time as
+  SVG axis labels in Safari/VoiceOver and Chrome/VoiceOver. The approved fix
+  retains Recharts as a visual renderer but disables its accessibility layer,
+  exposes the SVG atomically as `role="img"` with native `<title>` and `<desc>`
+  content, and removes the chart from the tab order. The supplemental pointer
+  tooltip is hidden from assistive technology; a visible summary and disclosed
+  native HTML table provide every exact value. `aria-hidden` is not applied to
+  the SVG root or axes. Implementation covers the shared chart wrappers, four
+  administration charts, and the Learner Activity sample chart. See
+  `specs/2026-08-04-chart-accessibility-analysis.md` and
+  `specs/2026-08-04-chart-accessibility-implementation-plan.md`.
+  Automated component, summary, full gradebook test, typecheck, and scoped lint
+  verification pass on `feat/charts`. The product-owner visual end-to-end review
+  also passed, including the disclosed data-table experience. The finding
+  remains **Fixed** while the application is deployed for external auditor
+  feedback; move it to **Resolved** only after the documented NVDA/VoiceOver
+  browser matrix passes.
 
 ## Notes for the auditor
 

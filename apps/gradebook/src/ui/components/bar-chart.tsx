@@ -12,78 +12,101 @@ import {
   YAxis,
 } from 'recharts'
 
+import {
+  AccessibleChartFrame,
+  type ChartCategory,
+  type ChartSeries,
+  type ChartStatus,
+  formatChartValue,
+} from '@/ui/components/chart-accessibility'
 import { useTheme } from '@/ui/theme/provider'
 
-// The wrapper must stay mounted, with role="status" / aria-live, so screen
-// readers announce tooltip changes during keyboard navigation — matching
-// the contract of recharts' DefaultTooltipContent.
-function CustomTooltip({
+interface AccessibleBarChartProps<T extends object> {
+  className: string
+  status: ChartStatus
+  data: T[]
+  title: string
+  description: string
+  summary: string
+  category: ChartCategory<T>
+  series: ChartSeries<T>
+  loadingMessage?: string
+  emptyMessage?: string
+  errorMessage?: string
+}
+
+function StaticTooltip<T extends object>({
   active,
   payload,
-  label,
-  accessibilityLayer,
-  unit,
-}: TooltipContentProps & { unit?: string }) {
+  category,
+  series,
+}: TooltipContentProps & {
+  category: ChartCategory<T>
+  series: ChartSeries<T>
+}) {
+  const row = payload?.[0]?.payload as T | undefined
+
+  if (!active || !row) {
+    return null
+  }
+
   return (
-    <div
-      className="border-radius-md py-2 px-4 background"
-      role={accessibilityLayer ? 'status' : undefined}
-      aria-live={accessibilityLayer ? 'assertive' : undefined}
-    >
-      {active && payload?.length ? (
-        <>
-          <p>{label}</p>
-          <p>
-            {payload[0].value} {unit ?? 'users'}
-          </p>
-        </>
-      ) : null}
+    <div className="border-radius-md background px-4 py-2" aria-hidden="true">
+      <p>{formatChartValue(row[category.dataKey], row, category.formatValue)}</p>
+      <p>
+        {formatChartValue(row[series.dataKey], row, series.formatValue)} {series.unit}
+      </p>
     </div>
   )
 }
 
-export function BarChart({
+export function AccessibleBarChart<T extends object>({
   className,
   status,
-  barDataKey,
-  xAxisDataKey,
   data,
-  tooltipUnit,
-  ariaLabel,
-}: {
-  className: string
-  status: 'busy' | 'idle'
-  barDataKey: string
-  xAxisDataKey: string
-  data: any[]
-  tooltipUnit?: string
-  ariaLabel?: string
-}) {
+  title,
+  description,
+  summary,
+  category,
+  series,
+  loadingMessage,
+  emptyMessage,
+  errorMessage,
+}: AccessibleBarChartProps<T>) {
   const { theme } = useTheme()
+
   return (
-    <div className={className}>
-      {status === 'busy' && (
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            height: 200,
-          }}
-        >
-          <LoaderRing size={42} />
-        </div>
-      )}
-      {status === 'idle' && (
+    <AccessibleChartFrame
+      title={title}
+      description={description}
+      summary={summary}
+      status={status}
+      data={data}
+      category={category}
+      series={[series]}
+      chartClassName={className}
+      loadingMessage={loadingMessage}
+      emptyMessage={emptyMessage}
+      errorMessage={errorMessage}
+    >
+      {status === 'busy' ? (
+        <LoaderRing size={42} />
+      ) : (
         <ResponsiveContainer width="100%" height="100%">
-          <BarChartBase data={data} aria-label={ariaLabel}>
+          <BarChartBase
+            data={data}
+            accessibilityLayer={false}
+            role="img"
+            title={title}
+            desc={description}
+          >
             <CartesianGrid
               strokeDasharray="2"
               vertical={false}
               className="stroke-gray-200 dark:stroke-gray-600"
             />
             <XAxis
-              dataKey={xAxisDataKey}
+              dataKey={category.dataKey}
               className="text-sm"
               tick={{ fill: 'var(--foreground)' }}
             />
@@ -96,18 +119,18 @@ export function BarChart({
               tickFormatter={(value) => `${value.toLocaleString()}`}
             />
             <Tooltip
-              content={(props) => <CustomTooltip {...props} unit={tooltipUnit} />}
+              content={(props) => <StaticTooltip {...props} category={category} series={series} />}
               cursor={{ fill: theme === 'dark' ? '#303030' : '#EEEEEE' }}
-              contentStyle={{
-                backgroundColor: '#303030',
-                borderColor: '#303030',
-              }}
-              labelStyle={{ backgroundColor: '#303030' }}
             />
-            <Bar dataKey={barDataKey} radius={[3, 3, 0, 0]} style={{ fill: 'var(--foreground)' }} />
+            <Bar
+              dataKey={series.dataKey}
+              name={series.label}
+              radius={[3, 3, 0, 0]}
+              style={{ fill: 'var(--foreground)' }}
+            />
           </BarChartBase>
         </ResponsiveContainer>
       )}
-    </div>
+    </AccessibleChartFrame>
   )
 }
