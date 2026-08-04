@@ -54,9 +54,10 @@ export default async function ProgressPage({
             </div>
           )}
           <p className="text-muted-foreground mb-4">
-            Tracking completion patterns for 5,000 students over a 3-month period
+            The chart below is an illustrative sample and does not represent this activity's
+            learners or completion history.
           </p>
-          <CompletionChart data={data} />
+          <CompletionChart />
         </Container>
       </Section>
     </>

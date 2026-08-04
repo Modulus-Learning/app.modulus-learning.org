@@ -2,171 +2,126 @@
 
 import { Card, InfoIcon } from '@infonomic/uikit/react'
 
-import { BarChart } from '@/ui/components/bar-chart'
-import { useTheme } from '@/ui/theme/provider'
-import type { ProgressResponse } from '../@types'
+import { AccessibleBarChart } from '@/ui/components/bar-chart'
+import {
+  generateIllustrativeLearnerActivityData,
+  getLearnerActivityStatistics,
+  LEARNER_ACTIVITY_DESCRIPTION,
+  LEARNER_ACTIVITY_TITLE,
+  summarizeIllustrativeLearnerActivity,
+} from './completion-chart-data'
 
-// Generate a Poisson-like distribution for student activity
-const generateStudentActivityData = () => {
-  // 12 weeks (approximately 3 months)
-  const weeks = 12
-  const totalStudents = 5000
+const activityData = generateIllustrativeLearnerActivityData()
+const statistics = getLearnerActivityStatistics(activityData)
+const activitySummary = summarizeIllustrativeLearnerActivity(statistics)
 
-  // Create a Poisson-like distribution
-  const distribution = []
-
-  // Parameters to control the shape of the distribution
-  const peak = 5 // Peak around week 5-6 (middle)
-  const spread = 2.5 // Control the spread of the distribution
-
-  let remainingStudents = totalStudents
-
-  for (let i = 0; i < weeks; i++) {
-    // Calculate a value based on distance from peak (Poisson-like)
-    const distanceFromPeak = Math.abs(i - peak)
-    const probability = Math.exp(-distanceFromPeak / spread) / (spread * Math.sqrt(2 * Math.PI))
-
-    // Allocate students based on probability
-    let studentsInWeek: number
-
-    if (i === weeks - 1) {
-      // Last week gets all remaining students to ensure total is exactly 5000
-      studentsInWeek = remainingStudents
-    } else {
-      // Calculate students for this week based on probability
-      studentsInWeek = Math.round(totalStudents * probability * 0.8)
-      // Ensure we don't exceed remaining students
-      studentsInWeek = Math.min(studentsInWeek, remainingStudents)
-    }
-
-    remainingStudents -= studentsInWeek
-
-    // Format date for the week
-    const startDate = new Date(2023, 0, 1 + i * 7)
-    const endDate = new Date(2023, 0, 7 + i * 7)
-    const dateLabel = `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-
-    distribution.push({
-      week: `Week ${i + 1}`,
-      date: dateLabel,
-      students: studentsInWeek,
-    })
-  }
-
-  return distribution
-}
-
-const activityData = generateStudentActivityData()
-
-// Calculate summary statistics
-const totalStudents = activityData.reduce((sum, item) => sum + item.students, 0)
-const maxWeek = activityData.reduce(
-  (max, item) => (item.students > max.students ? item : max),
-  activityData[0]
-)
-const earlyCompleters = activityData.slice(0, 4).reduce((sum, item) => sum + item.students, 0)
-const lateCompleters = activityData.slice(8).reduce((sum, item) => sum + item.students, 0)
-
-export function CompletionChart({ data }: { data: ProgressResponse }) {
-  const { theme } = useTheme()
-
+export function CompletionChart() {
   return (
     <div className="flex flex-col gap-6 mb-12">
-      <div className="grid gap-6 md:grid-cols-3" role="group" aria-label="Learner statistics">
+      <div
+        className="grid gap-6 md:grid-cols-3"
+        role="group"
+        aria-label="Illustrative learner statistics"
+      >
         <Card>
           <Card.Header className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <Card.Title className="text-sm font-medium">Total Students</Card.Title>
+            <Card.Title className="text-sm font-medium">Sample Students</Card.Title>
             <InfoIcon svgClassName="fill-black dark:fill-white" />
           </Card.Header>
           <Card.Content>
-            <div className="text-2xl font-bold">{totalStudents.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Students tracked in this activity</p>
-          </Card.Content>
-        </Card>
-
-        <Card>
-          <Card.Header className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <Card.Title className="text-sm font-medium">Peak Activity</Card.Title>
-            <InfoIcon svgClassName="fill-black dark:fill-white" />
-          </Card.Header>
-          <Card.Content>
-            <div className="text-2xl font-bold">{maxWeek.students.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{statistics.totalStudents.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              Students during {maxWeek.week} ({Math.round((maxWeek.students / totalStudents) * 100)}
-              % of total)
+              Students in this illustrative distribution
             </p>
           </Card.Content>
         </Card>
 
         <Card>
           <Card.Header className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <Card.Title className="text-sm font-medium">Completion Timing</Card.Title>
+            <Card.Title className="text-sm font-medium">Sample Peak</Card.Title>
+            <InfoIcon svgClassName="fill-black dark:fill-white" />
+          </Card.Header>
+          <Card.Content>
+            <div className="text-2xl font-bold">{statistics.maxWeek.students.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              Sample students during {statistics.maxWeek.week} ({statistics.peakPercentage}% of the
+              sample)
+            </p>
+          </Card.Content>
+        </Card>
+
+        <Card>
+          <Card.Header className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <Card.Title className="text-sm font-medium">Sample Timing</Card.Title>
             <InfoIcon svgClassName="fill-black dark:fill-white" />
           </Card.Header>
           <Card.Content>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-sm font-medium">Early</div>
-                <div className="text-xl font-bold">
-                  {Math.round((earlyCompleters / totalStudents) * 100)}%
-                </div>
+                <div className="text-sm font-medium">First four weeks</div>
+                <div className="text-xl font-bold">{statistics.earlyPercentage}%</div>
               </div>
               <div>
-                <div className="text-sm font-medium">Late</div>
-                <div className="text-xl font-bold">
-                  {Math.round((lateCompleters / totalStudents) * 100)}%
-                </div>
+                <div className="text-sm font-medium">Final four weeks</div>
+                <div className="text-xl font-bold">{statistics.latePercentage}%</div>
               </div>
             </div>
           </Card.Content>
         </Card>
       </div>
+
       <Card className="col-span-4">
         <Card.Header>
           <Card.Title>
-            <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>Learner Activity</h2>
+            <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>
+              {LEARNER_ACTIVITY_TITLE}
+            </h2>
           </Card.Title>
-          <Card.Description>
-            {`Distribution of 5,000 students completing activity ${data?.included?.activity_code?.code} over a 3-month period`}
-          </Card.Description>
         </Card.Header>
         <Card.Content>
-          <BarChart
+          <AccessibleBarChart
             className="w-full h-[400px]"
-            status={'idle'}
-            barDataKey="students"
-            xAxisDataKey="week"
+            status="idle"
             data={activityData}
-            tooltipUnit="students"
-            ariaLabel="Learner activity by week"
+            title={LEARNER_ACTIVITY_TITLE}
+            description={LEARNER_ACTIVITY_DESCRIPTION}
+            summary={activitySummary}
+            category={{
+              dataKey: 'week',
+              label: 'Week and date range',
+              formatValue: (_value, row) => `${row.week} (${row.date})`,
+            }}
+            series={{ dataKey: 'students', label: 'Sample students', unit: 'students' }}
           />
         </Card.Content>
       </Card>
+
       <Card>
         <Card.Header>
           <Card.Title>
-            <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>Activity Insights</h2>
+            <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>
+              Illustrative Sample Insights
+            </h2>
           </Card.Title>
-          <Card.Description>Analysis of student completion patterns.</Card.Description>
+          <Card.Description>
+            These observations describe the generated sample, not the selected activity.
+          </Card.Description>
         </Card.Header>
         <Card.Content>
           <div className="space-y-4">
             <div>
-              <h3 className="font-medium">Distribution Pattern</h3>
+              <h3 className="font-medium">Distribution Peak</h3>
               <p className="text-sm text-muted-foreground">
-                The data shows a Poisson-like distribution with most students completing the
-                activity during the middle weeks. {maxWeek.students} students (
-                {Math.round((maxWeek.students / totalStudents) * 100)}% of total) completed the
-                activity during {maxWeek.week}.
+                The generated sample peaks in {statistics.maxWeek.week}, when{' '}
+                {statistics.maxWeek.students.toLocaleString()} students ({statistics.peakPercentage}
+                % of the sample) are placed in the distribution.
               </p>
             </div>
             <div>
-              <h3 className="font-medium">Early vs. Late Completers</h3>
+              <h3 className="font-medium">Early vs. Late Sample</h3>
               <p className="text-sm text-muted-foreground">
-                {Math.round((earlyCompleters / totalStudents) * 100)}% of students completed the
-                activity in the first month, while {''}
-                {Math.round((lateCompleters / totalStudents) * 100)}% waited until the final month
-                to complete it.
+                {statistics.earlyPercentage}% of the sample is placed in the first four weeks, while{' '}
+                {statistics.latePercentage}% is placed in the final four weeks.
               </p>
             </div>
           </div>
