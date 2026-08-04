@@ -100,7 +100,7 @@ export function AccessibleBarChartStacked<T extends object>({
             data={data}
             accessibilityLayer={false}
             role="img"
-            aria-label={title}
+            title={title}
             desc={description}
           >
             <CartesianGrid

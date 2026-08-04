@@ -31,8 +31,12 @@ table navigation rather than Recharts' application-mode arrow interaction.
 - Retain the installed Recharts 3 renderer. Do not add or migrate to TanStack
   Charts while its production API remains pre-alpha.
 - Set `accessibilityLayer={false}` on these informational charts.
-- Apply `role="img"`, an accessible name, and a description to each chart SVG.
-  Do not put the SVG in the tab order.
+- Apply `role="img"` and use Recharts' `title` and `desc` properties to emit a
+  native SVG `<title>` accessible name and `<desc>` description. Do not put the
+  SVG in the tab order.
+- Do not apply `aria-hidden` to the SVG root or axes. Image semantics make the
+  graphic atomic; `aria-hidden="true"` is limited to the non-focusable,
+  supplemental HTML tooltip.
 - Hide the supplemental visual tooltip from assistive technology and remove its
   `role="status"` and `aria-live` attributes.
 - Use one typed data and metadata contract for the chart, tooltip, summary, and
@@ -40,9 +44,9 @@ table navigation rather than Recharts' application-mode arrow interaction.
 - Use a native `details`/`summary` disclosure and native table elements. The
   alternative is available to every user, not visually hidden or restricted to
   screen readers.
-- Keep the learner chart's generated dataset for this change, but label it
-  clearly as illustrative sample data. Replacing it with activity-derived
-  history requires a separate product and data-contract decision because the
+- Keep the learner chart's generated dataset for this change, as confirmed by
+  the product owner, but label it clearly as illustrative sample data.
+  Replacing it with activity-derived history remains separate work because the
   current `ProgressResponse` does not contain a weekly completion series.
 - Do not strengthen the public accessibility conformance statement until the
   manual browser and assistive-technology matrix passes.
@@ -105,8 +109,8 @@ Work:
   supplied row type;
 - render a visible summary, textual loading/empty/error states, and a native
   disclosed table from the source rows and shared formatters;
-- configure both Recharts roots as static named images with descriptions and
-  `accessibilityLayer={false}`;
+- configure both Recharts roots as static named images with native SVG
+  `<title>`/`<desc>` text and `accessibilityLayer={false}`;
 - remove tooltip live-region semantics and hide the pointer-only tooltip from
   the accessibility tree;
 - ensure the stacked legend uses meaningful series labels rather than internal
@@ -115,8 +119,8 @@ Work:
 
 Automated acceptance criteria:
 
-- the root graphic has `role="img"`, a non-empty accessible name and
-  description, no `role="application"`, and no `tabindex`;
+- the root graphic has `role="img"`, non-empty native `<title>` and `<desc>`
+  children, no `role="application"`, no `aria-hidden`, and no `tabindex`;
 - no `aria-live` region is rendered for tooltips;
 - disclosure, caption, scoped headings, every row, and every formatted value
   appear in application-owned markup;

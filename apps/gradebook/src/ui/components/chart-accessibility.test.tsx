@@ -17,14 +17,14 @@ vi.mock('recharts', () => {
   return {
     Bar: ({ dataKey, name }: MockProps) =>
       createElement('g', { 'data-bar': String(dataKey), 'data-name': String(name) }),
-    BarChart: ({ children, role, desc, accessibilityLayer, ...props }: MockProps) =>
+    BarChart: ({ children, role, title, desc, accessibilityLayer }: MockProps) =>
       createElement(
         'svg',
         {
           role,
-          'aria-label': props['aria-label'],
           'data-accessibility-layer': String(accessibilityLayer),
         },
+        createElement('title', null, String(title)),
         createElement('desc', null, String(desc)),
         children
       ),
@@ -89,11 +89,12 @@ describe('accessible chart composition', () => {
 
     const graphic = root.querySelector('svg')
     expect(graphic?.getAttribute('role')).toBe('img')
-    expect(graphic?.getAttribute('aria-label')).toBe('Registrations per month')
+    expect(graphic?.querySelector('title')?.textContent).toBe('Registrations per month')
     expect(graphic?.getAttribute('tabindex')).toBeNull()
     expect(graphic?.getAttribute('data-accessibility-layer')).toBe('false')
     expect(graphic?.querySelector('desc')?.textContent).toBe('Monthly registrations during 2026.')
     expect(root.querySelector('[role="application"]')).toBeNull()
+    expect(graphic?.querySelector('[aria-hidden="true"]')).toBeNull()
     expect(root.querySelector('[aria-live]')).toBeNull()
     expect(root.querySelector('[aria-hidden="true"]')?.textContent).toContain('12 registrations')
 

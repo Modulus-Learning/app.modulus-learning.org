@@ -225,13 +225,20 @@ end state:
 - it removes meaningful visual text from the accessibility tree unless a full
   equivalent is supplied elsewhere.
 
-If the chart is intentionally made static, prefer disabling Recharts'
-`accessibilityLayer` and applying an explicit image role, name, and description
-to the SVG. An image role presents the composed graphic as one object instead
-of inviting traversal of each tick label. The adjacent summary and table then
-carry the detailed information. Explicit `aria-hidden` on individual Recharts
-internals should only be added if browser testing shows that the image role does
-not produce the intended atomic presentation.
+If the chart is intentionally made static, disable Recharts'
+`accessibilityLayer`, apply `role="img"`, and use Recharts' native `title` and
+`desc` properties to emit SVG `<title>` and `<desc>` children. The title supplies
+the graphic's accessible name and the description states its purpose and range.
+An image role presents the composed graphic as one object instead of inviting
+traversal of each tick label. The adjacent summary and table then carry the
+detailed information.
+
+Decision: do **not** add `aria-hidden` to the root SVG or its axes. Hiding the
+root would conflict with its image role, while hiding individual axes is
+unnecessary once the graphic is exposed atomically and risks removing useful
+fallback content. `aria-hidden="true"` is reserved for the non-focusable HTML
+tooltip because it is supplemental to the complete native table. This contract
+must still be confirmed in the manual browser and assistive-technology matrix.
 
 ## Options
 
@@ -385,9 +392,12 @@ to interpret.
 For the current informational charts:
 
 - set Recharts `accessibilityLayer={false}`;
-- give the root SVG an explicit image role and accessible name;
+- give the root SVG an explicit image role plus native `<title>` and `<desc>`
+  text through Recharts' `title` and `desc` properties;
 - associate the graphic with the visible description or summary;
 - remove `role="status"` and `aria-live` from the visual tooltip;
+- apply `aria-hidden="true"` to that non-focusable supplemental tooltip, not to
+  the SVG root or axis groups;
 - retain the pointer tooltip as supplemental visual information;
 - keep the SVG out of the tab order because it performs no action; and
 - avoid per-axis `aria-hidden` overrides unless cross-browser inspection shows
@@ -530,8 +540,9 @@ not migrate based on documentation claims alone.
 - updating the public accessibility conformance statement before verification;
 - selecting a replacement chart library for future chart types that Modulus
   does not currently render; and
-- resolving the learner activity chart's synthetic data without a product
-  decision.
+- replacing the learner activity chart's synthetic data with production
+  analytics. The approved near-term decision is to retain it and label every
+  presentation as illustrative sample data.
 
 ## Final Recommendation
 
