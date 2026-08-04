@@ -2,7 +2,9 @@ name: modulus-postgres
 
 services:
   db:
-    image: postgres:latest
+    # Core integration queries rely on PostgreSQL 18 OLD/NEW references in
+    # RETURNING. Pin the local server to the same supported floor as CI.
+    image: postgres:18
     container_name: modulus_postgres
     environment:
       POSTGRES_PASSWORD: test

@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # Core integration queries use OLD/NEW references in RETURNING, which
+        # require PostgreSQL 18. Keep CI aligned with the supported floor.
+        image: postgres:18
+        env:
+          POSTGRES_USER: modulus
+          POSTGRES_PASSWORD: modulus
+          POSTGRES_DB: modulus_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U modulus -d modulus_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_CONNECTION_STRING: postgres://modulus:modulus@127.0.0.1:5432/modulus_test
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # This is the same aggregate command developers run before pushing.
+      # The integration harness applies committed migrations and truncates the
+      # dedicated test database between tests.
+      - run: pnpm run ci

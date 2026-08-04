@@ -1,0 +1,4 @@
+interface:
+  display_name: "Push Commits"
+  short_description: "Review and push outgoing branch commits safely"
+  default_prompt: "Use $git-push to push the current branch safely."

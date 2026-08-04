@@ -1,0 +1,4 @@
+interface:
+  display_name: "Typecheck Monorepo"
+  short_description: "Run TypeScript checks across the monorepo"
+  default_prompt: "Use $typecheck to check TypeScript across the monorepo."

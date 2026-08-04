@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Agent Package"
+  short_description: "Release the public Modulus agent package"
+  default_prompt: "Use $release to release @modulus-learning/agent."

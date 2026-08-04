@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-Guidance for Claude Code and other agents working in this repository.
+Guidance for AI coding agents working in this repository.
 
 ## What this is
 
@@ -102,7 +102,7 @@ refuse a database name that does not end in `_test`.
 ## Conventions
 
 - **Conventional commits**, lowercase, past tense: `feat(lti): added …`. The full
-  reference is `.claude/rules/conventional-commits.md`.
+  reference is `.agents/rules/conventional-commits.md`.
 - **No commit trailers of any kind.** No `Co-Authored-By`, no AI attribution, no
   DCO `Signed-off-by` — this repo has no DCO gate, so don't pass `-s`.
 - **`develop` is the integration branch.** `main` is the default branch and only
@@ -114,7 +114,7 @@ refuse a database name that does not end in `_test`.
   `pnpm format` only when you actually mean to reformat Markdown.
 - Documentation in `docs/` has its own house standard — front matter
   (`title`/`path`/`summary`), Title Case headings, a closing `## Where to go next`
-  — encoded in `.claude/skills/writing-docs/`.
+  — encoded in `.agents/skills/writing-docs/`.
 
 ## Things that bite
 
@@ -155,5 +155,22 @@ refuse a database name that does not end in `_test`.
 | Privacy posture and threat model | `docs/SECURITY-AND-PRIVACY.md` |
 | The full doc index | `docs/DOCUMENTATION-PLAN.md` |
 
-Workflow helpers live in `.claude/`: `/commit`, `/create-pr`, `/release`,
-`/document`, `/test`, `/typecheck`, `/lint-fix`.
+## Agent workflows
+
+Reusable workflows live in `.agents/skills/`. Before performing one of these
+tasks, read the matching `SKILL.md` completely and follow it:
+
+| Task | Skill |
+|---|---|
+| Commit changes | `.agents/skills/git-commit/SKILL.md` |
+| Push commits | `.agents/skills/git-push/SKILL.md` |
+| Create or update a PR | `.agents/skills/github-pr/SKILL.md` |
+| Release the public agent package | `.agents/skills/release/SKILL.md` |
+| Create or revise documentation | `.agents/skills/writing-docs/SKILL.md` |
+| Run tests | `.agents/skills/test/SKILL.md` |
+| Run type checking | `.agents/skills/typecheck/SKILL.md` |
+| Apply lint fixes | `.agents/skills/lint-fix/SKILL.md` |
+
+Codex does not use repository-defined slash commands, so the old Claude command
+prompts are represented by these intent-triggered skills instead. The `.claude/`
+configuration remains as a compatibility copy for Claude Code.

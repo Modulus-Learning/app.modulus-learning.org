@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Modulus Docs"
+  short_description: "Create docs in the Modulus house style"
+  default_prompt: "Use $writing-docs to create or revise this project documentation."

@@ -7,7 +7,5 @@ test('should encrypt decrypt plaintext', async () => {
   const user = { email: 'john@example.com', name: 'John' }
   const encrypted = await encode({ secret, salt: 'fdsrewrew', token: user })
   const decrypted = await decode({ secret, salt: 'fdsrewrew', token: encrypted })
-  console.log(encrypted)
-  console.log(decrypted)
   expect(decrypted?.email).toEqual(user.email)
 })

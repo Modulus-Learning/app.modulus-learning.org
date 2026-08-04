@@ -8,6 +8,5 @@ test('should encrypt decrypt plaintext', () => {
   const password = 'password'
   const cipherText = encryptSync(password, text)
   const plainText = decryptSync(password, cipherText)
-  //n console.log(cipherText)
   expect(plainText).toEqual(text)
 })
