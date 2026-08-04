@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fix Lint Issues"
+  short_description: "Run Biome linting and apply automatic fixes"
+  default_prompt: "Use $lint-fix to lint the project and apply safe fixes."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run Tests"
+  short_description: "Run the appropriate repository test suites"
+  default_prompt: "Use $test to run the relevant tests for these changes."
