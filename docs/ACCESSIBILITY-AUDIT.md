@@ -265,8 +265,11 @@ verified the exact source locations.
   `specs/2026-08-04-chart-accessibility-analysis.md` and
   `specs/2026-08-04-chart-accessibility-implementation-plan.md`.
   Automated component, summary, full gradebook test, typecheck, and scoped lint
-  verification pass on `feat/charts`. Move this item to **Resolved** only after
-  the documented NVDA/VoiceOver browser matrix passes.
+  verification pass on `feat/charts`. The product-owner visual end-to-end review
+  also passed, including the disclosed data-table experience. The finding
+  remains **Fixed** while the application is deployed for external auditor
+  feedback; move it to **Resolved** only after the documented NVDA/VoiceOver
+  browser matrix passes.
 
 ## Notes for the auditor
 

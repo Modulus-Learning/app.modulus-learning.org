@@ -1,8 +1,8 @@
 # Gradebook chart accessibility — implementation plan
 
 Date: 2026-08-04
-Status: implemented on `feat/charts`; automated verification passed; manual
-visual and assistive-technology verification pending
+Status: implemented on `feat/charts`; automated verification and product-owner
+visual end-to-end review passed; external assistive-technology audit pending
 Related:
 
 - `specs/2026-08-04-chart-accessibility-analysis.md` — approved analysis and renderer decision
@@ -209,7 +209,7 @@ pnpm -F @modulus-learning/gradebook exec vitest run --mode=jsdom \
 pnpm -F @modulus-learning/gradebook typecheck
 ```
 
-## Task 5 — Repository Verification and Pull Request — Automated Checks Complete
+## Task 5 — Repository Verification and Pull Request — Complete
 
 No standalone commit is required unless verification uncovers a code or
 documentation correction. Any correction belongs in a focused conventional
@@ -253,12 +253,18 @@ Automated results on 2026-08-04:
   change.
 
 No browser automation or headless browser was used. The public accessibility
-statement remains unchanged pending the manual matrix below.
+statement remains unchanged pending external auditor verification.
+
+The product owner completed the visual end-to-end review on 2026-08-04 and
+accepted the chart presentation, including the disclosed data-table experience.
+The application is ready to deploy for the accessibility auditor's browser and
+assistive-technology review. Finding 34 remains **Fixed**, rather than
+**Resolved**, until that external review confirms the matrix below.
 
 ## Manual Acceptance and Handoff
 
-After the cumulative pull request is ready, a human tester will perform the
-visual and assistive-technology end-to-end review. The required matrix is:
+After deployment, the accessibility auditor will perform the remaining browser
+and assistive-technology review. The required matrix is:
 
 | Platform | Browser | Assistive technology | Expected result |
 |---|---|---|---|
@@ -272,11 +278,10 @@ Also check light and dark themes, 200% text resize, 400% zoom, reduced motion,
 forced colours/high contrast where available, maximum daily row counts, empty
 results, tooltip readability, table overflow, and narrow layouts.
 
-The manual task succeeds when a tester can identify each chart and its selected
-range, explain its summary, retrieve a requested exact value, compare the two
-stacked series, and move past the chart without changing screen-reader input
-mode. Any findings will be addressed on `feat/charts` and added to the same pull
-request before merge.
+The external review succeeds when a tester can identify each chart and its
+selected range, explain its summary, retrieve a requested exact value, compare
+the two stacked series, and move past the chart without changing screen-reader
+input mode. Any findings will be recorded as follow-up work after deployment.
 
 ## Out of Scope
 
