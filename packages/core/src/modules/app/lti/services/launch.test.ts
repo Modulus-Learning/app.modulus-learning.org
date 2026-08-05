@@ -113,11 +113,53 @@ describe('resolveVerifiedLaunchScope', () => {
     }
   })
 
+  it('logs privacy-safe fallback and optional metadata quality diagnostics', async () => {
+    const diagnostics: unknown[] = []
+    const rawTermId = 'must-not-appear-in-logs'
+
+    const result = await resolveVerifiedLaunchScope(
+      {
+        resolvePlatformScope: async (values) => scopeRecord(values),
+      },
+      uuidv7(),
+      {
+        'Canvas.term.id': '$Canvas.term.id',
+        'Canvas.term.name': '  ',
+        'Canvas.term.startAt': 'not-a-date',
+        'Canvas.term.endAt': '$Canvas.term.endAt',
+        unrelated: rawTermId,
+      },
+      {
+        logger: {
+          info: (...args) => diagnostics.push(args),
+        },
+      }
+    )
+
+    assert.deepEqual(result, { scope_id: DEFAULT_SCOPE_ID, scope_name: null })
+    assert.deepEqual(diagnostics, [
+      [
+        {
+          scope_id: DEFAULT_SCOPE_ID,
+          source: 'default',
+          term_id: 'unexpanded',
+          name: 'empty',
+          starts_at: 'malformed',
+          ends_at: 'unexpanded',
+        },
+        'activity scope resolved',
+      ],
+    ])
+    assert.equal(JSON.stringify(diagnostics).includes(rawTermId), false)
+  })
+
   it('resolves an id-only term and returns only canonical activity-facing metadata', async () => {
     const platformId = uuidv7()
     const scopeId = uuidv7()
     const verifiedAt = new Date('2026-08-05T10:00:00Z')
+    const rawTermId = 'raw-canvas-term-identity-never-log'
     const calls: PlatformScopeResolution[] = []
+    const diagnostics: unknown[] = []
 
     const result = await resolveVerifiedLaunchScope(
       {
@@ -127,14 +169,19 @@ describe('resolveVerifiedLaunchScope', () => {
         },
       },
       platformId,
-      { 'Canvas.term.id': ' 42 ' },
-      verifiedAt
+      { 'Canvas.term.id': ` ${rawTermId} ` },
+      {
+        verified_at: verifiedAt,
+        logger: {
+          info: (...args) => diagnostics.push(args),
+        },
+      }
     )
 
     assert.deepEqual(calls, [
       {
         platform_id: platformId,
-        external_id: '42',
+        external_id: rawTermId,
         name: undefined,
         starts_at: undefined,
         ends_at: undefined,
@@ -143,6 +190,20 @@ describe('resolveVerifiedLaunchScope', () => {
     ])
     assert.deepEqual(result, { scope_id: scopeId, scope_name: null })
     assert.deepEqual(Object.keys(result).sort(), ['scope_id', 'scope_name'])
+    assert.deepEqual(diagnostics, [
+      [
+        {
+          scope_id: scopeId,
+          source: 'platform',
+          term_id: 'usable',
+          name: 'missing',
+          starts_at: 'missing',
+          ends_at: 'missing',
+        },
+        'activity scope resolved',
+      ],
+    ])
+    assert.equal(JSON.stringify(diagnostics).includes(rawTermId), false)
   })
 
   it('normalizes optional metadata independently and ignores malformed values', () => {

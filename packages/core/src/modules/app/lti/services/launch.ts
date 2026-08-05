@@ -31,6 +31,23 @@ type RemoteJWKSet = ReturnType<typeof createRemoteJWKSet>
 
 type CustomFields = PlatformMessage[typeof CLAIM_CUSTOM]
 
+type CanvasTermFieldQuality = 'missing' | 'empty' | 'unexpanded' | 'malformed' | 'usable'
+
+type NormalizedCanvasField<T> = {
+  value?: T
+  quality: CanvasTermFieldQuality
+}
+
+type CanvasTermInspection = {
+  term?: NormalizedCanvasTerm
+  quality: {
+    term_id: CanvasTermFieldQuality
+    name: CanvasTermFieldQuality
+    starts_at: CanvasTermFieldQuality
+    ends_at: CanvasTermFieldQuality
+  }
+}
+
 export type NormalizedCanvasTerm = {
   external_id: string
   name?: string
@@ -45,61 +62,101 @@ export type VerifiedLaunchScope = {
 
 const canvasTermDateSchema = z.iso.datetime({ offset: true })
 
-const normalizeCanvasString = (custom: CustomFields, key: string): string | undefined => {
+const inspectCanvasString = (custom: CustomFields, key: string): NormalizedCanvasField<string> => {
   const value = custom[key]
+  if (value == null) {
+    return { quality: 'missing' }
+  }
   if (typeof value !== 'string') {
-    return undefined
+    return { quality: 'malformed' }
   }
 
   const normalized = value.trim()
-  if (normalized.length === 0 || normalized === `$${key}`) {
-    return undefined
+  if (normalized.length === 0) {
+    return { quality: 'empty' }
+  }
+  if (normalized === `$${key}`) {
+    return { quality: 'unexpanded' }
   }
 
-  return normalized
+  return { value: normalized, quality: 'usable' }
 }
 
-const normalizeCanvasDate = (custom: CustomFields, key: string): Date | undefined => {
-  const value = normalizeCanvasString(custom, key)
-  if (value == null || !canvasTermDateSchema.safeParse(value).success) {
-    return undefined
+const inspectCanvasDate = (custom: CustomFields, key: string): NormalizedCanvasField<Date> => {
+  const inspected = inspectCanvasString(custom, key)
+  if (inspected.value == null) {
+    return { quality: inspected.quality }
+  }
+  if (!canvasTermDateSchema.safeParse(inspected.value).success) {
+    return { quality: 'malformed' }
   }
 
-  return new Date(value)
+  return { value: new Date(inspected.value), quality: 'usable' }
 }
 
-export const normalizeCanvasTerm = (custom: CustomFields): NormalizedCanvasTerm | undefined => {
-  const external_id = normalizeCanvasString(custom, 'Canvas.term.id')
-  if (external_id == null) {
-    return undefined
+const inspectCanvasTerm = (custom: CustomFields): CanvasTermInspection => {
+  const externalId = inspectCanvasString(custom, 'Canvas.term.id')
+  const name = inspectCanvasString(custom, 'Canvas.term.name')
+  const startsAt = inspectCanvasDate(custom, 'Canvas.term.startAt')
+  const endsAt = inspectCanvasDate(custom, 'Canvas.term.endAt')
+  const quality = {
+    term_id: externalId.quality,
+    name: name.quality,
+    starts_at: startsAt.quality,
+    ends_at: endsAt.quality,
+  }
+
+  if (externalId.value == null) {
+    return { quality }
   }
 
   return {
-    external_id,
-    name: normalizeCanvasString(custom, 'Canvas.term.name'),
-    starts_at: normalizeCanvasDate(custom, 'Canvas.term.startAt'),
-    ends_at: normalizeCanvasDate(custom, 'Canvas.term.endAt'),
+    term: {
+      external_id: externalId.value,
+      name: name.value,
+      starts_at: startsAt.value,
+      ends_at: endsAt.value,
+    },
+    quality,
   }
+}
+
+export const normalizeCanvasTerm = (custom: CustomFields): NormalizedCanvasTerm | undefined =>
+  inspectCanvasTerm(custom).term
+
+type ScopeResolutionOptions = {
+  verified_at?: Date
+  logger?: Pick<CoreLogger, 'info'>
 }
 
 export const resolveVerifiedLaunchScope = async (
   mutations: Pick<LtiMutations, 'resolvePlatformScope'>,
   platform_id: string,
   custom: CustomFields,
-  verified_at = new Date()
+  options: ScopeResolutionOptions = {}
 ): Promise<VerifiedLaunchScope> => {
-  const term = normalizeCanvasTerm(custom)
+  const { term, quality } = inspectCanvasTerm(custom)
   if (term == null) {
-    return { scope_id: DEFAULT_SCOPE_ID, scope_name: null }
+    const resolved = { scope_id: DEFAULT_SCOPE_ID, scope_name: null }
+    options.logger?.info(
+      { scope_id: resolved.scope_id, source: 'default', ...quality },
+      'activity scope resolved'
+    )
+    return resolved
   }
 
   const scope = await mutations.resolvePlatformScope({
     platform_id,
     ...term,
-    last_verified_launch_at: verified_at,
+    last_verified_launch_at: options.verified_at ?? new Date(),
   })
 
-  return { scope_id: scope.id, scope_name: scope.name }
+  const resolved = { scope_id: scope.id, scope_name: scope.name }
+  options.logger?.info(
+    { scope_id: resolved.scope_id, source: 'platform', ...quality },
+    'activity scope resolved'
+  )
+  return resolved
 }
 
 type VerifiedLaunch = {
@@ -208,7 +265,8 @@ export class LtiLaunchService extends BaseService {
     const scope = await resolveVerifiedLaunchScope(
       this.ltiMutations,
       platform.id,
-      launch[CLAIM_CUSTOM]
+      launch[CLAIM_CUSTOM],
+      { logger: this.logger }
     )
 
     // Sign the user in.
