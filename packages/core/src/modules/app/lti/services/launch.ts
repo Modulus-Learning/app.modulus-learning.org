@@ -1,6 +1,8 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 import { v7 as uuidv7 } from 'uuid'
+import { z } from 'zod'
 
+import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import {
   CLAIM_AGS_ENDPOINT,
@@ -26,6 +28,84 @@ import type { DeepLinkingRequest } from '../types/messages/platform-originating/
 import type { ResourceLinkLaunchRequest } from '../types/messages/platform-originating/resource-link-launch-request.js'
 
 type RemoteJWKSet = ReturnType<typeof createRemoteJWKSet>
+
+type CustomFields = PlatformMessage[typeof CLAIM_CUSTOM]
+
+export type NormalizedCanvasTerm = {
+  external_id: string
+  name?: string
+  starts_at?: Date
+  ends_at?: Date
+}
+
+export type VerifiedLaunchScope = {
+  scope_id: string
+  scope_name: string | null
+}
+
+const canvasTermDateSchema = z.iso.datetime({ offset: true })
+
+const normalizeCanvasString = (custom: CustomFields, key: string): string | undefined => {
+  const value = custom[key]
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const normalized = value.trim()
+  if (normalized.length === 0 || normalized === `$${key}`) {
+    return undefined
+  }
+
+  return normalized
+}
+
+const normalizeCanvasDate = (custom: CustomFields, key: string): Date | undefined => {
+  const value = normalizeCanvasString(custom, key)
+  if (value == null || !canvasTermDateSchema.safeParse(value).success) {
+    return undefined
+  }
+
+  return new Date(value)
+}
+
+export const normalizeCanvasTerm = (custom: CustomFields): NormalizedCanvasTerm | undefined => {
+  const external_id = normalizeCanvasString(custom, 'Canvas.term.id')
+  if (external_id == null) {
+    return undefined
+  }
+
+  return {
+    external_id,
+    name: normalizeCanvasString(custom, 'Canvas.term.name'),
+    starts_at: normalizeCanvasDate(custom, 'Canvas.term.startAt'),
+    ends_at: normalizeCanvasDate(custom, 'Canvas.term.endAt'),
+  }
+}
+
+export const resolveVerifiedLaunchScope = async (
+  mutations: Pick<LtiMutations, 'resolvePlatformScope'>,
+  platform_id: string,
+  custom: CustomFields,
+  verified_at = new Date()
+): Promise<VerifiedLaunchScope> => {
+  const term = normalizeCanvasTerm(custom)
+  if (term == null) {
+    return { scope_id: DEFAULT_SCOPE_ID, scope_name: null }
+  }
+
+  const scope = await mutations.resolvePlatformScope({
+    platform_id,
+    ...term,
+    last_verified_launch_at: verified_at,
+  })
+
+  return { scope_id: scope.id, scope_name: scope.name }
+}
+
+type VerifiedLaunch = {
+  launch: PlatformMessage
+  platform: PlatformRecord
+}
 
 export class LtiLaunchService extends BaseService {
   // TODO: Move this to a seprate service
@@ -68,7 +148,7 @@ export class LtiLaunchService extends BaseService {
    */
   @method
   async handleLaunch(request: LaunchRequest): Promise<LaunchResponse> {
-    const launch = await this.validateLaunch(request)
+    const { launch, platform } = await this.validateLaunch(request)
 
     const messageType = launch[CLAIM_MESSAGE_TYPE]
     const launchType = launch[CLAIM_CUSTOM].modulus_launch_type
@@ -76,7 +156,7 @@ export class LtiLaunchService extends BaseService {
     // We only support specific combinations of messageType and launchType, so
     // to be safe we handle each combination explicitly.
     if (launchType === 'start-activity' && messageType === 'LtiResourceLinkRequest') {
-      return await this.handleActivityLaunch(launch)
+      return await this.handleActivityLaunch(launch, platform)
     }
 
     if (launchType === 'deep-link' && messageType === 'LtiDeepLinkingRequest') {
@@ -92,7 +172,10 @@ export class LtiLaunchService extends BaseService {
     }).log(this.logger)
   }
 
-  private async handleActivityLaunch(launch: ResourceLinkLaunchRequest): Promise<LaunchResponse> {
+  private async handleActivityLaunch(
+    launch: ResourceLinkLaunchRequest,
+    platform: PlatformRecord
+  ): Promise<LaunchResponse> {
     // TODO: Deep linking should probably add modulus_activity_id rather than
     // (or in addition to) modulus_activity_url
     const { modulus_activity_code: activity_code, modulus_activity_url: activity_url } =
@@ -121,6 +204,12 @@ export class LtiLaunchService extends BaseService {
         message: 'activity not found',
       }).log(this.logger)
     }
+
+    const scope = await resolveVerifiedLaunchScope(
+      this.ltiMutations,
+      platform.id,
+      launch[CLAIM_CUSTOM]
+    )
 
     // Sign the user in.
     const signIn = await this.ltiSignInService.signInLti(launch, isInstructor(launch[CLAIM_ROLES]))
@@ -176,6 +265,7 @@ export class LtiLaunchService extends BaseService {
       type: 'start-activity',
       activity_code,
       activity_url,
+      ...scope,
       tokens,
     }
   }
@@ -240,7 +330,7 @@ export class LtiLaunchService extends BaseService {
   // TODO: It probably makes more sense to parse and extract from the id_token
   // the specific values we need, and return data in a shape that is more useful
   // downstream.
-  private async validateLaunch({ id_token, issuer }: LaunchRequest): Promise<PlatformMessage> {
+  private async validateLaunch({ id_token, issuer }: LaunchRequest): Promise<VerifiedLaunch> {
     const platform = await this.ltiQueries.findPlatformByIssuer(issuer)
     if (platform == null) {
       // TODO: Here and below, add more metadata to be logged -- in this case,
@@ -312,7 +402,7 @@ export class LtiLaunchService extends BaseService {
     // performs no writes.
     await this.ltiMutations.upsertPlatformDeployment(issuer, launch[CLAIM_DEPLOYMENT_ID])
 
-    return launch
+    return { launch, platform }
   }
 }
 

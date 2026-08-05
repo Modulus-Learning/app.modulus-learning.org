@@ -10,6 +10,7 @@ import {
   platforms,
   progress,
   progressEvents,
+  scopes,
 } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
@@ -26,6 +27,16 @@ export type PlatformRecord = typeof platforms.$inferSelect
 export type PlatformInsert = typeof platforms.$inferInsert
 export type PlatformHealthRecord = typeof platformHealth.$inferSelect
 export type PlatformHealthInsert = typeof platformHealth.$inferInsert
+export type ScopeRecord = typeof scopes.$inferSelect
+
+export type PlatformScopeResolution = {
+  platform_id: string
+  external_id: string
+  name?: string
+  starts_at?: Date
+  ends_at?: Date
+  last_verified_launch_at: Date
+}
 
 export type LineItemUpsert = Pick<
   LineItemInsert,
@@ -144,6 +155,33 @@ export class LtiMutations extends BaseService {
     super(deps.logger, 'app', 'lti')
     this.utils = deps.utils
     this.db = deps.db
+  }
+
+  @method
+  async resolvePlatformScope(values: PlatformScopeResolution): Promise<ScopeRecord> {
+    const [scope] = await this.db
+      .get()
+      .insert(scopes)
+      .values({ id: uuidv7(), ...values })
+      .onConflictDoUpdate({
+        target: [scopes.platform_id, scopes.external_id],
+        set: {
+          name: sql`COALESCE(excluded.name, ${scopes.name})`,
+          starts_at: sql`COALESCE(excluded.starts_at, ${scopes.starts_at})`,
+          ends_at: sql`COALESCE(excluded.ends_at, ${scopes.ends_at})`,
+          last_verified_launch_at: sql`GREATEST(
+            excluded.last_verified_launch_at,
+            ${scopes.last_verified_launch_at}
+          )`,
+          updated_at: sql`NOW()`,
+        },
+      })
+      .returning()
+      .catch(this.utils.wrapDbErrorNew())
+
+    this.utils.assertExists(scope, { message: 'resolved scope record is null' })
+
+    return scope
   }
 
   @method

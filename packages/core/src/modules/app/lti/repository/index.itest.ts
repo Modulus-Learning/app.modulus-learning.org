@@ -13,6 +13,7 @@ import {
   progressEvents,
   scopes,
 } from '@/database/schema/index.js'
+import { resolveVerifiedLaunchScope } from '@/modules/app/lti/services/launch.js'
 import { seedLineItem, seedProgress, seedScenario, seedScope } from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
 
@@ -28,6 +29,103 @@ after(async () => {
 
 beforeEach(async () => {
   await h.truncateAll()
+})
+
+describe('platform scope resolution', () => {
+  it('creates an id-only scope and later updates metadata without erasing known values', async () => {
+    const scenario = await seedScenario(h.db)
+    const firstVerifiedAt = new Date('2026-08-01T10:00:00Z')
+    const metadataVerifiedAt = new Date('2026-08-02T10:00:00Z')
+    const renamedVerifiedAt = new Date('2026-08-03T10:00:00Z')
+    const finalVerifiedAt = new Date('2026-08-04T10:00:00Z')
+
+    const created = await h.repos.ltiMutations.resolvePlatformScope({
+      platform_id: scenario.platformId,
+      external_id: 'term-1',
+      last_verified_launch_at: firstVerifiedAt,
+    })
+    assert.equal(created.name, null)
+    assert.equal(created.starts_at, null)
+    assert.equal(created.ends_at, null)
+
+    const withMetadata = await h.repos.ltiMutations.resolvePlatformScope({
+      platform_id: scenario.platformId,
+      external_id: 'term-1',
+      name: 'Autumn 2026',
+      starts_at: new Date('2026-08-20T00:00:00Z'),
+      ends_at: new Date('2026-12-15T23:59:59Z'),
+      last_verified_launch_at: metadataVerifiedAt,
+    })
+    const renamed = await h.repos.ltiMutations.resolvePlatformScope({
+      platform_id: scenario.platformId,
+      external_id: 'term-1',
+      name: 'Autumn Semester 2026',
+      last_verified_launch_at: renamedVerifiedAt,
+    })
+    const unchanged = await h.repos.ltiMutations.resolvePlatformScope({
+      platform_id: scenario.platformId,
+      external_id: 'term-1',
+      last_verified_launch_at: finalVerifiedAt,
+    })
+
+    assert.equal(withMetadata.id, created.id)
+    assert.equal(renamed.id, created.id)
+    assert.equal(unchanged.id, created.id)
+    assert.equal(unchanged.name, 'Autumn Semester 2026')
+    assert.equal(unchanged.starts_at?.toISOString(), '2026-08-20T00:00:00.000Z')
+    assert.equal(unchanged.ends_at?.toISOString(), '2026-12-15T23:59:59.000Z')
+    assert.equal(unchanged.last_verified_launch_at?.toISOString(), finalVerifiedAt.toISOString())
+  })
+
+  it('converges concurrent resolution on one platform-qualified scope', async () => {
+    const scenario = await seedScenario(h.db)
+    const verifiedTimes = Array.from(
+      { length: 8 },
+      (_, index) => new Date(Date.parse('2026-08-05T10:00:00Z') + index * 1000)
+    )
+
+    const resolved = await Promise.all(
+      verifiedTimes.map((last_verified_launch_at, index) =>
+        h.repos.ltiMutations.resolvePlatformScope({
+          platform_id: scenario.platformId,
+          external_id: 'term-concurrent',
+          name: index === 0 ? 'Concurrent Term' : undefined,
+          last_verified_launch_at,
+        })
+      )
+    )
+
+    assert.equal(new Set(resolved.map(({ id }) => id)).size, 1)
+    const rows = await h.db
+      .select()
+      .from(scopes)
+      .where(
+        and(eq(scopes.platform_id, scenario.platformId), eq(scopes.external_id, 'term-concurrent'))
+      )
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0]?.name, 'Concurrent Term')
+    assert.equal(
+      rows[0]?.last_verified_launch_at?.toISOString(),
+      verifiedTimes.at(-1)?.toISOString()
+    )
+  })
+
+  it('does not mutate the sentinel when optional metadata has no usable term id', async () => {
+    const scenario = await seedScenario(h.db)
+
+    const resolved = await resolveVerifiedLaunchScope(h.repos.ltiMutations, scenario.platformId, {
+      'Canvas.term.name': 'Must not label the sentinel',
+      'Canvas.term.startAt': '2026-08-20T00:00:00Z',
+      'Canvas.term.endAt': '2026-12-15T23:59:59Z',
+    })
+
+    assert.deepEqual(resolved, { scope_id: DEFAULT_SCOPE_ID, scope_name: null })
+    const [sentinel] = await h.db.select().from(scopes).where(eq(scopes.id, DEFAULT_SCOPE_ID))
+    assert.equal(sentinel?.name, null)
+    assert.equal(sentinel?.starts_at, null)
+    assert.equal(sentinel?.ends_at, null)
+    assert.equal(sentinel?.last_verified_launch_at, null)
+  })
 })
 
 describe('activity scope constraints', () => {
