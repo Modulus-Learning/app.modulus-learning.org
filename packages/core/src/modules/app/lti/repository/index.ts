@@ -282,7 +282,7 @@ export class LtiMutations extends BaseService {
         updated_at: sql`now()`,
       })
       .onConflictDoUpdate({
-        target: [progress.activity_id, progress.user_id],
+        target: [progress.activity_id, progress.user_id, progress.scope_id],
         set: { progress: progress.progress },
       })
       .catch(this.utils.wrapDbErrorNew())

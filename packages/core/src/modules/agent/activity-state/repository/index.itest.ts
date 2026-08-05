@@ -3,7 +3,7 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 
 import { and, eq } from 'drizzle-orm'
 
-import { lineitems, progress } from '@/database/schema/index.js'
+import { lineitems, pageState, progress } from '@/database/schema/index.js'
 import { deferred, waitFor } from '@/test-support/async.js'
 import { seedLineItem, seedProgress, seedScenario } from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
@@ -122,6 +122,31 @@ describe('incrementProgress (cumulative target)', () => {
     })
     assert.equal(r.increased, false)
     approx(r.progress, 0.4)
+  })
+})
+
+describe('setPageState', () => {
+  it('inserts and updates the sentinel-scoped row', async () => {
+    const s = await seedScenario(h.db)
+
+    await h.repos.activityMutations.setPageState({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      state: '{"attempt":1}',
+    })
+    await h.repos.activityMutations.setPageState({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      state: '{"attempt":2}',
+    })
+
+    const rows = await h.db
+      .select()
+      .from(pageState)
+      .where(and(eq(pageState.user_id, s.userId), eq(pageState.activity_id, s.activityId)))
+
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0]?.state, '{"attempt":2}')
   })
 })
 

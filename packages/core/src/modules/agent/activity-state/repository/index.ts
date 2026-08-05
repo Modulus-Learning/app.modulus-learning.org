@@ -104,7 +104,7 @@ export class ActivityStateMutations extends BaseService {
         updated_at: sql`NOW()`,
       })
       .onConflictDoUpdate({
-        target: [progress.activity_id, progress.user_id],
+        target: [progress.activity_id, progress.user_id, progress.scope_id],
         set: {
           progress: sql`GREATEST(${clamped}, ${progress.progress})`,
           updated_at: sql`NOW()`,
@@ -149,7 +149,7 @@ export class ActivityStateMutations extends BaseService {
         updated_at: sql`NOW()`,
       })
       .onConflictDoUpdate({
-        target: [progress.activity_id, progress.user_id],
+        target: [progress.activity_id, progress.user_id, progress.scope_id],
         set: {
           // Clamp both ends: the upper bound is the cumulative cap, and the
           // lower bound keeps a garbage/negative amount from *decreasing* an
@@ -221,7 +221,7 @@ export class ActivityStateMutations extends BaseService {
       .insert(pageState)
       .values(values)
       .onConflictDoUpdate({
-        target: [pageState.activity_id, pageState.user_id],
+        target: [pageState.user_id, pageState.activity_id, pageState.scope_id],
         set: { state: values.state },
       })
       .catch(this.utils.wrapDbErrorNew())

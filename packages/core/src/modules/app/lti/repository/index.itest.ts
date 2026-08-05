@@ -116,6 +116,24 @@ describe('activity scope constraints', () => {
     )
   })
 
+  it('upserts launch progress against the sentinel-scoped key', async () => {
+    const scenario = await seedScenario(h.db)
+
+    await h.repos.ltiMutations.upsertProgress(scenario.activityId, scenario.userId)
+    await h.repos.ltiMutations.upsertProgress(scenario.activityId, scenario.userId)
+
+    const rows = await h.db
+      .select()
+      .from(progress)
+      .where(
+        and(eq(progress.user_id, scenario.userId), eq(progress.activity_id, scenario.activityId))
+      )
+
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0]?.scope_id, DEFAULT_SCOPE_ID)
+    assert.equal(rows[0]?.progress, 0)
+  })
+
   it('stores independent progress and page state in two scopes', async () => {
     const scenario = await seedScenario(h.db)
     const firstScopeId = await seedScope(h.db, scenario.platformId, 'term-1')
