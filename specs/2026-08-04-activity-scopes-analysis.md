@@ -151,10 +151,11 @@ claimed to come from the same scoped row as the maximum progress. An enrolment
 without progress has null progress and timestamps. `getProgressForUser` returns
 the same projection and does not expose an arbitrary `scope_id`.
 
-Report ordering places null progress and timestamps last in both ascending and
-descending order. After the requested primary sort, `(activity_id, user_id)` in
-ascending order is the deterministic tie-breaker. The projection is formed
-before ordering, `count(*) over()`, limit, or offset, so `total` counts enrolment
+Report ordering places null names, progress, and timestamps last in both
+ascending and descending order. After the requested primary sort,
+`(activity_id, user_id)` in ascending order is the deterministic tie-breaker.
+The projection is formed before ordering, `count(*) over()`, limit, or offset,
+so `total` counts enrolment
 rows and is identical on every row in a result page. This preserves stable offset
 pagination even when progress values, names, or timestamps tie.
 
@@ -235,6 +236,14 @@ initialisation has no Modulus parameters and follows the documented cold-tab
 inheritance rule. A copied or bookmarked pre-cleanup launch URL replays its
 existing opaque label as explicit context; server validation still accepts only
 an existing scope and possession of that label grants no additional access.
+
+A browser may send the activity URL in same-origin referrers before the agent
+initialises. The activity host owns the response-level referrer policy, and the
+agent cannot retroactively suppress those requests. The baseline accepts this
+exposure because the scope UUID is non-sensitive, while recommending
+`Referrer-Policy: strict-origin` or a stricter policy for activity hosts. Task 11
+documents this ownership and residual rather than claiming that client cleanup
+prevents it.
 
 ## Design Assessment
 
@@ -970,8 +979,8 @@ progress retain null projected values.
 The derived projection must be complete before it joins to `enrollment` and
 before ordering, `count(*) over()`, `limit`, or `offset` are applied.
 Otherwise multi-scope fan-out corrupts the reported total and paginates scope
-rows instead of enrolments. Null progress and timestamps sort last in either
-direction, followed by ascending `(activity_id, user_id)` as the stable
+rows instead of enrolments. Null names, progress, and timestamps sort last in
+either direction, followed by ascending `(activity_id, user_id)` as the stable
 tie-breaker. `getProgressForUser` must use the same explicit aggregate rather
 than `findFirst`, and the Drizzle `one(progress)` enrolment relation must be
 removed or replaced because it no longer describes the schema.
@@ -1302,10 +1311,13 @@ context rather than browser storage.
 
 The internal UUID may appear in activity-origin logs or same-origin referrers
 before the agent scrubs it. This is not credential leakage, but unnecessary URL
-retention can create confusing bookmarks and diagnostics. Scrub the parameter
-with the issuer and OAuth values while preserving authored fragments and use an
-appropriate referrer policy. The optional term name does not travel in the URL;
-the verified token response supplies it.
+retention can create confusing bookmarks and diagnostics. The agent scrubs its
+parameters while preserving authored query and fragment values, but it cannot
+prevent requests made before initialisation. Activity hosts should send
+`Referrer-Policy: strict-origin` or a stricter policy when they want to suppress
+path and query details. This host-owned residual is documented, not an agent
+feature gate. The optional term name does not travel in the URL; the verified
+token response supplies it.
 
 ### Scope Divergence Can Omit Canvas Scores
 

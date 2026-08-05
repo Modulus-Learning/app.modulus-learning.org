@@ -181,10 +181,11 @@ Resolved decisions:
 2. **Activity-code report projection.** Before joining `enrollment`, aggregate
    scoped progress by `(user_id, activity_id)` using maximum progress, earliest
    `created_at`, and latest `updated_at`. No progress yields null projected
-   values. Null progress/timestamps sort last in both directions, followed by
-   ascending `(activity_id, user_id)` as the stable tie-breaker. Form the
-   projection before totals and offset pagination; `getProgressForUser` uses the
-   same projection and exposes no arbitrary scope row.
+   values. Null names, progress, and timestamps sort last in both directions,
+   followed by ascending `(activity_id, user_id)` as the stable tie-breaker.
+   Form the projection before totals and offset pagination;
+   `getProgressForUser` uses the same projection and exposes no arbitrary scope
+   row.
 3. **Initial `scope_name` contract.** The first agent release returns canonical
    `scope_id` and nullable `scope_name` from the token endpoint and exposes both
    through authenticated `AuthStatus`. Only `scope_id` is a JWT identity claim;
@@ -543,8 +544,8 @@ Work:
   `(user_id, activity_id)`, with no projected `scope_id`;
 - form that projection before joining enrollment and before calculating order,
   `count(*) over()`, `limit`, or `offset`;
-- count enrollment rows rather than scoped progress rows, place null progress
-  and timestamps last in either direction, and use ascending
+- count enrollment rows rather than scoped progress rows, place null names,
+  progress, and timestamps last in either direction, and use ascending
   `(activity_id, user_id)` after the selected primary sort; and
 - remove any `findFirst` or Drizzle relation behaviour that can select an
   arbitrary scope row.
@@ -568,6 +569,8 @@ Automated acceptance criteria:
   result page;
 - tied aggregate values produce deterministic order, and unchanged data has no
   duplicate or missing enrollments across adjacent offset pages;
+- null full names, progress, and timestamps sort last in both directions without
+  destabilising adjacent pages;
 - `getProgressForUser` returns the same defined aggregate rather than an
   arbitrary scoped row;
 - no Drizzle `one(progress)` relation remains; and
@@ -749,12 +752,20 @@ Work:
 - parse the fresh-launch issuer and `scope_id` from recognized query
   parameters, then scrub only recognized parameters while preserving unrelated
   query parameters and the complete authored fragment;
+- capture the authored query entries and fragment before the authorization
+  redirect, preserving duplicate parameters and their order semantically;
+- store that return location only in `sessionStorage` beside the PKCE state,
+  never in the tab/shared activity-context record;
 - commit a valid fresh launch to this tab's `sessionStorage` before beginning
   OAuth;
-- preserve the complete record with PKCE state across the authorization
-  redirect;
-- recover the saved record before token exchange without consulting shared
+- keep the OAuth `client_id` and `redirect_uri` query-free and fragment-free;
+- preserve the complete activity context, return location, and PKCE state across
+  the authorization redirect;
+- recover the saved context before token exchange without consulting shared
   storage;
+- after both successful and error OAuth responses, scrub recognized response
+  parameters and restore the saved authored query and fragment with
+  `history.replaceState`;
 - update optional `scope_name` from the verified token response without
   changing `scope_id`;
 - use the tab record for reloads and same-tab multi-page navigation;
@@ -773,6 +784,11 @@ Automated acceptance criteria:
 - a fresh launch commits one atomic issuer/scope pair;
 - OAuth response handling uses the exact pre-redirect pair;
 - a scope change in other storage during OAuth cannot change the token request;
+- the OAuth `client_id` and `redirect_uri` contain no query or fragment;
+- successful and error OAuth round trips both restore the saved authored query
+  entries and fragment while removing all recognized response parameters;
+- duplicate authored query parameters retain their order and meaning after the
+  round trip;
 - reload and same-tab navigation retain the committed scope;
 - missing label uses the sentinel;
 - malformed JSON, invalid issuer, invalid UUID, and unsupported versions fail
@@ -908,6 +924,9 @@ Work:
   learner identity;
 - document the final schema, token tuple, LTI normalization, client resolution
   order, passback isolation, and unscoped analytics boundary;
+- document that pre-initialisation referrers are owned by the activity host,
+  recommend `Referrer-Policy: strict-origin` or a stricter policy, and record
+  opaque scope-label exposure as an accepted non-secret residual;
 - record any Task 2 decision that differs from the analysis's recommended
   baseline;
 - run the complete local continuous-integration gate against a fresh test
@@ -927,6 +946,8 @@ Automated acceptance criteria:
 - a pending Changesets entry describes the published agent behaviour;
 - both agent demos build against the final package;
 - documentation describes the shipped implementation rather than the plan;
+- documentation does not claim that agent cleanup suppresses activity requests
+  or referrers sent before initialisation;
 - activity-code documentation still describes broad, unscoped cohorts; and
 - the working tree contains no generated or temporary source files intended to
   remain uncommitted.
