@@ -2,8 +2,9 @@ import { relations } from 'drizzle-orm'
 import { pgTable, primaryKey, real, uuid } from 'drizzle-orm/pg-core'
 
 import { timestamps } from '../common.js'
+import { DEFAULT_SCOPE_ID } from '../constants.js'
 import { activities } from './activities.js'
-import { enrollment } from './enrollment.js'
+import { scopes } from './scopes.js'
 import { users } from './users.js'
 
 export const progress = pgTable(
@@ -15,17 +16,21 @@ export const progress = pgTable(
     user_id: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    scope_id: uuid('scope_id')
+      .notNull()
+      .default(DEFAULT_SCOPE_ID)
+      .references(() => scopes.id, { onDelete: 'restrict' }),
     progress: real('progress').notNull(),
     ...timestamps,
   },
   (table) => [
     primaryKey({
-      columns: [table.activity_id, table.user_id],
+      columns: [table.activity_id, table.user_id, table.scope_id],
     }),
   ]
 )
 
-export const progressRelations = relations(progress, ({ one, many }) => ({
+export const progressRelations = relations(progress, ({ one }) => ({
   user: one(users, {
     fields: [progress.user_id],
     references: [users.id],
@@ -34,5 +39,8 @@ export const progressRelations = relations(progress, ({ one, many }) => ({
     fields: [progress.activity_id],
     references: [activities.id],
   }),
-  enrollment: many(enrollment),
+  scope: one(scopes, {
+    fields: [progress.scope_id],
+    references: [scopes.id],
+  }),
 }))

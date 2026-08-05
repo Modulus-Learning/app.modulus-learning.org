@@ -153,6 +153,9 @@ export async function setupTestHarness(): Promise<TestHarness> {
     if (tables.length > 0) {
       await pool.query(`TRUNCATE ${tables.join(', ')} RESTART IDENTITY CASCADE`)
     }
+    await pool.query('INSERT INTO scopes (id) VALUES ($1) ON CONFLICT DO NOTHING', [
+      schema.DEFAULT_SCOPE_ID,
+    ])
   }
 
   const teardown = async (): Promise<void> => {

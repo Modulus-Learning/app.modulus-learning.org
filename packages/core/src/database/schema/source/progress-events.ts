@@ -1,6 +1,8 @@
 import { index, pgTable, real, timestamp, uuid } from 'drizzle-orm/pg-core'
 
+import { DEFAULT_SCOPE_ID } from '../constants.js'
 import { activities } from './activities.js'
+import { scopes } from './scopes.js'
 import { users } from './users.js'
 
 /*
@@ -19,6 +21,10 @@ export const progressEvents = pgTable(
     activity_id: uuid('activity_id')
       .notNull()
       .references(() => activities.id, { onDelete: 'restrict' }),
+    scope_id: uuid('scope_id')
+      .notNull()
+      .default(DEFAULT_SCOPE_ID)
+      .references(() => scopes.id, { onDelete: 'restrict' }),
     // The activity that *caused* this event, when it is a cumulative
     // ("umbrella") contribution rather than a direct submission.  NULL for a
     // direct/self submission; set to the source activity for a contribution
@@ -29,10 +35,15 @@ export const progressEvents = pgTable(
     progress: real('progress').notNull(),
   },
   (table) => [
-    index('progress_events_activity_id_idx').on(table.activity_id, table.submitted_at.desc()),
-    index('progress_events_user_id_activity_id_idx').on(
+    index('progress_events_activity_id_scope_id_idx').on(
+      table.activity_id,
+      table.scope_id,
+      table.submitted_at.desc()
+    ),
+    index('progress_events_user_id_activity_id_scope_id_idx').on(
       table.user_id,
       table.activity_id,
+      table.scope_id,
       table.submitted_at.desc()
     ),
   ]

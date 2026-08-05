@@ -13,7 +13,9 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import { timestamps } from '../../common.js'
+import { DEFAULT_SCOPE_ID } from '../../constants.js'
 import { activities } from '../activities.js'
+import { scopes } from '../scopes.js'
 import { users } from '../users.js'
 import { platformDeployments } from './lti-platform-deployments.js'
 import { platforms } from './lti-platforms.js'
@@ -32,6 +34,12 @@ export const lineitems = pgTable(
     activity_id: uuid('activity_id')
       .notNull()
       .references(() => activities.id, { onDelete: 'cascade' }),
+
+    // Academic-term bucket used for activity state and score passback
+    scope_id: uuid('scope_id')
+      .notNull()
+      .default(DEFAULT_SCOPE_ID)
+      .references(() => scopes.id, { onDelete: 'restrict' }),
 
     // LTI platform this line item belongs to
     platform_issuer: varchar('platform_issuer').notNull(),
@@ -126,5 +134,6 @@ export const lineitems = pgTable(
 export const lineitemsRelations = relations(lineitems, ({ one }) => ({
   user: one(users, { fields: [lineitems.user_id], references: [users.id] }),
   activity: one(activities, { fields: [lineitems.activity_id], references: [activities.id] }),
+  scope: one(scopes, { fields: [lineitems.scope_id], references: [scopes.id] }),
   platform: one(platforms, { fields: [lineitems.platform_issuer], references: [platforms.issuer] }),
 }))

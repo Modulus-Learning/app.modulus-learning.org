@@ -1,5 +1,6 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 
+import { DEFAULT_SCOPE_ID } from '../schema/constants.js'
 import { progress } from '../schema/source/progress.js'
 import type * as schema from '../schema/index.js'
 
@@ -14,16 +15,19 @@ export const seedProgress = async (
     {
       user_id: userIds[1]!.id,
       activity_id: activityIds[0]!.id,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 1.0,
     },
     {
       user_id: userIds[1]!.id,
       activity_id: activityIds[1]!.id,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.33,
     },
     {
       user_id: userIds[1]!.id,
       activity_id: activityIds[2]!.id,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.0,
     },
   ]
@@ -35,6 +39,7 @@ export const seedProgress = async (
       bulkProgressData.push({
         user_id: userIds[i]!.id, // Start at position 5
         activity_id: activityIds[1]!.id,
+        scope_id: DEFAULT_SCOPE_ID,
         progress: [0.33, 0.66, 1.0][Math.floor(Math.random() * 3)]!, // Random value from 0.33, 0.66, 1.0
       })
     }
