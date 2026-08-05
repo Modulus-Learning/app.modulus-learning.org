@@ -1,5 +1,8 @@
 import type React from 'react'
 
+import { DEFAULT_SCOPE_ID } from '@modulus-learning/core'
+import { z } from 'zod'
+
 import { startActivity } from '@/modules/app/activity/start-activity'
 import { getUserSession } from '@/modules/app/session/storage'
 import { LtiLaunchActivity } from '@/modules/lti/components/lti-launch-activity'
@@ -13,7 +16,7 @@ function extractParameters(params: string[]): Record<string, string | null> {
     // Next.js specific fixup. There is no way to prevent
     // Next.js from 'normalizing' URLs to remove double
     // forward slashes - and so we have to put them back here.
-    destinationURL = destinationURL.replace('http:/', 'http://').replace('https:/', 'https://')
+    destinationURL = destinationURL.replace(/^https?:\/(?!\/)/, (protocol) => `${protocol}/`)
     return { activityCode, destinationURL }
   }
   return { activityCode: null, destinationURL: null }
@@ -21,18 +24,23 @@ function extractParameters(params: string[]): Record<string, string | null> {
 
 export default async function LtiLaunchPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ go: string[] }>
+  searchParams: Promise<{ scope_id?: string | string[] }>
 }): Promise<React.JSX.Element> {
   const { go } = await params
+  const { scope_id } = await searchParams
   const { activityCode, destinationURL } = extractParameters(go)
   const session = await getUserSession()
+  const parsedScope = z.uuid().safeParse(scope_id)
 
   if (
     activityCode == null ||
     activityCode.length === 0 ||
     destinationURL == null ||
-    destinationURL.length === 0
+    destinationURL.length === 0 ||
+    !parsedScope.success
   ) {
     return (
       <div className="flex justify-center mt-[12vh] sm:mt-[18vh] bg-gray-50 not-dark">
@@ -46,7 +54,7 @@ export default async function LtiLaunchPage({
     )
   }
 
-  const result = await startActivity(activityCode, destinationURL)
+  const result = await startActivity(activityCode, destinationURL, parsedScope.data)
 
   if (result.status === 'failed') {
     return (
@@ -73,5 +81,11 @@ export default async function LtiLaunchPage({
     )
   }
 
-  return <LtiLaunchActivity session={session} startActivityResult={result} />
+  return (
+    <LtiLaunchActivity
+      session={session}
+      startActivityResult={result}
+      isDefaultScope={result.data.scope_id === DEFAULT_SCOPE_ID}
+    />
+  )
 }

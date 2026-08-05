@@ -5,7 +5,8 @@ import type { StartActivityResult } from './@types'
 
 export async function startActivity(
   activity_code: string,
-  activity_url: string
+  activity_url: string,
+  scope_id: string
 ): Promise<StartActivityResult> {
   const userAuth = await getCoreUserRequestContext()
   if (userAuth == null) {
@@ -16,6 +17,7 @@ export async function startActivity(
   const result = await core.app.activities.startActivity(userAuth, {
     activity_code,
     activity_url,
+    scope_id,
   })
 
   if (!result.ok) {

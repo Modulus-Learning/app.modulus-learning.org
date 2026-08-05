@@ -21,6 +21,7 @@ import {
   progress,
   roles,
   roleUser,
+  scopes,
   users,
 } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
@@ -42,6 +43,7 @@ export type ActivityCodeInsert = typeof activityCodes.$inferInsert
 export type UserRecord = typeof users.$inferSelect
 
 export type ProgressRecord = typeof progress.$inferSelect
+export type ScopeRecord = typeof scopes.$inferSelect
 
 export class ActivityQueries extends BaseService {
   private utils: CoreUtils
@@ -228,6 +230,14 @@ export class ActivityQueries extends BaseService {
       .query.activities.findFirst({
         where: eq(activities.url, url),
       })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async findScopeById(id: string): Promise<ScopeRecord | undefined> {
+    return await this.db
+      .get()
+      .query.scopes.findFirst({ where: eq(scopes.id, id) })
       .catch(this.utils.wrapDbErrorNew())
   }
 

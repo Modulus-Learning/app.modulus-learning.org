@@ -98,8 +98,10 @@ export async function POST(request: NextRequest) {
 
   // Redirect to the appropriate url based on the type of launch.
   if (type === 'start-activity') {
-    const { activity_code, activity_url } = launchResult.data
-    redirect(`/lti/launch/${activity_code}/${activity_url}`)
+    const { activity_code, activity_url, scope_id } = launchResult.data
+    const launchPath = `/lti/launch/${encodeURIComponent(activity_code)}/${encodeURIComponent(activity_url)}`
+    const launchQuery = new URLSearchParams({ scope_id })
+    redirect(`${launchPath}?${launchQuery}`)
   }
 
   if (type === 'deep-link') {

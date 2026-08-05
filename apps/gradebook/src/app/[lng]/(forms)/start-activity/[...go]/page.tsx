@@ -2,6 +2,7 @@ import type React from 'react'
 import { headers } from 'next/headers'
 
 import { Container, Section } from '@infonomic/uikit/react'
+import { DEFAULT_SCOPE_ID } from '@modulus-learning/core'
 
 import { StartActivity } from '@/modules/app/activity/components/start-activity'
 import { startActivity } from '@/modules/app/activity/start-activity'
@@ -18,7 +19,7 @@ function extractParameters(params: string[]): Record<string, string | null> {
     // Next.js specific fixup. There is no way to prevent
     // Next.js from 'normalizing' URLs to remove double
     // forward slashes - and so we have to put them back here.
-    destinationURL = destinationURL.replace('http:/', 'http://').replace('https:/', 'https://')
+    destinationURL = destinationURL.replace(/^https?:\/(?!\/)/, (protocol) => `${protocol}/`)
     return { activityCode, destinationURL }
   }
   return { activityCode: null, destinationURL: null }
@@ -70,7 +71,7 @@ export default async function StartActivityPage({
 
   // We'll only call our startActivity server function if
   // we have valid parameters.
-  const result = await startActivity(activityCode, destinationURL)
+  const result = await startActivity(activityCode, destinationURL, DEFAULT_SCOPE_ID)
 
   return (
     <>

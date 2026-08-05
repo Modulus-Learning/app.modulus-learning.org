@@ -167,6 +167,8 @@ export const startActivityResponseSchema = z.strictObject({
     name: z.string().optional(),
     url: z.string(),
   }),
+  scope_id: z.uuid(),
+  scope_name: z.string().nullable(),
   modulus_server_url: z.string(),
 })
 
@@ -270,6 +272,7 @@ export const startActivityRequestSchema = z.object({
     })
     .transform((s) => s.trim())
     .refine((s) => s.length > 0, 'Activity URL cannot be empty.'),
+  scope_id: z.uuid(),
 })
 
 export type StartActivityRequest = z.infer<typeof startActivityRequestSchema>

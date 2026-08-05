@@ -2,6 +2,7 @@ import { BaseService, method } from '@/lib/base-service.js'
 import {
   ERR_ACTIVITY_CODE_NOT_FOUND,
   ERR_ACTIVITY_NOT_FOUND,
+  ERR_ACTIVITY_SCOPE_NOT_FOUND,
   ERR_LEARNER_NOT_FOUND,
 } from '../errors.js'
 import type { Config } from '@/config.js'
@@ -30,7 +31,7 @@ export class StartActivityService extends BaseService {
   @method
   async startActivity(
     userAuth: UserAuth,
-    { activity_code, activity_url }: StartActivityRequest
+    { activity_code, activity_url, scope_id }: StartActivityRequest
   ): Promise<StartActivityResponse> {
     const user = await this.queries.getUser(userAuth.id)
     if (user == null) {
@@ -53,6 +54,13 @@ export class StartActivityService extends BaseService {
       }).log(this.logger)
     }
 
+    const scope = await this.queries.findScopeById(scope_id)
+    if (scope == null) {
+      throw ERR_ACTIVITY_SCOPE_NOT_FOUND({
+        message: 'activity scope not found',
+      }).log(this.logger)
+    }
+
     // TODO: Check that the activity is associated with the activity_code.
 
     await this.mutations.enrollInActivity(user.id, activityCode.id, activity.id)
@@ -71,6 +79,8 @@ export class StartActivityService extends BaseService {
         name: activity.name ?? undefined,
         url: activity.url,
       },
+      scope_id: scope.id,
+      scope_name: scope.name,
       modulus_server_url: this.config.server.baseUrl,
     }
   }

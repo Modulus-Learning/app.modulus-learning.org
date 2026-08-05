@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 
 import { Button } from '@infonomic/uikit/react'
 
+import { buildActivityLaunchUrl } from '../launch-url'
 import type { Locale } from '@/i18n/i18n-config'
 import type { UserSession } from '@/modules/app/session/@types'
 import type { StartActivityResult } from '../@types'
@@ -26,8 +27,13 @@ export function LaunchActivity({
 
   const handleOnLaunch = () => {
     if (startActivityResult.data != null) {
-      const modulusServerURL = encodeURIComponent(startActivityResult.data.modulus_server_url)
-      router.replace(`${startActivityResult?.data?.activity.url}?modulus=${modulusServerURL}`)
+      router.replace(
+        buildActivityLaunchUrl({
+          activityUrl: startActivityResult.data.activity.url,
+          modulusServerUrl: startActivityResult.data.modulus_server_url,
+          scopeId: startActivityResult.data.scope_id,
+        })
+      )
     }
   }
 
