@@ -1,7 +1,7 @@
 # Activity scopes: term partitioning, token binding, and client transport — analysis
 
 Date: 2026-08-04
-Status: planning recommendation; no implementation has started
+Status: baseline contracts resolved; no production implementation has started
 Related:
 - `docs/ARCHITECTURE.md` — three-tier model and the Tier 2 ↔ Tier 3 privacy boundary
 - `docs/AUTHN-AUTHZ.md` — current learner, administrator, and agent token model
@@ -112,12 +112,129 @@ Adopt activity scopes, with the following design decisions:
 14. Keep one line-item row for the existing learner/activity/line-item URL
     identity. If a later verified launch reports a different scope for that
     identity, rebind the row to the new scope, reset its submission state, and
-    log the transition. This baseline requires stakeholder confirmation before
-    implementation.
+    log the transition. This reassignment contract is confirmed for the baseline.
 
 The design combines the two-store transport with a strict foreground-write rule,
 scope-complete operational state and passback predicates, and an explicit account
 of the residual client ambiguity.
+
+## Resolved Baseline Contracts
+
+The implementation uses the following baseline decisions. They close the choices
+that must be stable before the schema and application work begins.
+
+### Agent Authorization Validates Existence, Not Platform Association
+
+The agent authorization route parses `scope_id` as a UUID and confirms that the
+referenced scope exists. It does not require the scope's `platform_id` to match a
+platform inferred from the learner, activity, enrolment, or browser issuer.
+
+Only a verified LTI launch may create a non-default scope, so existence already
+proves that Modulus resolved the label from authenticated platform context. Later
+agent authorization has no equally reliable platform identity to compare with,
+and deriving one from the unscoped enrolment graph would turn a partition label
+into an entitlement. Malformed and unknown ids remain invalid input and produce
+privacy-safe diagnostics.
+
+### Activity-Code Reports Use One All-Time Projection
+
+Activity-code reporting remains unscoped. Before joining `enrollment`, core
+projects all `progress` rows for each `(user_id, activity_id)` into one
+compatibility row:
+
+- `progress` is the maximum normalized progress across scopes;
+- `created_at` is the earliest scoped progress creation timestamp; and
+- `updated_at` is the latest scoped progress update timestamp.
+
+The projected timestamps describe the all-time compatibility row; they are not
+claimed to come from the same scoped row as the maximum progress. An enrolment
+without progress has null progress and timestamps. `getProgressForUser` returns
+the same projection and does not expose an arbitrary `scope_id`.
+
+Report ordering places null progress and timestamps last in both ascending and
+descending order. After the requested primary sort, `(activity_id, user_id)` in
+ascending order is the deterministic tie-breaker. The projection is formed
+before ordering, `count(*) over()`, limit, or offset, so `total` counts enrolment
+rows and is identical on every row in a result page. This preserves stable offset
+pagination even when progress values, names, or timestamps tie.
+
+### The Initial Agent Contract Includes Scope Display Metadata
+
+The token response returns the canonical `scope_id` and
+`scope_name: string | null`. The authenticated agent result and public
+`AuthStatus` expose both fields so an activity may render understandable context
+from the first scoped release. The JSON Web Token (JWT) carries only `scope_id`;
+the name is resolved metadata, not an identity claim.
+
+The agent may refresh or omit a stored name when core returns new metadata, but
+it never changes `scope_id` as a result. Browser storage omits `scope_name` when
+the response is null. Equality, storage selection, state predicates, and
+passback use only `scope_id`.
+
+### Verified Term Reassignment Rebinds One Line Item
+
+The baseline confirms the recommended line-item reassignment semantics. A
+verified launch that supplies a different scope for an existing
+`(user_id, activity_id, lineitem_url)` identity reuses the row and leaves old
+activity state in its original scope.
+
+After locking the existing row, the rebind branch:
+
+- sets `scope_id` to the verified incoming scope;
+- sets `submitted_progress` to zero and `submitted_at` to null;
+- sets `submittable_progress` exactly to the new scope's cutoff maximum, or zero
+  when that scope has no eligible progress;
+- clears `dead_at`, `submission_lease_expires_at`, and
+  `submission_lease_token`;
+- resets `submission_error_count` to zero and clears
+  `submission_error_category` and `submission_error_message`;
+- applies the incoming platform, deployment, LTI user, cutoff, and other
+  ordinary launch fields; and
+- sets `submission_eligible_at` to the ordinary current-launch value (`now()`),
+  even when the new submittable value is zero.
+
+The rebind logs the opaque line-item id and old/new scope ids. Clearing the lease
+token fences a worker that began before the rebind; a later completion with the
+old token updates zero rows and emits a structured stale-completion diagnostic.
+An external Canvas request already in flight cannot be recalled, so the rebind
+diagnostic records that residual operational risk without logging learner or
+course identity.
+
+### Supported Browser and Link-Opening Matrix
+
+The feature gate covers the latest stable releases available when Task 11 is
+verified:
+
+- Chrome, Edge, and Firefox on desktop;
+- Safari on macOS; and
+- Safari on iOS or iPadOS for touch-driven navigation and storage behaviour.
+
+The pull request records the exact versions and operating systems exercised.
+Desktop coverage includes ordinary same-tab links, authored `target="_blank"`
+links, middle-click, context-menu new tab, a separate window, reload,
+back/forward-cache restoration, and bookmark or typed-URL entry. Mobile Safari
+coverage includes same-tab navigation, authored new-tab navigation, reload,
+back/forward restoration, and bookmark entry. At least Chrome and Safari also
+exercise separate windows in different scopes and a fresh LTI launch opened in
+the background.
+
+### Query Transport and Cleanup
+
+The first-party handoff and activity launch use recognised query parameters for
+the public Modulus issuer and opaque `scope_id`; neither value is a credential.
+The activity URL never carries `scope_name`, raw Canvas term identity, course
+identity, or term dates. The agent captures the complete authored query and
+fragment, removes only recognised launch or OAuth parameters with
+`history.replaceState`, and preserves the authored values across the OAuth
+redirect in tab storage. The OAuth `client_id` and `redirect_uri` remain the
+query-free, fragment-free activity URL.
+
+Cleanup minimises persistence in browser history, bookmarks, referrers, and
+copied URLs, but it is not a secrecy boundary. A normal bookmark made after
+initialisation has no Modulus parameters and follows the documented cold-tab
+inheritance rule. A copied or bookmarked pre-cleanup launch URL replays its
+existing opaque label as explicit context; server validation still accepts only
+an existing scope and possession of that label grants no additional access.
 
 ## Design Assessment
 
@@ -155,9 +272,9 @@ already controls self-reported progress for the authenticated activity, and
 another valid scope neither changes `user_id`/`activity_id` nor exposes another
 learner's state.
 
-The server should perform structural checks: parse the UUID, confirm the scope
-exists, and decide whether a platform association should be checked to catch an
-accidental issuer/scope mismatch. Those checks protect referential and product
+The server performs structural checks: it parses the UUID and confirms that the
+scope exists. It deliberately does not infer or enforce a platform association
+during agent authorization. These checks protect referential and product
 integrity; they do not establish an entitlement.
 
 The requested `scope_id` should still be copied into the single-use
@@ -376,8 +493,7 @@ submittable after the course moves. Log the reassignment with opaque record and
 scope ids. An already in-flight external Canvas request cannot be recalled, so
 the transition and any fenced stale completion also need diagnostics.
 
-This is the recommended baseline, but stakeholders must confirm the academic
-semantics before the line-item task begins.
+These academic semantics are the confirmed baseline for the line-item task.
 
 #### Activity-Code Analytics Are a Separate Decision
 
@@ -393,12 +509,11 @@ Canvas sections in one semester, or even courses across several semesters, may
 share one code. Adding `scope_id` to the enrolment graph would change that model
 rather than merely adapt it to the new progress key.
 
-The baseline should leave the enrolment graph unchanged and make the existing
-join return one compatibility row per `(user, activity)`—for example, by joining
-a derived aggregate over scoped progress. An all-time maximum is the closest
-equivalent to today's monotonic high-water mark, but even that projection should
-be documented as compatibility behaviour rather than the final analytics
-contract.
+The baseline leaves the enrolment graph unchanged and makes the existing join
+return one compatibility row per `(user, activity)` through a derived aggregate
+over scoped progress. It uses the all-time maximum progress, earliest creation
+timestamp, and latest update timestamp. This projection is compatibility
+behaviour rather than the final analytics contract.
 
 Semester-specific activity-code statistics should be postponed for stakeholder
 discussion. Possible future designs include coarse date windows over
@@ -578,7 +693,7 @@ that selects or creates a bucket:
 | --- | --- |
 | usable `Canvas.term.id` | resolve or create `(platform_id, external_id)` scope |
 | missing, null, empty, or unexpanded `Canvas.term.id` | select the default sentinel |
-| usable `Canvas.term.name` with a usable id | update nullable display metadata; optionally expose it as `scope_name` |
+| usable `Canvas.term.name` with a usable id | update nullable display metadata and return it as nullable `scope_name` |
 | usable `Canvas.term.startAt` / `endAt` with a usable id | parse and update the corresponding nullable bound |
 | missing, null, empty, unexpanded, or malformed optional metadata | leave previously known valid metadata unchanged and continue the launch |
 | optional metadata without a usable id | do not mutate the global default-scope row; use generic default-context wording |
@@ -595,17 +710,16 @@ opaque label, not a secret and not a capability. Possessing it does not change
 the authenticated learner or activity, and the learner is allowed to select any
 existing scope for their own work.
 
-The server needs only structural validation at the agent authorize step:
+The server uses existence-only structural validation at the agent authorize step:
 
 - the value is a valid UUID;
-- the referenced scope exists;
-- the requested activity URL still resolves under the existing agent rules;
-- optionally, the scope/platform pairing is coherent if the product chooses to
-  reject accidental cross-installation labels.
+- the referenced scope exists; and
+- the requested activity URL still resolves under the existing agent rules.
 
-The last check is an open integrity decision, not an authorization requirement.
-If Modulus accepts a valid label from another platform, the practical result is
-normally an isolated bucket with no matching line item.
+The server does not compare the scope's platform with an issuer inferred from
+browser or enrolment context. An existing label from another platform remains a
+valid partition choice; the practical result is normally an isolated bucket with
+no matching line item.
 
 ## End-to-End Token-Binding Flow
 
@@ -643,7 +757,7 @@ activity query receives issuer + opaque scope_id
   • verifies PKCE and existing code bindings
   • reads scope_id only from claimed auth-code row
   • mints { user, activity_id, scope_id, renew_after }
-  • may return nullable scope_name as display metadata
+  • returns canonical scope_id + nullable scope_name metadata
         │
         ▼
 agent commands filter every read/write by the bound token tuple
@@ -777,11 +891,11 @@ server-rendered and present on load, an `aria-live` region is unnecessary. Keep
 the existing launch button keyboard-operable, ensure countdown changes do not
 steal focus, and do not use a blocking term-picker dialog.
 
-The activity receives the opaque internal `scope_id` and may also receive the
-nullable `scope_name`. If the agent's bundled UI later exposes context status,
-it may say “Working in Autumn 2026” when a name is available and use generic
-scope wording otherwise. The name must never be used for equality, storage
-selection, authorization, or passback predicates.
+The activity receives the opaque internal `scope_id`, and authenticated
+`AuthStatus` includes nullable `scope_name`. Activity UI may say “Working in
+Autumn 2026” when a name is available and use generic scope wording otherwise.
+The name must never be used for equality, storage selection, authorization, or
+passback predicates.
 
 ## Schema and Repository Impact
 
@@ -849,18 +963,17 @@ The baseline therefore preserves these contracts:
 
 Because `progress` becomes one row per `(user, activity, scope)`, the existing
 direct join is no longer cardinality-safe. Replace it with a derived relation
-that produces at most one compatibility progress row per `(user, activity)`.
-Using `MAX(progress)` across scopes most closely preserves the current all-time
-high-water view. The associated timestamp needs an explicit, deterministic rule
-instead of relying on an arbitrary row.
+that produces at most one compatibility progress row per `(user, activity)`:
+`MAX(progress)`, `MIN(created_at)`, and `MAX(updated_at)`. Enrolments without
+progress retain null projected values.
 
 The derived projection must be complete before it joins to `enrollment` and
 before ordering, `count(*) over()`, `limit`, or `offset` are applied.
 Otherwise multi-scope fan-out corrupts the reported total and paginates scope
-rows instead of enrollments. For unchanged data, every sort must use a stable
-secondary enrollment key so equal aggregate values produce deterministic page
-boundaries. `getProgressForUser` must use the same explicit aggregate rather
-than `findFirst`, and the Drizzle `one(progress)` enrollment relation must be
+rows instead of enrolments. Null progress and timestamps sort last in either
+direction, followed by ascending `(activity_id, user_id)` as the stable
+tie-breaker. `getProgressForUser` must use the same explicit aggregate rather
+than `findFirst`, and the Drizzle `one(progress)` enrolment relation must be
 removed or replaced because it no longer describes the schema.
 
 This compatibility projection is not the final statistical design. Stakeholder
@@ -912,7 +1025,6 @@ rule. Useful events include:
 - cold-tab adoption from shared storage;
 - malformed stored record or storage access failure;
 - missing, malformed, or unknown scope label;
-- optional scope/platform mismatch if that integrity check is adopted;
 - scoped progress with no matching live line item when another-scope line item
   exists for the same learner/activity;
 - verified line-item scope reassignment and any stale fenced completion; and
@@ -990,23 +1102,18 @@ compatibility, or enforcement rollout modes. Implementation can establish the
 new contracts directly, while still sequencing schema and code changes so the
 work is reviewable and testable.
 
-### Phase 0 — Settle Blocking Product and Integrity Decisions
+### Phase 0 — Freeze Baseline Contracts
 
-- Confirm activity codes remain reusable across terms.
-- Record scope-specific enrollment and instructor-report semantics as deferred
-  stakeholder decisions rather than feature prerequisites.
-- Define the aggregate that keeps current instructor reports to one row per
-  enrollment after `progress` becomes multi-scope.
-- Consult stakeholders on reads, writes, and passback before `starts_at` and
-  after `ends_at`, including the intended Canvas `endAt` semantics.
-- Decide whether a scope must belong to the issuer/platform paired with it in
-  browser storage, or whether existence alone is sufficient.
-- Decide whether the initial agent contract exposes `scope_name`, or only
-  reserves that nullable field for a later UI.
-- Confirm that a verified term change for an existing line-item URL rebinds the
-  row, resets submission state, and leaves historical activity state in the old
-  scope.
-- Confirm the top-level-document assumption for supported Ximera activities.
+- Keep activity codes reusable across terms and defer scope-specific analytics.
+- Use maximum progress, earliest creation, and latest update timestamps for the
+  one-row-per-enrolment compatibility projection.
+- Keep term dates descriptive until a separate stakeholder policy is approved.
+- Validate agent-selected scopes by UUID and existence without a platform check.
+- Return nullable `scope_name` in the initial agent contract.
+- Rebind and fully reset the existing line-item row on a verified term change.
+- Gate browser behaviour on the named evergreen browser and link-opening matrix.
+- Support Ximera activities as top-level documents; iframe transport remains out
+  of scope.
 
 ### Phase 1 — Add the Complete Scoped Schema
 
@@ -1029,9 +1136,8 @@ fixtures so key reconstruction and event-table behavior are exercised.
 - Extend `AgentAuth`, token payload schemas, issuance, verification, and renewal.
 - Thread `scope_id` through all operational state, cumulative, line-item, and
   passback repositories.
-- Keep line-item URL identity stable; on a stakeholder-confirmed verified scope
-  change, rebind and reset the existing row without relabelling old activity
-  state.
+- Keep line-item URL identity stable; on a verified scope change, rebind and
+  reset the existing row without relabelling old activity state.
 - Diagnose scoped progress that misses a line item when another-scope live row
   exists for the same learner/activity.
 - Adapt instructor progress queries to the compatibility aggregate without
@@ -1054,14 +1160,13 @@ fixtures so key reconstruction and event-table behavior are exercised.
 - Send the default sentinel explicitly from the non-LTI first-party path.
 - Normalize a valid Modulus context without a scope label to the default
   sentinel.
-- Add optional `scope_name` transport if Phase 0 selects it for the initial
-  agent contract.
+- Add nullable `scope_name` transport to the initial agent contract.
 
 ### Phase 4 — Complete UX and Verification
 
 - Show the verified term name on the launch interstitial when available and
   generic context wording when it is not.
-- If exposed, present `scope_name` as understandable, display-only agent UI.
+- Present `scope_name` as understandable, display-only agent context.
 - Verify that existing activity-code reports retain one row per enrollment and
   broad cross-course/cross-semester cohort semantics.
 - Validate keyboard, screen-reader, focus, countdown, storage, and error
@@ -1160,8 +1265,8 @@ Tests should cover at least:
 
 - schema migration from populated unscoped fixtures;
 - repository integration tests for every conflict target and scope predicate;
-- valid, malformed, unknown, and optionally platform-mismatched scope labels,
-  plus PKCE binding;
+- valid, malformed, unknown, and existing cross-platform scope labels, plus
+  PKCE binding;
 - Canvas launches with term id only, partially supplied metadata, no term id,
   null/empty values, unexpanded literals, and malformed dates;
 - the verified redirect → interstitial → `startActivity` → activity-query
@@ -1199,9 +1304,8 @@ The internal UUID may appear in activity-origin logs or same-origin referrers
 before the agent scrubs it. This is not credential leakage, but unnecessary URL
 retention can create confusing bookmarks and diagnostics. Scrub the parameter
 with the issuer and OAuth values while preserving authored fragments and use an
-appropriate referrer policy. The optional term name does not need to travel in
-the URL; it can be supplied by the verified server response if the initial agent
-contract exposes it.
+appropriate referrer policy. The optional term name does not travel in the URL;
+the verified token response supplies it.
 
 ### Scope Divergence Can Omit Canvas Scores
 
@@ -1220,12 +1324,12 @@ not update unmatched rows merely to return their scope ids.
 
 Rebinding a stable line-item URL to a newly verified scope deliberately starts
 its submitted and submittable progress from the new scope rather than carrying
-old-term work forward. This can surprise stakeholders and can race with an
-already in-flight external submission. Require stakeholder confirmation, reset
-and fence all stored queue state atomically, and log both the reassignment and
-any stale completion attempt. Implement the distinction with a locked explicit
-branch rather than repeated conditional upsert expressions, and test with a
-non-zero old-scope high-water mark so an accidental `GREATEST` cannot pass.
+old-term work forward. This confirmed baseline can race with an already in-flight
+external submission. Reset and fence all stored queue state atomically, and log
+both the reassignment and any stale completion attempt. Implement the distinction
+with a locked explicit branch rather than repeated conditional upsert expressions,
+and test with a non-zero old-scope high-water mark so an accidental `GREATEST`
+cannot pass.
 
 ### Browser Event and Storage Variability
 
@@ -1262,30 +1366,23 @@ of the baseline. Convene instructors, course coordinators, and other stakeholder
 before deciding whether future reports use event-date windows, scope filters,
 both, or a separate cohort model.
 
-## Open Decisions and Deferred Questions
+## Deferred Questions
 
-1. Should structural validation require `scope_id` to belong to the stored
-   issuer/platform, or is existence sufficient?
-2. Which exact aggregate and timestamp rules best preserve the existing
-   instructor progress report after `progress` becomes multi-scope?
-3. After stakeholder consultation, should semester-specific activity-code
-   analytics use coarse event-date windows, optional scope filters, a separate
-   cohort model, or some combination?
-4. Should Modulus accept reads, progress writes, page-state writes, and grade
-   passback before `starts_at` or after `ends_at`, and does Canvas `endAt`
-   represent the final late/incomplete-work deadline for supported deployments?
-5. Should `scope_name` ship in the initial agent contract, and which verified
-   response should populate or refresh it?
-6. Do stakeholders confirm that moving a Canvas course to a new term rebinds an
-   existing line-item row, resets its submission state to progress from the new
-   scope, and leaves old-term learner state unchanged?
-7. Which supported browsers and link-opening modes form the release gate?
+The baseline implementation is not blocked by these policy and product questions:
 
-Items 1, 2, and 4–7 affect particular baseline contracts and should be resolved
-before the corresponding implementation work. Item 3 is explicitly deferred
-for stakeholder discussion and does not block operational activity scoping. The
-query-string transport and explicit-default non-LTI launch behaviour are settled
-baseline decisions rather than open questions.
+1. Should future semester-specific activity-code analytics use coarse event-date
+   windows, optional scope filters, a separate cohort model, or some combination?
+2. Should a later policy gate reads, progress writes, page-state writes, or grade
+   passback before `starts_at` or after `ends_at`, and how should Canvas `endAt`
+   relate to late or incomplete work?
+3. Should scope/line-item mismatch diagnostics also reach learners or instructors,
+   and through which first-party interface?
+4. What institutional retention policy should apply to historical scoped state?
+
+The resolved baseline contracts remain existence-only scope validation, the
+all-time report projection, initial nullable `scope_name`, verified line-item
+rebinding, the named browser matrix, query-string transport, and the explicit
+default non-LTI launch.
 
 ## Out of Scope
 
@@ -1324,9 +1421,8 @@ not an authorization capability. Keep the following refinements load-bearing:
    acceptance policy to stakeholders;
 6. carry LTI scope through the first-party query and `startActivity`, while the
    non-LTI first-party path explicitly launches in the default scope; and
-7. keep the stable line-item URL identity, rebind and reset its row on a verified
-   Canvas term change, and obtain stakeholder confirmation for those semantics
-   before implementation.
+7. keep the stable line-item URL identity and rebind and reset its row on a
+   verified Canvas term change.
 
 With those changes, the design fits Modulus's architecture: verified LTI context
 creates non-default scope labels, incomplete term context falls back safely to

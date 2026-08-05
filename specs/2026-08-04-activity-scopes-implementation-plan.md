@@ -1,7 +1,7 @@
 # Activity scopes — implementation plan
 
 Date: 2026-08-04
-Status: planning; Task 1 complete on `feat/activity-scopes`; no production
+Status: planning; Tasks 1–2 complete on `feat/activity-scopes`; no production
 implementation has started
 Related:
 
@@ -162,34 +162,46 @@ Acceptance criteria:
 - no production implementation is included in this commit; and
 - only the implementation plan is staged and committed.
 
-### Task 2 — Resolve Remaining Baseline Contracts
+### Task 2 — Resolve Remaining Baseline Contracts — Complete
 
-Proposed commit: `specs: resolved activity scopes implementation contracts`
+Commit: `specs: resolved activity scopes implementation contracts`
 
 Files:
 
 - revise `specs/2026-08-04-activity-scopes-analysis.md`; and
 - revise this plan so later tasks contain decisions rather than alternatives.
 
-Decisions to record before schema-dependent application work begins:
+Resolved decisions:
 
-1. **Scope/platform integrity check.** Decide whether agent authorization checks
-   only that `scope_id` exists or also checks its platform association. This is
-   an integrity choice, not an authorization boundary.
-2. **Activity-code report projection.** Choose the exact aggregate and timestamp
-   rules that turn multiple scoped progress rows into at most one existing-shape
-   report row per `(user_id, activity_id)`. Define deterministic tie-breaking,
-   null ordering, totals, and pagination over the projected enrollment rows.
-3. **Initial `scope_name` contract.** Decide whether the first agent release
-   returns nullable `scope_name` from the token response or merely reserves the
-   field for later. The first-party interstitial displays a supplied name either
-   way.
-4. **Line-item term reassignment.** Confirm with stakeholders that an existing
-   learner/activity/line-item URL is rebound to a newly verified scope, its
-   passback state is reset to that scope's progress, and old activity state
-   remains in the old scope.
-5. **Supported browser matrix.** Name the browsers and link-opening modes that
-   form the feature gate.
+1. **Scope/platform integrity check.** Agent authorization parses `scope_id` as
+   a UUID and checks that the scope exists. It does not infer or enforce a
+   platform association. Only a verified LTI launch creates non-default scopes,
+   and the later label selection remains a partition choice rather than an
+   entitlement check.
+2. **Activity-code report projection.** Before joining `enrollment`, aggregate
+   scoped progress by `(user_id, activity_id)` using maximum progress, earliest
+   `created_at`, and latest `updated_at`. No progress yields null projected
+   values. Null progress/timestamps sort last in both directions, followed by
+   ascending `(activity_id, user_id)` as the stable tie-breaker. Form the
+   projection before totals and offset pagination; `getProgressForUser` uses the
+   same projection and exposes no arbitrary scope row.
+3. **Initial `scope_name` contract.** The first agent release returns canonical
+   `scope_id` and nullable `scope_name` from the token endpoint and exposes both
+   through authenticated `AuthStatus`. Only `scope_id` is a JWT identity claim;
+   the name is refreshable display metadata.
+4. **Line-item term reassignment.** A verified scope change rebinds the locked
+   existing row, leaves historical activity state untouched, resets submitted
+   progress and all dead/retry/error/lease fields, replaces submittable progress
+   with the new scope's cutoff maximum, and makes the row eligible at `now()`.
+   The transition and a later lease-fenced stale completion emit structured
+   diagnostics containing only opaque record and scope ids.
+5. **Supported browser matrix.** Task 11 covers the latest stable desktop Chrome,
+   Edge, Firefox, and macOS Safari plus iOS/iPadOS Safari. Desktop modes are
+   same-tab, `target="_blank"`, middle-click, context-menu new tab, separate
+   window, reload, back/forward-cache restoration, and bookmark/typed URL.
+   Mobile Safari covers same-tab, authored new tab, reload, back/forward, and
+   bookmark navigation. The pull request records exact tested versions and
+   operating systems.
 
 The following decisions are already settled and must not be reopened in this
 task without explicit stakeholder direction:
@@ -458,13 +470,14 @@ Work:
 - add `scope_id` to `AgentAuth` and the signed agent access-token payload;
 - parse the client-selected label at the authorize route and normalize a
   missing label to the default sentinel;
-- apply the Task 2 structural/platform validation decision before creating the
-  authorization code;
+- parse `scope_id` as a UUID and confirm that the scope exists before creating
+  the authorization code; do not enforce a platform association;
 - store the selected label in the single-use authorization-code row;
 - read the label only from the claimed code during token exchange;
 - never accept a second `scope_id` at the token endpoint;
-- return nullable `scope_name` as display metadata if Task 2 includes it in the
-  initial agent contract;
+- return canonical `scope_id` and nullable `scope_name` as display metadata in
+  the initial agent contract and expose them through authenticated
+  `AuthStatus`;
 - construct gradebook `AgentRequestContext` from the token's scope claim; and
 - preserve the same `scope_id` during token renewal while rechecking the current
   user and activity as today; and
@@ -525,12 +538,14 @@ Work:
   scoped;
 - keep the advisory transaction lock keyed only by `user_id`;
 - leave `enrollment` and `activity_code_member` schemas unchanged; and
-- adapt both `getProgressForUser` and `getActivityCodeProgress` to the
-  deterministic projection selected in Task 2;
+- adapt both `getProgressForUser` and `getActivityCodeProgress` to maximum
+  progress, earliest `created_at`, and latest `updated_at` per
+  `(user_id, activity_id)`, with no projected `scope_id`;
 - form that projection before joining enrollment and before calculating order,
   `count(*) over()`, `limit`, or `offset`;
-- count enrollment rows rather than scoped progress rows, and use a stable
-  enrollment key after the selected primary sort; and
+- count enrollment rows rather than scoped progress rows, place null progress
+  and timestamps last in either direction, and use ascending
+  `(activity_id, user_id)` after the selected primary sort; and
 - remove any `findFirst` or Drizzle relation behaviour that can select an
   arbitrary scope row.
 
@@ -547,7 +562,8 @@ Automated acceptance criteria:
 - the per-user advisory lock serializes same-user progress transactions across
   scopes without adding `scope_id` to its hash input;
 - an activity code reused across scopes still returns at most one row per
-  enrollment under the Task 2 projection; and
+  enrollment with maximum all-time progress, earliest creation, and latest
+  update timestamps; and
 - report `total` counts enrollments and remains identical on every row in the
   result page;
 - tied aggregate values produce deterministic order, and unchanged data has no
@@ -711,7 +727,8 @@ Files:
 - refactor `apps/agent/src/core/auth.ts`;
 - add a focused context/storage helper under `apps/agent/src/core` if needed;
 - add `apps/agent/src/core/auth.test.ts`;
-- update public agent types only if `scope_name` is exposed by Task 2;
+- update public agent types so authenticated `AuthStatus` exposes canonical
+  `scope_id` and nullable `scope_name`;
 - update `apps/agent-demo/react` and `apps/agent-demo/vanilla` if their
   consumer code or visible diagnostics need the new public context contract; and
 - add a Changesets entry for the published `@modulus-learning/agent` package.
@@ -927,6 +944,13 @@ git diff --check origin/develop...HEAD
 ```
 
 Manual browser matrix:
+
+Run the desktop scenarios on the latest stable Chrome, Edge, Firefox, and macOS
+Safari available at verification time. Run the applicable touch and storage
+scenarios on the latest stable iOS/iPadOS Safari. Record exact browser versions
+and operating systems in the pull request. Include authored `target="_blank"`,
+back/forward-cache restoration, and the link-opening modes named in Task 2 even
+where they share the expected result below.
 
 | Scenario | Expected result |
 | --- | --- |
