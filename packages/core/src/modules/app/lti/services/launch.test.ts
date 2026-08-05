@@ -142,10 +142,12 @@ describe('resolveVerifiedLaunchScope', () => {
         {
           scope_id: DEFAULT_SCOPE_ID,
           source: 'default',
-          term_id: 'unexpanded',
-          name: 'empty',
-          starts_at: 'malformed',
-          ends_at: 'unexpanded',
+          quality: {
+            term_id: 'unexpanded',
+            name: 'empty',
+            starts_at: 'malformed',
+            ends_at: 'unexpanded',
+          },
         },
         'activity scope resolved',
       ],
@@ -195,10 +197,12 @@ describe('resolveVerifiedLaunchScope', () => {
         {
           scope_id: scopeId,
           source: 'platform',
-          term_id: 'usable',
-          name: 'missing',
-          starts_at: 'missing',
-          ends_at: 'missing',
+          quality: {
+            term_id: 'usable',
+            name: 'missing',
+            starts_at: 'missing',
+            ends_at: 'missing',
+          },
         },
         'activity scope resolved',
       ],

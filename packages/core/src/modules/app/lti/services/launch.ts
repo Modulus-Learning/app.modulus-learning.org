@@ -139,7 +139,7 @@ export const resolveVerifiedLaunchScope = async (
   if (term == null) {
     const resolved = { scope_id: DEFAULT_SCOPE_ID, scope_name: null }
     options.logger?.info(
-      { scope_id: resolved.scope_id, source: 'default', ...quality },
+      { scope_id: resolved.scope_id, source: 'default', quality },
       'activity scope resolved'
     )
     return resolved
@@ -153,7 +153,7 @@ export const resolveVerifiedLaunchScope = async (
 
   const resolved = { scope_id: scope.id, scope_name: scope.name }
   options.logger?.info(
-    { scope_id: resolved.scope_id, source: 'platform', ...quality },
+    { scope_id: resolved.scope_id, source: 'platform', quality },
     'activity scope resolved'
   )
   return resolved
