@@ -15,7 +15,7 @@ function extractParameters(params: string[]): Record<string, string | null> {
   if (receivedParams.length > 0) {
     const activityCode = receivedParams[0]
     receivedParams.shift()
-    let destinationURL = decodeURIComponent(receivedParams.join('/'))
+    let destinationURL = receivedParams.join('/')
     // Next.js specific fixup. There is no way to prevent
     // Next.js from 'normalizing' URLs to remove double
     // forward slashes - and so we have to put them back here.

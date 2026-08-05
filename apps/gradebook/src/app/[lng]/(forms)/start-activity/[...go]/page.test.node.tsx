@@ -30,12 +30,12 @@ describe('non-LTI start activity page', () => {
   })
 
   test('always supplies the explicit default scope sentinel', async () => {
-    const activityUrl = 'https://content.test/activity?existing=one#authored-fragment'
+    const activityUrl = 'https://content.test/a%20b'
 
     await StartActivityPage({
       params: Promise.resolve({
         lng: 'en',
-        go: ['course-code', encodeURIComponent(activityUrl)],
+        go: ['course-code', 'https:', 'content.test', 'a%20b'],
       }),
     })
 

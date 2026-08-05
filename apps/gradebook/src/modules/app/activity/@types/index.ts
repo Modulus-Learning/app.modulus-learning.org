@@ -55,7 +55,7 @@ export const startActivitySchema = z.object({
       error: 'Activity URL is too long.',
     })
     .transform((s) => s.trim())
-    .refine((s) => s.length > 0, 'Activity URL cannot be empty.'),
+    .pipe(z.url({ error: 'Valid activity URL is required.' })),
 })
 
 interface StartActivityData {

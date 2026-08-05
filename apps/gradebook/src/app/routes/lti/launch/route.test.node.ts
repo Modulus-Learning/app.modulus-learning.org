@@ -71,8 +71,12 @@ describe('LTI launch route', () => {
     expect(mocks.setUserSession).toHaveBeenCalledWith(tokens)
     const target = String(mocks.redirect.mock.calls[0]?.[0])
     const redirectUrl = new URL(target, 'https://gradebook.test')
-    expect(redirectUrl.pathname).toContain(encodeURIComponent(activityUrl))
-    expect(Array.from(redirectUrl.searchParams.entries())).toEqual([['scope_id', scopeId]])
+    expect(target).toBe(
+      `/lti/launch/course-code/https://content.test/activity?existing=one&scope_id=${scopeId}#authored-fragment`
+    )
+    expect(target).toContain(activityUrl.replace('#authored-fragment', ''))
+    expect(target).not.toContain(encodeURIComponent(activityUrl))
+    expect(redirectUrl.searchParams.get('scope_id')).toBe(scopeId)
     expect(target).not.toContain('Autumn 2026')
   })
 })

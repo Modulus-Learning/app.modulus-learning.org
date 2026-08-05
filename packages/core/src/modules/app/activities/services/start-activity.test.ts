@@ -8,7 +8,7 @@ import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
 import { UserAuth } from '@/lib/auth.js'
 import { createCoreLogger } from '@/lib/logger.js'
 import { ErrorCodes } from '../errors.js'
-import { startActivityRequestSchema } from '../schemas.js'
+import { startActivityRequestSchema, startActivityResponseSchema } from '../schemas.js'
 import { StartActivityService } from './start-activity.js'
 import type { Config } from '@/config.js'
 import type { ActivityMutations, ActivityQueries } from '../repository/index.js'
@@ -133,5 +133,24 @@ describe('StartActivityService', () => {
     })
 
     assert.equal(parsed.success, false)
+  })
+
+  it('requires an absolute activity URL at the command boundary', () => {
+    const request = startActivityRequestSchema.safeParse({
+      activity_code: 'course-code',
+      activity_url: 'not-an-absolute-url',
+      scope_id: DEFAULT_SCOPE_ID,
+    })
+    const response = startActivityResponseSchema.safeParse({
+      user: { id: uuidv7() },
+      activity_code: { id: uuidv7(), code: 'course-code' },
+      activity: { id: uuidv7(), url: 'not-an-absolute-url' },
+      scope_id: DEFAULT_SCOPE_ID,
+      scope_name: null,
+      modulus_server_url: 'https://modulus.test',
+    })
+
+    assert.equal(request.success, false)
+    assert.equal(response.success, false)
   })
 })
