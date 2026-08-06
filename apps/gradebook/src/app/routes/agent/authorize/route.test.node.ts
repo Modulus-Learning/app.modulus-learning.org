@@ -7,11 +7,16 @@ const mocks = vi.hoisted(() => ({
   createAuthCode: vi.fn(),
   getCoreCommands: vi.fn(),
   getCoreUserRequestContext: vi.fn(),
+  loggerInfo: vi.fn(),
+  loggerWarn: vi.fn(),
 }))
 
 vi.mock('@/core-adapter', () => ({
   getCoreCommands: mocks.getCoreCommands,
   getCoreUserRequestContext: mocks.getCoreUserRequestContext,
+}))
+vi.mock('@/lib/logger', () => ({
+  getLogger: () => ({ info: mocks.loggerInfo, warn: mocks.loggerWarn }),
 }))
 
 import { GET } from './route'
@@ -51,6 +56,10 @@ describe('agent authorization route scope selection', () => {
       expect.anything(),
       expect.objectContaining({ scope_id: DEFAULT_SCOPE_ID })
     )
+    expect(mocks.loggerInfo).toHaveBeenCalledWith(
+      { scope_id: DEFAULT_SCOPE_ID, source: 'default' },
+      'agent authorization scope selected'
+    )
   })
 
   test('passes a structurally valid client-selected scope to core', async () => {
@@ -60,6 +69,10 @@ describe('agent authorization route scope selection', () => {
       expect.anything(),
       expect.objectContaining({ scope_id: SCOPE_ID })
     )
+    expect(mocks.loggerInfo).toHaveBeenCalledWith(
+      { scope_id: SCOPE_ID, source: 'client' },
+      'agent authorization scope selected'
+    )
   })
 
   test('rejects a malformed scope before creating an authorization code', async () => {
@@ -67,6 +80,11 @@ describe('agent authorization route scope selection', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.createAuthCode).not.toHaveBeenCalled()
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      { scope_id_present: true },
+      'malformed agent authorization scope label'
+    )
+    expect(mocks.loggerInfo).not.toHaveBeenCalled()
   })
 
   test('reports an unknown scope from core as invalid authorization input', async () => {
