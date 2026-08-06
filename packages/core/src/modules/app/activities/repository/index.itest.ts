@@ -120,16 +120,6 @@ describe('ActivityQueries all-scope progress reporting', () => {
       },
     ])
 
-    const aggregate = await h.repos.appActivityQueries.getProgressForUser(
-      scoped.userId,
-      scoped.activityId
-    )
-    assert.ok(aggregate)
-    assert.equal('scope_id' in aggregate, false)
-    assert.equal(aggregate.progress, 0.8)
-    assert.equal(aggregate.created_at.getTime(), early.getTime())
-    assert.equal(aggregate.updated_at.getTime(), late.getTime())
-
     const rows = await h.repos.appActivityQueries.getActivityCodeProgress(activityCodeId, options())
     assert.equal(rows.length, 2)
     assert.equal(new Set(rows.map((row) => `${row.user_id}:${row.activity_id}`)).size, 2)

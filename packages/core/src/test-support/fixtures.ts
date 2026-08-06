@@ -159,7 +159,7 @@ export async function seedProgress(
     .values({ user_id: userId, activity_id: activityId, scope_id: scopeId, progress: value })
 }
 
-/** Inserts a raw progress event (the cutoff-aware history `getProgressAtCutoff` reads). */
+/** Inserts a raw progress event for cutoff-aware launch reconciliation tests. */
 export async function seedProgressEvent(
   db: DB,
   userId: string,

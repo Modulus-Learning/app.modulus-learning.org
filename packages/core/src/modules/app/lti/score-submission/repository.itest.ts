@@ -5,12 +5,7 @@ import { eq } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
 import { DEFAULT_SCOPE_ID, lineitems } from '@/database/schema/index.js'
-import {
-  seedLineItem,
-  seedProgressEvent,
-  seedScenario,
-  seedScope,
-} from '@/test-support/fixtures.js'
+import { seedLineItem, seedScenario, seedScope } from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
 import type { ClaimedLineItem } from '@/modules/app/lti/score-submission/repository.js'
 
@@ -286,67 +281,5 @@ describe('fenced submission writes', () => {
 
     const staleOk = await h.repos.scoreMutations.markSubmissionDead(staleToken(claimed), 'x', 'y')
     assert.equal(staleOk, false)
-  })
-})
-
-describe('getProgressAtCutoff', () => {
-  it('returns the high-water mark at or before the cutoff', async () => {
-    const scenario = await seedScenario(h.db)
-    const base = new Date('2026-01-01T00:00:00Z')
-    const at = (hours: number) => new Date(base.getTime() + hours * 3_600_000)
-
-    await seedProgressEvent(h.db, scenario.userId, scenario.activityId, 0.2, at(-2))
-    await seedProgressEvent(h.db, scenario.userId, scenario.activityId, 0.5, at(-1))
-    await seedProgressEvent(h.db, scenario.userId, scenario.activityId, 0.8, at(1))
-
-    const atCutoff = await h.repos.scoreQueries.getProgressAtCutoff(
-      scenario.userId,
-      scenario.activityId,
-      DEFAULT_SCOPE_ID,
-      base
-    )
-    assert.equal(atCutoff, 0.5, 'the post-cutoff 0.8 event is excluded')
-  })
-
-  it('returns 0 when there is no history at or before the cutoff', async () => {
-    const scenario = await seedScenario(h.db)
-    const value = await h.repos.scoreQueries.getProgressAtCutoff(
-      scenario.userId,
-      scenario.activityId,
-      DEFAULT_SCOPE_ID,
-      new Date()
-    )
-    assert.equal(value, 0)
-  })
-
-  it('considers only events in the requested scope', async () => {
-    const scenario = await seedScenario(h.db)
-    const scopeB = await seedScope(h.db, scenario.platformId)
-    const cutoff = new Date('2026-01-02T00:00:00Z')
-    await seedProgressEvent(
-      h.db,
-      scenario.userId,
-      scenario.activityId,
-      0.8,
-      new Date('2026-01-01T00:00:00Z'),
-      DEFAULT_SCOPE_ID
-    )
-    await seedProgressEvent(
-      h.db,
-      scenario.userId,
-      scenario.activityId,
-      0.3,
-      new Date('2026-01-01T00:00:00Z'),
-      scopeB
-    )
-
-    const value = await h.repos.scoreQueries.getProgressAtCutoff(
-      scenario.userId,
-      scenario.activityId,
-      scopeB,
-      cutoff
-    )
-
-    assert.equal(value, 0.3)
   })
 })

@@ -44,11 +44,6 @@ export type ActivityCodeInsert = typeof activityCodes.$inferInsert
 
 export type UserRecord = typeof users.$inferSelect
 
-export type ProgressRecord = typeof progress.$inferSelect
-export type ProgressAggregateRecord = Pick<
-  ProgressRecord,
-  'user_id' | 'activity_id' | 'progress' | 'created_at' | 'updated_at'
->
 export type ScopeRecord = typeof scopes.$inferSelect
 
 export class ActivityQueries extends BaseService {
@@ -257,38 +252,6 @@ export class ActivityQueries extends BaseService {
       .get()
       .query.activities.findMany({ where: inArray(activities.url, urls) })
       .catch(this.utils.wrapDbErrorNew())
-  }
-
-  @method
-  async getProgressForUser(
-    user_id: string,
-    activity_id: string
-  ): Promise<ProgressAggregateRecord | undefined> {
-    const [result] = await this.db
-      .get()
-      .select({
-        user_id: progress.user_id,
-        activity_id: progress.activity_id,
-        progress: max(progress.progress),
-        created_at: min(progress.created_at),
-        updated_at: max(progress.updated_at),
-      })
-      .from(progress)
-      .where(and(eq(progress.user_id, user_id), eq(progress.activity_id, activity_id)))
-      .groupBy(progress.user_id, progress.activity_id)
-      .catch(this.utils.wrapDbErrorNew())
-
-    if (result?.progress == null || result.created_at == null || result.updated_at == null) {
-      return undefined
-    }
-
-    return {
-      user_id: result.user_id,
-      activity_id: result.activity_id,
-      progress: result.progress,
-      created_at: result.created_at,
-      updated_at: result.updated_at,
-    }
   }
 
   @method

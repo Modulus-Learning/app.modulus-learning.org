@@ -9,7 +9,6 @@ import {
   isNull,
   lt,
   lte,
-  max,
   or,
   sql,
 } from 'drizzle-orm'
@@ -19,7 +18,6 @@ import {
   platformHealth,
   platformIncidents,
   platforms,
-  progressEvents,
   submissionFailures,
 } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
@@ -164,32 +162,6 @@ export class LtiScoreSubmissionQueries extends BaseService {
       )
       .orderBy(asc(platformIncidents.resolved_at))
       .catch(this.utils.wrapDbErrorNew())
-  }
-
-  @method
-  async getProgressAtCutoff(
-    user_id: string,
-    activity_id: string,
-    scope_id: string,
-    cutoff: Date
-  ): Promise<number> {
-    const [row] = await this.db
-      .get()
-      .select({
-        progress: max(progressEvents.progress),
-      })
-      .from(progressEvents)
-      .where(
-        and(
-          eq(progressEvents.user_id, user_id),
-          eq(progressEvents.activity_id, activity_id),
-          eq(progressEvents.scope_id, scope_id),
-          lte(progressEvents.submitted_at, cutoff)
-        )
-      )
-      .catch(this.utils.wrapDbErrorNew())
-
-    return row?.progress ?? 0
   }
 }
 
