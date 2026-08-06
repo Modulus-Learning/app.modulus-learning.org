@@ -22,7 +22,7 @@ This document assumes the actor model from
 | --- | --- | --- | --- | --- |
 | Learner | `app` | `UserAuth` | `UserRequestContext` | `users` (password / Google / GitHub / LTI) |
 | Administrator | `admin` | `AdminAuth` | `AdminRequestContext` | `admin_users` (password) |
-| Agent | `agent` | `AgentAuth` | `AgentRequestContext` | a `users` row, via OAuth + PKCE, scoped to one activity |
+| Agent | `agent` | `AgentAuth` | `AgentRequestContext` | a `users` row, via OAuth + PKCE, scoped to one activity and academic scope |
 
 The auth objects (`packages/core/src/lib/auth.ts`) are small value classes the
 host constructs per request and threads into core through the context:
@@ -32,14 +32,15 @@ class UserAuth  { constructor(readonly id: string, readonly abilities: string[])
 class AdminAuth { constructor(readonly admin_id: string, readonly admin_abilities: string[]) {} }
 class AgentAuth { constructor(readonly user_id: string,
                               readonly activity_id: string,
+                              readonly scope_id: string,
                               readonly renew_after: number) {} }
 ```
 
 `UserAuth` and `AdminAuth` carry the actor's id plus the abilities granted to
 them, and expose `assertAbilities()` / `assertAdminAbilities()` (used by the
-command wrapper). `AgentAuth` is deliberately leaner: an opaque user id, the
-single activity the agent is scoped to, and a renewal hint — no abilities and no
-PII (see [the agent flow](#the-agent-flow-oauth-20--pkce)).
+command wrapper). `AgentAuth` is deliberately leaner: an opaque user id, one
+activity, one scope label, and a renewal hint — no abilities and no PII (see
+[the agent flow](#the-agent-flow-oauth-20--pkce)).
 
 ## The JWT Layer
 
@@ -166,8 +167,9 @@ abilities; what a command checks is an ability.
   [CORE-COMPOSITION → The Command Pattern](./CORE-COMPOSITION.md#the-command-pattern).
   Auth mode also fixes the *static* context type, so calling an `admin` command
   with a `UserRequestContext` is a compile error. The `agent` mode performs no
-  ability check — an agent's authority is the activity scope in its token, not an
-  ability set.
+  ability check — an agent's authority is fixed by the user/activity/scope tuple
+  in its token, not an ability set. Agent-mode services derive that tuple from
+  the verified token; the scope label is not itself a capability.
 
 ## The Agent Flow (OAuth 2.0 + PKCE)
 
@@ -180,34 +182,42 @@ backed by `agent_auth_codes` and `agent_refresh_tokens`:
 **1 — Create the auth code** (`createAuthCode`, called as a `user`-authed
 operation via the host's `routes/agent/authorize`). The learner is already
 signed in; the agent supplies a `client_id`, a `redirect_uri` (the activity URL),
-and a PKCE `code_challenge`. Modulus verifies the activity exists, then stores a
-random, 5-minute code bound to the learner and the challenge:
+a structurally valid `scope_id`, and a PKCE `code_challenge`. An omitted scope
+label becomes the default sentinel. Modulus verifies the activity and scope both
+exist, then stores a random, 5-minute code bound to the full context and the
+challenge:
 
 ```ts
 const activity = await this.queries.findActivityByUrl(redirect_uri) // must exist
 const code = randomBytes(60).toString('base64url')
 await this.mutations.createAuthCode({ code, user_id: userAuth.id,
-  client_id, redirect_uri, code_challenge, expires_at: now + 5min })
+  client_id, redirect_uri, scope_id, code_challenge, expires_at: now + 5min })
 ```
 
 **2 — Claim the auth code** (`claimAuthCode`, via `routes/agent/token`). The
 agent presents the code plus the PKCE `code_verifier`. Modulus claims the code
 (single-use), then checks, in order: `client_id` matches, `redirect_uri`
 matches, `sha256(code_verifier)` equals the stored `code_challenge`, the user
-exists and is enabled, and the activity exists. Only then does it issue an
-**activity-scoped access token**:
+exists and is enabled, the activity exists, and the stored scope still exists.
+The token request schema has no `scope_id`, so exchange cannot substitute a
+different label. Only then does Modulus issue an **activity-and-scope-bound
+access token**:
 
 ```ts
 const code_challenge = createHash('sha256').update(code_verifier).digest().toString('base64url')
 if (authCode.code_challenge !== code_challenge) throw ERR_UNAUTHORIZED('Incorrect code_challenge')
 // …user enabled?…activity exists?…
-const access_token = await this.tokenIssuer.createAccessToken({ user, activity })
-return { access_token, api_base_url, user: { id, full_name } }
+const access_token = await this.tokenIssuer.createAccessToken({ user, activity, scope_id })
+return { access_token, api_base_url, user: { id, full_name }, scope_id, scope_name }
 ```
 
-The agent access-token payload is `{ user: {id, full_name?}, activity_id,
-renew_after }` — an opaque user id, a display name, and the single activity it may
-report against. This is exactly the right-hand column of the
+The access-token payload is `{ user: {id, full_name?}, activity_id, scope_id,
+renew_after }`. `scope_name` is nullable display metadata returned beside the
+token and exposed through authenticated `AuthStatus`; it is not a JWT identity
+claim. State services derive the complete `(user_id, activity_id, scope_id)`
+tuple from the verified token. `scope_id` is a partition label, not an
+authorization entitlement, so core checks that it exists but does not infer a
+platform association. This is exactly the right-hand column of the
 [data-isolation table](./DATA-MODEL.md#the-data-isolation-boundary-in-schema-terms):
 no email, no LMS identity, no abilities. `renew_after` (≈60s) is a hint telling
 the agent when to refresh; the host turns a verified token into an `AgentAuth`:
@@ -216,8 +226,8 @@ the agent when to refresh; the host turns a verified token into an `AgentAuth`:
 // apps/gradebook/src/core-adapter.ts (excerpt)
 const result = await tokenVerifiers.agent.verifyAccessToken(bearerToken)
 if (result.status === 'valid') {
-  const { activity_id, user, renew_after } = result.payload
-  return { requestId, agentAuth: new AgentAuth(user.id, activity_id, renew_after) }
+  const { activity_id, user, scope_id, renew_after } = result.payload
+  return { requestId, agentAuth: new AgentAuth(user.id, activity_id, scope_id, renew_after) }
 }
 ```
 
@@ -257,6 +267,10 @@ Flagged in the code, worth knowing before relying on these paths:
   `AGENT_JWT_RENEW_AFTER_SECONDS`, ~60s): past it, every request re-validates that
   the user is still enabled and the activity still exists before re-minting the
   token, so `exp` only bounds a fully idle tab.
+- **Agent renewal preserves scope.** Renewal carries the verified token's
+  `scope_id` forward unchanged while re-checking that the user remains enabled
+  and the activity still exists; it does not resolve a fresh scope from browser
+  storage.
 - **Agent refresh-token rotation.** `agent_refresh_tokens` carries `used_at` for
   rotation/replay detection; confirm the issuing/rotation path is fully wired as
   the agent matures.

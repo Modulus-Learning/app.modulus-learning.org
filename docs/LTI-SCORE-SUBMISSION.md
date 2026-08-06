@@ -32,27 +32,29 @@ Progress originates in [the agent](./AGENT.md) as a normalized value in `[0, 1]`
 and flows through four tables:
 
 ```
-  agent → setProgress ──► progress         (high-water mark, one row per user×activity)
+  agent → setProgress ──► progress         (high-water mark per user×activity×scope)
                       └──► progress_events  (append-only log of every advance)
                               │
                               ▼
-                          lti_lineitems     (the work queue: one row per user×activity×LMS line item)
+                          lti_lineitems     (scoped work queue; stable row per user×activity×LMS line item)
                               │
               worker claims ──┘
                               ▼
                           Canvas AGS  POST .../scores
 ```
 
-- **`progress`** holds the current high-water mark (HWM) for a `(user, activity)`
-  pair. Writes are monotonic (`GREATEST`), so it only ever climbs.
+- **`progress`** holds the current high-water mark (HWM) for a
+  `(user, activity, scope)` tuple. Writes are monotonic (`GREATEST`) within that
+  tuple, so one term cannot advance another.
 - **`progress_events`** is the append-only history: one row each time the HWM
-  advances, stamped with the database `NOW()` at write time. See
+  advances in the same scope, stamped with the database `NOW()` at write time. See
   [DATA-MODEL](./DATA-MODEL.md). Its timestamp being server-assigned is
   load-bearing (see [Cutoffs](#cutoffs-and-high-water-marks)).
 - **`lti_lineitems`** is the unit of submission and the work queue. One row binds
-  a `(user, activity)` to a specific LMS line item (`lineitem_url`,
+  a `(user, activity, scope)` to a specific LMS line item (`lineitem_url`,
   `lti_user_id`, `platform_issuer`, `deployment_id`) and carries all submission
-  state.
+  state. Database uniqueness remains `(user_id, activity_id, lineitem_url)`, so
+  scope reassignment reuses this stable row rather than duplicating it.
 
 A line item is created/refreshed on LTI launch (when Canvas hands us the line-item
 URL), and updated continuously by progress ingestion. Workers drain it.
@@ -63,7 +65,7 @@ The columns that drive submission, grouped by role:
 
 | Group | Columns | Meaning |
 | --- | --- | --- |
-| Identity | `user_id`, `activity_id`, `platform_issuer`, `deployment_id`, `lineitem_url`, `lti_user_id` | what/where to submit |
+| Identity | `user_id`, `activity_id`, `scope_id`, `platform_issuer`, `deployment_id`, `lineitem_url`, `lti_user_id` | what/where to submit |
 | Value | `submittable_progress`, `submitted_progress` | the **target** vs. what Canvas already has |
 | Last success | `submitted_at` | when we last successfully passed a score back |
 | Schedule | `submission_eligible_at` | earliest time this is due (throttle / backoff / priority key) |
@@ -213,6 +215,7 @@ SET submittable_progress   = GREATEST(submittable_progress, $progress),   -- mon
     END,
     updated_at = now()
 WHERE user_id = $user AND activity_id = $activity
+  AND scope_id = $scope
   AND dead_at IS NULL
   AND (cutoff_at IS NULL OR cutoff_at >= $event_time);
 ```
@@ -222,6 +225,11 @@ Every column reference on the right of `SET` reads the *old* row value, so the
 `submittable_progress`. This yields: no initial delay; ≥ `throttle_seconds` between
 submissions; throttle and backoff windows are never shortened by incoming progress;
 and an already-waiting item keeps its FIFO priority.
+
+The implementation performs this in one statement with a materialised candidate
+set. If a live candidate exists only in another scope, it returns
+`scope_mismatch = true`; the other-scope row is not locked or updated. The
+service emits an opaque diagnostic instead of probing or crossing scopes.
 
 ## Cutoffs and high-water marks
 
@@ -249,49 +257,34 @@ cutoff-aware matters.
 
 ## Launch initialization
 
-A line item is created or refreshed during an LTI resource-link launch, when Canvas
-provides the AGS line-item endpoint. Launch must seed `submittable_progress` from the
-existing cutoff-aware HWM (a learner may already have progress from before the line
-item existed), and it must do so without racing the concurrent progress-ingestion
-path. Both run in one transaction that **serializes on the `(user, activity)`
-`progress` row** — the same row ingestion locks:
+A line item is created or reconciled during a verified LTI resource-link launch,
+when Canvas provides the AGS line-item endpoint and the launch has already
+resolved an academic scope. Launch first seeds `submittable_progress` from the
+cutoff-aware HWM in that scope. Reconciliation then follows one locked shape:
 
-1. **Materialize-and-lock** the progress row with a no-op upsert
-   (`INSERT … ON CONFLICT DO UPDATE SET progress = progress.progress`). `DO UPDATE`
-   is required — `DO NOTHING` takes no lock on conflict and would leave the race open.
-2. **Read the cutoff-aware HWM** from `progress_events`.
-3. **Upsert the line item.** On insert, `submission_eligible_at = NOW()`. On conflict
-   (an existing line item) it refreshes `cutoff_at`, raises `submittable_progress`
-   with the *same* monotonic `GREATEST(submittable_progress, $hwm)` ingestion uses (so
-   a launch never *lowers* the high-water mark), **revives** the item
-   (`dead_at = NULL`), and sets `submission_eligible_at` with the *same* `CASE`
-   expression used by ingestion. It leaves the **lease and error counters untouched**.
-   That `CASE` does the right thing for every launch case: a revived (formerly dead)
-   item has a null schedule and so becomes eligible `NOW()`; an item already in a
-   throttle/backoff window keeps it; an already-waiting item keeps its priority.
+1. `INSERT … ON CONFLICT DO NOTHING RETURNING` on the stable unique identity
+   `(user_id, activity_id, lineitem_url)`.
+2. Return immediately if the insert won.
+3. After a conflict, select the existing row `FOR UPDATE` on that identity.
+4. Compare the locked row's scope with the verified launch scope.
+5. Run exactly one same-scope refresh or one scope-rebind update.
 
-Launch deliberately leaves the **lease and error counters alone**, so an in-flight
-submission is never preempted — the worker holding the lease keeps it and records its
-result normally. This is safe precisely because `submittable_progress` is monotonic: a
-launch can only hold or raise it, so a worker that captured the old value `X` at claim
-time and writes `submitted_progress = X` on success can never strand the item — the
-refreshed `submittable_progress ≥ X` leaves the row either caught up (`=`) or still
-eligible (`>`) for another pass. No state a launch writes can be invalidated by a
-concurrent outcome, so there is nothing to fence off.
+The **same-scope branch** refreshes current verified platform/deployment/user
+identity and `cutoff_at`, revives the item, preserves lease/error/submission
+state, and raises `submittable_progress` with `GREATEST`. Its scheduling `CASE`
+keeps an existing throttle/backoff window and FIFO priority.
 
-The monotonic `GREATEST` also encodes a policy: **launch never lowers a score.** In
-practice it never needs to — `submittable_progress` could only drop if a launch
-tightened `cutoff_at` far enough to exclude an already-counted progress event, which
-requires the new cutoff to be *in the past*. But Canvas disables the launch link once
-the cutoff passes, and retroactive-to-the-past cutoffs are explicitly out of scope, so
-`GREATEST` makes "no downward correction" an enforced property rather than a latent
-edge case.
+The **scope-rebind branch** treats Canvas's verified term reassignment as a new
+submission lifecycle on the same stable row. It sets the new `scope_id`, replaces
+`submittable_progress` with the new scope's exact cutoff-aware HWM, resets
+submitted timestamps/value, lease, error, dead, and retry fields, and makes the
+row eligible now. Old-scope `progress` and `progress_events` are untouched. The
+transition emits a structured diagnostic with only the line-item id and opaque
+old/new scope ids. A worker holding the old lease is fenced when it later tries
+to record its result.
 
-The one race this leaves open is narrow and knowingly accepted: a failing in-flight
-submission that classifies as `lineitem_dead` could stamp `dead_at` *after* a
-concurrent launch revived the item. It is vanishingly unlikely — Canvas would have to
-report the line item gone for a URL that just relaunched — and the next launch revives
-it again, so it is not guarded against.
+Within one scope, launch never lowers a score. A verified rebind is the deliberate
+exception: it must not carry the prior scope's high-water mark into the new term.
 
 ## Death and revival
 
@@ -522,9 +515,9 @@ The properties the whole design preserves:
 
 1. **Eligibility is `submittable_progress > submitted_progress`** — a comparison of
    durable columns, never a hand-maintained flag.
-2. **`submittable_progress` only ever climbs** (monotonic `GREATEST`, in both ingestion
-   and launch) and is strictly cutoff-aware; a launch may refresh it to a new
-   cutoff-aware HWM but **never lowers it**.
+2. **`submittable_progress` only climbs within a scope** (monotonic `GREATEST` in
+   ingestion and same-scope launch). A verified scope rebind replaces it with the
+   new scope's exact cutoff-aware HWM and resets submission state.
 3. **`submitted_progress` reflects what we believe Canvas has** and is written only by
    a lease-fenced worker.
 4. **A result is recorded only by the worker still holding the lease** (fencing token),
@@ -540,6 +533,8 @@ The properties the whole design preserves:
    envelope, and is closed only by the driver.
 9. **Notifications are idempotent** — fenced latches yield at most one page and one
    all-clear per incident.
+10. **Progress schedules only its matching scope.** A mismatch returns an
+    observable classification without locking or rewriting the other-scope row.
 
 ## Configuration
 
@@ -589,9 +584,17 @@ Deferred by decision: the **Tier-3 death-gate** (retiring a chronically-failing 
 **multi-process** coordination of breaker / governor / incident state (single-process
 for now — adopted only if it proves cheap, for resiliency), which also subsumes
 durable cross-process enforcement of `paused_until`; **retention / partitioning** of
-`lti_submission_failures`. Honoring a **downward `cutoff_at`** change on launch (clawing
-a score back) is **decided against**: launch's monotonic `GREATEST` never lowers
-`submittable_progress`, matching the client's position that retroactive-to-the-past
-cutoffs are out of scope. Smaller open items and known issues are
+`lti_submission_failures`. Honouring a **downward `cutoff_at`** change within the same
+scope (clawing a score back) is **decided against**: same-scope launch reconciliation
+uses monotonic `GREATEST`. A verified scope rebind is different and deliberately seeds
+the new scope's exact high-water mark. Smaller open items and known issues are
 tracked in [SCORE-SUBMISSION-TODO](./SCORE-SUBMISSION-TODO.md); this document should be
 updated as these land.
+
+---
+
+## Where to go next
+
+- [LTI](./LTI.md) — verified launch scope resolution and AGS platform trust.
+- [AGENT](./AGENT.md) — the scoped progress producer that feeds this queue.
+- [DATA-MODEL](./DATA-MODEL.md) — scope, progress-event, and line-item schema.

@@ -1,7 +1,7 @@
 ---
 title: "The Modulus Agent"
 path: "agent"
-summary: "The content-authoring instrumentation layer that makes Ximera curriculum 'Modulus-aware': the published @modulus-learning/agent browser library (authoring API, events, local-first resilience, OAuth+PKCE with registry validation) and the server-side activity-state ingestion that records progress and page state under a strict per-activity scope."
+summary: "The published browser instrumentation library and server ingestion path: authoring API, local-first resilience, OAuth with PKCE, per-tab and foreground scope context, and activity-state isolation by the token-bound user/activity/scope tuple."
 ---
 
 # The Modulus Agent
@@ -37,8 +37,8 @@ the right level:
 
 | Export | Contents | For |
 | --- | --- | --- |
-| `.` | the `ModulusAgent` class + types | authoring against the API directly |
-| `./browser` | a browser build whose default export is `ModulusAgent` | dropping into a page |
+| `.` | `createModulusAgent`, the `ModulusAgent` instance type, logger helpers, and public types | bundler consumers |
+| `./browser` | a browser build whose default export is `createModulusAgent` | dropping into a page |
 | `./ui/vanilla` | a prebuilt vanilla UI widget (`ui-vanilla/`) | a ready-made status/progress display |
 
 Worked examples — plain HTML/CSS/JS and a React version — live in
@@ -47,15 +47,14 @@ Worked examples — plain HTML/CSS/JS and a React version — live in
 
 ## The Authoring API
 
-The whole client surface is the `ModulusAgent` class
+The public client surface is the instance returned by `createModulusAgent`
 (`apps/agent/src/core/agent.ts`), a typed `EventEmitter`. An author creates one
-instance per page; the constructor kicks off initialization (authentication +
-loading any saved state) automatically.
+instance per page; the factory starts authentication and loading saved state.
 
 ```ts
-import ModulusAgent from '@modulus-learning/agent/browser'
+import createModulusAgent from '@modulus-learning/agent/browser'
 
-const agent = new ModulusAgent()
+const agent = createModulusAgent()
 
 agent.onReady(({ auth }) => {
   // onReady fires even if the agent is already ready by the time you subscribe
@@ -118,39 +117,58 @@ behaviour:
 
 When content *is* launched through an LMS, the client authenticates over OAuth
 2.0 Authorization Code + **PKCE** — and, crucially, validates the server first.
-The logic is in `apps/agent/src/core/auth.ts`. On load it picks one of four
-paths:
+The logic is in `apps/agent/src/core/auth.ts`. Resolution order is deliberate:
 
-1. **OAuth response present** (`?state`/`?code`/`?error`) — we were redirected
-   back from an authorization request → exchange the code (below).
-2. **`?modulus=<issuer>` present** — the Modulus launch interstitial sent the
-   learner here with the server URL → validate the issuer, then request an auth
-   code.
-3. **A stored issuer in `localStorage`** (a returning learner) → validate, then
-   request an auth code.
-4. **Nothing** → `status: 'none'`, operate locally.
+1. **Fresh launch** — `?modulus=<issuer>&scope_id=<uuid>` validates the issuer,
+   commits the complete versioned context to this tab's `sessionStorage`, and
+   begins OAuth. An omitted scope becomes the default sentinel.
+2. **OAuth response** — `?state`/`?code`/`?error` consumes one atomic stored
+   session containing PKCE state, verifier, context, and the exact authored
+   return query/fragment.
+3. **Committed tab context** — reload and same-tab navigation keep this tab's
+   issuer and scope stable even if another tab changes scope.
+4. **Foreground shared context** — a cold tab or window with no tab record
+   inherits the latest context published by a visible **and focused** document.
+5. **Nothing** — `status: 'none'`; open content continues locally.
+
+`sessionStorage` owns committed tab identity. `localStorage` is only the
+foreground inheritance channel: visibility or focus alone is insufficient to
+publish, and a failing background tab cannot delete the foreground record. The
+legacy issuer-only `modulus_base_url` record is removed but never read.
 
 **Registry validation (anti-spoofing).** Before trusting *any* issuer, the agent
 fetches the central registry at `https://modulus-learning.org/api/registry` and
 confirms the issuer appears in `installations[].site-url`. An unrecognised issuer
-is rejected and a definitively-invalid stored issuer is dropped from
-`localStorage`. This is what stops a malicious page from pointing instrumented
-content at a rogue "Modulus" server.
+is rejected. A definitively invalid tab context is cleared from that tab; a
+shared record is deleted only by a visible, focused owner after comparing the
+exact stored value. This stops a malicious page from pointing instrumented
+content at a rogue "Modulus" server without allowing a background tab to erase
+newer foreground context.
 
 **PKCE handshake.** The agent generates a `code_verifier` (48 random bytes,
 base64url) and its S256 `code_challenge`, plus a CSRF `state`, stashing them in
-`sessionStorage`. It uses the activity's own URL (query/fragment stripped) as both
-`redirect_uri` and `client_id`, then redirects to
+`sessionStorage` as part of the same atomic OAuth record. It uses the activity's
+own URL (query/fragment stripped) as both `redirect_uri` and `client_id`, then
+redirects to
 `{issuer}/routes/agent/authorize`. After the server issues a code and redirects
 back, the agent POSTs to `{issuer}/routes/agent/token` with the `code_verifier`;
-on success it receives `{ api_base_url, access_token, user }`, caches the issuer
-in `localStorage`, and is ready. The server side of this exchange —
-`createAuthCode` / `claimAuthCode`, the PKCE check, and the activity-scoped token
+on success it receives `{ api_base_url, access_token, user, scope_id,
+scope_name }`, verifies the returned scope matches the OAuth session, refreshes
+the tab context, and is ready. The server side of this exchange —
+`createAuthCode` / `claimAuthCode`, the PKCE check, and the activity-and-scope-bound token
 it mints — is documented in
 [AUTHN-AUTHZ → The Agent Flow](./AUTHN-AUTHZ.md#the-agent-flow-oauth-20--pkce).
 
-The resulting access token carries only an opaque user id, a display name, the
-single `activity_id`, and a `renew_after` hint — never PII.
+The resulting access token carries only an opaque user id, a display name, one
+`activity_id`, one opaque `scope_id`, and a `renew_after` hint — never raw LMS
+term identity or learner PII. Authenticated `AuthStatus` exposes canonical
+`scope_id` and nullable display-only `scope_name`.
+
+The agent removes its recognised launch/OAuth parameters after reading them and
+restores unrelated query parameters — including duplicate names and order — and
+the authored fragment. The following names are reserved on activity URLs:
+`modulus`, `scope_id`, `code`, `state`, `error`, `error_description`, and
+`error_uri`. Authors must not use them for activity-owned state.
 
 ## Server-Side Ingestion
 
@@ -170,12 +188,12 @@ URL (`AGENT_ACTIVITY_URL`):
 
 Three things are true of all four:
 
-- **Everything is scoped to the token.** The services take `user_id` and
-  `activity_id` *from the `AgentAuth` context*, never from the request body
+- **Everything is scoped to the token.** The services take `user_id`,
+  `activity_id`, and `scope_id` *from the `AgentAuth` context*, never from the request body
   (`ActivityProgressService`, `ActivityPageStateService`). An agent can only ever
-  read or write the single `(user, activity)` pair its token was minted for — it
-  cannot address another learner or another activity. This is the data-isolation
-  boundary enforced in code.
+  read or write the single `(user, activity, scope)` tuple its token was minted
+  for — it cannot address another learner or another activity. The scope is an
+  opaque partition label, not a capability.
 - **Tokens renew transparently.** Each command first calls the agent
   `TokenRefreshService.refreshToken(auth)`. If the token is past its
   `renew_after`, it re-checks the user is enabled and the activity exists, mints a
@@ -185,10 +203,10 @@ Three things are true of all four:
 - **Writes feed, but don't block on, grade passback.** `setProgress` writes the
   `progress` table and returns immediately. It does **not** call the LMS — the
   [LTI score-submission worker](./LTI.md#flow-4--ags-score-passback) discovers the
-  changed progress and submits it after its debounce window. Page state is
+  changed scoped line item and submits it independently. Page state is
   `JSON.stringify`'d into the `page_state.state` column (and parsed back on read).
 
-See [DATA-MODEL → Learner signals](./DATA-MODEL.md#4-learner-signals) for the
+See [DATA-MODEL → Learner signals](./DATA-MODEL.md#5-learner-signals) for the
 `progress` and `page_state` tables these write.
 
 ## The Data-Isolation Guarantee, End to End
@@ -196,10 +214,10 @@ See [DATA-MODEL → Learner signals](./DATA-MODEL.md#4-learner-signals) for the
 Putting the pieces together, the Tier 2 ↔ Tier 3 rule (activities never receive
 PII) is upheld at three points:
 
-1. the **token** the agent receives carries only `{ user: {id, full_name?},
-   activity_id, renew_after }`;
-2. the **API** only ever exposes this learner's progress/page state for this one
-   activity, because the services read identity from the token; and
+1. the **token** carries only `{ user: {id, full_name?}, activity_id, scope_id,
+   renew_after }`;
+2. the **API** exposes this learner's progress/page state for only the token's
+   activity and scope, because services read the tuple from the token; and
 3. the agent **validates the server** (registry) before sending anything.
 
 What may cross to authored content is exactly the right-hand column of the
@@ -210,9 +228,17 @@ See [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md) for the policy view.
 
 Flagged in the code, relevant to authors and maintainers:
 
-- **Latest-only persistence.** The server stores the *current* progress and page
-  state per `(user, activity)`, not a per-interaction history — see the
-  [DATA-MODEL scope note](./DATA-MODEL.md#4-learner-signals).
+- **Latest state is scoped.** The server stores current progress and page state
+  per `(user, activity, scope)`; progress advances also have an append-only
+  event history. Activity-code reports intentionally aggregate across scopes
+  before joining the broad, unscoped enrollment cohort.
+- **Storage unavailable.** Context/OAuth storage failures make authentication
+  fail safely; they do not prevent the authored activity from operating locally.
+- **Referrers before initialisation belong to the host.** Agent cleanup cannot
+  suppress requests or referrers already emitted by the activity document.
+  Activity hosts should send `Referrer-Policy: strict-origin` or a stricter
+  policy. The opaque scope UUID may still appear in the initial activity URL and
+  is accepted as a non-secret residual; raw Canvas term identity never appears.
 - **No local persistence yet.** Caching progress/page state in `localStorage`
   (so an offline learner doesn't lose work before the connection returns) is a
   `TODO`.
@@ -234,5 +260,5 @@ Flagged in the code, relevant to authors and maintainers:
   — the server side of the PKCE handshake.
 - [LTI → AGS Score Passback](./LTI.md#flow-4--ags-score-passback) — what happens
   to the progress the agent records.
-- [DATA-MODEL → Learner signals](./DATA-MODEL.md#4-learner-signals) — the tables
+- [DATA-MODEL → Learner signals](./DATA-MODEL.md#5-learner-signals) — the tables
   the agent reads and writes.

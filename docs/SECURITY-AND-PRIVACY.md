@@ -44,6 +44,7 @@ display name — never institutional identity.
 | Opaque user id (UUID) | Email address |
 | Display name | Institutional student id |
 | Activity context / URL | Course id or name |
+| Opaque scope id and nullable display name | Raw LMS term id or term dates |
 | Normalized progress (0–1.0) | LMS gradebook data |
 | Page state (activity-specific) | Any other institutional PII |
 
@@ -55,10 +56,10 @@ The boundary is enforced in code at three points (detailed in
 [AGENT → Data-Isolation Guarantee](./AGENT.md#the-data-isolation-guarantee-end-to-end)):
 
 1. **The token** an agent receives carries only `{ user: {id, full_name?},
-   activity_id, renew_after }`.
+   activity_id, scope_id, renew_after }`.
 2. **The API** only ever exposes *this* learner's progress/page state for *this*
-   one activity, because the ingestion services read `user_id` and `activity_id`
-   from the verified token, never from the request body
+   activity and scope, because the ingestion services read `user_id`,
+   `activity_id`, and `scope_id` from the verified token, never from the request body
    ([AGENT → Server-Side Ingestion](./AGENT.md#server-side-ingestion)).
 3. **The agent validates the server** against a central registry before sending
    anything (below).
@@ -72,9 +73,9 @@ the `sub` is the LMS's opaque subject identifier, and downstream (to activities)
 even that is replaced by Modulus's own UUID.
 
 The learner-activity signals themselves — `progress` and `page_state` — are keyed
-by `(user, activity)` and hold the latest value, normalized to 0–1.0 for
-progress. These are the data an instructor is meant to inspect; they are
-interaction data, not personal records.
+by `(user, activity, scope)` and hold the latest value within that opaque bucket,
+normalized to 0–1.0 for progress. `progress_events` retains the append-only
+history of progress advances. These are interaction data, not personal records.
 
 ## Authentication & Trust Mechanisms
 
@@ -125,9 +126,9 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
   confirms the Modulus server's identity against the central registry at
   `modulus-learning.org/api/registry`, preventing a rogue page from redirecting
   instrumented content to an impostor server.
-- **Activity-scoped, PII-free tokens.** The issued token is scoped to a single
-  activity and carries no PII; it renews transparently on the back of normal
-  traffic via short-lived tokens and a `new_token` roll-forward.
+- **Activity-and-scope-bound, PII-free tokens.** The issued token is bound to one
+  activity and one opaque scope label and carries no learner PII; it renews
+  transparently on the back of normal traffic via a `new_token` roll-forward.
 - **Activity allow-listing.** Institutions control which activities are reachable
   through **activity codes** ([DATA-MODEL → Activities](./DATA-MODEL.md#3-activities--grouping)),
   and deep linking enforces a code's `url_prefix`.
@@ -140,11 +141,12 @@ and AGS submissions always use `scoreMaximum: 1`.
 
 **Progress is client-asserted.** Progress and page state are computed in the
 learner's browser by the agent and submitted under the learner's own
-activity-scoped token; the server does not independently verify them. A learner
-can assert any progress (up to 1.0) for their *own* launched activity — this is
+activity-and-scope-bound token; the server does not independently verify them. A
+learner can assert any progress (up to 1.0) for their *own* launched activity and
+chosen existing scope label — this is
 inherent to instrumenting third-party content. The security boundary is
 **isolation** (a learner can only ever write their own progress for the activity
-they launched), not tamper-proof grading, so instructors should treat Modulus
+in the token), not tamper-proof grading, so instructors should treat Modulus
 progress as self-reported.
 
 ## Auditing

@@ -1,8 +1,8 @@
 # Activity scopes — implementation plan
 
 Date: 2026-08-04
-Status: planning; Tasks 1–2 complete on `feat/activity-scopes`; no production
-implementation has started
+Status: implementation complete through Task 11 on `feat/activity-scopes`;
+pending independent review and final pull-request acceptance testing
 Related:
 
 - `specs/2026-08-04-activity-scopes-analysis.md` — approved design analysis and
@@ -234,7 +234,7 @@ Acceptance criteria:
 
 ## Phase 1 — Scope Identity and LTI Handoff
 
-### Task 3 — Define the Complete Scoped Schema and Generate One Migration
+### Task 3 — Define the Complete Scoped Schema and Generate One Migration — Complete
 
 Proposed commit: `feat: added activity scope schema`
 
@@ -312,7 +312,7 @@ pnpm -F @modulus-learning/core test:integration:one \
 pnpm -F @modulus-learning/core typecheck
 ```
 
-### Task 4 — Resolve Scope from Verified LTI Launches
+### Task 4 — Resolve Scope from Verified LTI Launches — Complete
 
 Proposed commit: `feat(lti): resolved activity scopes from Canvas terms`
 
@@ -368,7 +368,7 @@ pnpm -F @modulus-learning/core test:integration:one \
 pnpm -F @modulus-learning/core typecheck
 ```
 
-### Task 5 — Carry Scope Through Both First-Party Launch Paths
+### Task 5 — Carry Scope Through Both First-Party Launch Paths — Complete
 
 Proposed commit: `feat(lti): carried activity scope through launch`
 
@@ -449,7 +449,7 @@ pnpm -F @modulus-learning/gradebook typecheck
 
 ## Phase 2 — Server-Side Scope Binding and Isolation
 
-### Task 6 — Bind Scope Through Agent OAuth and Tokens
+### Task 6 — Bind Scope Through Agent OAuth and Tokens — Complete
 
 Proposed commit: `feat(agent): bound activity scope to agent tokens`
 
@@ -512,7 +512,7 @@ pnpm -F @modulus-learning/core typecheck
 pnpm -F @modulus-learning/gradebook typecheck
 ```
 
-### Task 7 — Partition Activity State and Preserve Reporting
+### Task 7 — Partition Activity State and Preserve Reporting — Complete
 
 Proposed commit: `feat(agent): partitioned activity state by scope`
 
@@ -589,7 +589,7 @@ pnpm -F @modulus-learning/core test:integration:one \
 pnpm -F @modulus-learning/core typecheck
 ```
 
-### Task 8 — Partition LTI Line Items and Score Passback
+### Task 8 — Partition LTI Line Items and Score Passback — Complete
 
 Proposed commit: `feat(lti): partitioned score passback by scope`
 
@@ -721,7 +721,7 @@ pnpm -F @modulus-learning/core typecheck
 
 ## Phase 3 — Browser Context Transport
 
-### Task 9 — Add Per-Tab Context and OAuth Restoration
+### Task 9 — Add Per-Tab Context and OAuth Restoration — Complete
 
 Proposed commit: `feat(agent): added per-tab activity scope context`
 
@@ -814,7 +814,7 @@ pnpm -F @modulus-learning/agent-demo-react build
 pnpm -F @modulus-learning/agent-demo-vanilla build
 ```
 
-### Task 10 — Add Foreground Context Inheritance
+### Task 10 — Add Foreground Context Inheritance — Complete
 
 Proposed commit: `feat(agent): added foreground activity scope inheritance`
 
@@ -891,7 +891,7 @@ pnpm -F @modulus-learning/agent build
 
 ## Phase 4 — Operational Completion
 
-### Task 11 — Complete Telemetry, Release Metadata, Documentation, and Verification
+### Task 11 — Complete Telemetry, Release Metadata, Documentation, and Verification — Complete
 
 Proposed commit: `docs: documented activity scope implementation`
 
@@ -992,9 +992,29 @@ where they share the expected result below.
 | Canvas course moved to a new term | Existing line-item row rebinds and resets; old-term activity state remains unchanged |
 | Multi-scope instructor report | Total counts enrollments and tied rows paginate deterministically without duplicates |
 
-The task succeeds when the pull request contains the automated results, manual
-matrix results, migration review, and a concise list of any deferred policy
-questions. Do not merge the pull request as part of this task.
+The Task 11 commit succeeds when the pull request contains the automated results,
+migration review, and a concise list of deferred policy questions. By stakeholder
+direction on 2026-08-07, the manual matrix remains a final pull-request review and
+acceptance gate rather than a blocker for this commit. Do not merge the pull
+request as part of this task.
+
+#### Verification status — 2026-08-07
+
+Completed locally:
+
+- `pnpm db:init:test` recreated `modulus_test`, after which `pnpm run ci` passed
+  against that fresh database: lint, six typecheck/build tasks, 107 core unit
+  tests, 42 agent tests, 32 gradebook jsdom tests, 22 gradebook node tests (one
+  skipped), and 77 database integration tests;
+- the agent, gradebook, React demo, and vanilla demo production builds pass; and
+- `git diff --check` passes for the working documentation set.
+
+Deferred by stakeholder direction:
+
+- the manual browser matrix is part of final review and acceptance testing for
+  the pull request as a whole rather than a blocker for the Task 11 commit. It
+  still requires a live Canvas/LTI fixture and the exact browser/operating-system
+  versions specified above; no automated result is represented as a substitute.
 
 ## Pull Request Handoff
 
