@@ -3,7 +3,14 @@ import type { User } from './types.js'
 
 type AuthResult =
   | { status: 'none' }
-  | { status: 'authenticated'; baseUrl: string; user: User; token: string }
+  | {
+      status: 'authenticated'
+      baseUrl: string
+      user: User
+      token: string
+      scope_id: string
+      scope_name: string | null
+    }
   | { status: 'expired' }
   | { status: 'failed'; baseUrl?: string | undefined; error: string }
 
@@ -55,7 +62,7 @@ export const authenticate = async (logger: Logger | undefined): Promise<AuthResu
 
     // Request an auth code.  This will redirect the browser to the Modulus
     // server's authorization endpoint, so this call will never return.
-    return await requestAuthCode(issuer, logger)
+    return await requestAuthCode(issuer, params.scope_id, logger)
   }
 
   // Window.sessionStorage contains stored state suggesting this browser session
@@ -106,7 +113,7 @@ export const authenticate = async (logger: Logger | undefined): Promise<AuthResu
     // a previous auth flow, so the only concern would be if the value in
     // localStorage was somehow tampered with, and it'd be nice to avoid the
     // latency of an extra network request.
-    return await requestAuthCode(storedIssuer, logger)
+    return await requestAuthCode(storedIssuer, undefined, logger)
   }
 
   return {
@@ -147,7 +154,38 @@ const validateIssuer = async (
   }
 }
 
-const requestAuthCode = async (issuer: string, logger: Logger | undefined): Promise<never> => {
+export const createAuthorizationRequestParams = ({
+  redirect_uri,
+  state,
+  code_challenge,
+  scope_id,
+}: {
+  redirect_uri: string
+  state: string
+  code_challenge: string
+  scope_id: string | null | undefined
+}): Record<string, string> => {
+  const requestParams: Record<string, string> = {
+    response_type: 'code',
+    client_id: redirect_uri,
+    redirect_uri,
+    state,
+    code_challenge,
+    code_challenge_method: 'S256',
+  }
+
+  if (scope_id != null) {
+    requestParams.scope_id = scope_id
+  }
+
+  return requestParams
+}
+
+const requestAuthCode = async (
+  issuer: string,
+  scope_id: string | null | undefined,
+  logger: Logger | undefined
+): Promise<never> => {
   await logger?.log('Preparing authorization request')
 
   const code_verifier = createPKCECodeVerifier()
@@ -167,14 +205,12 @@ const requestAuthCode = async (issuer: string, logger: Logger | undefined): Prom
   // case.  For example, we only ever support response_type = 'code' and
   // code_challenge_method = 'S256', and we always set the client_id equal to
   // the redirect_uri, so do we really need to transmit those?
-  const requestParams = {
-    response_type: 'code',
-    client_id: redirect_uri,
+  const requestParams = createAuthorizationRequestParams({
     redirect_uri,
     state,
     code_challenge,
-    code_challenge_method: 'S256',
-  }
+    scope_id,
+  })
 
   await logger?.log('Auth request parameters:', JSON.stringify(requestParams, null, 2))
 
@@ -319,10 +355,10 @@ const handleAuthCodeResponse = async (
     })
 
     if (response.ok) {
-      const { api_base_url, access_token, user } = await response.json()
+      const { api_base_url, access_token, user, scope_id, scope_name } = await response.json()
       await logger?.log(
         'Received token response:',
-        JSON.stringify({ access_token: '[redacted]', api_base_url, user })
+        JSON.stringify({ access_token: '[redacted]', api_base_url, user, scope_id, scope_name })
       )
       window.localStorage.setItem(MODULUS_BASE_URL_STORAGE_KEY, issuer)
       return {
@@ -330,6 +366,8 @@ const handleAuthCodeResponse = async (
         baseUrl: api_base_url,
         token: access_token,
         user,
+        scope_id,
+        scope_name,
       }
     }
     const err = await response.text()
@@ -367,13 +405,14 @@ const OAUTH_ERRORS = [
 ]
 
 const MODULUS_BASE_URL_PARAM = 'modulus'
+const SCOPE_ID_PARAM = 'scope_id'
 const OAUTH_CODE_PARAM = 'code'
 const OAUTH_STATE_PARAM = 'state'
 const OAUTH_ERROR_PARAM = 'error'
 const OAUTH_ERROR_DESCRIPTION_PARAM = 'error_description'
 const OAUTH_ERROR_URI_PARAM = 'error_uri'
 
-const getQueryParams = () => {
+export const getQueryParams = () => {
   const query = new URLSearchParams(window.location.search)
   const state = query.get(OAUTH_STATE_PARAM)
   const code = query.get(OAUTH_CODE_PARAM)
@@ -381,6 +420,7 @@ const getQueryParams = () => {
   const error_description = query.get(OAUTH_ERROR_DESCRIPTION_PARAM)
   const error_uri = query.get(OAUTH_ERROR_URI_PARAM)
   const issuer = query.get(MODULUS_BASE_URL_PARAM)
+  const scope_id = query.get(SCOPE_ID_PARAM)
 
   query.delete(OAUTH_STATE_PARAM)
   query.delete(OAUTH_CODE_PARAM)
@@ -388,12 +428,13 @@ const getQueryParams = () => {
   query.delete(OAUTH_ERROR_DESCRIPTION_PARAM)
   query.delete(OAUTH_ERROR_URI_PARAM)
   query.delete(MODULUS_BASE_URL_PARAM)
+  query.delete(SCOPE_ID_PARAM)
 
   const newUrl = new URL(window.location.href)
   newUrl.search = query.toString()
   window.history.replaceState(null, '', newUrl)
 
-  return { state, code, error, error_description, error_uri, issuer }
+  return { state, code, error, error_description, error_uri, issuer, scope_id }
 }
 
 // Warning: this method only works with relatively short byte arrays, say less

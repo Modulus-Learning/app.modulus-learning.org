@@ -62,6 +62,7 @@ export class AgentAuth {
   constructor(
     public readonly user_id: string,
     public readonly activity_id: string,
+    public readonly scope_id: string,
     public readonly renew_after: number
   ) {}
 }

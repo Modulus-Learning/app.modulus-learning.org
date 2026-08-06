@@ -10,7 +10,12 @@ export type User = { id: string; full_name: string }
 export type ContributionTarget = { url: string; factor: number }
 
 export type AuthStatus =
-  | { status: 'authenticated'; user: User }
+  | {
+      status: 'authenticated'
+      user: User
+      scope_id: string
+      scope_name: string | null
+    }
   | { status: 'failed'; error: string }
   | { status: 'none' }
   | { status: 'expired' }

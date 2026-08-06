@@ -98,10 +98,10 @@ export const getCoreAgentRequestContext = async (
   const result = await tokenVerifiers.agent.verifyAccessToken(headerParts[1])
 
   if (result.status === 'valid') {
-    const { activity_id, user, renew_after } = result.payload
+    const { activity_id, scope_id, user, renew_after } = result.payload
     return {
       requestId: await getRequestId(request),
-      agentAuth: new AgentAuth(user.id, activity_id, renew_after),
+      agentAuth: new AgentAuth(user.id, activity_id, scope_id, renew_after),
     }
   }
 }

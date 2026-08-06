@@ -14,7 +14,14 @@ import type {
 // Agent's (internal) authentication state.
 type AuthState =
   | { status: 'none' }
-  | { status: 'authenticated'; user: User; client: ApiClient; connectionLost: boolean }
+  | {
+      status: 'authenticated'
+      user: User
+      scope_id: string
+      scope_name: string | null
+      client: ApiClient
+      connectionLost: boolean
+    }
   | { status: 'failed'; baseUrl?: string | undefined; error: string }
   | { status: 'expired'; baseUrl?: string }
 
@@ -145,6 +152,8 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
       return {
         status: 'authenticated',
         user: this.#auth.user,
+        scope_id: this.#auth.scope_id,
+        scope_name: this.#auth.scope_name,
       }
     }
     if (this.#auth.status === 'failed') {
@@ -614,6 +623,8 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
       this.#auth = {
         status: 'authenticated',
         user: result.user,
+        scope_id: result.scope_id,
+        scope_name: result.scope_name,
         client: this.#createClient(result.baseUrl, result.token),
         connectionLost: false,
       }

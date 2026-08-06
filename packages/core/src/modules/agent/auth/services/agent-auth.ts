@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 
 import { BaseService } from '@/lib/base-service.js'
-import { ERR_UNAUTHORIZED } from '@/lib/errors.js'
+import { ERR_UNAUTHORIZED, ERR_VALIDATION } from '@/lib/errors.js'
 import type { Config } from '@/config.js'
 import type { UserAuth } from '@/lib/auth.js'
 import type { CoreLogger } from '@/lib/logger.js'
@@ -36,13 +36,21 @@ export class AgentAuthService extends BaseService {
 
   async createAuthCode(
     userAuth: UserAuth,
-    { client_id, redirect_uri, code_challenge }: CreateAuthCodeRequest
+    { client_id, redirect_uri, code_challenge, scope_id }: CreateAuthCodeRequest
   ): Promise<CreateAuthCodeResponse> {
     const activity = await this.queries.findActivityByUrl(redirect_uri)
     if (!activity) {
       throw ERR_UNAUTHORIZED({
         message: 'Unknown activity',
         logExtra: { activity_url: redirect_uri },
+      }).log(this.logger)
+    }
+
+    const scope = await this.queries.findScopeById(scope_id)
+    if (scope == null) {
+      throw ERR_VALIDATION({
+        message: 'Unknown scope',
+        logExtra: { scope_id },
       }).log(this.logger)
     }
 
@@ -55,6 +63,7 @@ export class AgentAuthService extends BaseService {
       client_id,
       redirect_uri,
       code_challenge,
+      scope_id: scope.id,
       expires_at,
     })
 
@@ -112,10 +121,22 @@ export class AgentAuthService extends BaseService {
       }).log(this.logger)
     }
 
+    const scope = await this.queries.findScopeById(authCode.scope_id)
+    if (scope == null) {
+      throw ERR_UNAUTHORIZED({
+        message: 'Unknown scope',
+        logExtra: { scope_id: authCode.scope_id },
+      }).log(this.logger)
+    }
+
     // TODO: Revisit and clean all this up, in conjunction with any updates
     // needed to the agent.  Is it better to send expiration times to the agent?
     // Should we send any other biographical information?
-    const access_token = await this.tokenIssuer.createAccessToken({ user, activity })
+    const access_token = await this.tokenIssuer.createAccessToken({
+      user,
+      activity,
+      scope_id: scope.id,
+    })
 
     return {
       access_token,
@@ -124,6 +145,8 @@ export class AgentAuthService extends BaseService {
         id: user.id,
         full_name: user.full_name ?? undefined,
       },
+      scope_id: scope.id,
+      scope_name: scope.name,
     }
   }
 }

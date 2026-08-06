@@ -4,7 +4,13 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import { and, eq } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
-import { activities, lineitems, progress, progressEvents } from '@/database/schema/index.js'
+import {
+  activities,
+  DEFAULT_SCOPE_ID,
+  lineitems,
+  progress,
+  progressEvents,
+} from '@/database/schema/index.js'
 import { AgentAuth } from '@/lib/auth.js'
 import { seedActivity, seedLineItem, seedScenario } from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
@@ -24,7 +30,8 @@ beforeEach(async () => {
 })
 
 // renew_after is irrelevant to setProgress; 0 keeps the fixtures terse.
-const authFor = (userId: string, activityId: string) => new AgentAuth(userId, activityId, 0)
+const authFor = (userId: string, activityId: string) =>
+  new AgentAuth(userId, activityId, DEFAULT_SCOPE_ID, 0)
 
 const approx = (actual: number | undefined, expected: number, eps = 1e-4): void => {
   assert.ok(actual != null && Math.abs(actual - expected) <= eps, `${actual} ≈ ${expected}`)

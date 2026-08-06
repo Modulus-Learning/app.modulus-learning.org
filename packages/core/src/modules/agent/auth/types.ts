@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { JWTVerificationResult } from '@/lib/jwt/types.js'
 import type { ActivityRecord, UserRecord } from './repository/index.js'
 
-export type SignInResult = { user: UserRecord; activity: ActivityRecord }
+export type SignInResult = { user: UserRecord; activity: ActivityRecord; scope_id: string }
 
 export const accessTokenPayloadSchema = z.object({
   user: z.strictObject({
@@ -11,6 +11,7 @@ export const accessTokenPayloadSchema = z.object({
     full_name: z.string().optional(),
   }),
   activity_id: z.string(),
+  scope_id: z.uuid(),
   renew_after: z.number(),
 })
 

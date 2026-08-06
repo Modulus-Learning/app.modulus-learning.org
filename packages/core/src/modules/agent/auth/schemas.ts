@@ -5,6 +5,7 @@ export const createAuthCodeSchemas = {
     client_id: z.string(),
     redirect_uri: z.string(),
     code_challenge: z.string(),
+    scope_id: z.uuid(),
   }),
 
   output: z.object({
@@ -26,6 +27,8 @@ export const claimAuthCodeSchemas = {
       id: z.string(),
       full_name: z.string().optional(),
     }),
+    scope_id: z.uuid(),
+    scope_name: z.string().nullable(),
   }),
 }
 
