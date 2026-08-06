@@ -36,7 +36,6 @@ export class ActivityPageStateService extends BaseService {
       this.logger.warn(
         {
           err,
-          user_id: auth.user_id,
           activity_id: auth.activity_id,
           scope_id: auth.scope_id,
         },
@@ -60,7 +59,6 @@ export class ActivityPageStateService extends BaseService {
         message: 'page state is not serializable',
         cause: err,
         logExtra: {
-          user_id: auth.user_id,
           activity_id: auth.activity_id,
           scope_id: auth.scope_id,
         },
