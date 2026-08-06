@@ -3,9 +3,9 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 
 import { and, eq } from 'drizzle-orm'
 
-import { lineitems, pageState, progress } from '@/database/schema/index.js'
+import { DEFAULT_SCOPE_ID, lineitems, pageState, progress } from '@/database/schema/index.js'
 import { deferred, waitFor } from '@/test-support/async.js'
-import { seedLineItem, seedProgress, seedScenario } from '@/test-support/fixtures.js'
+import { seedLineItem, seedProgress, seedScenario, seedScope } from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
 
 let h: TestHarness
@@ -27,9 +27,13 @@ const approx = (actual: number | undefined, expected: number, eps = 1e-4): void 
   assert.ok(actual != null && Math.abs(actual - expected) <= eps, `${actual} ≈ ${expected}`)
 }
 
-const readProgress = (userId: string, activityId: string) =>
+const readProgress = (userId: string, activityId: string, scopeId: string = DEFAULT_SCOPE_ID) =>
   h.db.query.progress.findFirst({
-    where: and(eq(progress.user_id, userId), eq(progress.activity_id, activityId)),
+    where: and(
+      eq(progress.user_id, userId),
+      eq(progress.activity_id, activityId),
+      eq(progress.scope_id, scopeId)
+    ),
   })
 
 const readLineItem = (id: string) => h.db.query.lineitems.findFirst({ where: eq(lineitems.id, id) })
@@ -40,6 +44,7 @@ describe('updateProgress (monotonic high-water mark)', () => {
     const r = await h.repos.activityMutations.updateProgress({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.4,
     })
     assert.equal(r.updated, true)
@@ -54,6 +59,7 @@ describe('updateProgress (monotonic high-water mark)', () => {
     const r = await h.repos.activityMutations.updateProgress({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.7,
     })
     assert.equal(r.updated, true)
@@ -68,6 +74,7 @@ describe('updateProgress (monotonic high-water mark)', () => {
     const r = await h.repos.activityMutations.updateProgress({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.5,
     })
     assert.equal(r.updated, false)
@@ -80,9 +87,38 @@ describe('updateProgress (monotonic high-water mark)', () => {
     const high = await h.repos.activityMutations.updateProgress({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 1.5,
     })
     approx(high.progress, 1)
+  })
+
+  it('keeps high-water marks and no-op decisions independent by scope', async () => {
+    const s = await seedScenario(h.db)
+    const scopeB = await seedScope(h.db, s.platformId)
+
+    await h.repos.activityMutations.updateProgress({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
+      progress: 0.8,
+    })
+    await h.repos.activityMutations.updateProgress({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      scope_id: scopeB,
+      progress: 0.3,
+    })
+    const lowerB = await h.repos.activityMutations.updateProgress({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      scope_id: scopeB,
+      progress: 0.2,
+    })
+
+    assert.equal(lowerB.updated, false)
+    approx((await readProgress(s.userId, s.activityId, DEFAULT_SCOPE_ID))?.progress, 0.8)
+    approx((await readProgress(s.userId, s.activityId, scopeB))?.progress, 0.3)
   })
 })
 
@@ -92,6 +128,7 @@ describe('incrementProgress (cumulative target)', () => {
     const r = await h.repos.activityMutations.incrementProgress({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       amount: 0.3,
     })
     assert.equal(r.increased, true)
@@ -105,6 +142,7 @@ describe('incrementProgress (cumulative target)', () => {
     const r = await h.repos.activityMutations.incrementProgress({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       amount: 0.5,
     })
     assert.equal(r.increased, true)
@@ -118,10 +156,35 @@ describe('incrementProgress (cumulative target)', () => {
     const r = await h.repos.activityMutations.incrementProgress({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       amount: 0,
     })
     assert.equal(r.increased, false)
     approx(r.progress, 0.4)
+  })
+
+  it('allows a capped target in one scope to advance independently in another', async () => {
+    const s = await seedScenario(h.db)
+    const scopeB = await seedScope(h.db, s.platformId)
+    await seedProgress(h.db, s.userId, s.activityId, 1, DEFAULT_SCOPE_ID)
+    await seedProgress(h.db, s.userId, s.activityId, 0.2, scopeB)
+
+    const cappedA = await h.repos.activityMutations.incrementProgress({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
+      amount: 0.3,
+    })
+    const advancedB = await h.repos.activityMutations.incrementProgress({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      scope_id: scopeB,
+      amount: 0.3,
+    })
+
+    assert.equal(cappedA.increased, false)
+    assert.equal(advancedB.increased, true)
+    approx(advancedB.progress, 0.5)
   })
 })
 
@@ -132,11 +195,13 @@ describe('setPageState', () => {
     await h.repos.activityMutations.setPageState({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       state: '{"attempt":1}',
     })
     await h.repos.activityMutations.setPageState({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       state: '{"attempt":2}',
     })
 
@@ -147,6 +212,33 @@ describe('setPageState', () => {
 
     assert.equal(rows.length, 1)
     assert.equal(rows[0]?.state, '{"attempt":2}')
+  })
+
+  it('stores and reads independent snapshots in two scopes', async () => {
+    const s = await seedScenario(h.db)
+    const scopeB = await seedScope(h.db, s.platformId)
+
+    await h.repos.activityMutations.setPageState({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
+      state: '{"scope":"default"}',
+    })
+    await h.repos.activityMutations.setPageState({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      scope_id: scopeB,
+      state: '{"scope":"b"}',
+    })
+
+    assert.equal(
+      (await h.repos.activityQueries.getPageState(s.userId, s.activityId, DEFAULT_SCOPE_ID))?.state,
+      '{"scope":"default"}'
+    )
+    assert.equal(
+      (await h.repos.activityQueries.getPageState(s.userId, s.activityId, scopeB))?.state,
+      '{"scope":"b"}'
+    )
   })
 })
 

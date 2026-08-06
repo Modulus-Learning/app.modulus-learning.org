@@ -1,11 +1,12 @@
 import {
   and,
   asc,
-  desc,
   eq,
   getTableColumns,
   ilike,
   inArray,
+  max,
+  min,
   notExists,
   or,
   sql,
@@ -43,6 +44,10 @@ export type ActivityCodeInsert = typeof activityCodes.$inferInsert
 export type UserRecord = typeof users.$inferSelect
 
 export type ProgressRecord = typeof progress.$inferSelect
+export type ProgressAggregateRecord = Pick<
+  ProgressRecord,
+  'user_id' | 'activity_id' | 'progress' | 'created_at' | 'updated_at'
+>
 export type ScopeRecord = typeof scopes.$inferSelect
 
 export class ActivityQueries extends BaseService {
@@ -257,32 +262,64 @@ export class ActivityQueries extends BaseService {
   async getProgressForUser(
     user_id: string,
     activity_id: string
-  ): Promise<ProgressRecord | undefined> {
-    return await this.db
+  ): Promise<ProgressAggregateRecord | undefined> {
+    const [result] = await this.db
       .get()
-      .query.progress.findFirst({
-        where: and(eq(progress.user_id, user_id), eq(progress.activity_id, activity_id)),
+      .select({
+        user_id: progress.user_id,
+        activity_id: progress.activity_id,
+        progress: max(progress.progress),
+        created_at: min(progress.created_at),
+        updated_at: max(progress.updated_at),
       })
+      .from(progress)
+      .where(and(eq(progress.user_id, user_id), eq(progress.activity_id, activity_id)))
+      .groupBy(progress.user_id, progress.activity_id)
       .catch(this.utils.wrapDbErrorNew())
+
+    if (result?.progress == null || result.created_at == null || result.updated_at == null) {
+      return undefined
+    }
+
+    return {
+      user_id: result.user_id,
+      activity_id: result.activity_id,
+      progress: result.progress,
+      created_at: result.created_at,
+      updated_at: result.updated_at,
+    }
   }
 
   @method
   async getActivityCodeProgress(activity_code_id: string, options: ProgressRequest['options']) {
-    // TODO: Use 'query' or get rid of it
-    const { page, page_size, query, order, desc: descending } = options
+    const { page, page_size, order, desc: descending } = options
 
     const limit = page_size
     const offset = (page - 1) * page_size
+
+    const progressByEnrollment = this.db
+      .get()
+      .select({
+        user_id: progress.user_id,
+        activity_id: progress.activity_id,
+        progress: max(progress.progress).as('aggregate_progress'),
+        created_at: min(progress.created_at).as('aggregate_created_at'),
+        updated_at: max(progress.updated_at).as('aggregate_updated_at'),
+      })
+      .from(progress)
+      .groupBy(progress.user_id, progress.activity_id)
+      .as('progress_by_enrollment')
 
     // Get the column to order by.  Falls back to `updated_at` (the schema
     // default) so an unmapped `order` value can never leave the column
     // undefined and hand `asc(undefined)` to Drizzle.
     const orderByColumns = {
       full_name: users.full_name,
-      updated_at: progress.updated_at,
-      progress: progress.progress,
+      updated_at: progressByEnrollment.updated_at,
+      progress: progressByEnrollment.progress,
     }
-    const orderByColumn = orderByColumns[order] ?? progress.updated_at
+    const orderByColumn = orderByColumns[order] ?? progressByEnrollment.updated_at
+    const primaryOrder = sql`${orderByColumn} ${sql.raw(descending ? 'desc' : 'asc')} nulls last`
 
     return await this.db
       .get()
@@ -292,34 +329,26 @@ export class ActivityQueries extends BaseService {
         activity_code: activityCodes.code,
         activity_code_id: activityCodes.id,
         activity_id: activities.id,
-        progress: progress.progress,
-        updated_at: progress.updated_at,
-        created_at: progress.created_at,
+        progress: progressByEnrollment.progress,
+        updated_at: progressByEnrollment.updated_at,
+        created_at: progressByEnrollment.created_at,
         activity_name: activities.name,
         activity_url: activities.url,
-        // Total still works, despite the leftJoin below because we call
-        // .groupBy(users.id) further down.
         total: sql<number>`cast(count(*) over() as int)`,
       })
       .from(enrollment)
       .innerJoin(users, eq(enrollment.user_id, users.id))
       .leftJoin(
-        progress,
+        progressByEnrollment,
         and(
-          eq(enrollment.activity_id, progress.activity_id),
-          eq(enrollment.user_id, progress.user_id)
+          eq(enrollment.activity_id, progressByEnrollment.activity_id),
+          eq(enrollment.user_id, progressByEnrollment.user_id)
         )
       )
       .innerJoin(activities, eq(enrollment.activity_id, activities.id))
       .innerJoin(activityCodes, eq(enrollment.activity_code_id, activityCodes.id))
       .where(eq(activityCodes.id, activity_code_id))
-      // Guarantee that ordering is deterministic.
-      // TODO: Maybe consider other secondary columns based
-      // on the orderBy column chosen by the user.
-      .orderBy(
-        descending ? desc(orderByColumn) : asc(orderByColumn),
-        descending ? desc(users.id) : asc(users.id) // Secondary ordering
-      )
+      .orderBy(primaryOrder, asc(activities.id), asc(users.id))
       .limit(limit)
       .offset(offset)
       .catch(this.utils.wrapDbErrorNew())

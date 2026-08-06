@@ -21,13 +21,18 @@ export type ProgressUpdateRecord = ProgressRecord & { updated: boolean; increase
 // `increased` is true when the increment actually advanced the (clamped)
 // high-water mark -- false for a no-op (amount 0, or an already-capped target).
 export type ProgressIncrementRecord = ProgressRecord & { increased: boolean }
-export type ProgressUpdate = Omit<typeof progress.$inferInsert, 'created_at' | 'updated_at'>
+type ProgressInsert = typeof progress.$inferInsert
+export type ProgressUpdate = Omit<ProgressInsert, 'created_at' | 'updated_at' | 'scope_id'> &
+  Pick<ProgressRecord, 'scope_id'>
 
-export type ProgressEventInsert = typeof progressEvents.$inferInsert
 export type ProgressEventRecord = typeof progressEvents.$inferSelect
+type ProgressEventDbInsert = typeof progressEvents.$inferInsert
+export type ProgressEventInsert = Omit<ProgressEventDbInsert, 'scope_id'> &
+  Pick<ProgressEventRecord, 'scope_id'>
 
 export type PageStateRecord = typeof pageState.$inferSelect
-export type PageStateInsert = typeof pageState.$inferInsert
+export type PageStateInsert = Omit<typeof pageState.$inferInsert, 'scope_id'> &
+  Pick<PageStateRecord, 'scope_id'>
 export type PageStateUpdate = Pick<Partial<PageStateInsert>, 'state'>
 
 export type LineItemUpdate = {
@@ -52,21 +57,37 @@ export class ActivityStateQueries extends BaseService {
   }
 
   @method
-  async getProgress(user_id: string, activity_id: string): Promise<ProgressRecord | undefined> {
+  async getProgress(
+    user_id: string,
+    activity_id: string,
+    scope_id: string
+  ): Promise<ProgressRecord | undefined> {
     return await this.db
       .get()
       .query.progress.findFirst({
-        where: and(eq(progress.user_id, user_id), eq(progress.activity_id, activity_id)),
+        where: and(
+          eq(progress.user_id, user_id),
+          eq(progress.activity_id, activity_id),
+          eq(progress.scope_id, scope_id)
+        ),
       })
       .catch(this.utils.wrapDbErrorNew())
   }
 
   @method
-  async getPageState(user_id: string, activity_id: string): Promise<PageStateRecord | undefined> {
+  async getPageState(
+    user_id: string,
+    activity_id: string,
+    scope_id: string
+  ): Promise<PageStateRecord | undefined> {
     return await this.db
       .get()
       .query.pageState.findFirst({
-        where: and(eq(pageState.user_id, user_id), eq(pageState.activity_id, activity_id)),
+        where: and(
+          eq(pageState.user_id, user_id),
+          eq(pageState.activity_id, activity_id),
+          eq(pageState.scope_id, scope_id)
+        ),
       })
       .catch(this.utils.wrapDbErrorNew())
   }
@@ -99,6 +120,7 @@ export class ActivityStateMutations extends BaseService {
       .values({
         user_id: values.user_id,
         activity_id: values.activity_id,
+        scope_id: values.scope_id,
         progress: clamped,
         created_at: sql`NOW()`,
         updated_at: sql`NOW()`,
@@ -136,6 +158,7 @@ export class ActivityStateMutations extends BaseService {
   async incrementProgress(values: {
     activity_id: string
     user_id: string
+    scope_id: string
     amount: number
   }): Promise<ProgressIncrementRecord> {
     const [result] = await this.db
@@ -144,6 +167,7 @@ export class ActivityStateMutations extends BaseService {
       .values({
         user_id: values.user_id,
         activity_id: values.activity_id,
+        scope_id: values.scope_id,
         progress: Math.min(1, Math.max(0, values.amount)),
         created_at: sql`NOW()`,
         updated_at: sql`NOW()`,

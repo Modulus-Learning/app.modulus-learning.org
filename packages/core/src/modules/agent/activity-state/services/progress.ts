@@ -34,7 +34,7 @@ export class ActivityProgressService extends BaseService {
 
   @method
   async getProgress(auth: AgentAuth, request: GetProgressRequest): Promise<GetProgressResponse> {
-    const selfRecord = await this.queries.getProgress(auth.user_id, auth.activity_id)
+    const selfRecord = await this.queries.getProgress(auth.user_id, auth.activity_id, auth.scope_id)
     const progress = selfRecord?.progress ?? 0
 
     // Additional activities (by URL) requested alongside self -- e.g. a
@@ -60,7 +60,7 @@ export class ActivityProgressService extends BaseService {
     if (!target) {
       return null
     }
-    const record = await this.queries.getProgress(auth.user_id, target.id)
+    const record = await this.queries.getProgress(auth.user_id, target.id, auth.scope_id)
     return { url, progress: record?.progress ?? 0 }
   }
 
@@ -78,6 +78,7 @@ export class ActivityProgressService extends BaseService {
       const self = await this.mutations.updateProgress({
         user_id: auth.user_id,
         activity_id: auth.activity_id,
+        scope_id: auth.scope_id,
         progress: request.progress_for_current_page,
       })
 
@@ -85,6 +86,7 @@ export class ActivityProgressService extends BaseService {
         await this.mutations.recordProgressEvent({
           user_id: auth.user_id,
           activity_id: auth.activity_id,
+          scope_id: auth.scope_id,
           progress: self.progress,
           submitted_at: self.updated_at,
         })
@@ -127,6 +129,7 @@ export class ActivityProgressService extends BaseService {
     const result = await this.mutations.incrementProgress({
       activity_id: target.id,
       user_id: auth.user_id,
+      scope_id: auth.scope_id,
       amount,
     })
 
@@ -138,6 +141,7 @@ export class ActivityProgressService extends BaseService {
       await this.mutations.recordProgressEvent({
         user_id: auth.user_id,
         activity_id: target.id,
+        scope_id: auth.scope_id,
         source_activity_id: auth.activity_id,
         progress: result.progress,
         submitted_at: result.updated_at,
