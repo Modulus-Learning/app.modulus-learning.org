@@ -20,6 +20,8 @@ const authenticationResponseSchema = z.object({
   state: z.string(),
 })
 
+// Retaining the fragment here only keeps the Location header recognizable in
+// the browser; browsers do not send fragments to the interstitial server.
 const appendQueryBeforeFragment = (url: string, query: URLSearchParams): string => {
   const fragmentIndex = url.indexOf('#')
   const beforeFragment = fragmentIndex === -1 ? url : url.slice(0, fragmentIndex)
