@@ -1,14 +1,19 @@
 import {
   clearOAuthSession,
+  clearTabContext,
   createActivityContext,
   DEFAULT_SCOPE_ID,
+  deleteSharedContextIfForeground,
+  installForegroundContextPublication,
+  publishTabContextIfForeground,
   readOAuthSession,
+  readSharedContextSnapshot,
   readTabContext,
-  removeStoredValue,
+  removeLegacyIssuerContext,
   type StoredActivityContext,
   type StoredOAuthSession,
   type StoredReturnLocation,
-  TAB_CONTEXT_STORAGE_KEY,
+  sameActivityContextIdentity,
   writeOAuthSession,
   writeTabContext,
 } from './activity-context.js'
@@ -37,18 +42,12 @@ export const authenticate = async (
   options: AuthOptions = {}
 ): Promise<AuthResult> => {
   const params = getQueryParams()
+  installForegroundContextPublication(logger)
   // Remove the pre-scope issuer-only record on every path. It is never used as
   // a compatibility source for the versioned context.
-  removeStoredValue(window.localStorage, LEGACY_MODULUS_BASE_URL_STORAGE_KEY)
+  removeLegacyIssuerContext()
 
   const { state, code, error, error_description, error_uri } = params
-
-  // If we received any OAuth response parameters, assume we've been redirected
-  // back from an authorization request, and handle the response accordingly.
-  if (state != null || code != null || error != null) {
-    await logger?.log('Received OAuth response')
-    return await handleAuthCodeResponse(state, code, error, error_description, error_uri, logger)
-  }
 
   // If we received a Modulus server url in the query parameters, check that
   // it's legitimate and then attempt to request an auth code from that server.
@@ -83,15 +82,37 @@ export const authenticate = async (
       }
     }
 
+    const previousTabContext = readTabContext()
+    const previousSharedContext = readSharedContextSnapshot()?.context ?? null
+    const previousContext = previousTabContext ?? previousSharedContext
+    if (previousContext != null && !sameActivityContextIdentity(previousContext, context)) {
+      await logger?.log('Fresh launch changed the activity context', {
+        history: previousTabContext == null ? 'shared' : 'tab',
+        previous_scope_id: previousContext.scope_id,
+        scope_id: context.scope_id,
+        issuer_changed: previousContext.issuer !== context.issuer,
+      })
+    }
+
     // Commit the complete pair before OAuth starts. Reloads and navigation in
     // this tab now use one atomic issuer/scope identity.
     if (!writeTabContext(context)) {
+      await logger?.log('Unable to commit fresh activity context to tab storage')
       return { status: 'failed', error: 'storage_unavailable' }
     }
+    await publishTabContextIfForeground(logger)
 
     // Request an auth code.  This will redirect the browser to the Modulus
     // server's authorization endpoint, so this call will never return.
     return await requestAuthCode(context, logger, options)
+  }
+
+  // OAuth response handling uses only the exact pre-redirect session snapshot.
+  // Foreground publication cannot affect which context the exchange uses.
+  if (state != null || code != null || error != null) {
+    await logger?.log('Received OAuth response')
+    await publishTabContextIfForeground(logger)
+    return await handleAuthCodeResponse(state, code, error, error_description, error_uri, logger)
   }
 
   // Window.sessionStorage contains stored state suggesting this browser session
@@ -127,7 +148,11 @@ export const authenticate = async (
       // report an error and make no further attempt at auth.
       await logger?.log('Issuer validation failed:', validationResult.error)
       if (validationResult.error === 'invalid_issuer') {
-        removeStoredValue(window.sessionStorage, TAB_CONTEXT_STORAGE_KEY)
+        clearTabContext()
+        const shared = readSharedContextSnapshot()
+        if (shared?.context != null && sameActivityContextIdentity(storedContext, shared.context)) {
+          await deleteSharedContextIfForeground(shared, logger)
+        }
       }
       return {
         status: 'failed',
@@ -135,7 +160,45 @@ export const authenticate = async (
       }
     }
 
+    await publishTabContextIfForeground(logger)
     return await requestAuthCode(storedContext, logger, options)
+  }
+
+  const shared = readSharedContextSnapshot()
+  if (shared != null) {
+    if (shared.context == null) {
+      await logger?.log('Ignored malformed shared activity context')
+      await deleteSharedContextIfForeground(shared, logger)
+      return { status: 'none' }
+    }
+
+    if (!writeTabContext(shared.context)) {
+      await logger?.log('Unable to inherit shared activity context into tab storage')
+      return { status: 'failed', error: 'storage_unavailable' }
+    }
+    await logger?.log('Cold tab inherited the foreground activity context', {
+      scope_id: shared.context.scope_id,
+    })
+
+    const validationResult = await validateIssuer(
+      shared.context.issuer,
+      'https://modulus-learning.org/api/registry',
+      logger
+    )
+    if (!validationResult.ok) {
+      await logger?.log('Inherited issuer validation failed:', validationResult.error)
+      if (validationResult.error === 'invalid_issuer') {
+        clearTabContext()
+        await deleteSharedContextIfForeground(shared, logger)
+      }
+      return {
+        status: 'failed',
+        error: validationResult.error,
+      }
+    }
+
+    await publishTabContextIfForeground(logger)
+    return await requestAuthCode(shared.context, logger, options)
   }
 
   return {
@@ -245,6 +308,7 @@ const requestAuthCode = async (
     },
   }
   if (!writeOAuthSession(oauthSession)) {
+    await logger?.log('Unable to save OAuth session in tab storage')
     return { status: 'failed', error: 'storage_unavailable' }
   }
 
@@ -377,7 +441,9 @@ const handleAuthCodeResponse = async (
         }
       }
 
-      writeTabContext(refreshedContext)
+      if (!writeTabContext(refreshedContext)) {
+        await logger?.log('Unable to refresh activity context in tab storage')
+      }
       return {
         status: 'authenticated',
         baseUrl: api_base_url,
@@ -401,8 +467,6 @@ const handleAuthCodeResponse = async (
     }
   }
 }
-
-const LEGACY_MODULUS_BASE_URL_STORAGE_KEY = 'modulus_base_url'
 
 const OAUTH_ERRORS = [
   'invalid_request',
