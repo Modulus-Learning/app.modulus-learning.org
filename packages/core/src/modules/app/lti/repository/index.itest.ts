@@ -467,11 +467,13 @@ describe('line-item scope reconciliation', () => {
       .from(progressEvents)
       .where(eq(progressEvents.activity_id, scenario.activityId))
     assert.deepEqual(
-      stateRows.map(({ scope_id, progress }) => ({ scope_id, progress })),
+      stateRows
+        .map(({ scope_id, progress }) => ({ scope_id, progress }))
+        .sort((a, b) => a.scope_id.localeCompare(b.scope_id)),
       [
         { scope_id: scopeA, progress: 0.8 },
         { scope_id: scopeB, progress: 0.3 },
-      ]
+      ].sort((a, b) => a.scope_id.localeCompare(b.scope_id))
     )
     const progressRows = await h.db
       .select()

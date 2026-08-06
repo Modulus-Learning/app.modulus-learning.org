@@ -307,6 +307,8 @@ export class LtiMutations extends BaseService {
     this.utils.assertExists(existing, { message: 'conflicting line item is null' })
 
     const scopeChanged = existing.scope_id !== scope_id
+    // The current verified launch is authoritative for the platform,
+    // deployment, and LTI user identity used by subsequent AGS submissions.
     const [updated] = await this.db
       .get()
       .update(lineitems)
