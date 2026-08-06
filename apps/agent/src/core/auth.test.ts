@@ -329,6 +329,23 @@ describe('OAuth response restoration', () => {
     expect(readTabContext()).toEqual(context())
   })
 
+  it('normalizes an equivalent token-response scope before comparing identity', async () => {
+    window.sessionStorage.setItem(OAUTH_SESSION_STORAGE_KEY, JSON.stringify(oauthSession()))
+    window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => tokenResponse({ scope_id: SCOPE_ID.toUpperCase() }))
+    )
+
+    const result = await authenticate(undefined)
+
+    expect(result).toMatchObject({
+      status: 'authenticated',
+      scope_id: SCOPE_ID,
+    })
+    expect(readTabContext()).toEqual(context())
+  })
+
   it('rejects a token response that names a different scope', async () => {
     window.sessionStorage.setItem(OAUTH_SESSION_STORAGE_KEY, JSON.stringify(oauthSession()))
     window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')

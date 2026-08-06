@@ -361,7 +361,12 @@ const handleAuthCodeResponse = async (
         'Received token response:',
         JSON.stringify({ access_token: '[redacted]', api_base_url, user, scope_id, scope_name })
       )
-      if (scope_id !== oauthSession.context.scope_id) {
+      const refreshedContext = createActivityContext(
+        oauthSession.context.issuer,
+        scope_id,
+        scope_name
+      )
+      if (refreshedContext == null || refreshedContext.scope_id !== oauthSession.context.scope_id) {
         await logger?.log('Token response scope did not match requested activity context', {
           expected_scope_id: oauthSession.context.scope_id,
           received_scope_id: scope_id,
@@ -372,14 +377,7 @@ const handleAuthCodeResponse = async (
         }
       }
 
-      const refreshedContext = createActivityContext(
-        oauthSession.context.issuer,
-        oauthSession.context.scope_id,
-        scope_name
-      )
-      if (refreshedContext != null) {
-        writeTabContext(refreshedContext)
-      }
+      writeTabContext(refreshedContext)
       return {
         status: 'authenticated',
         baseUrl: api_base_url,
