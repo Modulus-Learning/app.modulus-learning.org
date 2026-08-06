@@ -93,6 +93,8 @@ export type LineItemOverrides = Partial<
     | 'submission_lease_expires_at'
     | 'submission_lease_token'
     | 'submission_error_count'
+    | 'submission_error_category'
+    | 'submission_error_message'
     | 'dead_at'
     | 'cutoff_at'
     | 'submitted_at'
@@ -130,6 +132,8 @@ export async function seedLineItem(
       submission_lease_expires_at: overrides.submission_lease_expires_at ?? null,
       submission_lease_token: overrides.submission_lease_token ?? null,
       submission_error_count: overrides.submission_error_count ?? 0,
+      submission_error_category: overrides.submission_error_category ?? null,
+      submission_error_message: overrides.submission_error_message ?? null,
       dead_at: overrides.dead_at ?? null,
       cutoff_at: overrides.cutoff_at ?? null,
       submitted_at: overrides.submitted_at ?? null,

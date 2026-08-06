@@ -4,8 +4,13 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import { eq } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
-import { lineitems } from '@/database/schema/index.js'
-import { seedLineItem, seedProgressEvent, seedScenario } from '@/test-support/fixtures.js'
+import { DEFAULT_SCOPE_ID, lineitems } from '@/database/schema/index.js'
+import {
+  seedLineItem,
+  seedProgressEvent,
+  seedScenario,
+  seedScope,
+} from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
 import type { ClaimedLineItem } from '@/modules/app/lti/score-submission/repository.js'
 
@@ -26,6 +31,33 @@ beforeEach(async () => {
 const readLineItem = (id: string) => h.db.query.lineitems.findFirst({ where: eq(lineitems.id, id) })
 
 describe('claimNextEligibleLineItem', () => {
+  it('does not claim a line item after an other-scope progress update', async () => {
+    const scenario = await seedScenario(h.db)
+    const scopeB = await seedScope(h.db, scenario.platformId)
+    const seeded = await seedLineItem(h.db, scenario, {
+      scope_id: scopeB,
+      submittable_progress: 0.4,
+      submitted_progress: 0.4,
+      submission_eligible_at: null,
+    })
+
+    const update = await h.repos.activityMutations.updateLineItems({
+      user_id: scenario.userId,
+      activity_id: scenario.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
+      progress: 0.9,
+      submitted_at: new Date(),
+    })
+    const claimed = await h.repos.scoreMutations.claimNextEligibleLineItem(scenario.issuer, 30)
+    const after = await readLineItem(seeded.id)
+
+    assert.deepEqual(update, { updated_count: 0, scope_mismatch: true })
+    assert.equal(claimed, undefined)
+    assert.equal(after?.scope_id, scopeB)
+    assert.equal(after?.submittable_progress, 0.4)
+    assert.equal(after?.submission_eligible_at, null)
+  })
+
   it('claims an eligible line item and stamps a fresh lease', async () => {
     const scenario = await seedScenario(h.db)
     const seeded = await seedLineItem(h.db, scenario, {
@@ -154,12 +186,19 @@ describe('fenced submission writes', () => {
   const claimFresh = async (): Promise<{
     scenario: Awaited<ReturnType<typeof seedScenario>>
     claimed: ClaimedLineItem
+    scopeId: string
   }> => {
     const scenario = await seedScenario(h.db)
-    await seedLineItem(h.db, scenario, { submittable_progress: 0.5, submitted_progress: 0.1 })
+    const scopeId = await seedScope(h.db, scenario.platformId)
+    await seedLineItem(h.db, scenario, {
+      scope_id: scopeId,
+      submittable_progress: 0.5,
+      submitted_progress: 0.1,
+    })
     const claimed = await h.repos.scoreMutations.claimNextEligibleLineItem(scenario.issuer, 30)
     assert.ok(claimed, 'precondition: claimed a line item')
-    return { scenario, claimed }
+    assert.equal(claimed.scope_id, scopeId)
+    return { scenario, claimed, scopeId }
   }
 
   const staleToken = (claimed: ClaimedLineItem): ClaimedLineItem => ({
@@ -168,7 +207,7 @@ describe('fenced submission writes', () => {
   })
 
   it('markSubmissionSuccess advances the mark, clears errors, releases the lease', async () => {
-    const { claimed } = await claimFresh()
+    const { claimed, scopeId } = await claimFresh()
 
     const ok = await h.repos.scoreMutations.markSubmissionSuccess(claimed, 300)
     assert.equal(ok, true)
@@ -179,6 +218,7 @@ describe('fenced submission writes', () => {
     assert.equal(row?.submission_lease_expires_at, null)
     assert.equal(row?.submission_error_count, 0)
     assert.equal(row?.submission_error_category, null)
+    assert.equal(row?.scope_id, scopeId)
     assert.ok(row?.submitted_at, 'submitted_at stamped')
     assert.ok(
       row?.submission_eligible_at && row.submission_eligible_at > new Date(),
@@ -187,7 +227,7 @@ describe('fenced submission writes', () => {
   })
 
   it('markSubmissionSuccess is a no-op under a stale lease token (fencing)', async () => {
-    const { claimed } = await claimFresh()
+    const { claimed, scopeId } = await claimFresh()
 
     const ok = await h.repos.scoreMutations.markSubmissionSuccess(staleToken(claimed), 300)
     assert.equal(ok, false)
@@ -195,10 +235,11 @@ describe('fenced submission writes', () => {
     const row = await readLineItem(claimed.id)
     assert.equal(row?.submitted_progress, 0.1, 'submitted mark untouched')
     assert.equal(row?.submission_lease_token, claimed.submission_lease_token, 'lease untouched')
+    assert.equal(row?.scope_id, scopeId)
   })
 
   it('markSubmissionFailure increments the error count and backs off; stale token no-ops', async () => {
-    const { claimed } = await claimFresh()
+    const { claimed, scopeId } = await claimFresh()
 
     const ok = await h.repos.scoreMutations.markSubmissionFailure(
       claimed,
@@ -227,10 +268,11 @@ describe('fenced submission writes', () => {
     assert.equal(staleOk, false)
     const after = await readLineItem(claimed.id)
     assert.equal(after?.submission_error_count, 1, 'stale attempt did not double-count')
+    assert.equal(after?.scope_id, scopeId)
   })
 
   it('markSubmissionDead marks the row dead; stale token no-ops', async () => {
-    const { claimed } = await claimFresh()
+    const { claimed, scopeId } = await claimFresh()
 
     const ok = await h.repos.scoreMutations.markSubmissionDead(claimed, 'invalid', 'permanent')
     assert.equal(ok, true)
@@ -240,6 +282,7 @@ describe('fenced submission writes', () => {
     assert.equal(row?.submission_eligible_at, null)
     assert.equal(row?.submission_lease_token, null)
     assert.equal(row?.submission_error_count, 1)
+    assert.equal(row?.scope_id, scopeId)
 
     const staleOk = await h.repos.scoreMutations.markSubmissionDead(staleToken(claimed), 'x', 'y')
     assert.equal(staleOk, false)
@@ -259,6 +302,7 @@ describe('getProgressAtCutoff', () => {
     const atCutoff = await h.repos.scoreQueries.getProgressAtCutoff(
       scenario.userId,
       scenario.activityId,
+      DEFAULT_SCOPE_ID,
       base
     )
     assert.equal(atCutoff, 0.5, 'the post-cutoff 0.8 event is excluded')
@@ -269,8 +313,40 @@ describe('getProgressAtCutoff', () => {
     const value = await h.repos.scoreQueries.getProgressAtCutoff(
       scenario.userId,
       scenario.activityId,
+      DEFAULT_SCOPE_ID,
       new Date()
     )
     assert.equal(value, 0)
+  })
+
+  it('considers only events in the requested scope', async () => {
+    const scenario = await seedScenario(h.db)
+    const scopeB = await seedScope(h.db, scenario.platformId)
+    const cutoff = new Date('2026-01-02T00:00:00Z')
+    await seedProgressEvent(
+      h.db,
+      scenario.userId,
+      scenario.activityId,
+      0.8,
+      new Date('2026-01-01T00:00:00Z'),
+      DEFAULT_SCOPE_ID
+    )
+    await seedProgressEvent(
+      h.db,
+      scenario.userId,
+      scenario.activityId,
+      0.3,
+      new Date('2026-01-01T00:00:00Z'),
+      scopeB
+    )
+
+    const value = await h.repos.scoreQueries.getProgressAtCutoff(
+      scenario.userId,
+      scenario.activityId,
+      scopeB,
+      cutoff
+    )
+
+    assert.equal(value, 0.3)
   })
 })

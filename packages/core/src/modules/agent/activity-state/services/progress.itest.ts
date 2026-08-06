@@ -240,6 +240,64 @@ describe('ActivityProgressService — scope partitioning', () => {
     )
     approx(readB.others?.[0]?.progress, 0.25)
   })
+
+  it('updates only matching-scope direct and cumulative line items', async () => {
+    const s = await seedScenario(h.db)
+    const scopeB = await seedScope(h.db, s.platformId)
+    const targetUrl = `https://content.test/target-${uuidv7()}`
+    const targetId = await seedActivity(h.db, targetUrl)
+    const selfLineItem = await seedLineItem(h.db, s, {
+      submittable_progress: 0,
+      submission_eligible_at: null,
+    })
+    const targetLineItem = await seedLineItem(
+      h.db,
+      { ...s, activityId: targetId },
+      {
+        submittable_progress: 0,
+        submission_eligible_at: null,
+      }
+    )
+
+    await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId, scopeB), {
+      progress_for_current_page: 0.6,
+      increments_for_other_pages: [{ url: targetUrl, factor: 0.5 }],
+    })
+
+    approx((await readLineItem(selfLineItem.id))?.submittable_progress, 0)
+    approx((await readLineItem(targetLineItem.id))?.submittable_progress, 0)
+    assert.equal((await readLineItem(selfLineItem.id))?.submission_eligible_at, null)
+    assert.equal((await readLineItem(targetLineItem.id))?.submission_eligible_at, null)
+  })
+
+  it('executes exactly one line-item statement for self and each cumulative target', async () => {
+    const s = await seedScenario(h.db)
+    const firstUrl = `https://content.test/target-${uuidv7()}`
+    const secondUrl = `https://content.test/target-${uuidv7()}`
+    await seedActivity(h.db, firstUrl)
+    await seedActivity(h.db, secondUrl)
+    const mutations = h.repos.activityMutations
+    const original = mutations.updateLineItems.bind(mutations)
+    let statements = 0
+    mutations.updateLineItems = async (values) => {
+      statements += 1
+      return original(values)
+    }
+
+    try {
+      await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+        progress_for_current_page: 0.6,
+        increments_for_other_pages: [
+          { url: firstUrl, factor: 0.5 },
+          { url: secondUrl, factor: 0.5 },
+        ],
+      })
+    } finally {
+      mutations.updateLineItems = original
+    }
+
+    assert.equal(statements, 3)
+  })
 })
 
 describe('ActivityProgressService.setProgress — concurrency', () => {

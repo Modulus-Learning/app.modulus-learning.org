@@ -18,7 +18,7 @@ import {
 import { ActivityPageStateService } from '@/modules/agent/activity-state/services/pagestate.js'
 import { ActivityProgressService } from '@/modules/agent/activity-state/services/progress.js'
 import { ActivityQueries as AppActivityQueries } from '@/modules/app/activities/repository/index.js'
-import { LtiMutations } from '@/modules/app/lti/repository/index.js'
+import { LtiMutations, LtiQueries } from '@/modules/app/lti/repository/index.js'
 import {
   LtiScoreSubmissionMutations,
   LtiScoreSubmissionQueries,
@@ -64,6 +64,7 @@ export function assertTestDatabase(connectionString: string | undefined): string
 
 export type TestRepos = {
   ltiMutations: LtiMutations
+  ltiQueries: LtiQueries
   scoreQueries: LtiScoreSubmissionQueries
   scoreMutations: LtiScoreSubmissionMutations
   activityQueries: ActivityStateQueries
@@ -124,6 +125,7 @@ export async function setupTestHarness(): Promise<TestHarness> {
   const deps = { logger, utils, db: dbManager }
   const repos: TestRepos = {
     ltiMutations: new LtiMutations(deps),
+    ltiQueries: new LtiQueries(deps),
     scoreQueries: new LtiScoreSubmissionQueries(deps),
     scoreMutations: new LtiScoreSubmissionMutations(deps),
     activityQueries: new ActivityStateQueries(deps),

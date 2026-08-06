@@ -1,4 +1,4 @@
-import { and, eq, getTableColumns, gte, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, getTableColumns, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
 import {
@@ -38,8 +38,14 @@ export type PageStateUpdate = Pick<Partial<PageStateInsert>, 'state'>
 export type LineItemUpdate = {
   user_id: string
   activity_id: string
+  scope_id: string
   progress: number
   submitted_at: Date
+}
+
+export type LineItemUpdateResult = {
+  updated_count: number
+  scope_mismatch: boolean
 }
 
 export class ActivityStateQueries extends BaseService {
@@ -255,28 +261,45 @@ export class ActivityStateMutations extends BaseService {
   async updateLineItems({
     user_id,
     activity_id,
+    scope_id,
     submitted_at,
     progress,
-  }: LineItemUpdate): Promise<void> {
-    await this.db
+  }: LineItemUpdate): Promise<LineItemUpdateResult> {
+    const result = await this.db
       .get()
-      .update(lineitems)
-      .set({
-        submittable_progress: sql`GREATEST(${lineitems.submittable_progress}, ${progress})`,
-        submission_eligible_at: sql`
-          CASE WHEN ${lineitems.submittable_progress} > ${lineitems.submitted_progress}
-          THEN COALESCE(${lineitems.submission_eligible_at}, now())
-          ELSE GREATEST(${lineitems.submission_eligible_at}, now()) END`,
-        updated_at: sql`now()`,
-      })
-      .where(
-        and(
-          eq(lineitems.user_id, user_id),
-          eq(lineitems.activity_id, activity_id),
-          or(isNull(lineitems.cutoff_at), gte(lineitems.cutoff_at, submitted_at)),
-          isNull(lineitems.dead_at)
+      .execute<{ updated_count: number; scope_mismatch: boolean }>(sql`
+        WITH candidates AS MATERIALIZED (
+          SELECT id, scope_id
+          FROM ${lineitems}
+          WHERE user_id = ${user_id}
+            AND activity_id = ${activity_id}
+            AND (cutoff_at IS NULL OR cutoff_at >= ${submitted_at})
+            AND dead_at IS NULL
+        ), updated AS (
+          UPDATE ${lineitems} AS target
+          SET
+            submittable_progress = GREATEST(target.submittable_progress, ${progress}),
+            submission_eligible_at = CASE
+              WHEN target.submittable_progress > target.submitted_progress
+              THEN COALESCE(target.submission_eligible_at, now())
+              ELSE GREATEST(target.submission_eligible_at, now())
+            END,
+            updated_at = now()
+          FROM candidates
+          WHERE target.id = candidates.id
+            AND target.scope_id = ${scope_id}
+          RETURNING target.id
         )
-      )
+        SELECT
+          (SELECT count(*)::integer FROM updated) AS updated_count,
+          NOT EXISTS (SELECT 1 FROM updated)
+            AND EXISTS (SELECT 1 FROM candidates WHERE scope_id <> ${scope_id})
+            AS scope_mismatch
+      `)
       .catch(this.utils.wrapDbErrorNew())
+
+    const outcome = result.rows[0]
+    this.utils.assertExists(outcome, { message: 'line item update outcome is null' })
+    return outcome
   }
 }

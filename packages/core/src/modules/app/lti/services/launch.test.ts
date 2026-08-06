@@ -10,6 +10,7 @@ import { v7 as uuidv7 } from 'uuid'
 import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
 import { createCoreLogger } from '@/lib/logger.js'
 import {
+  CLAIM_AGS_ENDPOINT,
   CLAIM_CUSTOM,
   CLAIM_DEPLOYMENT_ID,
   CLAIM_MESSAGE_TYPE,
@@ -26,6 +27,7 @@ import {
 import type { TXManager } from '@/lib/db-manager.js'
 import type { ActivityQueries } from '@/modules/app/activities/repository/index.js'
 import type {
+  LineItemReconciliation,
   LtiMutations,
   LtiQueries,
   PlatformRecord,
@@ -280,6 +282,9 @@ describe('LtiLaunchService.handleLaunch', () => {
         remember_me: false,
       }
       let resolvedValues: PlatformScopeResolution | undefined
+      let initializedScope: string | undefined
+      let cutoffScope: string | undefined
+      let reconciled: LineItemReconciliation | undefined
 
       const service = new LtiLaunchService({
         logger: createCoreLogger({ pinoLogger: pino({ level: 'silent' }) }),
@@ -288,6 +293,10 @@ describe('LtiLaunchService.handleLaunch', () => {
         } as TXManager,
         queries: {
           findPlatformByIssuer: async () => platform,
+          getProgressWithCutoff: async (_userId: string, _activityId: string, scope: string) => {
+            cutoffScope = scope
+            return 0.35
+          },
         } as unknown as LtiQueries,
         mutations: {
           claimNonce: async () => true,
@@ -295,6 +304,12 @@ describe('LtiLaunchService.handleLaunch', () => {
           resolvePlatformScope: async (values: PlatformScopeResolution) => {
             resolvedValues = values
             return scopeRecord(values, { id: scopeId, name: 'Autumn 2026' })
+          },
+          upsertProgress: async (_activityId: string, _userId: string, scope: string) => {
+            initializedScope = scope
+          },
+          reconcileLineItem: async (values: LineItemReconciliation) => {
+            reconciled = values
           },
         } as unknown as LtiMutations,
         activities: {
@@ -332,6 +347,10 @@ describe('LtiLaunchService.handleLaunch', () => {
         [CLAIM_DEPLOYMENT_ID]: 'deployment-1',
         [CLAIM_TARGET_LINK_URI]: 'https://gradebook.launch.test/lti/launch',
         [CLAIM_ROLES]: [],
+        [CLAIM_AGS_ENDPOINT]: {
+          lineitem: 'https://canvas.launch.test/lineitems/1',
+          scope: ['https://purl.imsglobal.org/spec/lti-ags/scope/score'],
+        },
         [CLAIM_CUSTOM]: {
           modulus_launch_type: 'start-activity',
           modulus_activity_code: 'activity-code',
@@ -364,6 +383,10 @@ describe('LtiLaunchService.handleLaunch', () => {
       assert.equal(resolvedValues?.starts_at?.toISOString(), '2026-08-20T00:00:00.000Z')
       assert.equal(resolvedValues?.ends_at?.toISOString(), '2026-12-15T23:59:59.000Z')
       assert.ok(resolvedValues?.last_verified_launch_at instanceof Date)
+      assert.equal(initializedScope, scopeId)
+      assert.equal(cutoffScope, scopeId)
+      assert.equal(reconciled?.scope_id, scopeId)
+      assert.equal(reconciled?.submittable_progress, 0.35)
 
       const serialized = JSON.stringify(response)
       assert.equal(serialized.includes(rawTermId), false)

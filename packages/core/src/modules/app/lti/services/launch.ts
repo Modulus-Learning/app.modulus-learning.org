@@ -282,31 +282,27 @@ export class LtiLaunchService extends BaseService {
       ])
 
       await this.tx.withTransaction(async () => {
-        await this.ltiMutations.upsertProgress(activity.id, signIn.user.id)
+        await this.ltiMutations.upsertProgress(activity.id, signIn.user.id, scope.scope_id)
 
         const submittable_progress = await this.ltiQueries.getProgressWithCutoff(
           signIn.user.id,
           activity.id,
+          scope.scope_id,
           cutoff_at
         )
 
-        // If no lineitem record exists, create one.  If a lineitem does
-        // exist, update the existing lineitem to ensure it has the cutoff_at
-        // date supplied in the current launch and an up-to-date
-        // submittable_progress value.  Also revive the lineitem if it has been
-        // marked 'dead' and mark it as eligible for submission (though it won't
-        // be submitted unless its submittable progress exceeds its submitted
-        // progress).
+        // Insert a complete line item when none exists.  A conflicting identity
+        // is locked before reconciliation: the same-scope branch revives the
+        // row while preserving submission state, while a verified scope change
+        // rebinds the row and resets stale submission, retry, and lease state.
         //
-        // This deliberately leaves the submission lease and error counters
-        // untouched: launch and the submission worker are separate writers on
-        // this row, and clobbering an in-flight lease here would break fencing.
-        // A submission already in progress finishes and records its result under
-        // its own fencing token; the updated data is picked up on the next
-        // eligible pass.  (See LTI-SCORE-SUBMISSION.md.)
-        await this.ltiMutations.upsertLineItem({
+        // Same-scope launches deliberately leave an in-flight worker's fencing
+        // token untouched.  A scope rebind clears that token, so the stale
+        // completion is rejected by the existing id/token fence.
+        await this.ltiMutations.reconcileLineItem({
           user_id: signIn.user.id,
           activity_id: activity.id,
+          scope_id: scope.scope_id,
           platform_issuer: launch.iss,
           deployment_id: launch[CLAIM_DEPLOYMENT_ID],
           lineitem_url,

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, it } from 'node:test'
 
 import { and, eq } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 
 import { DEFAULT_SCOPE_ID, lineitems, pageState, progress } from '@/database/schema/index.js'
 import { deferred, waitFor } from '@/test-support/async.js'
@@ -243,6 +244,90 @@ describe('setPageState', () => {
 })
 
 describe('updateLineItems (ingestion scheduling)', () => {
+  it('returns the scoped update count from the update statement', async () => {
+    const s = await seedScenario(h.db)
+    await seedLineItem(h.db, s, { submittable_progress: 0 })
+
+    const result = await h.repos.activityMutations.updateLineItems({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
+      progress: 0.4,
+      submitted_at: new Date(),
+    })
+
+    assert.deepEqual(result, { updated_count: 1, scope_mismatch: false })
+  })
+
+  it('returns a normal zero outcome when no live line item exists', async () => {
+    const s = await seedScenario(h.db)
+
+    const result = await h.repos.activityMutations.updateLineItems({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
+      progress: 0.4,
+      submitted_at: new Date(),
+    })
+
+    assert.deepEqual(result, { updated_count: 0, scope_mismatch: false })
+  })
+
+  it('classifies an other-scope live item without rewriting any of its state', async () => {
+    const s = await seedScenario(h.db)
+    const scopeB = await seedScope(h.db, s.platformId)
+    const leaseToken = uuidv7()
+    const eligibleAt = new Date('2026-01-02T00:00:00Z')
+    const leaseExpiresAt = new Date('2026-01-03T00:00:00Z')
+    const lineitem = await seedLineItem(h.db, s, {
+      scope_id: scopeB,
+      submittable_progress: 0.2,
+      submitted_progress: 0.1,
+      submission_eligible_at: eligibleAt,
+      submission_lease_token: leaseToken,
+      submission_lease_expires_at: leaseExpiresAt,
+      submission_error_count: 2,
+      submission_error_category: 'transient',
+      submission_error_message: 'unchanged',
+    })
+
+    const result = await h.repos.activityMutations.updateLineItems({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
+      progress: 0.9,
+      submitted_at: new Date(),
+    })
+    const after = await readLineItem(lineitem.id)
+
+    assert.deepEqual(result, { updated_count: 0, scope_mismatch: true })
+    assert.equal(after?.scope_id, scopeB)
+    approx(after?.submittable_progress, 0.2)
+    assert.equal(after?.submission_eligible_at?.getTime(), eligibleAt.getTime())
+    assert.equal(after?.submission_lease_token, leaseToken)
+    assert.equal(after?.submission_lease_expires_at?.getTime(), leaseExpiresAt.getTime())
+    assert.equal(after?.submission_error_count, 2)
+    assert.equal(after?.submission_error_category, 'transient')
+    assert.equal(after?.submission_error_message, 'unchanged')
+    assert.equal(after?.updated_at.getTime(), lineitem.updated_at.getTime())
+  })
+
+  it('classifies a sentinel mismatch when only a non-default line item exists', async () => {
+    const s = await seedScenario(h.db)
+    const scopeB = await seedScope(h.db, s.platformId)
+    await seedLineItem(h.db, s, { scope_id: scopeB })
+
+    const result = await h.repos.activityMutations.updateLineItems({
+      user_id: s.userId,
+      activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
+      progress: 0.9,
+      submitted_at: new Date(),
+    })
+
+    assert.deepEqual(result, { updated_count: 0, scope_mismatch: true })
+  })
+
   it('raises submittable_progress via GREATEST and never lowers it', async () => {
     const s = await seedScenario(h.db)
     const li = await seedLineItem(h.db, s, {
@@ -254,6 +339,7 @@ describe('updateLineItems (ingestion scheduling)', () => {
     await h.repos.activityMutations.updateLineItems({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.6,
       submitted_at: new Date(),
     })
@@ -263,6 +349,7 @@ describe('updateLineItems (ingestion scheduling)', () => {
     await h.repos.activityMutations.updateLineItems({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.4,
       submitted_at: new Date(),
     })
@@ -281,6 +368,7 @@ describe('updateLineItems (ingestion scheduling)', () => {
     await h.repos.activityMutations.updateLineItems({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.7,
       submitted_at: new Date(),
     })
@@ -306,6 +394,7 @@ describe('updateLineItems (ingestion scheduling)', () => {
     await h.repos.activityMutations.updateLineItems({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.7,
       submitted_at: new Date(),
     })
@@ -326,6 +415,7 @@ describe('updateLineItems (ingestion scheduling)', () => {
     await h.repos.activityMutations.updateLineItems({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.5,
       submitted_at: new Date(),
     })
@@ -349,6 +439,7 @@ describe('updateLineItems (ingestion scheduling)', () => {
     await h.repos.activityMutations.updateLineItems({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.9,
       submitted_at: new Date('2026-02-01T00:00:00Z'), // after the cutoff
     })
@@ -365,6 +456,7 @@ describe('updateLineItems (ingestion scheduling)', () => {
     await h.repos.activityMutations.updateLineItems({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.9,
       submitted_at: new Date('2026-02-01T00:00:00Z'), // before the cutoff
     })
@@ -381,6 +473,7 @@ describe('updateLineItems (ingestion scheduling)', () => {
     await h.repos.activityMutations.updateLineItems({
       user_id: s.userId,
       activity_id: s.activityId,
+      scope_id: DEFAULT_SCOPE_ID,
       progress: 0.9,
       submitted_at: new Date(),
     })

@@ -14,7 +14,14 @@ import {
   scopes,
 } from '@/database/schema/index.js'
 import { resolveVerifiedLaunchScope } from '@/modules/app/lti/services/launch.js'
-import { seedLineItem, seedProgress, seedScenario, seedScope } from '@/test-support/fixtures.js'
+import {
+  type Scenario,
+  seedLineItem,
+  seedProgress,
+  seedProgressEvent,
+  seedScenario,
+  seedScope,
+} from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
 
 let h: TestHarness
@@ -217,8 +224,16 @@ describe('activity scope constraints', () => {
   it('upserts launch progress against the sentinel-scoped key', async () => {
     const scenario = await seedScenario(h.db)
 
-    await h.repos.ltiMutations.upsertProgress(scenario.activityId, scenario.userId)
-    await h.repos.ltiMutations.upsertProgress(scenario.activityId, scenario.userId)
+    await h.repos.ltiMutations.upsertProgress(
+      scenario.activityId,
+      scenario.userId,
+      DEFAULT_SCOPE_ID
+    )
+    await h.repos.ltiMutations.upsertProgress(
+      scenario.activityId,
+      scenario.userId,
+      DEFAULT_SCOPE_ID
+    )
 
     const rows = await h.db
       .select()
@@ -230,6 +245,30 @@ describe('activity scope constraints', () => {
     assert.equal(rows.length, 1)
     assert.equal(rows[0]?.scope_id, DEFAULT_SCOPE_ID)
     assert.equal(rows[0]?.progress, 0)
+  })
+
+  it('initializes launch progress only in the verified scope', async () => {
+    const scenario = await seedScenario(h.db)
+    const scopeId = await seedScope(h.db, scenario.platformId)
+    await seedProgress(h.db, scenario.userId, scenario.activityId, 0.7, DEFAULT_SCOPE_ID)
+
+    await h.repos.ltiMutations.upsertProgress(scenario.activityId, scenario.userId, scopeId)
+
+    const rows = await h.db
+      .select()
+      .from(progress)
+      .where(
+        and(eq(progress.user_id, scenario.userId), eq(progress.activity_id, scenario.activityId))
+      )
+    assert.deepEqual(
+      rows
+        .map(({ scope_id, progress: value }) => ({ scope_id, progress: value }))
+        .sort((a, b) => a.scope_id.localeCompare(b.scope_id)),
+      [
+        { scope_id: DEFAULT_SCOPE_ID, progress: 0.7 },
+        { scope_id: scopeId, progress: 0 },
+      ].sort((a, b) => a.scope_id.localeCompare(b.scope_id))
+    )
   })
 
   it('stores independent progress and page state in two scopes', async () => {
@@ -288,5 +327,222 @@ describe('activity scope constraints', () => {
       .from(lineitems)
       .where(eq(lineitems.lineitem_url, lineitemUrl))
     assert.deepEqual(rows, [{ scopeId: firstScopeId }])
+  })
+})
+
+describe('line-item scope reconciliation', () => {
+  const reconcile = (
+    scenario: Scenario,
+    scope_id: string,
+    overrides: {
+      lineitem_url?: string
+      submittable_progress?: number
+      cutoff_at?: Date | null
+    } = {}
+  ) =>
+    h.tx.withTransaction(() =>
+      h.repos.ltiMutations.reconcileLineItem({
+        user_id: scenario.userId,
+        activity_id: scenario.activityId,
+        scope_id,
+        platform_issuer: scenario.issuer,
+        deployment_id: scenario.deploymentId,
+        lineitem_url:
+          overrides.lineitem_url ?? 'https://canvas.test/lineitems/scope-reconciliation',
+        lti_user_id: 'lti-user-1',
+        cutoff_at: overrides.cutoff_at ?? null,
+        submittable_progress: overrides.submittable_progress ?? 0,
+      })
+    )
+
+  it('converges concurrent first launches on one fully initialized row', async () => {
+    const scenario = await seedScenario(h.db)
+    const scopeId = await seedScope(h.db, scenario.platformId)
+
+    const reconciled = await Promise.all([
+      reconcile(scenario, scopeId, { submittable_progress: 0.2 }),
+      reconcile(scenario, scopeId, { submittable_progress: 0.7 }),
+    ])
+
+    assert.equal(new Set(reconciled.map(({ id }) => id)).size, 1)
+    const rows = await h.db.select().from(lineitems)
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0]?.scope_id, scopeId)
+    assert.equal(rows[0]?.platform_issuer, scenario.issuer)
+    assert.equal(rows[0]?.deployment_id, scenario.deploymentId)
+    assert.equal(rows[0]?.lti_user_id, 'lti-user-1')
+    assert.equal(rows[0]?.submittable_progress, 0.7)
+    assert.ok(rows[0]?.submission_eligible_at)
+  })
+
+  it('preserves the high-water mark and submission state on a same-scope launch', async () => {
+    const scenario = await seedScenario(h.db)
+    const scopeId = await seedScope(h.db, scenario.platformId)
+    const leaseToken = uuidv7()
+    const submittedAt = new Date('2026-01-02T00:00:00Z')
+    const eligibleAt = new Date('2026-01-03T00:00:00Z')
+    const leaseExpiresAt = new Date('2026-01-04T00:00:00Z')
+    const seeded = await seedLineItem(h.db, scenario, {
+      scope_id: scopeId,
+      lineitem_url: 'https://canvas.test/lineitems/scope-reconciliation',
+      submittable_progress: 0.8,
+      submitted_progress: 0.4,
+      submitted_at: submittedAt,
+      submission_eligible_at: eligibleAt,
+      submission_lease_token: leaseToken,
+      submission_lease_expires_at: leaseExpiresAt,
+      submission_error_count: 3,
+      submission_error_category: 'transient',
+      submission_error_message: 'try again',
+      dead_at: new Date('2026-01-01T00:00:00Z'),
+    })
+
+    const reconciled = await reconcile(scenario, scopeId, { submittable_progress: 0.5 })
+
+    assert.equal(reconciled.id, seeded.id)
+    assert.equal(reconciled.scope_id, scopeId)
+    assert.equal(reconciled.submittable_progress, 0.8)
+    assert.equal(reconciled.submitted_progress, 0.4)
+    assert.equal(reconciled.submitted_at?.getTime(), submittedAt.getTime())
+    assert.equal(reconciled.submission_lease_token, leaseToken)
+    assert.equal(reconciled.submission_lease_expires_at?.getTime(), leaseExpiresAt.getTime())
+    assert.equal(reconciled.submission_error_count, 3)
+    assert.equal(reconciled.submission_error_category, 'transient')
+    assert.equal(reconciled.submission_error_message, 'try again')
+    assert.equal(reconciled.dead_at, null, 'the ordinary launch revives the row')
+    assert.equal(reconciled.submission_eligible_at?.getTime(), eligibleAt.getTime())
+  })
+
+  it('rebinds to a new scope and resets all stale submission state', async () => {
+    const scenario = await seedScenario(h.db)
+    const scopeA = await seedScope(h.db, scenario.platformId, 'term-a')
+    const scopeB = await seedScope(h.db, scenario.platformId, 'term-b')
+    const lineitemUrl = 'https://canvas.test/lineitems/scope-reconciliation'
+    const seeded = await seedLineItem(h.db, scenario, {
+      scope_id: scopeA,
+      lineitem_url: lineitemUrl,
+      submittable_progress: 0.8,
+      submitted_progress: 0.6,
+      submitted_at: new Date('2026-01-02T00:00:00Z'),
+      submission_eligible_at: new Date('2026-01-03T00:00:00Z'),
+      submission_lease_token: uuidv7(),
+      submission_lease_expires_at: new Date('2026-01-04T00:00:00Z'),
+      submission_error_count: 3,
+      submission_error_category: 'transient',
+      submission_error_message: 'try again',
+      dead_at: new Date('2026-01-01T00:00:00Z'),
+    })
+    const eventAt = new Date('2026-02-01T00:00:00Z')
+    await seedProgress(h.db, scenario.userId, scenario.activityId, 0.8, scopeA)
+    await seedProgress(h.db, scenario.userId, scenario.activityId, 0.3, scopeB)
+    await seedProgressEvent(h.db, scenario.userId, scenario.activityId, 0.8, eventAt, scopeA)
+    await seedProgressEvent(h.db, scenario.userId, scenario.activityId, 0.3, eventAt, scopeB)
+    const scopeBProgress = await h.repos.ltiQueries.getProgressWithCutoff(
+      scenario.userId,
+      scenario.activityId,
+      scopeB,
+      undefined
+    )
+
+    const reconciled = await reconcile(scenario, scopeB, {
+      lineitem_url: lineitemUrl,
+      submittable_progress: scopeBProgress,
+    })
+
+    assert.equal(reconciled.id, seeded.id)
+    assert.equal(reconciled.scope_id, scopeB)
+    assert.equal(reconciled.submittable_progress, 0.3)
+    assert.equal(reconciled.submitted_progress, 0)
+    assert.equal(reconciled.submitted_at, null)
+    assert.equal(reconciled.dead_at, null)
+    assert.equal(reconciled.submission_error_count, 0)
+    assert.equal(reconciled.submission_error_category, null)
+    assert.equal(reconciled.submission_error_message, null)
+    assert.equal(reconciled.submission_lease_token, null)
+    assert.equal(reconciled.submission_lease_expires_at, null)
+    assert.ok(reconciled.submission_eligible_at)
+
+    const stateRows = await h.db
+      .select()
+      .from(progressEvents)
+      .where(eq(progressEvents.activity_id, scenario.activityId))
+    assert.deepEqual(
+      stateRows.map(({ scope_id, progress }) => ({ scope_id, progress })),
+      [
+        { scope_id: scopeA, progress: 0.8 },
+        { scope_id: scopeB, progress: 0.3 },
+      ]
+    )
+    const progressRows = await h.db
+      .select()
+      .from(progress)
+      .where(eq(progress.activity_id, scenario.activityId))
+    assert.deepEqual(
+      progressRows
+        .map(({ scope_id, progress: value }) => ({ scope_id, progress: value }))
+        .sort((a, b) => a.scope_id.localeCompare(b.scope_id)),
+      [
+        { scope_id: scopeA, progress: 0.8 },
+        { scope_id: scopeB, progress: 0.3 },
+      ].sort((a, b) => a.scope_id.localeCompare(b.scope_id))
+    )
+  })
+
+  it('rebinds to exactly zero when the new scope has no progress', async () => {
+    const scenario = await seedScenario(h.db)
+    const scopeA = await seedScope(h.db, scenario.platformId, 'term-a')
+    const scopeB = await seedScope(h.db, scenario.platformId, 'term-b')
+    await seedLineItem(h.db, scenario, {
+      scope_id: scopeA,
+      lineitem_url: 'https://canvas.test/lineitems/scope-reconciliation',
+      submittable_progress: 0.8,
+    })
+
+    const progressInB = await h.repos.ltiQueries.getProgressWithCutoff(
+      scenario.userId,
+      scenario.activityId,
+      scopeB,
+      undefined
+    )
+    const reconciled = await reconcile(scenario, scopeB, {
+      submittable_progress: progressInB,
+    })
+
+    assert.equal(reconciled.scope_id, scopeB)
+    assert.equal(reconciled.submittable_progress, 0)
+  })
+
+  it('serializes concurrent same-scope and rebind branches into one coherent state', async () => {
+    const scenario = await seedScenario(h.db)
+    const scopeA = await seedScope(h.db, scenario.platformId, 'term-a')
+    const scopeB = await seedScope(h.db, scenario.platformId, 'term-b')
+    await seedLineItem(h.db, scenario, {
+      scope_id: scopeA,
+      lineitem_url: 'https://canvas.test/lineitems/scope-reconciliation',
+      submittable_progress: 0.8,
+      submitted_progress: 0.6,
+      submission_lease_token: uuidv7(),
+      submission_lease_expires_at: new Date(Date.now() + 60_000),
+      submission_error_count: 2,
+      submission_error_category: 'transient',
+      submission_error_message: 'stale',
+    })
+
+    await Promise.all([
+      reconcile(scenario, scopeA, { submittable_progress: 0.8 }),
+      reconcile(scenario, scopeB, { submittable_progress: 0.3 }),
+    ])
+
+    const [row] = await h.db.select().from(lineitems)
+    assert.ok(row)
+    if (row.scope_id === scopeA) {
+      assert.equal(row.submittable_progress, 0.8)
+    } else {
+      assert.equal(row.scope_id, scopeB)
+      assert.equal(row.submittable_progress, 0.3)
+    }
+    assert.equal(row.submitted_progress, 0)
+    assert.equal(row.submission_lease_token, null)
+    assert.equal(row.submission_error_count, 0)
   })
 })

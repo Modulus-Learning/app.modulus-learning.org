@@ -167,7 +167,12 @@ export class LtiScoreSubmissionQueries extends BaseService {
   }
 
   @method
-  async getProgressAtCutoff(user_id: string, activity_id: string, cutoff: Date): Promise<number> {
+  async getProgressAtCutoff(
+    user_id: string,
+    activity_id: string,
+    scope_id: string,
+    cutoff: Date
+  ): Promise<number> {
     const [row] = await this.db
       .get()
       .select({
@@ -178,6 +183,7 @@ export class LtiScoreSubmissionQueries extends BaseService {
         and(
           eq(progressEvents.user_id, user_id),
           eq(progressEvents.activity_id, activity_id),
+          eq(progressEvents.scope_id, scope_id),
           lte(progressEvents.submitted_at, cutoff)
         )
       )
