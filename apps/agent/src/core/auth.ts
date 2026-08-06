@@ -405,7 +405,7 @@ const handleAuthCodeResponse = async (
 
   await logger?.log(
     'Token request parameters:',
-    JSON.stringify({ ...requestParams, code_verifier: '[redacted]' })
+    JSON.stringify({ ...requestParams, code: '[redacted]', code_verifier: '[redacted]' })
   )
 
   const requestUrl = new URL('/routes/agent/token', oauthSession.context.issuer)
@@ -423,7 +423,7 @@ const handleAuthCodeResponse = async (
       const { api_base_url, access_token, user, scope_id, scope_name } = await response.json()
       await logger?.log(
         'Received token response:',
-        JSON.stringify({ access_token: '[redacted]', api_base_url, user, scope_id, scope_name })
+        JSON.stringify({ access_token: '[redacted]', api_base_url, scope_id, scope_name })
       )
       const refreshedContext = createActivityContext(
         oauthSession.context.issuer,

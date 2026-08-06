@@ -592,6 +592,26 @@ describe('OAuth response restoration', () => {
     expect(redirectUri.hash).toBe('')
   })
 
+  it('redacts OAuth credentials and learner identity from diagnostics', async () => {
+    window.sessionStorage.setItem(OAUTH_SESSION_STORAGE_KEY, JSON.stringify(oauthSession()))
+    window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => tokenResponse({ scope_name: 'Autumn 2026' }))
+    )
+    const log = vi.fn(async () => {})
+
+    await authenticate({ log })
+
+    const diagnostics = JSON.stringify(log.mock.calls)
+    expect(diagnostics).toContain('[redacted]')
+    expect(diagnostics).not.toContain('auth-code')
+    expect(diagnostics).not.toContain('code-verifier')
+    expect(diagnostics).not.toContain('access-token')
+    expect(diagnostics).not.toContain('opaque-user')
+    expect(diagnostics).not.toContain('Test User')
+  })
+
   it('restores the authored return location for an OAuth error response', async () => {
     window.sessionStorage.setItem(OAUTH_SESSION_STORAGE_KEY, JSON.stringify(oauthSession()))
     window.history.replaceState(
