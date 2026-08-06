@@ -2,6 +2,7 @@ import {
   and,
   asc,
   eq,
+  exists,
   getTableColumns,
   ilike,
   inArray,
@@ -297,6 +298,18 @@ export class ActivityQueries extends BaseService {
     const limit = page_size
     const offset = (page - 1) * page_size
 
+    const enrolledInActivityCode = this.db
+      .get()
+      .select({ marker: sql`1` })
+      .from(enrollment)
+      .where(
+        and(
+          eq(enrollment.activity_code_id, activity_code_id),
+          eq(enrollment.user_id, progress.user_id),
+          eq(enrollment.activity_id, progress.activity_id)
+        )
+      )
+
     const progressByEnrollment = this.db
       .get()
       .select({
@@ -307,6 +320,7 @@ export class ActivityQueries extends BaseService {
         updated_at: max(progress.updated_at).as('aggregate_updated_at'),
       })
       .from(progress)
+      .where(exists(enrolledInActivityCode))
       .groupBy(progress.user_id, progress.activity_id)
       .as('progress_by_enrollment')
 
