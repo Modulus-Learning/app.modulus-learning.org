@@ -16,7 +16,7 @@ import LtiLaunchPage from './page'
 
 const scopeId = '019c2d8e-842a-7715-a323-a7e31427db2d'
 const activityUrl = 'https://content.test/activity'
-const decodedGo = ['course-code', 'https:', 'content.test', 'activity']
+const encodedGo = ['course-code', 'https%3A', 'content.test', 'activity']
 
 describe('LTI launch interstitial page', () => {
   beforeEach(() => {
@@ -38,7 +38,7 @@ describe('LTI launch interstitial page', () => {
 
   test('passes a validated scope UUID to startActivity', async () => {
     await LtiLaunchPage({
-      params: Promise.resolve({ go: decodedGo }),
+      params: Promise.resolve({ go: encodedGo }),
       searchParams: Promise.resolve({ scope_id: scopeId }),
     })
 
@@ -47,14 +47,14 @@ describe('LTI launch interstitial page', () => {
 
   test.each([
     {
-      go: ['course-code', 'https:', 'content.test', 'a%20b'],
+      go: ['course-code', 'https%3A', 'content.test', 'a%20b'],
       expected: 'https://content.test/a%20b',
     },
     {
-      go: ['course-code', 'https:', 'content.test', 'activity?discount=50%'],
+      go: ['course-code', 'https%3A', 'content.test', 'activity?discount=50%'],
       expected: 'https://content.test/activity?discount=50%',
     },
-  ])('does not decode Next-delivered activity parameters a second time', async ({
+  ])('preserves authored path escapes in Next-delivered activity parameters', async ({
     go,
     expected,
   }) => {
@@ -72,7 +72,7 @@ describe('LTI launch interstitial page', () => {
     { scope_id: [scopeId, scopeId] },
   ])('renders a launch error for an invalid first-party scope parameter', async (searchParams) => {
     const result = await LtiLaunchPage({
-      params: Promise.resolve({ go: decodedGo }),
+      params: Promise.resolve({ go: encodedGo }),
       searchParams: Promise.resolve(searchParams),
     })
 

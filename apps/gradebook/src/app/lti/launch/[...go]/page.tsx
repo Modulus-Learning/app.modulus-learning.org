@@ -3,24 +3,10 @@ import type React from 'react'
 import { DEFAULT_SCOPE_ID } from '@modulus-learning/core'
 import { z } from 'zod'
 
+import { extractActivityLaunchParameters } from '@/modules/app/activity/launch-url'
 import { startActivity } from '@/modules/app/activity/start-activity'
 import { getUserSession } from '@/modules/app/session/storage'
 import { LtiLaunchActivity } from '@/modules/lti/components/lti-launch-activity'
-
-function extractParameters(params: string[]): Record<string, string | null> {
-  const receivedParams = [...params]
-  if (receivedParams.length > 0) {
-    const activityCode = receivedParams[0]
-    receivedParams.shift()
-    let destinationURL = receivedParams.join('/')
-    // Next.js specific fixup. There is no way to prevent
-    // Next.js from 'normalizing' URLs to remove double
-    // forward slashes - and so we have to put them back here.
-    destinationURL = destinationURL.replace(/^https?:\/(?!\/)/, (protocol) => `${protocol}/`)
-    return { activityCode, destinationURL }
-  }
-  return { activityCode: null, destinationURL: null }
-}
 
 export default async function LtiLaunchPage({
   params,
@@ -31,7 +17,7 @@ export default async function LtiLaunchPage({
 }): Promise<React.JSX.Element> {
   const { go } = await params
   const { scope_id } = await searchParams
-  const { activityCode, destinationURL } = extractParameters(go)
+  const { activityCode, destinationURL } = extractActivityLaunchParameters(go)
   const session = await getUserSession()
   const parsedScope = z.uuid().safeParse(scope_id)
 

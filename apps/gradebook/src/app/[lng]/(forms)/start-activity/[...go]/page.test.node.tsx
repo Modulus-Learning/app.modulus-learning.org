@@ -35,7 +35,7 @@ describe('non-LTI start activity page', () => {
     await StartActivityPage({
       params: Promise.resolve({
         lng: 'en',
-        go: ['course-code', 'https:', 'content.test', 'a%20b'],
+        go: ['course-code', 'https%3A', 'content.test', 'a%20b'],
       }),
     })
 

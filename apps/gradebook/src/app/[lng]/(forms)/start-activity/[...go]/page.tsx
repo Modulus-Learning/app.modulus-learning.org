@@ -5,25 +5,11 @@ import { Container, Section } from '@infonomic/uikit/react'
 import { DEFAULT_SCOPE_ID } from '@modulus-learning/core'
 
 import { StartActivity } from '@/modules/app/activity/components/start-activity'
+import { extractActivityLaunchParameters } from '@/modules/app/activity/launch-url'
 import { startActivity } from '@/modules/app/activity/start-activity'
 import { getUserSession } from '@/modules/app/session/storage'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
 import type { Locale } from '@/i18n/i18n-config'
-
-function extractParameters(params: string[]): Record<string, string | null> {
-  const receivedParams = [...params]
-  if (receivedParams.length > 0) {
-    const activityCode = receivedParams[0]
-    receivedParams.shift()
-    let destinationURL = receivedParams.join('/')
-    // Next.js specific fixup. There is no way to prevent
-    // Next.js from 'normalizing' URLs to remove double
-    // forward slashes - and so we have to put them back here.
-    destinationURL = destinationURL.replace(/^https?:\/(?!\/)/, (protocol) => `${protocol}/`)
-    return { activityCode, destinationURL }
-  }
-  return { activityCode: null, destinationURL: null }
-}
 
 // Four possible component results
 // 1. Missing parameters
@@ -37,7 +23,7 @@ export default async function StartActivityPage({
   params: Promise<{ lng: Locale; go: string[] }>
 }): Promise<React.JSX.Element> {
   const { lng, go } = await params
-  const { activityCode, destinationURL } = extractParameters(go)
+  const { activityCode, destinationURL } = extractActivityLaunchParameters(go)
   const session = await getUserSession()
   const pathname = (await headers()).get('X-Current-Path')
 
