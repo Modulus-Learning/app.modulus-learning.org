@@ -2,6 +2,11 @@
 
 Date: 2026-08-04
 Status: baseline contracts resolved; no production implementation has started
+Supersession notice (2026-08-11): The browser context-selection and persistence
+contracts in this analysis are superseded by
+`specs/2026-08-11-activity-scope-client-persistence-analysis.md` and its matching
+implementation plan. The server-side scope identity, token binding, learner
+state, reporting, and score-passback contracts remain in force.
 Related:
 - `docs/ARCHITECTURE.md` — three-tier model and the Tier 2 ↔ Tier 3 privacy boundary
 - `docs/AUTHN-AUTHZ.md` — current learner, administrator, and agent token model

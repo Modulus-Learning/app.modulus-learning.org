@@ -3,6 +3,11 @@
 Date: 2026-08-04
 Status: implementation complete through Task 11 on `feat/activity-scopes`;
 pending independent review and final pull-request acceptance testing
+Supersession notice (2026-08-11): The completed Task 9/10 browser-context work
+is superseded before merge by
+`specs/2026-08-11-activity-scope-client-persistence-analysis.md` and
+`specs/2026-08-11-activity-scope-client-persistence-implementation-plan.md`.
+The completed task history below remains unchanged.
 Related:
 
 - `specs/2026-08-04-activity-scopes-analysis.md` — approved design analysis and
