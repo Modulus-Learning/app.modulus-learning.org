@@ -1,7 +1,8 @@
 # Activity scopes: term partitioning, token binding, and client transport — analysis
 
 Date: 2026-08-04
-Status: baseline contracts resolved; no production implementation has started
+Status: implementation completed through Task 11; browser context persistence
+is superseded before merge
 Supersession notice (2026-08-11): The browser context-selection and persistence
 contracts in this analysis are superseded by
 `specs/2026-08-11-activity-scope-client-persistence-analysis.md` and its matching

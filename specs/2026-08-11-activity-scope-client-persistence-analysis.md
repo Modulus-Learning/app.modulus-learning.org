@@ -46,16 +46,17 @@ a smaller and more predictable client model.
 Replace foreground-context inheritance with last-successful-authentication
 persistence:
 
-1. Keep a versioned activity context in `sessionStorage` for the context selected
-   by this tab.
+1. Keep a versioned activity context in `sessionStorage` for the context committed
+   to this tab by an explicit launch or verified OAuth success.
 2. Keep the same complete context in `localStorage` as the default for tabs that
    have no tab context. This record means “most recently authenticated
    successfully”, not “currently foregrounded”.
 3. Keep the OAuth transaction as a separate, atomic `sessionStorage` record
    containing PKCE state, the code verifier, the selected context, and the exact
    return location.
-4. Resolve context in this order: explicit fresh launch, OAuth response, tab
-   context, local default, then no Modulus context.
+4. Resolve context in this order: explicit fresh launch, OAuth response,
+   incomplete OAuth transaction, tab context, local default, then no Modulus
+   context.
 5. After a verified OAuth token response, write the canonical issuer, returned
    `scope_id`, and optional returned `scope_name` to both the tab record and the
    local default without inspecting focus or visibility.
@@ -139,10 +140,12 @@ The tab record means “the context selected for this top-level browsing context
 It survives reloads and same-tab navigation and disappears when the browser ends
 that tab's storage session.
 
-An explicit fresh launch replaces the tab record before OAuth begins. A tab that
-has no record copies a valid local default into its tab record before requesting
-authorization. A successful token exchange refreshes the record with the
-canonical returned `scope_id` and optional `scope_name`.
+An explicit fresh launch replaces the tab record before OAuth begins. A local
+default selected by a tab with no record does not become the tab context until
+its OAuth exchange succeeds. The OAuth transaction itself preserves that
+selection across the redirect. A successful token exchange writes or refreshes
+the tab record with the canonical returned `scope_id` and optional
+`scope_name`.
 
 The tab record intentionally takes precedence over a different local default.
 That difference is not divergence requiring reconciliation: it is how an
@@ -155,8 +158,8 @@ agent OAuth exchange on this activity origin.” It persists across tabs, window
 and browser restarts according to ordinary `localStorage` behaviour.
 
 Only a successful, verified token exchange writes this record. Receiving a fresh
-launch URL, beginning OAuth, becoming visible or focused, renewing an existing
-access token, or receiving an OAuth error does not write it.
+launch URL, beginning OAuth, becoming visible or focused, or receiving an OAuth
+error does not write it.
 
 Every successful exchange writes the complete canonical context without a
 foreground condition. Concurrent tabs therefore race only in the ordinary
@@ -195,6 +198,12 @@ navigating. Context-cache writes after successful authentication are
 best-effort: a persistence failure is diagnosed but does not invalidate an
 otherwise valid token response.
 
+If this transaction exists but the URL contains no OAuth response, the agent
+returns `missing_redirect` before considering either context cache. It preserves
+the transaction, so the failure remains sticky across reloads for the lifetime
+of that `sessionStorage` session. This behaviour is preserved unchanged; this
+analysis does not add recovery or expiry for an abandoned client transaction.
+
 ## Context Resolution
 
 Use the following order on every agent initialization.
@@ -231,30 +240,48 @@ After a match, create the canonical context from the saved issuer and the
 returned scope id and name, then write it to both `sessionStorage` and
 `localStorage` without a visibility or focus check.
 
-### 3. Existing Tab Context
+### 3. Incomplete OAuth Transaction
 
-When there is no fresh launch or OAuth response, use a valid tab context. Validate
-its issuer and request an authorization code for its exact scope. Do not consult
-or copy a different local default first.
+If an OAuth transaction exists but the URL contains no OAuth response, return
+`missing_redirect`. Do not use a tab context, adopt the local default, operate as
+an unlaunched activity, or clear the transaction. This short circuit prevents a
+stale in-flight transaction from being silently replaced by cache resolution.
+
+### 4. Existing Tab Context
+
+When there is no fresh launch, OAuth response, or incomplete transaction, use a
+valid tab context. Validate its issuer and request an authorization code for its
+exact scope. Do not consult or copy a different local default first.
 
 This rule preserves reload and same-tab navigation even if another tab has since
 completed OAuth in a different term.
 
-### 4. Local Default
+### 5. Local Default
 
-When the tab has no context, read the versioned local default. Copy a valid record
-into the tab context and request authorization for that issuer and scope. The
-subsequent OAuth transaction binds that exact selection, so another tab changing
-the local default during the redirect cannot change the in-flight exchange.
+When the tab has no context, read the versioned local default and request
+authorization for that issuer and scope without first writing the tab context.
+The OAuth transaction binds that exact selection, so another tab changing the
+local default during the redirect cannot change the in-flight exchange. Verified
+success writes the canonical context to the tab and local caches. Failure leaves
+the tab without a committed context, so a later reload may select a newer local
+default.
 
-The copy is called default adoption or local-context restoration, not foreground
-inheritance. It makes no claim about which tab caused the new navigation.
+This selection is called default adoption or local-context restoration, not
+foreground inheritance. It makes no claim about which tab caused the new
+navigation, and it does not become established tab state before authentication.
 
-### 5. No Context
+### 6. No Context
 
 If neither storage area contains a valid context and the URL supplies none, the
 activity continues in its existing open, local-only mode without Modulus
 authentication.
+
+When registry validation definitively rejects an issuer read from stored
+context, remove every current tab or local context whose parsed record still
+names that issuer, then return the issuer failure without selecting another
+context during the same call. Re-read before removal so a different context
+written meanwhile is not intentionally deleted. An invalid issuer supplied by
+an explicit query does not erase unrelated stored contexts.
 
 ## Successful Persistence Contract
 
@@ -284,12 +311,13 @@ failure diagnostic. The access token itself remains only in memory.
 | Fresh non-LTI launch | Explicit issuer and default sentinel | Replace tab context; update local only after successful OAuth |
 | OAuth callback | Pending transaction context | On verified success, refresh both tab and local records |
 | Reload or same-tab navigation | Tab context | Keep the tab stable; successful OAuth refreshes both records |
-| New tab with no explicit launch | Local default | Copy local to tab, then authenticate that exact context |
+| New tab with no explicit launch | Local default | Authenticate the exact local context; commit the tab only after success |
 | Bookmark or typed URL in an established tab | Tab context | Preserve that tab's selected context |
 | Bookmark or typed URL in a cold tab | Local default | Adopt the most recently authenticated context |
 | Two established tabs in different terms | Each tab's context | Both remain stable; the last successful OAuth callback becomes the local default |
 | Successful OAuth in a background tab | That OAuth transaction | Background callback replaces the local default |
-| OAuth error or token failure | Pending transaction for the error result | Leave the local default unchanged |
+| OAuth error or token failure | Pending transaction for the error result | Leave the local default unchanged; a locally restored context remains uncommitted in the tab |
+| Pending transaction without OAuth response | Pending transaction | Return sticky `missing_redirect`; do not fall through to either cache |
 | Malformed stored record | No context from that record | Remove it from its own storage area and continue resolution |
 | Storage unavailable before redirect | Explicit or restored candidate | Do not start OAuth if the transaction cannot be saved |
 | Cache write unavailable after token success | Verified transaction context | Return authenticated; diagnose loss of persistence |
@@ -309,6 +337,9 @@ The simpler model deliberately accepts the following outcomes:
   another OAuth exchange succeeds.
 - A tab with an established session context does not automatically follow a new
   local default written by another tab.
+- Reloading or revisiting an established tab starts OAuth for that tab's context.
+  A successful callback rewrites the local default to that scope even when the
+  reload occurred in an old-term background tab.
 - The agent cannot diagnose that an inherited context was semantically wrong,
   because a cold tab has no independent expected scope.
 
@@ -419,7 +450,9 @@ implementation will:
 - retain the versioned `StoredActivityContext` and atomic `StoredOAuthSession`;
 - add direct read and write operations for the local default;
 - make verified OAuth success write both context caches;
-- preserve fresh-launch, OAuth-response, tab, local, and no-context precedence;
+- preserve fresh-launch, OAuth-response, incomplete-transaction, tab, local,
+  and no-context precedence;
+- defer committing a locally restored context to the tab until OAuth succeeds;
 - remove `visibilitychange` and `focus` listeners;
 - remove foreground ownership, shared snapshots, guarded deletion, and their
   tests and diagnostics;
@@ -427,6 +460,9 @@ implementation will:
   last-write-wins behaviour;
 - test that established tabs remain stable while the local default changes;
 - test that errors never replace the last successful local default;
+- test that `missing_redirect` remains sticky and prevents cache fallback;
+- remove the inert `modulus_foreground_activity_context` key without treating it
+  as a compatibility source;
 - update the pending Changesets entry for the published agent; and
 - revise `docs/AGENT.md` and related authentication/privacy documentation so no
   shipped reference describes foreground inheritance.
@@ -445,7 +481,9 @@ The implementation satisfies this analysis when:
   background tab;
 - an established tab resolves its tab context before a different local default;
 - a cold tab adopts one complete local record and binds it into its own OAuth
-  transaction;
+  transaction without committing the tab before success;
+- an incomplete OAuth transaction returns sticky `missing_redirect` before cache
+  resolution;
 - an in-flight OAuth exchange cannot change scope because another tab writes
   local storage;
 - failed OAuth flows do not overwrite the last successful local default;
