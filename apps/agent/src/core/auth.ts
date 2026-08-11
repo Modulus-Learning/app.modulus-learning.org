@@ -1,19 +1,17 @@
 import {
   clearOAuthSession,
-  clearTabContext,
+  clearStoredContextsForIssuer,
   createActivityContext,
   DEFAULT_SCOPE_ID,
-  deleteSharedContextIfForeground,
-  installForegroundContextPublication,
-  publishTabContextIfForeground,
+  readLocalContext,
   readOAuthSession,
-  readSharedContextSnapshot,
   readTabContext,
-  removeLegacyIssuerContext,
+  removeLegacyContextRecords,
   type StoredActivityContext,
   type StoredOAuthSession,
   type StoredReturnLocation,
   sameActivityContextIdentity,
+  writeLocalContext,
   writeOAuthSession,
   writeTabContext,
 } from './activity-context.js'
@@ -42,10 +40,9 @@ export const authenticate = async (
   options: AuthOptions = {}
 ): Promise<AuthResult> => {
   const params = getQueryParams()
-  installForegroundContextPublication(logger)
-  // Remove the pre-scope issuer-only record on every path. It is never used as
-  // a compatibility source for the versioned context.
-  removeLegacyIssuerContext()
+  // Remove obsolete local records on every path. Neither is used as a
+  // compatibility source for the current versioned context.
+  removeLegacyContextRecords()
 
   const { state, code, error, error_description, error_uri } = params
 
@@ -83,11 +80,11 @@ export const authenticate = async (
     }
 
     const previousTabContext = readTabContext()
-    const previousSharedContext = readSharedContextSnapshot()?.context ?? null
-    const previousContext = previousTabContext ?? previousSharedContext
+    const previousLocalContext = readLocalContext()
+    const previousContext = previousTabContext ?? previousLocalContext
     if (previousContext != null && !sameActivityContextIdentity(previousContext, context)) {
       await logger?.log('Fresh launch changed the activity context', {
-        history: previousTabContext == null ? 'shared' : 'tab',
+        history: previousTabContext == null ? 'local' : 'tab',
         previous_scope_id: previousContext.scope_id,
         scope_id: context.scope_id,
         issuer_changed: previousContext.issuer !== context.issuer,
@@ -100,7 +97,6 @@ export const authenticate = async (
       await logger?.log('Unable to commit fresh activity context to tab storage')
       return { status: 'failed', error: 'storage_unavailable' }
     }
-    await publishTabContextIfForeground(logger)
 
     // Request an auth code.  This will redirect the browser to the Modulus
     // server's authorization endpoint, so this call will never return.
@@ -108,10 +104,8 @@ export const authenticate = async (
   }
 
   // OAuth response handling uses only the exact pre-redirect session snapshot.
-  // Foreground publication cannot affect which context the exchange uses.
   if (state != null || code != null || error != null) {
     await logger?.log('Received OAuth response')
-    await publishTabContextIfForeground(logger)
     return await handleAuthCodeResponse(state, code, error, error_description, error_uri, logger)
   }
 
@@ -148,11 +142,7 @@ export const authenticate = async (
       // report an error and make no further attempt at auth.
       await logger?.log('Issuer validation failed:', validationResult.error)
       if (validationResult.error === 'invalid_issuer') {
-        clearTabContext()
-        const shared = readSharedContextSnapshot()
-        if (shared?.context != null && sameActivityContextIdentity(storedContext, shared.context)) {
-          await deleteSharedContextIfForeground(shared, logger)
-        }
+        clearStoredContextsForIssuer(storedContext.issuer)
       }
       return {
         status: 'failed',
@@ -160,36 +150,24 @@ export const authenticate = async (
       }
     }
 
-    await publishTabContextIfForeground(logger)
     return await requestAuthCode(storedContext, logger, options)
   }
 
-  const shared = readSharedContextSnapshot()
-  if (shared != null) {
-    if (shared.context == null) {
-      await logger?.log('Ignored malformed shared activity context')
-      await deleteSharedContextIfForeground(shared, logger)
-      return { status: 'none' }
-    }
-
-    if (!writeTabContext(shared.context)) {
-      await logger?.log('Unable to inherit shared activity context into tab storage')
-      return { status: 'failed', error: 'storage_unavailable' }
-    }
-    await logger?.log('Cold tab inherited the foreground activity context', {
-      scope_id: shared.context.scope_id,
+  const localContext = readLocalContext()
+  if (localContext != null) {
+    await logger?.log('Cold tab selected the local activity context', {
+      scope_id: localContext.scope_id,
     })
 
     const validationResult = await validateIssuer(
-      shared.context.issuer,
+      localContext.issuer,
       'https://modulus-learning.org/api/registry',
       logger
     )
     if (!validationResult.ok) {
-      await logger?.log('Inherited issuer validation failed:', validationResult.error)
+      await logger?.log('Local issuer validation failed:', validationResult.error)
       if (validationResult.error === 'invalid_issuer') {
-        clearTabContext()
-        await deleteSharedContextIfForeground(shared, logger)
+        clearStoredContextsForIssuer(localContext.issuer)
       }
       return {
         status: 'failed',
@@ -197,8 +175,10 @@ export const authenticate = async (
       }
     }
 
-    await publishTabContextIfForeground(logger)
-    return await requestAuthCode(shared.context, logger, options)
+    // The OAuth transaction carries this candidate context across the
+    // redirect. It becomes an established tab context only after a verified
+    // token response succeeds.
+    return await requestAuthCode(localContext, logger, options)
   }
 
   return {
@@ -444,13 +424,16 @@ const handleAuthCodeResponse = async (
       if (!writeTabContext(refreshedContext)) {
         await logger?.log('Unable to refresh activity context in tab storage')
       }
+      if (!writeLocalContext(refreshedContext)) {
+        await logger?.log('Unable to save authenticated activity context as the local default')
+      }
       return {
         status: 'authenticated',
         baseUrl: api_base_url,
         token: access_token,
         user,
-        scope_id: oauthSession.context.scope_id,
-        scope_name: refreshedContext?.scope_name ?? null,
+        scope_id: refreshedContext.scope_id,
+        scope_name: refreshedContext.scope_name ?? null,
       }
     }
     const err = await response.text()

@@ -1,15 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  ACTIVITY_CONTEXT_STORAGE_KEY,
   DEFAULT_SCOPE_ID,
   OAUTH_SESSION_STORAGE_KEY,
+  readLocalContext,
   readOAuthSession,
-  readSharedContext,
   readTabContext,
-  SHARED_CONTEXT_STORAGE_KEY,
   type StoredActivityContext,
   type StoredOAuthSession,
-  TAB_CONTEXT_STORAGE_KEY,
 } from './activity-context.js'
 import { authenticate, createAuthorizationRequestParams, getQueryParams } from './auth.js'
 
@@ -70,6 +69,18 @@ const oauthSession = (overrides: Partial<StoredOAuthSession> = {}): StoredOAuthS
   ...overrides,
 })
 
+const storeTabContext = (value: StoredActivityContext): void => {
+  window.sessionStorage.setItem(ACTIVITY_CONTEXT_STORAGE_KEY, JSON.stringify(value))
+}
+
+const storeLocalContext = (value: StoredActivityContext): void => {
+  window.localStorage.setItem(ACTIVITY_CONTEXT_STORAGE_KEY, JSON.stringify(value))
+}
+
+const storeOAuthSession = (value: StoredOAuthSession): void => {
+  window.sessionStorage.setItem(OAUTH_SESSION_STORAGE_KEY, JSON.stringify(value))
+}
+
 const captureNavigation = () => {
   let navigation: Navigation | undefined
   const navigate = (url: URL) => {
@@ -85,25 +96,12 @@ const captureNavigation = () => {
   }
 }
 
-const setForegroundState = ({
-  visibility = 'visible',
-  focused = true,
-}: {
-  visibility?: DocumentVisibilityState
-  focused?: boolean
-} = {}) => {
-  const visibilityState = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue(visibility)
-  const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(focused)
-  return { visibilityState, hasFocus }
-}
-
 beforeEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   window.sessionStorage.clear()
   window.localStorage.clear()
   window.history.replaceState(null, '', '/activity')
-  setForegroundState()
 })
 
 describe('agent activity query cleanup', () => {
@@ -151,23 +149,10 @@ describe('agent activity query cleanup', () => {
   })
 })
 
-describe('foreground publication lifecycle', () => {
-  it('installs one visibility listener and one focus listener across initialization', async () => {
-    const documentListener = vi.spyOn(document, 'addEventListener')
-    const windowListener = vi.spyOn(window, 'addEventListener')
-
-    await expect(authenticate(undefined)).resolves.toEqual({ status: 'none' })
-    await expect(authenticate(undefined)).resolves.toEqual({ status: 'none' })
-
-    expect(
-      documentListener.mock.calls.filter(([event]) => event === 'visibilitychange')
-    ).toHaveLength(1)
-    expect(windowListener.mock.calls.filter(([event]) => event === 'focus')).toHaveLength(1)
-  })
-})
-
-describe('fresh launch and same-tab context', () => {
-  it('commits one atomic issuer/scope pair before OAuth and saves the authored return location', async () => {
+describe('activity context resolution', () => {
+  it('commits a fresh launch to the tab before OAuth without changing the local default', async () => {
+    const previousLocal = context({ issuer: OTHER_ISSUER, scope_id: OTHER_SCOPE_ID })
+    storeLocalContext(previousLocal)
     window.history.replaceState(
       null,
       '',
@@ -184,7 +169,7 @@ describe('fresh launch and same-tab context', () => {
     )
 
     expect(readTabContext()).toEqual(context())
-    expect(readSharedContext()).toEqual(context())
+    expect(readLocalContext()).toEqual(previousLocal)
     const saved = readOAuthSession()
     expect(saved?.context).toEqual(context())
     expect(saved?.return_location).toEqual({
@@ -215,15 +200,13 @@ describe('fresh launch and same-tab context', () => {
     )
 
     expect(readTabContext()?.scope_id).toBe(DEFAULT_SCOPE_ID)
+    expect(readLocalContext()).toBeNull()
     expect(redirected.navigation.url.searchParams.get('scope_id')).toBe(DEFAULT_SCOPE_ID)
   })
 
-  it('compares same-tab history before shared history for an explicit launch switch', async () => {
-    window.sessionStorage.setItem(TAB_CONTEXT_STORAGE_KEY, JSON.stringify(context()))
-    window.localStorage.setItem(
-      SHARED_CONTEXT_STORAGE_KEY,
-      JSON.stringify(context({ scope_id: OTHER_SCOPE_ID }))
-    )
+  it('compares tab history before local history for an explicit launch switch', async () => {
+    storeTabContext(context())
+    storeLocalContext(context({ scope_id: OTHER_SCOPE_ID }))
     window.history.replaceState(
       null,
       '',
@@ -251,7 +234,10 @@ describe('fresh launch and same-tab context', () => {
   it.each([
     ['invalid issuer', 'not-a-url', SCOPE_ID, 'invalid_issuer'],
     ['invalid scope', ISSUER, 'not-a-uuid', 'invalid_scope'],
-  ])('fails safely for an %s in a fresh launch', async (_label, issuer, scopeId, expectedError) => {
+  ])('fails safely for an %s in a fresh launch without clearing stored context', async (_label, issuer, scopeId, expectedError) => {
+    const established = context({ scope_id: OTHER_SCOPE_ID })
+    storeTabContext(established)
+    storeLocalContext(established)
     window.history.replaceState(
       null,
       '',
@@ -263,13 +249,16 @@ describe('fresh launch and same-tab context', () => {
       error: expectedError,
     })
 
-    expect(readTabContext()).toBeNull()
+    expect(readTabContext()).toEqual(established)
+    expect(readLocalContext()).toEqual(established)
     expect(window.location.search).toBe('?authored=yes')
     expect(window.location.hash).toBe('#part')
   })
 
-  it('reuses the committed context across reload and same-tab navigation', async () => {
-    window.sessionStorage.setItem(TAB_CONTEXT_STORAGE_KEY, JSON.stringify(context()))
+  it('uses an established tab context before a different local default', async () => {
+    const established = context({ scope_id: OTHER_SCOPE_ID, scope_name: 'Other Term' })
+    storeTabContext(established)
+    storeLocalContext(context())
     window.history.replaceState(null, '', '/next-page?authored=yes#part')
     vi.stubGlobal(
       'fetch',
@@ -281,98 +270,37 @@ describe('fresh launch and same-tab context', () => {
       Navigation
     )
 
-    expect(readOAuthSession()?.context).toEqual(context())
+    expect(readOAuthSession()?.context).toEqual(established)
     expect(readOAuthSession()?.return_location).toEqual({
       search: '?authored=yes',
       hash: '#part',
     })
   })
 
-  it.each([
-    ['malformed JSON', '{'],
-    ['invalid issuer', JSON.stringify({ version: 1, issuer: 'not a url', scope_id: SCOPE_ID })],
-    ['invalid UUID', JSON.stringify({ version: 1, issuer: ISSUER, scope_id: 'not-a-uuid' })],
-    ['unsupported version', JSON.stringify({ version: 2, issuer: ISSUER, scope_id: SCOPE_ID })],
-  ])('clears a %s tab record without throwing', async (_label, serialized) => {
-    window.sessionStorage.setItem(TAB_CONTEXT_STORAGE_KEY, serialized)
+  it('keeps an interrupted OAuth transaction sticky instead of falling through to stored context', async () => {
+    const pending = oauthSession()
+    storeOAuthSession(pending)
+    storeTabContext(context({ scope_id: OTHER_SCOPE_ID }))
+    storeLocalContext(context({ issuer: OTHER_ISSUER, scope_id: OTHER_SCOPE_ID }))
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
 
-    await expect(authenticate(undefined)).resolves.toEqual({ status: 'none' })
-
-    expect(window.sessionStorage.getItem(TAB_CONTEXT_STORAGE_KEY)).toBeNull()
-  })
-
-  it('removes the unsupported issuer-only storage shape without reading it', async () => {
-    window.localStorage.setItem('modulus_base_url', ISSUER)
-
-    await expect(authenticate(undefined)).resolves.toEqual({ status: 'none' })
-
-    expect(window.localStorage.getItem('modulus_base_url')).toBeNull()
-  })
-})
-
-describe('foreground context inheritance', () => {
-  it('keeps a background fresh launch tab-local until that tab is foregrounded', async () => {
-    const foreground = setForegroundState({ visibility: 'visible', focused: false })
-    window.localStorage.setItem(SHARED_CONTEXT_STORAGE_KEY, JSON.stringify(context()))
-    window.history.replaceState(
-      null,
-      '',
-      `/activity?modulus=${encodeURIComponent(ISSUER)}&scope_id=${OTHER_SCOPE_ID}`
-    )
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => registryResponse())
-    )
-    const redirected = captureNavigation()
-
-    await expect(authenticate(undefined, { navigate: redirected.navigate })).rejects.toBeInstanceOf(
-      Navigation
-    )
-
-    expect(readTabContext()).toEqual(context({ scope_id: OTHER_SCOPE_ID }))
-    expect(readSharedContext()).toEqual(context())
-
-    foreground.hasFocus.mockReturnValue(true)
-    window.dispatchEvent(new Event('focus'))
-
-    await vi.waitFor(() => {
-      expect(readSharedContext()).toEqual(context({ scope_id: OTHER_SCOPE_ID }))
+    await expect(authenticate(undefined)).resolves.toEqual({
+      status: 'failed',
+      error: 'missing_redirect',
     })
+
+    expect(readOAuthSession()).toEqual(pending)
+    expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('requires visibility and focus together for event-driven publication', async () => {
-    const foreground = setForegroundState({ visibility: 'visible', focused: false })
-    await expect(authenticate(undefined)).resolves.toEqual({ status: 'none' })
-    window.sessionStorage.setItem(
-      TAB_CONTEXT_STORAGE_KEY,
-      JSON.stringify(context({ scope_id: OTHER_SCOPE_ID }))
-    )
-    window.localStorage.setItem(SHARED_CONTEXT_STORAGE_KEY, JSON.stringify(context()))
-
-    document.dispatchEvent(new Event('visibilitychange'))
-    await Promise.resolve()
-    expect(readSharedContext()).toEqual(context())
-
-    foreground.visibilityState.mockReturnValue('hidden')
-    foreground.hasFocus.mockReturnValue(true)
-    window.dispatchEvent(new Event('focus'))
-    await Promise.resolve()
-    expect(readSharedContext()).toEqual(context())
-
-    foreground.visibilityState.mockReturnValue('visible')
-    window.dispatchEvent(new Event('focus'))
-    await vi.waitFor(() => {
-      expect(readSharedContext()).toEqual(context({ scope_id: OTHER_SCOPE_ID }))
-    })
-  })
-
-  it('adopts one complete shared record for a cold bookmark or typed URL', async () => {
-    const inherited = context({
+  it('selects a local default for OAuth without establishing the tab first', async () => {
+    const local = context({
       issuer: OTHER_ISSUER,
       scope_id: OTHER_SCOPE_ID,
       scope_name: 'Other Term',
     })
-    window.localStorage.setItem(SHARED_CONTEXT_STORAGE_KEY, JSON.stringify(inherited))
+    storeLocalContext(local)
     window.history.replaceState(null, '', '/bookmarked-activity?authored=yes#section')
     vi.stubGlobal(
       'fetch',
@@ -384,106 +312,47 @@ describe('foreground context inheritance', () => {
       Navigation
     )
 
-    expect(readTabContext()).toEqual(inherited)
+    expect(readTabContext()).toBeNull()
+    expect(readOAuthSession()?.context).toEqual(local)
     expect(redirected.navigation.url.origin).toBe(OTHER_ISSUER)
     expect(redirected.navigation.url.searchParams.get('scope_id')).toBe(OTHER_SCOPE_ID)
-    expect(readOAuthSession()?.return_location).toEqual({
-      search: '?authored=yes',
-      hash: '#section',
-    })
   })
 
-  it('keeps an established tab stable across reload and OAuth while shared context differs', async () => {
-    const established = context({ scope_id: OTHER_SCOPE_ID, scope_name: 'Other Term' })
-    window.sessionStorage.setItem(TAB_CONTEXT_STORAGE_KEY, JSON.stringify(established))
-    window.localStorage.setItem(SHARED_CONTEXT_STORAGE_KEY, JSON.stringify(context()))
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => registryResponse())
-    )
-    const redirected = captureNavigation()
+  it.each([
+    ['malformed JSON', '{'],
+    ['invalid issuer', JSON.stringify({ version: 1, issuer: 'not a url', scope_id: SCOPE_ID })],
+    ['invalid UUID', JSON.stringify({ version: 1, issuer: ISSUER, scope_id: 'not-a-uuid' })],
+    ['unsupported version', JSON.stringify({ version: 2, issuer: ISSUER, scope_id: SCOPE_ID })],
+  ])('clears a %s record independently in each context store', async (_label, serialized) => {
+    window.sessionStorage.setItem(ACTIVITY_CONTEXT_STORAGE_KEY, serialized)
 
-    await expect(authenticate(undefined, { navigate: redirected.navigate })).rejects.toBeInstanceOf(
-      Navigation
-    )
-    expect(readOAuthSession()?.context).toEqual(established)
+    await expect(authenticate(undefined)).resolves.toEqual({ status: 'none' })
+    expect(window.sessionStorage.getItem(ACTIVITY_CONTEXT_STORAGE_KEY)).toBeNull()
 
-    window.localStorage.setItem(SHARED_CONTEXT_STORAGE_KEY, JSON.stringify(context()))
-    const saved = readOAuthSession()
-    expect(saved).not.toBeNull()
-    window.history.replaceState(null, '', `/activity?state=${saved?.state}&code=auth-code`)
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => tokenResponse({ scope_id: OTHER_SCOPE_ID, scope_name: 'Other Term' }))
-    )
+    window.localStorage.setItem(ACTIVITY_CONTEXT_STORAGE_KEY, serialized)
 
-    const result = await authenticate(undefined)
-
-    expect(result).toMatchObject({ status: 'authenticated', scope_id: OTHER_SCOPE_ID })
-    expect(readTabContext()).toEqual(established)
-    expect(readSharedContext()).toEqual(established)
+    await expect(authenticate(undefined)).resolves.toEqual({ status: 'none' })
+    expect(window.localStorage.getItem(ACTIVITY_CONTEXT_STORAGE_KEY)).toBeNull()
   })
 
-  it('ignores a malformed shared record without corrupting an established background tab', async () => {
-    setForegroundState({ visibility: 'visible', focused: false })
-    const established = context({ scope_id: OTHER_SCOPE_ID })
-    window.sessionStorage.setItem(TAB_CONTEXT_STORAGE_KEY, JSON.stringify(established))
-    window.localStorage.setItem(SHARED_CONTEXT_STORAGE_KEY, '{')
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => registryResponse())
-    )
-    const redirected = captureNavigation()
+  it('removes obsolete local records without reading them', async () => {
+    window.localStorage.setItem('modulus_base_url', ISSUER)
+    window.localStorage.setItem('modulus_foreground_activity_context', JSON.stringify(context()))
+    const getItem = vi.spyOn(Storage.prototype, 'getItem')
 
-    await expect(authenticate(undefined, { navigate: redirected.navigate })).rejects.toBeInstanceOf(
-      Navigation
-    )
+    await expect(authenticate(undefined)).resolves.toEqual({ status: 'none' })
 
-    expect(readTabContext()).toEqual(established)
-    expect(window.localStorage.getItem(SHARED_CONTEXT_STORAGE_KEY)).toBe('{')
+    const readKeys = getItem.mock.calls.map(([key]) => key)
+    expect(readKeys).not.toContain('modulus_base_url')
+    expect(readKeys).not.toContain('modulus_foreground_activity_context')
+    expect(window.localStorage.getItem('modulus_base_url')).toBeNull()
+    expect(window.localStorage.getItem('modulus_foreground_activity_context')).toBeNull()
   })
 
-  it('does not let a background OAuth error clear the foreground shared record', async () => {
-    setForegroundState({ visibility: 'visible', focused: false })
-    const background = context({ scope_id: OTHER_SCOPE_ID })
-    window.sessionStorage.setItem(TAB_CONTEXT_STORAGE_KEY, JSON.stringify(background))
-    window.sessionStorage.setItem(
-      OAUTH_SESSION_STORAGE_KEY,
-      JSON.stringify(oauthSession({ context: background }))
-    )
-    window.localStorage.setItem(SHARED_CONTEXT_STORAGE_KEY, JSON.stringify(context()))
-    window.history.replaceState(null, '', '/activity?state=oauth-state&error=access_denied')
-
-    await expect(authenticate(undefined)).resolves.toEqual({ status: 'expired' })
-
-    expect(readTabContext()).toEqual(background)
-    expect(readOAuthSession()).toBeNull()
-    expect(readSharedContext()).toEqual(context())
-  })
-
-  it('compare-and-delete preserves a newer shared record', async () => {
-    const invalid = context({ issuer: 'https://removed-gradebook.test', scope_id: OTHER_SCOPE_ID })
-    window.localStorage.setItem(SHARED_CONTEXT_STORAGE_KEY, JSON.stringify(invalid))
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => {
-        window.localStorage.setItem(SHARED_CONTEXT_STORAGE_KEY, JSON.stringify(context()))
-        return registryResponse([])
-      })
-    )
-
-    await expect(authenticate(undefined)).resolves.toEqual({
-      status: 'failed',
-      error: 'invalid_issuer',
-    })
-
-    expect(readTabContext()).toBeNull()
-    expect(readSharedContext()).toEqual(context())
-  })
-
-  it('lets a foreground owner compare-and-delete its definitively invalid shared record', async () => {
-    const invalid = context({ issuer: 'https://removed-gradebook.test' })
-    window.localStorage.setItem(SHARED_CONTEXT_STORAGE_KEY, JSON.stringify(invalid))
+  it('removes every current context naming a definitively invalid stored issuer', async () => {
+    const invalidIssuer = 'https://removed-gradebook.test'
+    storeTabContext(context({ issuer: invalidIssuer }))
+    storeLocalContext(context({ issuer: invalidIssuer, scope_id: OTHER_SCOPE_ID }))
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => registryResponse([]))
@@ -495,18 +364,32 @@ describe('foreground context inheritance', () => {
     })
 
     expect(readTabContext()).toBeNull()
-    expect(readSharedContext()).toBeNull()
+    expect(readLocalContext()).toBeNull()
   })
 
-  it('safely ignores and removes malformed shared context only when foregrounded', async () => {
-    window.localStorage.setItem(SHARED_CONTEXT_STORAGE_KEY, '{')
+  it('preserves a local context changed while an invalid stored issuer is being checked', async () => {
+    const invalidIssuer = 'https://removed-gradebook.test'
+    storeTabContext(context({ issuer: invalidIssuer }))
+    storeLocalContext(context({ issuer: invalidIssuer, scope_id: OTHER_SCOPE_ID }))
+    const replacement = context({ issuer: OTHER_ISSUER, scope_id: OTHER_SCOPE_ID })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        storeLocalContext(replacement)
+        return registryResponse([])
+      })
+    )
 
-    await expect(authenticate(undefined)).resolves.toEqual({ status: 'none' })
+    await expect(authenticate(undefined)).resolves.toEqual({
+      status: 'failed',
+      error: 'invalid_issuer',
+    })
 
-    expect(window.localStorage.getItem(SHARED_CONTEXT_STORAGE_KEY)).toBeNull()
+    expect(readTabContext()).toBeNull()
+    expect(readLocalContext()).toEqual(replacement)
   })
 
-  it('continues OAuth when shared storage is unavailable and fails safely when tab storage is unavailable', async () => {
+  it('continues a fresh launch when local storage is unavailable', async () => {
     window.history.replaceState(
       null,
       '',
@@ -526,11 +409,18 @@ describe('foreground context inheritance', () => {
     )
 
     localStorage.mockRestore()
-    window.sessionStorage.clear()
+    expect(readTabContext()).toEqual(context())
+  })
+
+  it('fails safely when session storage cannot preserve redirect identity', async () => {
     window.history.replaceState(
       null,
       '',
       `/activity?modulus=${encodeURIComponent(ISSUER)}&scope_id=${SCOPE_ID}`
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => registryResponse())
     )
     const sessionStorage = vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
       throw new DOMException('blocked', 'SecurityError')
@@ -545,14 +435,12 @@ describe('foreground context inheritance', () => {
   })
 })
 
-describe('OAuth response restoration', () => {
-  it('uses the exact pre-redirect context, restores duplicates and fragment, and refreshes the name', async () => {
+describe('OAuth response restoration and persistence', () => {
+  it('uses only the saved context, restores the authored location, and commits both stores on success', async () => {
     const saved = oauthSession()
-    window.sessionStorage.setItem(OAUTH_SESSION_STORAGE_KEY, JSON.stringify(saved))
-    window.sessionStorage.setItem(
-      TAB_CONTEXT_STORAGE_KEY,
-      JSON.stringify(context({ scope_id: OTHER_SCOPE_ID, scope_name: 'Other Scope' }))
-    )
+    storeOAuthSession(saved)
+    storeTabContext(context({ scope_id: OTHER_SCOPE_ID, scope_name: 'Other Scope' }))
+    storeLocalContext(context({ issuer: OTHER_ISSUER, scope_id: OTHER_SCOPE_ID }))
     window.history.replaceState(
       null,
       '',
@@ -572,6 +460,7 @@ describe('OAuth response restoration', () => {
 
     const result = await authenticate(undefined)
 
+    const authenticated = context({ scope_name: 'Autumn 2026' })
     expect(result).toMatchObject({
       status: 'authenticated',
       scope_id: SCOPE_ID,
@@ -579,8 +468,9 @@ describe('OAuth response restoration', () => {
     })
     expect(window.location.search).toBe('?tag=one&tag=two&authored=yes')
     expect(window.location.hash).toBe('#section')
-    expect(window.sessionStorage.getItem(OAUTH_SESSION_STORAGE_KEY)).toBeNull()
-    expect(readTabContext()).toEqual(context({ scope_name: 'Autumn 2026' }))
+    expect(readOAuthSession()).toBeNull()
+    expect(readTabContext()).toEqual(authenticated)
+    expect(readLocalContext()).toEqual(authenticated)
     expect(tokenRequestUrl).toBe('https://gradebook.test/routes/agent/token')
 
     const body = new URLSearchParams(String(tokenRequest?.body))
@@ -592,8 +482,93 @@ describe('OAuth response restoration', () => {
     expect(redirectUri.hash).toBe('')
   })
 
+  it('lets the last successfully completed callback replace the local default', async () => {
+    storeOAuthSession(oauthSession())
+    window.history.replaceState(null, '', '/activity?state=oauth-state&code=first-code')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => tokenResponse({ scope_name: 'First Term' }))
+    )
+
+    await expect(authenticate(undefined)).resolves.toMatchObject({
+      status: 'authenticated',
+      scope_id: SCOPE_ID,
+    })
+    expect(readLocalContext()).toEqual(context({ scope_name: 'First Term' }))
+
+    const second = context({
+      issuer: OTHER_ISSUER,
+      scope_id: OTHER_SCOPE_ID,
+      scope_name: 'Second Term',
+    })
+    storeOAuthSession(oauthSession({ state: 'second-state', context: second }))
+    window.history.replaceState(null, '', '/activity?state=second-state&code=second-code')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        tokenResponse({ scope_id: OTHER_SCOPE_ID, scope_name: 'Second Term Refreshed' })
+      )
+    )
+
+    await expect(authenticate(undefined)).resolves.toMatchObject({
+      status: 'authenticated',
+      scope_id: OTHER_SCOPE_ID,
+    })
+    expect(readLocalContext()).toEqual({
+      ...second,
+      scope_name: 'Second Term Refreshed',
+    })
+  })
+
+  it('does not establish a locally selected context when OAuth returns an error', async () => {
+    const selected = context({ issuer: OTHER_ISSUER, scope_id: OTHER_SCOPE_ID })
+    storeLocalContext(selected)
+    storeOAuthSession(oauthSession({ context: selected }))
+    window.history.replaceState(null, '', '/activity?state=oauth-state&error=access_denied')
+
+    await expect(authenticate(undefined)).resolves.toEqual({ status: 'expired' })
+
+    expect(readTabContext()).toBeNull()
+    expect(readLocalContext()).toEqual(selected)
+    expect(readOAuthSession()).toBeNull()
+  })
+
+  it('does not commit context when OAuth state is invalid', async () => {
+    const previousLocal = context({ issuer: OTHER_ISSUER, scope_id: OTHER_SCOPE_ID })
+    storeLocalContext(previousLocal)
+    storeOAuthSession(oauthSession())
+    window.history.replaceState(null, '', '/activity?state=wrong-state&code=auth-code')
+
+    await expect(authenticate(undefined)).resolves.toEqual({
+      status: 'failed',
+      error: 'oauth_state_mismatch',
+    })
+
+    expect(readTabContext()).toBeNull()
+    expect(readLocalContext()).toEqual(previousLocal)
+  })
+
+  it('does not commit context when the token request fails', async () => {
+    const previousLocal = context({ issuer: OTHER_ISSUER, scope_id: OTHER_SCOPE_ID })
+    storeLocalContext(previousLocal)
+    storeOAuthSession(oauthSession())
+    window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('no', { status: 401 }))
+    )
+
+    await expect(authenticate(undefined)).resolves.toEqual({
+      status: 'failed',
+      error: 'token_request_failed',
+    })
+
+    expect(readTabContext()).toBeNull()
+    expect(readLocalContext()).toEqual(previousLocal)
+  })
+
   it('redacts OAuth credentials and learner identity from diagnostics', async () => {
-    window.sessionStorage.setItem(OAUTH_SESSION_STORAGE_KEY, JSON.stringify(oauthSession()))
+    storeOAuthSession(oauthSession())
     window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')
     vi.stubGlobal(
       'fetch',
@@ -612,27 +587,8 @@ describe('OAuth response restoration', () => {
     expect(diagnostics).not.toContain('Test User')
   })
 
-  it('restores the authored return location for an OAuth error response', async () => {
-    window.sessionStorage.setItem(OAUTH_SESSION_STORAGE_KEY, JSON.stringify(oauthSession()))
-    window.history.replaceState(
-      null,
-      '',
-      '/activity?state=oauth-state&error=access_denied&error_description=session-ended'
-    )
-
-    const result = await authenticate(undefined)
-
-    expect(result).toEqual({ status: 'expired' })
-    expect(window.location.search).toBe('?tag=one&tag=two&authored=yes')
-    expect(window.location.hash).toBe('#section')
-    expect(window.sessionStorage.getItem(OAUTH_SESSION_STORAGE_KEY)).toBeNull()
-  })
-
   it('allows scope_name to be absent without changing scope identity', async () => {
-    window.sessionStorage.setItem(
-      OAUTH_SESSION_STORAGE_KEY,
-      JSON.stringify(oauthSession({ context: context({ scope_name: 'Old Name' }) }))
-    )
+    storeOAuthSession(oauthSession({ context: context({ scope_name: 'Old Name' }) }))
     window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')
     vi.stubGlobal(
       'fetch',
@@ -647,10 +603,11 @@ describe('OAuth response restoration', () => {
       scope_name: null,
     })
     expect(readTabContext()).toEqual(context())
+    expect(readLocalContext()).toEqual(context())
   })
 
   it('normalizes an equivalent token-response scope before comparing identity', async () => {
-    window.sessionStorage.setItem(OAUTH_SESSION_STORAGE_KEY, JSON.stringify(oauthSession()))
+    storeOAuthSession(oauthSession())
     window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')
     vi.stubGlobal(
       'fetch',
@@ -664,10 +621,13 @@ describe('OAuth response restoration', () => {
       scope_id: SCOPE_ID,
     })
     expect(readTabContext()).toEqual(context())
+    expect(readLocalContext()).toEqual(context())
   })
 
-  it('rejects a token response that names a different scope', async () => {
-    window.sessionStorage.setItem(OAUTH_SESSION_STORAGE_KEY, JSON.stringify(oauthSession()))
+  it('rejects a token response that names a different scope without committing it', async () => {
+    const previousLocal = context({ issuer: OTHER_ISSUER, scope_id: OTHER_SCOPE_ID })
+    storeLocalContext(previousLocal)
+    storeOAuthSession(oauthSession())
     window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')
     vi.stubGlobal(
       'fetch',
@@ -677,19 +637,69 @@ describe('OAuth response restoration', () => {
     const result = await authenticate(undefined)
 
     expect(result).toEqual({ status: 'failed', error: 'token_scope_mismatch' })
+    expect(readTabContext()).toBeNull()
+    expect(readLocalContext()).toEqual(previousLocal)
+  })
+
+  it('returns authenticated when the local default cannot be cached', async () => {
+    storeOAuthSession(oauthSession())
+    window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => tokenResponse())
+    )
+    const log = vi.fn(async () => {})
+    const localStorage = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+
+    await expect(authenticate({ log })).resolves.toMatchObject({
+      status: 'authenticated',
+      scope_id: SCOPE_ID,
+    })
+
+    localStorage.mockRestore()
+    expect(readTabContext()).toEqual(context())
+    expect(log).toHaveBeenCalledWith(
+      'Unable to save authenticated activity context as the local default'
+    )
+  })
+
+  it('writes the local default even when the authenticated tab context cannot be cached', async () => {
+    storeOAuthSession(oauthSession())
+    window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => tokenResponse())
+    )
+    const log = vi.fn(async () => {})
+    const sessionStorage = window.sessionStorage
+    const originalSetItem = Storage.prototype.setItem
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (this === sessionStorage && key === ACTIVITY_CONTEXT_STORAGE_KEY) {
+        throw new DOMException('blocked', 'SecurityError')
+      }
+      originalSetItem.call(this, key, value)
+    })
+
+    await expect(authenticate({ log })).resolves.toMatchObject({
+      status: 'authenticated',
+      scope_id: SCOPE_ID,
+    })
+
+    expect(readTabContext()).toBeNull()
+    expect(readLocalContext()).toEqual(context())
+    expect(log).toHaveBeenCalledWith('Unable to refresh activity context in tab storage')
   })
 
   it('clears a malformed OAuth session and fails without throwing', async () => {
-    window.sessionStorage.setItem(
-      OAUTH_SESSION_STORAGE_KEY,
-      JSON.stringify({ ...oauthSession(), version: 2 })
-    )
+    storeOAuthSession({ ...oauthSession(), version: 2 as 1 })
     window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')
 
     const result = await authenticate(undefined)
 
     expect(result).toEqual({ status: 'failed', error: 'oauth_state_mismatch' })
-    expect(window.sessionStorage.getItem(OAUTH_SESSION_STORAGE_KEY)).toBeNull()
+    expect(readOAuthSession()).toBeNull()
     expect(window.location.search).toBe('')
   })
 })

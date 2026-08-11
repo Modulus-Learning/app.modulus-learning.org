@@ -1,12 +1,12 @@
-import type { Logger } from './logger.js'
-
 // This value intentionally mirrors packages/core/src/database/schema/constants.ts.
 // The published browser agent cannot depend on the private core package.
 export const DEFAULT_SCOPE_ID = '00000000-0000-0000-0000-000000000000'
 
-export const TAB_CONTEXT_STORAGE_KEY = 'modulus_activity_context'
-export const SHARED_CONTEXT_STORAGE_KEY = 'modulus_foreground_activity_context'
+export const ACTIVITY_CONTEXT_STORAGE_KEY = 'modulus_activity_context'
 export const OAUTH_SESSION_STORAGE_KEY = 'modulus_oauth_session'
+
+const LEGACY_ISSUER_STORAGE_KEY = 'modulus_base_url'
+const LEGACY_FOREGROUND_CONTEXT_STORAGE_KEY = 'modulus_foreground_activity_context'
 
 export type StoredActivityContext = {
   version: 1
@@ -26,11 +26,6 @@ export type StoredOAuthSession = {
   code_verifier: string
   context: StoredActivityContext
   return_location: StoredReturnLocation
-}
-
-export type SharedContextSnapshot = {
-  serialized: string
-  context: StoredActivityContext | null
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
@@ -174,13 +169,22 @@ const removeStoredValue = (storage: Storage | null, key: string): void => {
 }
 
 export const readTabContext = (): StoredActivityContext | null =>
-  readJson(getStorage('sessionStorage'), TAB_CONTEXT_STORAGE_KEY, parseActivityContext)
+  readJson(getStorage('sessionStorage'), ACTIVITY_CONTEXT_STORAGE_KEY, parseActivityContext)
 
 export const writeTabContext = (context: StoredActivityContext): boolean =>
-  writeJson(getStorage('sessionStorage'), TAB_CONTEXT_STORAGE_KEY, context)
+  writeJson(getStorage('sessionStorage'), ACTIVITY_CONTEXT_STORAGE_KEY, context)
 
 export const clearTabContext = (): void =>
-  removeStoredValue(getStorage('sessionStorage'), TAB_CONTEXT_STORAGE_KEY)
+  removeStoredValue(getStorage('sessionStorage'), ACTIVITY_CONTEXT_STORAGE_KEY)
+
+export const readLocalContext = (): StoredActivityContext | null =>
+  readJson(getStorage('localStorage'), ACTIVITY_CONTEXT_STORAGE_KEY, parseActivityContext)
+
+export const writeLocalContext = (context: StoredActivityContext): boolean =>
+  writeJson(getStorage('localStorage'), ACTIVITY_CONTEXT_STORAGE_KEY, context)
+
+export const clearLocalContext = (): void =>
+  removeStoredValue(getStorage('localStorage'), ACTIVITY_CONTEXT_STORAGE_KEY)
 
 export const readOAuthSession = (): StoredOAuthSession | null =>
   readJson(getStorage('sessionStorage'), OAUTH_SESSION_STORAGE_KEY, parseOAuthSession)
@@ -191,101 +195,21 @@ export const writeOAuthSession = (session: StoredOAuthSession): boolean =>
 export const clearOAuthSession = (): void =>
   removeStoredValue(getStorage('sessionStorage'), OAUTH_SESSION_STORAGE_KEY)
 
-export const removeLegacyIssuerContext = (): void =>
-  removeStoredValue(getStorage('localStorage'), 'modulus_base_url')
-
-export const readSharedContextSnapshot = (): SharedContextSnapshot | null => {
-  const serialized = readStoredValue(getStorage('localStorage'), SHARED_CONTEXT_STORAGE_KEY)
-  if (serialized == null) return null
-
-  try {
-    return {
-      serialized,
-      context: parseActivityContext(JSON.parse(serialized)),
-    }
-  } catch {
-    return { serialized, context: null }
-  }
+export const removeLegacyContextRecords = (): void => {
+  const localStorage = getStorage('localStorage')
+  removeStoredValue(localStorage, LEGACY_ISSUER_STORAGE_KEY)
+  removeStoredValue(localStorage, LEGACY_FOREGROUND_CONTEXT_STORAGE_KEY)
 }
-
-export const readSharedContext = (): StoredActivityContext | null =>
-  readSharedContextSnapshot()?.context ?? null
 
 export const sameActivityContextIdentity = (
   left: StoredActivityContext,
   right: StoredActivityContext
 ): boolean => left.issuer === right.issuer && left.scope_id === right.scope_id
 
-const isForegroundOwner = (): boolean => {
-  try {
-    return document.visibilityState === 'visible' && document.hasFocus()
-  } catch {
-    return false
-  }
-}
-
-export const publishTabContextIfForeground = async (
-  logger: Logger | undefined
-): Promise<boolean> => {
-  if (!isForegroundOwner()) return false
-
+export const clearStoredContextsForIssuer = (issuer: string): void => {
   const tabContext = readTabContext()
-  if (tabContext == null) return false
+  if (tabContext?.issuer === issuer) clearTabContext()
 
-  const shared = readSharedContextSnapshot()
-  const diverged =
-    shared?.context != null && !sameActivityContextIdentity(tabContext, shared.context)
-  const published = writeJson(getStorage('localStorage'), SHARED_CONTEXT_STORAGE_KEY, tabContext)
-  if (diverged) {
-    await logger?.log('Tab and shared activity contexts diverged before foreground publication', {
-      tab_scope_id: tabContext.scope_id,
-      shared_scope_id: shared.context?.scope_id,
-      issuer_changed: tabContext.issuer !== shared.context?.issuer,
-    })
-  }
-
-  if (!published) {
-    await logger?.log('Unable to publish foreground activity context')
-  }
-  return published
-}
-
-export const deleteSharedContextIfForeground = async (
-  snapshot: SharedContextSnapshot,
-  logger: Logger | undefined
-): Promise<boolean> => {
-  if (!isForegroundOwner()) return false
-
-  const storage = getStorage('localStorage')
-  if (
-    storage == null ||
-    readStoredValue(storage, SHARED_CONTEXT_STORAGE_KEY) !== snapshot.serialized
-  ) {
-    return false
-  }
-
-  try {
-    storage.removeItem(SHARED_CONTEXT_STORAGE_KEY)
-    await logger?.log('Deleted definitively invalid shared activity context')
-    return true
-  } catch {
-    await logger?.log('Unable to delete invalid shared activity context')
-    return false
-  }
-}
-
-let publicationListenersInstalled = false
-let publicationLogger: Logger | undefined
-
-const publishFromForegroundEvent = (): void => {
-  void publishTabContextIfForeground(publicationLogger)
-}
-
-export const installForegroundContextPublication = (logger: Logger | undefined): void => {
-  publicationLogger = logger
-  if (publicationListenersInstalled) return
-
-  document.addEventListener('visibilitychange', publishFromForegroundEvent)
-  window.addEventListener('focus', publishFromForegroundEvent)
-  publicationListenersInstalled = true
+  const localContext = readLocalContext()
+  if (localContext?.issuer === issuer) clearLocalContext()
 }
