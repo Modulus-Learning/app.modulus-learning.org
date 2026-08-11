@@ -5,9 +5,6 @@ export const DEFAULT_SCOPE_ID = '00000000-0000-0000-0000-000000000000'
 export const ACTIVITY_CONTEXT_STORAGE_KEY = 'modulus_activity_context'
 export const OAUTH_SESSION_STORAGE_KEY = 'modulus_oauth_session'
 
-const LEGACY_ISSUER_STORAGE_KEY = 'modulus_base_url'
-const LEGACY_FOREGROUND_CONTEXT_STORAGE_KEY = 'modulus_foreground_activity_context'
-
 export type StoredActivityContext = {
   version: 1
   issuer: string
@@ -194,12 +191,6 @@ export const writeOAuthSession = (session: StoredOAuthSession): boolean =>
 
 export const clearOAuthSession = (): void =>
   removeStoredValue(getStorage('sessionStorage'), OAUTH_SESSION_STORAGE_KEY)
-
-export const removeLegacyContextRecords = (): void => {
-  const localStorage = getStorage('localStorage')
-  removeStoredValue(localStorage, LEGACY_ISSUER_STORAGE_KEY)
-  removeStoredValue(localStorage, LEGACY_FOREGROUND_CONTEXT_STORAGE_KEY)
-}
 
 export const sameActivityContextIdentity = (
   left: StoredActivityContext,

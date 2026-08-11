@@ -187,6 +187,32 @@ describe('activity context resolution', () => {
     expect(request.searchParams.get('scope_id')).toBe(SCOPE_ID)
   })
 
+  it('single-flights concurrent initialization so stale tab context cannot race a fresh launch', async () => {
+    storeTabContext(context({ scope_id: OTHER_SCOPE_ID }))
+    window.history.replaceState(
+      null,
+      '',
+      `/activity?modulus=${encodeURIComponent(ISSUER)}&scope_id=${SCOPE_ID}`
+    )
+    const fetch = vi.fn(async () => registryResponse())
+    vi.stubGlobal('fetch', fetch)
+    const navigations: URL[] = []
+    const navigate = (url: URL) => {
+      navigations.push(url)
+      throw new Navigation(url)
+    }
+
+    const first = authenticate(undefined, { navigate })
+    const second = authenticate(undefined, { navigate })
+    const samePromise = first === second
+    const settled = await Promise.allSettled([first, second])
+
+    expect(settled.every(({ status }) => status === 'rejected')).toBe(true)
+    expect(navigations.map((url) => url.searchParams.get('scope_id'))).toEqual([SCOPE_ID])
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(samePromise).toBe(true)
+  })
+
   it('normalizes a fresh launch without a scope label to the sentinel', async () => {
     window.history.replaceState(null, '', `/activity?modulus=${encodeURIComponent(ISSUER)}`)
     vi.stubGlobal(
@@ -335,20 +361,6 @@ describe('activity context resolution', () => {
     expect(window.localStorage.getItem(ACTIVITY_CONTEXT_STORAGE_KEY)).toBeNull()
   })
 
-  it('removes obsolete local records without reading them', async () => {
-    window.localStorage.setItem('modulus_base_url', ISSUER)
-    window.localStorage.setItem('modulus_foreground_activity_context', JSON.stringify(context()))
-    const getItem = vi.spyOn(Storage.prototype, 'getItem')
-
-    await expect(authenticate(undefined)).resolves.toEqual({ status: 'none' })
-
-    const readKeys = getItem.mock.calls.map(([key]) => key)
-    expect(readKeys).not.toContain('modulus_base_url')
-    expect(readKeys).not.toContain('modulus_foreground_activity_context')
-    expect(window.localStorage.getItem('modulus_base_url')).toBeNull()
-    expect(window.localStorage.getItem('modulus_foreground_activity_context')).toBeNull()
-  })
-
   it('removes every current context naming a definitively invalid stored issuer', async () => {
     const invalidIssuer = 'https://removed-gradebook.test'
     storeTabContext(context({ issuer: invalidIssuer }))
@@ -480,6 +492,27 @@ describe('OAuth response restoration and persistence', () => {
     expect(clientId.hash).toBe('')
     expect(redirectUri.search).toBe('')
     expect(redirectUri.hash).toBe('')
+  })
+
+  it('single-flights concurrent OAuth callbacks through one token exchange', async () => {
+    storeOAuthSession(oauthSession())
+    window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')
+    const fetch = vi.fn(async () => tokenResponse({ scope_name: 'Autumn 2026' }))
+    vi.stubGlobal('fetch', fetch)
+
+    const first = authenticate(undefined)
+    const second = authenticate(undefined)
+    const samePromise = first === second
+    const [firstResult, secondResult] = await Promise.all([first, second])
+
+    expect(samePromise).toBe(true)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(firstResult).toEqual(secondResult)
+    expect(firstResult).toMatchObject({
+      status: 'authenticated',
+      scope_id: SCOPE_ID,
+      scope_name: 'Autumn 2026',
+    })
   })
 
   it('lets the last successfully completed callback replace the local default', async () => {

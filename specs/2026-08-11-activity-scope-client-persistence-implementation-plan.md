@@ -28,20 +28,23 @@ binding and established-tab stability.
 The work is complete when:
 
 1. an explicit launch context always wins for the receiving tab;
-2. an OAuth response uses only the exact context, state, verifier, and return
+2. concurrent agent instances in one JavaScript page realm share one in-flight
+   authentication operation rather than consuming page-global URL, storage, or
+   navigation state independently;
+3. an OAuth response uses only the exact context, state, verifier, and return
    location saved before its redirect;
-3. a successful verified token response writes one canonical issuer/scope/name
+4. a successful verified token response writes one canonical issuer/scope/name
    record to both this tab's `sessionStorage` and origin-wide `localStorage`;
-4. an established tab uses its own record before a different local default;
-5. a tab without a record selects the most recently authenticated local context
+5. an established tab uses its own record before a different local default;
+6. a tab without a record selects the most recently authenticated local context
    for OAuth and commits it to the tab only after verified success;
-6. no production agent code observes visibility or focus for context
+7. no production agent code observes visibility or focus for context
    persistence;
-7. OAuth failures do not replace the last successful local default;
-8. the published agent changeset and reference documentation describe
+8. OAuth failures do not replace the last successful local default;
+9. the published agent changeset and reference documentation describe
    last-successful, last-completion-wins behaviour rather than foreground
    ownership; and
-9. the existing activity-scope pull request records the supersession, task
+10. the existing activity-scope pull request records the supersession, task
    status, automated verification, accepted failure modes, and deferred manual
    acceptance work.
 
@@ -66,6 +69,10 @@ Every implementation task must preserve these contracts:
 - The OAuth transaction remains one atomic `sessionStorage` record containing
   state, PKCE verifier, activity context, and exact authored return query and
   fragment.
+- Authentication is page-global within one JavaScript realm. Concurrent agent
+  instances share the same in-flight promise and cannot independently consume
+  query parameters, write competing OAuth transactions, navigate, or exchange
+  the same callback. Separate tabs remain independent.
 - A saved OAuth transaction without an OAuth response returns sticky
   `missing_redirect` before either context cache is resolved. This plan does not
   clear, expire, or recover that transaction.
@@ -108,6 +115,9 @@ Every implementation task must preserve these contracts:
 - Treat the OAuth transaction as the consistency boundary. Storage resolution
   before redirect and cache writes after exchange must not change the context
   used by an in-flight transaction.
+- Treat authentication itself as page-global. Serialize same-page callers with
+  one in-flight promise rather than relying on query-removal timing or storage
+  markers; do not extend this guard across tabs.
 - A context-cache write may be best-effort only after token verification. The
   OAuth transaction write remains mandatory before navigation.
 - Update the existing Changesets entry rather than adding a second entry for the
@@ -188,9 +198,11 @@ After independent review signs off:
 
 ## Phase 1 — Agent Behaviour
 
-### Task 2 — Replace Foreground Publication With Successful-Authentication Persistence
+### Task 2 — Replace Foreground Publication With Successful-Authentication Persistence — Complete
 
 Proposed commit: `refactor(agent): simplified activity context persistence`
+
+Corrective commit: `fix(agent): serialized page authentication`
 
 Files:
 
@@ -215,18 +227,20 @@ Files:
   unsupported data from only the storage area read, and never combine fields
   from two records;
 - retain complete-context identity comparison for explicit switch diagnostics;
-- retain removal of the published agent's legacy issuer-only
-  `modulus_base_url` record and also remove the inert acceptance-build
-  `modulus_foreground_activity_context` record without reading either one;
-- stop reading or writing `modulus_foreground_activity_context` as a context
-  source; activity-scope persistence has not shipped, so no compatibility read
-  or migration is needed; and
+- stop reading or writing the obsolete `modulus_base_url` and
+  `modulus_foreground_activity_context` keys; activity-scope persistence has
+  not shipped, so no compatibility read, migration, or cleanup is needed; and
 - remove `SharedContextSnapshot`, foreground ownership checks, publication and
   guarded-deletion helpers, module-level listener/logger state, and
   `visibilitychange` and `focus` registration.
 
 #### Resolution and OAuth
 
+- wrap authentication in a module-scoped single-flight guard so the first
+  caller owns logger and navigation options, concurrent same-page callers
+  receive the exact same promise, and settled operations release the guard;
+- keep an initial OAuth redirect pending until page unload, so it remains the
+  shared operation for that page lifetime; do not coordinate separate tabs;
 - preserve resolution precedence as explicit launch, OAuth response, incomplete
   OAuth transaction, tab context, local default, then no Modulus context;
 - on a valid explicit launch, compare against the prior tab context first and
@@ -270,6 +284,13 @@ Files:
 
 #### Automated Acceptance Criteria
 
+- two concurrent initializations with fresh launch parameters and stale stored
+  context return the same promise, perform one registry lookup and navigation,
+  and select only the fresh scope;
+- two concurrent OAuth-callback initializations return the same promise and
+  result while performing one token exchange;
+- a settled authenticated, failed, or no-context operation releases the guard
+  for a later authentication attempt;
 - a fresh launch writes the explicit context to this tab and its OAuth
   transaction but leaves a different local default unchanged before redirect;
 - a verified OAuth callback writes the returned canonical `scope_id` and
@@ -300,8 +321,9 @@ Files:
   cannot be preserved;
 - tab or local cache failure after a verified token response is diagnosed but
   still returns `status: 'authenticated'`;
-- the legacy `modulus_base_url` and inert
-  `modulus_foreground_activity_context` keys are removed without being read;
+- production agent source does not reference the obsolete `modulus_base_url`
+  or `modulus_foreground_activity_context` keys; existing non-production
+  records remain inert;
 - OAuth return-location restoration, duplicate authored parameters, fragments,
   reserved-parameter cleanup, credential redaction, and the exact saved-context
   exchange remain covered;
@@ -357,6 +379,8 @@ Work:
 - state plainly that a background OAuth callback can replace the local default,
   concurrent callbacks use last-completion-wins semantics, and the agent makes
   no foreground or opener-lineage guarantee;
+- document that concurrent agent instances in one page share one active
+  authentication operation while separate tabs remain independent;
 - document that successful OAuth refreshes both caches with canonical scope
   metadata while errors leave the local default unchanged and do not commit a
   locally restored context to the tab;
@@ -381,6 +405,8 @@ Automated acceptance criteria:
   without presenting an accepted race as a guarantee;
 - documentation still distinguishes the OAuth transaction from both context
   caches;
+- documentation distinguishes same-page single-flight authentication from
+  independent cross-tab last-completion-wins persistence;
 - documentation states that `scope_id` is a label and the access token is the
   consistency boundary;
 - the Changesets entry describes the final public behaviour across both the
@@ -453,8 +479,8 @@ history and add this separate section:
 ```md
 ### Client persistence simplification
 
-- [ ] Record the revised analysis and implementation plan
-- [ ] Replace foreground publication with successful-authentication persistence
+- [x] Record the revised analysis and implementation plan
+- [x] Replace foreground publication with successful-authentication persistence
 - [ ] Update release documentation and complete verification
 ```
 
@@ -483,8 +509,9 @@ repairs rather than becoming an unplanned fourth task.
 - storing user identity, access tokens, authorization codes, PKCE values, Canvas
   term ids, course ids, or gradebook data in the context caches;
 - platform-entitlement checks for agent-selected scope labels;
-- compatibility reads or migration for the unshipped
-  `modulus_foreground_activity_context` key beyond deleting the inert record;
+- compatibility reads, migration, or cleanup for the unshipped
+  `modulus_foreground_activity_context` key or the older
+  `modulus_base_url` key;
 - changing the existing query-parameter transport or reserved parameter set;
 - changing the stakeholder decision to keep the target activity URL readable in
   the LTI interstitial route; and

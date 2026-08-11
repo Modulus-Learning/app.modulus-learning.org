@@ -6,7 +6,6 @@ import {
   readLocalContext,
   readOAuthSession,
   readTabContext,
-  removeLegacyContextRecords,
   type StoredActivityContext,
   type StoredOAuthSession,
   type StoredReturnLocation,
@@ -35,14 +34,11 @@ type AuthOptions = {
   navigate?: (url: URL) => void
 }
 
-export const authenticate = async (
+const authenticateOnce = async (
   logger: Logger | undefined,
   options: AuthOptions = {}
 ): Promise<AuthResult> => {
   const params = getQueryParams()
-  // Remove obsolete local records on every path. Neither is used as a
-  // compatibility source for the current versioned context.
-  removeLegacyContextRecords()
 
   const { state, code, error, error_description, error_uri } = params
 
@@ -184,6 +180,33 @@ export const authenticate = async (
   return {
     status: 'none',
   }
+}
+
+// Authentication consumes page-global URL and storage state, so concurrent
+// agent instances in the same page must participate in one operation. The
+// initial authorization redirect intentionally never settles and unloads this
+// module; completed callback, failure, and local-only paths release the guard.
+let authenticationInFlight: Promise<AuthResult> | null = null
+
+export const authenticate = (
+  logger: Logger | undefined,
+  options: AuthOptions = {}
+): Promise<AuthResult> => {
+  if (authenticationInFlight != null) {
+    return authenticationInFlight
+  }
+
+  const attempt = authenticateOnce(logger, options)
+  authenticationInFlight = attempt
+
+  const clearAttempt = (): void => {
+    if (authenticationInFlight === attempt) {
+      authenticationInFlight = null
+    }
+  }
+  void attempt.then(clearAttempt, clearAttempt)
+
+  return attempt
 }
 
 const validateIssuer = async (

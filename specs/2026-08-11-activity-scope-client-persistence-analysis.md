@@ -57,14 +57,18 @@ persistence:
 4. Resolve context in this order: explicit fresh launch, OAuth response,
    incomplete OAuth transaction, tab context, local default, then no Modulus
    context.
-5. After a verified OAuth token response, write the canonical issuer, returned
+5. Treat authentication as one page-global operation. Concurrent agent
+   instances in the same JavaScript page realm share one in-flight promise
+   rather than consuming launch parameters or creating OAuth transactions
+   independently.
+6. After a verified OAuth token response, write the canonical issuer, returned
    `scope_id`, and optional returned `scope_name` to both the tab record and the
    local default without inspecting focus or visibility.
-6. Remove foreground listeners, ownership checks, shared snapshots, guarded
+7. Remove foreground listeners, ownership checks, shared snapshots, guarded
    deletion, and foreground-specific diagnostics.
-7. Accept that concurrent successful OAuth flows use last-completion-wins
-   semantics for the local default. Each established tab remains stable because
-   its tab record takes precedence.
+8. Accept that successful OAuth flows in separate tabs use
+   last-completion-wins semantics for the local default. Each established tab
+   remains stable because its tab record takes precedence.
 
 This keeps the OAuth transaction binding and token-bound scope invariant while
 removing the claim that the agent can infer the user's current tab or navigation
@@ -102,6 +106,8 @@ The following original contracts remain in force:
   `(user_id, activity_id, scope_id)` tuple;
 - OAuth state, PKCE state, and the return location remain an atomic per-tab
   transaction;
+- concurrent agent instances in one JavaScript page realm share one in-flight
+  authentication operation, while separate tabs remain independent;
 - recognized launch and OAuth query parameters are removed while authored query
   parameters and fragments are preserved;
 - `scope_name` is optional display metadata and never participates in identity;
@@ -204,9 +210,31 @@ the transaction, so the failure remains sticky across reloads for the lifetime
 of that `sessionStorage` session. This behaviour is preserved unchanged; this
 analysis does not add recovery or expiry for an abandoned client transaction.
 
+### Page-Global Authentication Operation
+
+Authentication consumes page-global resources: launch and OAuth query
+parameters, browser history, the per-tab OAuth transaction, and navigation. Two
+agent instances running concurrently in the same JavaScript page realm must not
+consume those resources independently. They share the first in-flight
+authentication promise, including its context resolution, OAuth transaction,
+navigation, token exchange, and result.
+
+The first caller owns that operation's logger and navigation options. A settled
+authenticated, failed, or no-context result releases the guard so a later call
+can begin a new operation. An initial OAuth redirect intentionally leaves its
+promise pending until page unload and therefore remains the shared operation
+for that page lifetime.
+
+This guard is page-local, not cross-tab coordination. Separate tabs retain
+independent OAuth transactions and the accepted last-successful,
+last-completion-wins local-default semantics.
+
 ## Context Resolution
 
-Use the following order on every agent initialization.
+Use the following order for the page's active authentication operation.
+Concurrent initializations join that operation before reading or removing query
+parameters, reading storage, generating PKCE state, writing an OAuth
+transaction, or navigating.
 
 ### 1. Explicit Fresh Launch
 
@@ -315,6 +343,7 @@ failure diagnostic. The access token itself remains only in memory.
 | Bookmark or typed URL in an established tab | Tab context | Preserve that tab's selected context |
 | Bookmark or typed URL in a cold tab | Local default | Adopt the most recently authenticated context |
 | Two established tabs in different terms | Each tab's context | Both remain stable; the last successful OAuth callback becomes the local default |
+| Two agent instances in one page | First in-flight authentication | Share one context resolution, OAuth transaction, navigation, and callback result |
 | Successful OAuth in a background tab | That OAuth transaction | Background callback replaces the local default |
 | OAuth error or token failure | Pending transaction for the error result | Leave the local default unchanged; a locally restored context remains uncommitted in the tab |
 | Pending transaction without OAuth response | Pending transaction | Return sticky `missing_redirect`; do not fall through to either cache |
@@ -328,9 +357,9 @@ The simpler model deliberately accepts the following outcomes:
 
 - A successful OAuth flow in a background tab can replace the local default
   even though another tab remains foregrounded.
-- Two concurrent successful flows in different scopes make the last completed
-  flow the default, regardless of which flow began last or which tab the user is
-  viewing.
+- Two successful flows in different tabs and scopes make the last completed
+  flow the default, regardless of which flow began last or which tab the user
+  is viewing.
 - A cold tab, bookmark, or typed URL can adopt a term unrelated to the tab from
   which the learner conceptually navigated.
 - A local default can remain stale across a long period or browser restart until
@@ -452,17 +481,23 @@ implementation will:
 - make verified OAuth success write both context caches;
 - preserve fresh-launch, OAuth-response, incomplete-transaction, tab, local,
   and no-context precedence;
+- make same-page concurrent agent initializations share one in-flight
+  authentication operation while leaving separate tabs independent;
 - defer committing a locally restored context to the tab until OAuth succeeds;
 - remove `visibilitychange` and `focus` listeners;
 - remove foreground ownership, shared snapshots, guarded deletion, and their
   tests and diagnostics;
 - test simultaneous and sequential OAuth completions as explicit
   last-write-wins behaviour;
+- test same-page concurrency for both initial redirect and OAuth callback paths,
+  including stale storage competing with fresh launch parameters;
 - test that established tabs remain stable while the local default changes;
 - test that errors never replace the last successful local default;
 - test that `missing_redirect` remains sticky and prevents cache fallback;
-- remove the inert `modulus_foreground_activity_context` key without treating it
-  as a compatibility source;
+- leave the obsolete `modulus_base_url` and
+  `modulus_foreground_activity_context` keys untouched and ensure neither is
+  read nor written; activity-scope persistence has not reached production, so
+  compatibility cleanup is unnecessary;
 - update the pending Changesets entry for the published agent; and
 - revise `docs/AGENT.md` and related authentication/privacy documentation so no
   shipped reference describes foreground inheritance.
@@ -484,6 +519,9 @@ The implementation satisfies this analysis when:
   transaction without committing the tab before success;
 - an incomplete OAuth transaction returns sticky `missing_redirect` before cache
   resolution;
+- concurrent agent instances in one page share one authentication promise, so
+  only one operation consumes query parameters, writes an OAuth transaction,
+  navigates, or exchanges an authorization code;
 - an in-flight OAuth exchange cannot change scope because another tab writes
   local storage;
 - failed OAuth flows do not overwrite the last successful local default;
