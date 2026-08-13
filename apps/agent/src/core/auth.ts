@@ -76,7 +76,7 @@ const authenticateOnce = async (
     }
 
     const previousTabContext = readTabContext()
-    const previousLocalContext = readLocalContext()
+    const previousLocalContext = previousTabContext == null ? readLocalContext() : null
     const previousContext = previousTabContext ?? previousLocalContext
     if (previousContext != null && !sameActivityContextIdentity(previousContext, context)) {
       await logger?.log('Fresh launch changed the activity context', {
@@ -122,7 +122,7 @@ const authenticateOnce = async (
 
   const storedContext = readTabContext()
   if (storedContext != null) {
-    await logger?.log('Found stored activity context in sessionStorage:', {
+    await logger?.log('Found stored tab activity context:', {
       issuer: storedContext.issuer,
       scope_id: storedContext.scope_id,
     })
@@ -187,6 +187,12 @@ const authenticateOnce = async (
 // initial authorization redirect intentionally never settles and unloads this
 // module; completed callback, failure, and local-only paths release the guard.
 let authenticationInFlight: Promise<AuthResult> | null = null
+
+// Test isolation only. This module is intentionally not part of the package's
+// public entry point, so consumers cannot cancel a legitimate authentication.
+export const resetAuthenticationStateForTesting = (): void => {
+  authenticationInFlight = null
+}
 
 export const authenticate = (
   logger: Logger | undefined,

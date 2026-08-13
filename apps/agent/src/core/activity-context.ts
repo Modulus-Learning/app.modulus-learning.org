@@ -171,7 +171,7 @@ export const readTabContext = (): StoredActivityContext | null =>
 export const writeTabContext = (context: StoredActivityContext): boolean =>
   writeJson(getStorage('sessionStorage'), ACTIVITY_CONTEXT_STORAGE_KEY, context)
 
-export const clearTabContext = (): void =>
+const clearTabContext = (): void =>
   removeStoredValue(getStorage('sessionStorage'), ACTIVITY_CONTEXT_STORAGE_KEY)
 
 export const readLocalContext = (): StoredActivityContext | null =>
@@ -180,7 +180,7 @@ export const readLocalContext = (): StoredActivityContext | null =>
 export const writeLocalContext = (context: StoredActivityContext): boolean =>
   writeJson(getStorage('localStorage'), ACTIVITY_CONTEXT_STORAGE_KEY, context)
 
-export const clearLocalContext = (): void =>
+const clearLocalContext = (): void =>
   removeStoredValue(getStorage('localStorage'), ACTIVITY_CONTEXT_STORAGE_KEY)
 
 export const readOAuthSession = (): StoredOAuthSession | null =>

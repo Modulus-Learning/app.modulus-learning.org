@@ -10,7 +10,12 @@ import {
   type StoredActivityContext,
   type StoredOAuthSession,
 } from './activity-context.js'
-import { authenticate, createAuthorizationRequestParams, getQueryParams } from './auth.js'
+import {
+  authenticate,
+  createAuthorizationRequestParams,
+  getQueryParams,
+  resetAuthenticationStateForTesting,
+} from './auth.js'
 
 const ISSUER = 'https://gradebook.test'
 const OTHER_ISSUER = 'https://other-gradebook.test'
@@ -97,6 +102,7 @@ const captureNavigation = () => {
 }
 
 beforeEach(() => {
+  resetAuthenticationStateForTesting()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   window.sessionStorage.clear()
@@ -349,16 +355,22 @@ describe('activity context resolution', () => {
     ['invalid issuer', JSON.stringify({ version: 1, issuer: 'not a url', scope_id: SCOPE_ID })],
     ['invalid UUID', JSON.stringify({ version: 1, issuer: ISSUER, scope_id: 'not-a-uuid' })],
     ['unsupported version', JSON.stringify({ version: 2, issuer: ISSUER, scope_id: SCOPE_ID })],
-  ])('clears a %s record independently in each context store', async (_label, serialized) => {
+  ])('clears a %s record without changing the other context store', (_label, serialized) => {
+    const validLocal = context({ issuer: OTHER_ISSUER, scope_id: OTHER_SCOPE_ID })
     window.sessionStorage.setItem(ACTIVITY_CONTEXT_STORAGE_KEY, serialized)
+    storeLocalContext(validLocal)
 
-    await expect(authenticate(undefined)).resolves.toEqual({ status: 'none' })
+    expect(readTabContext()).toBeNull()
     expect(window.sessionStorage.getItem(ACTIVITY_CONTEXT_STORAGE_KEY)).toBeNull()
+    expect(readLocalContext()).toEqual(validLocal)
 
+    const validTab = context()
+    storeTabContext(validTab)
     window.localStorage.setItem(ACTIVITY_CONTEXT_STORAGE_KEY, serialized)
 
-    await expect(authenticate(undefined)).resolves.toEqual({ status: 'none' })
+    expect(readLocalContext()).toBeNull()
     expect(window.localStorage.getItem(ACTIVITY_CONTEXT_STORAGE_KEY)).toBeNull()
+    expect(readTabContext()).toEqual(validTab)
   })
 
   it('removes every current context naming a definitively invalid stored issuer', async () => {
@@ -424,7 +436,28 @@ describe('activity context resolution', () => {
     expect(readTabContext()).toEqual(context())
   })
 
-  it('fails safely when session storage cannot preserve redirect identity', async () => {
+  it('continues a tab-backed OAuth flow when local storage is unavailable', async () => {
+    const established = context({ scope_id: OTHER_SCOPE_ID })
+    storeTabContext(established)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => registryResponse())
+    )
+    const redirected = captureNavigation()
+    const localStorage = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+
+    await expect(authenticate(undefined, { navigate: redirected.navigate })).rejects.toBeInstanceOf(
+      Navigation
+    )
+
+    localStorage.mockRestore()
+    expect(readOAuthSession()?.context).toEqual(established)
+    expect(redirected.navigation.url.searchParams.get('scope_id')).toBe(OTHER_SCOPE_ID)
+  })
+
+  it('fails safely when session storage cannot commit a fresh tab context', async () => {
     window.history.replaceState(
       null,
       '',
@@ -444,6 +477,34 @@ describe('activity context resolution', () => {
     })
 
     sessionStorage.mockRestore()
+  })
+
+  it('does not navigate from a local default when the OAuth transaction cannot be preserved', async () => {
+    const selected = context({ issuer: OTHER_ISSUER, scope_id: OTHER_SCOPE_ID })
+    storeLocalContext(selected)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => registryResponse([OTHER_ISSUER]))
+    )
+    const navigate = vi.fn()
+    const sessionStorage = window.sessionStorage
+    const originalSetItem = Storage.prototype.setItem
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (this === sessionStorage && key === OAUTH_SESSION_STORAGE_KEY) {
+        throw new DOMException('blocked', 'SecurityError')
+      }
+      originalSetItem.call(this, key, value)
+    })
+
+    await expect(authenticate(undefined, { navigate })).resolves.toEqual({
+      status: 'failed',
+      error: 'storage_unavailable',
+    })
+
+    expect(navigate).not.toHaveBeenCalled()
+    expect(readOAuthSession()).toBeNull()
+    expect(readTabContext()).toBeNull()
+    expect(readLocalContext()).toEqual(selected)
   })
 })
 
@@ -466,6 +527,7 @@ describe('OAuth response restoration and persistence', () => {
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         tokenRequestUrl = String(input)
         tokenRequest = init
+        storeLocalContext(context({ issuer: OTHER_ISSUER, scope_id: OTHER_SCOPE_ID }))
         return tokenResponse({ scope_name: 'Autumn 2026' })
       })
     )
@@ -515,7 +577,7 @@ describe('OAuth response restoration and persistence', () => {
     })
   })
 
-  it('lets the last successfully completed callback replace the local default', async () => {
+  it('lets separate tabs keep their contexts while the last successful callback becomes local', async () => {
     storeOAuthSession(oauthSession())
     window.history.replaceState(null, '', '/activity?state=oauth-state&code=first-code')
     vi.stubGlobal(
@@ -527,8 +589,13 @@ describe('OAuth response restoration and persistence', () => {
       status: 'authenticated',
       scope_id: SCOPE_ID,
     })
+    const firstTabRecord = window.sessionStorage.getItem(ACTIVITY_CONTEXT_STORAGE_KEY)
+    expect(firstTabRecord).not.toBeNull()
+    expect(readTabContext()).toEqual(context({ scope_name: 'First Term' }))
     expect(readLocalContext()).toEqual(context({ scope_name: 'First Term' }))
 
+    // A separate tab has independent sessionStorage but shares localStorage.
+    window.sessionStorage.clear()
     const second = context({
       issuer: OTHER_ISSUER,
       scope_id: OTHER_SCOPE_ID,
@@ -547,6 +614,18 @@ describe('OAuth response restoration and persistence', () => {
       status: 'authenticated',
       scope_id: OTHER_SCOPE_ID,
     })
+    expect(readLocalContext()).toEqual({
+      ...second,
+      scope_name: 'Second Term Refreshed',
+    })
+    expect(readTabContext()).toEqual({
+      ...second,
+      scope_name: 'Second Term Refreshed',
+    })
+
+    window.sessionStorage.clear()
+    window.sessionStorage.setItem(ACTIVITY_CONTEXT_STORAGE_KEY, firstTabRecord ?? '')
+    expect(readTabContext()).toEqual(context({ scope_name: 'First Term' }))
     expect(readLocalContext()).toEqual({
       ...second,
       scope_name: 'Second Term Refreshed',
@@ -577,6 +656,22 @@ describe('OAuth response restoration and persistence', () => {
       error: 'oauth_state_mismatch',
     })
 
+    expect(readTabContext()).toBeNull()
+    expect(readLocalContext()).toEqual(previousLocal)
+  })
+
+  it('does not commit context when a matching OAuth response omits the code', async () => {
+    const previousLocal = context({ issuer: OTHER_ISSUER, scope_id: OTHER_SCOPE_ID })
+    storeLocalContext(previousLocal)
+    storeOAuthSession(oauthSession())
+    window.history.replaceState(null, '', '/activity?state=oauth-state')
+
+    await expect(authenticate(undefined)).resolves.toEqual({
+      status: 'failed',
+      error: 'malformed_oauth_response',
+    })
+
+    expect(readOAuthSession()).toBeNull()
     expect(readTabContext()).toBeNull()
     expect(readLocalContext()).toEqual(previousLocal)
   })

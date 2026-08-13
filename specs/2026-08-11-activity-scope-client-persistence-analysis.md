@@ -220,10 +220,11 @@ authentication promise, including its context resolution, OAuth transaction,
 navigation, token exchange, and result.
 
 The first caller owns that operation's logger and navigation options. A settled
-authenticated, failed, or no-context result releases the guard so a later call
-can begin a new operation. An initial OAuth redirect intentionally leaves its
-promise pending until page unload and therefore remains the shared operation
-for that page lifetime.
+authenticated, failed, or no-context result releases the guard, so a staggered
+later instance begins a new operation. The guarantee applies only to callers
+that overlap while authentication is in flight. An initial OAuth redirect
+intentionally leaves its promise pending until page unload and therefore remains
+the shared operation for that page lifetime when navigation commits.
 
 This guard is page-local, not cross-tab coordination. Separate tabs retain
 independent OAuth transactions and the accepted last-successful,
@@ -343,7 +344,7 @@ failure diagnostic. The access token itself remains only in memory.
 | Bookmark or typed URL in an established tab | Tab context | Preserve that tab's selected context |
 | Bookmark or typed URL in a cold tab | Local default | Adopt the most recently authenticated context |
 | Two established tabs in different terms | Each tab's context | Both remain stable; the last successful OAuth callback becomes the local default |
-| Two agent instances in one page | First in-flight authentication | Share one context resolution, OAuth transaction, navigation, and callback result |
+| Concurrent agent instances in one page | First in-flight authentication | Share one context resolution, OAuth transaction, navigation, and callback result |
 | Successful OAuth in a background tab | That OAuth transaction | Background callback replaces the local default |
 | OAuth error or token failure | Pending transaction for the error result | Leave the local default unchanged; a locally restored context remains uncommitted in the tab |
 | Pending transaction without OAuth response | Pending transaction | Return sticky `missing_redirect`; do not fall through to either cache |
@@ -369,6 +370,10 @@ The simpler model deliberately accepts the following outcomes:
 - Reloading or revisiting an established tab starts OAuth for that tab's context.
   A successful callback rewrites the local default to that scope even when the
   reload occurred in an old-term background tab.
+- If an authorization navigation is blocked, cancelled, or stopped after the
+  agent invokes it, the browser provides no reliable completion signal. The
+  page-global authentication promise remains pending, and later agent instances
+  in that page remain connecting until the page unloads.
 - The agent cannot diagnose that an inherited context was semantically wrong,
   because a cold tab has no independent expected scope.
 
@@ -519,9 +524,9 @@ The implementation satisfies this analysis when:
   transaction without committing the tab before success;
 - an incomplete OAuth transaction returns sticky `missing_redirect` before cache
   resolution;
-- concurrent agent instances in one page share one authentication promise, so
-  only one operation consumes query parameters, writes an OAuth transaction,
-  navigates, or exchanges an authorization code;
+- agent instances whose authentication calls overlap in one page share one
+  promise, so only one operation consumes query parameters, writes an OAuth
+  transaction, navigates, or exchanges an authorization code;
 - an in-flight OAuth exchange cannot change scope because another tab writes
   local storage;
 - failed OAuth flows do not overwrite the last successful local default;

@@ -240,7 +240,12 @@ Files:
   caller owns logger and navigation options, concurrent same-page callers
   receive the exact same promise, and settled operations release the guard;
 - keep an initial OAuth redirect pending until page unload, so it remains the
-  shared operation for that page lifetime; do not coordinate separate tabs;
+  shared operation for that page lifetime when navigation commits; accept that
+  a blocked or cancelled navigation leaves later instances in that page
+  connecting because the browser provides no reliable completion signal;
+- expose a direct-module test-only reset that is absent from the package's
+  public entry point, and reset the guard before each authentication test so a
+  deliberately pending redirect cannot contaminate later tests;
 - preserve resolution precedence as explicit launch, OAuth response, incomplete
   OAuth transaction, tab context, local default, then no Modulus context;
 - on a valid explicit launch, compare against the prior tab context first and
@@ -291,6 +296,8 @@ Files:
   result while performing one token exchange;
 - a settled authenticated, failed, or no-context operation releases the guard
   for a later authentication attempt;
+- test setup resets a pending page-global operation without exporting that
+  capability from the published agent surface;
 - a fresh launch writes the explicit context to this tab and its OAuth
   transaction but leaves a different local default unchanged before redirect;
 - a verified OAuth callback writes the returned canonical `scope_id` and
@@ -379,8 +386,11 @@ Work:
 - state plainly that a background OAuth callback can replace the local default,
   concurrent callbacks use last-completion-wins semantics, and the agent makes
   no foreground or opener-lineage guarantee;
-- document that concurrent agent instances in one page share one active
-  authentication operation while separate tabs remain independent;
+- document that agent instances whose authentication calls overlap in one page
+  share one active operation, staggered instances may authenticate again after
+  settlement, and separate tabs remain independent;
+- document that a blocked or cancelled authorization navigation can leave the
+  page-global operation pending until unload;
 - document that successful OAuth refreshes both caches with canonical scope
   metadata while errors leave the local default unchanged and do not commit a
   locally restored context to the tab;
