@@ -1,7 +1,7 @@
 ---
 title: "The Modulus Agent"
 path: "agent"
-summary: "The published browser instrumentation library and server ingestion path: authoring API, local-first resilience, OAuth with PKCE, per-tab and foreground scope context, and activity-state isolation by the token-bound user/activity/scope tuple."
+summary: "The published browser instrumentation library and server ingestion path: authoring API, local-first resilience, OAuth with PKCE, per-tab and last-successful activity context, and activity-state isolation by the token-bound user/activity/scope tuple."
 ---
 
 # The Modulus Agent
@@ -125,25 +125,42 @@ The logic is in `apps/agent/src/core/auth.ts`. Resolution order is deliberate:
 2. **OAuth response** — `?state`/`?code`/`?error` consumes one atomic stored
    session containing PKCE state, verifier, context, and the exact authored
    return query/fragment.
-3. **Committed tab context** — reload and same-tab navigation keep this tab's
+3. **Incomplete OAuth transaction** — a saved transaction without response
+   parameters returns `missing_redirect` before either context cache is used.
+   The transaction remains stored, so this result is sticky for the lifetime of
+   that tab's storage session.
+4. **Committed tab context** — reload and same-tab navigation keep this tab's
    issuer and scope stable even if another tab changes scope.
-4. **Foreground shared context** — a cold tab or window with no tab record
-   inherits the latest context published by a visible **and focused** document.
-5. **Nothing** — `status: 'none'`; open content continues locally.
+5. **Local default** — a cold tab with no tab context selects the most recently
+   completed successful authentication from `localStorage`, binds it into its
+   own OAuth transaction, and commits it to the tab only after token exchange
+   succeeds.
+6. **Nothing** — `status: 'none'`; open content continues locally.
 
-`sessionStorage` owns committed tab identity. `localStorage` is only the
-foreground inheritance channel: visibility or focus alone is insufficient to
-publish, and a failing background tab cannot delete the foreground record. The
-legacy issuer-only `modulus_base_url` record is removed but never read.
+`sessionStorage` owns committed tab identity. `localStorage` holds one
+complete issuer/scope/name record from the most recently completed successful
+agent OAuth exchange on this activity origin. Every successful callback writes
+that local default, even from a background tab. Separate tabs remain stable
+because their tab records take precedence, while successful callbacks in
+different tabs use ordinary last-completion-wins semantics for future cold
+tabs. The agent does not infer foreground ownership or opener lineage.
+
+Authentication consumes page-global query parameters, browser history, storage,
+and navigation state. Agent instances whose authentication calls overlap in one
+JavaScript page realm therefore share the same in-flight promise. The first call
+owns context resolution, OAuth transaction creation, navigation, token exchange,
+and the result. Once an authenticated, failed, or no-context operation settles,
+a staggered later instance may authenticate again. Separate tabs do not share
+this in-flight guard.
 
 **Registry validation (anti-spoofing).** Before trusting *any* issuer, the agent
 fetches the central registry at `https://modulus-learning.org/api/registry` and
 confirms the issuer appears in `installations[].site-url`. An unrecognised issuer
-is rejected. A definitively invalid tab context is cleared from that tab; a
-shared record is deleted only by a visible, focused owner after comparing the
-exact stored value. This stops a malicious page from pointing instrumented
-content at a rogue "Modulus" server without allowing a background tab to erase
-newer foreground context.
+is rejected. If a stored issuer is definitively invalid, the agent removes every
+current tab or local context that still names that issuer without deleting a
+different context written while validation was in flight. An invalid issuer from
+a fresh query does not clear unrelated stored context. This stops a malicious
+page from pointing instrumented content at a rogue "Modulus" server.
 
 **PKCE handshake.** The agent generates a `code_verifier` (48 random bytes,
 base64url) and its S256 `code_challenge`, plus a CSRF `state`, stashing them in
@@ -154,7 +171,9 @@ redirects to
 back, the agent POSTs to `{issuer}/routes/agent/token` with the `code_verifier`;
 on success it receives `{ api_base_url, access_token, user, scope_id,
 scope_name }`, verifies the returned scope matches the OAuth session, refreshes
-the tab context, and is ready. The server side of this exchange —
+the tab context and local default, and is ready. An OAuth error or rejected token
+response does not replace the prior local default and does not commit a
+locally-restored context to the tab. The server side of this exchange —
 `createAuthCode` / `claimAuthCode`, the PKCE check, and the activity-and-scope-bound token
 it mints — is documented in
 [AUTHN-AUTHZ → The Agent Flow](./AUTHN-AUTHZ.md#the-agent-flow-oauth-20--pkce).
@@ -233,7 +252,15 @@ Flagged in the code, relevant to authors and maintainers:
   event history. Activity-code reports intentionally aggregate across scopes
   before joining the broad, unscoped enrollment cohort.
 - **Storage unavailable.** Context/OAuth storage failures make authentication
-  fail safely; they do not prevent the authored activity from operating locally.
+  fail safely before redirect when the tab context or atomic OAuth transaction
+  cannot be preserved; they do not prevent the authored activity from operating
+  locally. A cache-write failure after a verified token response is diagnosed
+  but does not discard the valid in-memory token.
+- **Cancelled authorization navigation can remain pending.** Browsers provide no
+  reliable signal that a requested cross-origin navigation was blocked,
+  cancelled, or stopped. If it does not commit, the page-global authentication
+  promise remains pending and later agent instances in that page remain
+  connecting until the page unloads.
 - **Referrers before initialisation belong to the host.** Agent cleanup cannot
   suppress requests or referrers already emitted by the activity document.
   Activity hosts should send `Referrer-Policy: strict-origin` or a stricter

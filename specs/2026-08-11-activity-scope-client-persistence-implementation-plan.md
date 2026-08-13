@@ -1,8 +1,8 @@
 # Activity scope client persistence simplification — implementation plan
 
 Date: 2026-08-11
-Status: Task 1 complete with review corrections; production implementation has
-not started
+Status: Tasks 1–2 complete; Task 3 implemented with automated verification
+passed; independent review and manual pull-request acceptance remain pending
 Related:
 
 - `specs/2026-08-11-activity-scope-client-persistence-analysis.md` — approved
@@ -14,8 +14,8 @@ Related:
 - `docs/AGENT.md` — shipped browser-agent authentication and storage behaviour
 - `docs/AUTHN-AUTHZ.md` — authorization-code, token, and renewal contracts that
   remain unchanged
-- `apps/agent/src/core/activity-context.ts` — current context records and
-  foreground publication helpers
+- `apps/agent/src/core/activity-context.ts` — current tab and local-default
+  context records
 - `apps/agent/src/core/auth.ts` — current context resolution and OAuth with Proof
   Key for Code Exchange (PKCE)
 
@@ -358,7 +358,7 @@ before beginning Task 3.
 
 ## Phase 2 — Release Contract and Acceptance
 
-### Task 3 — Update Release Documentation and Verify the Pull Request
+### Task 3 — Update Release Documentation and Verify the Pull Request — Ready for Review
 
 Proposed commit: `docs(agent): documented activity context persistence`
 
@@ -442,6 +442,23 @@ pnpm -F @modulus-learning/agent-demo-react build
 pnpm -F @modulus-learning/agent-demo-vanilla build
 git diff --check origin/develop...HEAD
 ```
+
+Verification results (2026-08-13):
+
+- `pnpm run ci` passed, including the read-only lint gate, all six typecheck and
+  build tasks, 107 core unit tests, 46 agent tests, 32 gradebook browser tests,
+  31 gradebook Node tests with one skipped test, and 77 database integration
+  tests across 18 suites;
+- the agent, gradebook, React demo, and vanilla demo production builds all
+  passed when run sequentially;
+- the shipped source, tests, documentation, and pending Changesets entry no
+  longer describe foreground context publication; and
+- whitespace validation passed for the working tree and is repeated against
+  `origin/develop...HEAD` after the documentation commit.
+
+The manual browser matrix remains deferred to final pull-request review and
+acceptance. No automated result substitutes for those live Canvas and browser
+checks.
 
 Run the production builds sequentially. If the integration database is missing
 or stale, stop and ask the stakeholder to run `pnpm db:init:test`; do not replace
