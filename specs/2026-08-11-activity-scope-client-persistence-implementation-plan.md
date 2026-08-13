@@ -1,8 +1,8 @@
 # Activity scope client persistence simplification — implementation plan
 
 Date: 2026-08-11
-Status: Tasks 1–2 complete; Task 3 implemented with automated verification
-passed; independent review and manual pull-request acceptance remain pending
+Status: Tasks 1–3 complete with independent review; manual pull-request
+acceptance remains pending
 Related:
 
 - `specs/2026-08-11-activity-scope-client-persistence-analysis.md` — approved
@@ -358,7 +358,7 @@ before beginning Task 3.
 
 ## Phase 2 — Release Contract and Acceptance
 
-### Task 3 — Update Release Documentation and Verify the Pull Request — Ready for Review
+### Task 3 — Update Release Documentation and Verify the Pull Request — Complete
 
 Proposed commit: `docs(agent): documented activity context persistence`
 
@@ -460,6 +460,9 @@ The manual browser matrix remains deferred to final pull-request review and
 acceptance. No automated result substitutes for those live Canvas and browser
 checks.
 
+Review status (2026-08-13): independently reviewed and accepted without further
+changes.
+
 Run the production builds sequentially. If the integration database is missing
 or stale, stop and ask the stakeholder to run `pnpm db:init:test`; do not replace
 the full gate with a partial result.
@@ -508,7 +511,7 @@ history and add this separate section:
 
 - [x] Record the revised analysis and implementation plan
 - [x] Replace foreground publication with successful-authentication persistence
-- [ ] Update release documentation and complete verification
+- [x] Update release documentation and complete verification
 ```
 
 The pull request summary should state that the original foreground implementation
