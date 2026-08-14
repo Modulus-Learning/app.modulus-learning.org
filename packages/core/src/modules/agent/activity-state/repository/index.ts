@@ -1,4 +1,4 @@
-import { and, eq, getTableColumns, gte, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, getTableColumns, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
 import {
@@ -21,20 +21,31 @@ export type ProgressUpdateRecord = ProgressRecord & { updated: boolean; increase
 // `increased` is true when the increment actually advanced the (clamped)
 // high-water mark -- false for a no-op (amount 0, or an already-capped target).
 export type ProgressIncrementRecord = ProgressRecord & { increased: boolean }
-export type ProgressUpdate = Omit<typeof progress.$inferInsert, 'created_at' | 'updated_at'>
+type ProgressInsert = typeof progress.$inferInsert
+export type ProgressUpdate = Omit<ProgressInsert, 'created_at' | 'updated_at' | 'scope_id'> &
+  Pick<ProgressRecord, 'scope_id'>
 
-export type ProgressEventInsert = typeof progressEvents.$inferInsert
 export type ProgressEventRecord = typeof progressEvents.$inferSelect
+type ProgressEventDbInsert = typeof progressEvents.$inferInsert
+export type ProgressEventInsert = Omit<ProgressEventDbInsert, 'scope_id'> &
+  Pick<ProgressEventRecord, 'scope_id'>
 
 export type PageStateRecord = typeof pageState.$inferSelect
-export type PageStateInsert = typeof pageState.$inferInsert
+export type PageStateInsert = Omit<typeof pageState.$inferInsert, 'scope_id'> &
+  Pick<PageStateRecord, 'scope_id'>
 export type PageStateUpdate = Pick<Partial<PageStateInsert>, 'state'>
 
 export type LineItemUpdate = {
   user_id: string
   activity_id: string
+  scope_id: string
   progress: number
   submitted_at: Date
+}
+
+export type LineItemUpdateResult = {
+  updated_count: number
+  scope_mismatch: boolean
 }
 
 export class ActivityStateQueries extends BaseService {
@@ -52,21 +63,37 @@ export class ActivityStateQueries extends BaseService {
   }
 
   @method
-  async getProgress(user_id: string, activity_id: string): Promise<ProgressRecord | undefined> {
+  async getProgress(
+    user_id: string,
+    activity_id: string,
+    scope_id: string
+  ): Promise<ProgressRecord | undefined> {
     return await this.db
       .get()
       .query.progress.findFirst({
-        where: and(eq(progress.user_id, user_id), eq(progress.activity_id, activity_id)),
+        where: and(
+          eq(progress.user_id, user_id),
+          eq(progress.activity_id, activity_id),
+          eq(progress.scope_id, scope_id)
+        ),
       })
       .catch(this.utils.wrapDbErrorNew())
   }
 
   @method
-  async getPageState(user_id: string, activity_id: string): Promise<PageStateRecord | undefined> {
+  async getPageState(
+    user_id: string,
+    activity_id: string,
+    scope_id: string
+  ): Promise<PageStateRecord | undefined> {
     return await this.db
       .get()
       .query.pageState.findFirst({
-        where: and(eq(pageState.user_id, user_id), eq(pageState.activity_id, activity_id)),
+        where: and(
+          eq(pageState.user_id, user_id),
+          eq(pageState.activity_id, activity_id),
+          eq(pageState.scope_id, scope_id)
+        ),
       })
       .catch(this.utils.wrapDbErrorNew())
   }
@@ -99,12 +126,13 @@ export class ActivityStateMutations extends BaseService {
       .values({
         user_id: values.user_id,
         activity_id: values.activity_id,
+        scope_id: values.scope_id,
         progress: clamped,
         created_at: sql`NOW()`,
         updated_at: sql`NOW()`,
       })
       .onConflictDoUpdate({
-        target: [progress.activity_id, progress.user_id],
+        target: [progress.activity_id, progress.user_id, progress.scope_id],
         set: {
           progress: sql`GREATEST(${clamped}, ${progress.progress})`,
           updated_at: sql`NOW()`,
@@ -136,6 +164,7 @@ export class ActivityStateMutations extends BaseService {
   async incrementProgress(values: {
     activity_id: string
     user_id: string
+    scope_id: string
     amount: number
   }): Promise<ProgressIncrementRecord> {
     const [result] = await this.db
@@ -144,12 +173,13 @@ export class ActivityStateMutations extends BaseService {
       .values({
         user_id: values.user_id,
         activity_id: values.activity_id,
+        scope_id: values.scope_id,
         progress: Math.min(1, Math.max(0, values.amount)),
         created_at: sql`NOW()`,
         updated_at: sql`NOW()`,
       })
       .onConflictDoUpdate({
-        target: [progress.activity_id, progress.user_id],
+        target: [progress.activity_id, progress.user_id, progress.scope_id],
         set: {
           // Clamp both ends: the upper bound is the cumulative cap, and the
           // lower bound keeps a garbage/negative amount from *decreasing* an
@@ -221,7 +251,7 @@ export class ActivityStateMutations extends BaseService {
       .insert(pageState)
       .values(values)
       .onConflictDoUpdate({
-        target: [pageState.activity_id, pageState.user_id],
+        target: [pageState.user_id, pageState.activity_id, pageState.scope_id],
         set: { state: values.state },
       })
       .catch(this.utils.wrapDbErrorNew())
@@ -231,28 +261,45 @@ export class ActivityStateMutations extends BaseService {
   async updateLineItems({
     user_id,
     activity_id,
+    scope_id,
     submitted_at,
     progress,
-  }: LineItemUpdate): Promise<void> {
-    await this.db
+  }: LineItemUpdate): Promise<LineItemUpdateResult> {
+    const result = await this.db
       .get()
-      .update(lineitems)
-      .set({
-        submittable_progress: sql`GREATEST(${lineitems.submittable_progress}, ${progress})`,
-        submission_eligible_at: sql`
-          CASE WHEN ${lineitems.submittable_progress} > ${lineitems.submitted_progress}
-          THEN COALESCE(${lineitems.submission_eligible_at}, now())
-          ELSE GREATEST(${lineitems.submission_eligible_at}, now()) END`,
-        updated_at: sql`now()`,
-      })
-      .where(
-        and(
-          eq(lineitems.user_id, user_id),
-          eq(lineitems.activity_id, activity_id),
-          or(isNull(lineitems.cutoff_at), gte(lineitems.cutoff_at, submitted_at)),
-          isNull(lineitems.dead_at)
+      .execute<{ updated_count: number; scope_mismatch: boolean }>(sql`
+        WITH candidates AS MATERIALIZED (
+          SELECT id, scope_id
+          FROM ${lineitems}
+          WHERE user_id = ${user_id}
+            AND activity_id = ${activity_id}
+            AND (cutoff_at IS NULL OR cutoff_at >= ${submitted_at})
+            AND dead_at IS NULL
+        ), updated AS (
+          UPDATE ${lineitems} AS target
+          SET
+            submittable_progress = GREATEST(target.submittable_progress, ${progress}),
+            submission_eligible_at = CASE
+              WHEN target.submittable_progress > target.submitted_progress
+              THEN COALESCE(target.submission_eligible_at, now())
+              ELSE GREATEST(target.submission_eligible_at, now())
+            END,
+            updated_at = now()
+          FROM candidates
+          WHERE target.id = candidates.id
+            AND target.scope_id = ${scope_id}
+          RETURNING target.id
         )
-      )
+        SELECT
+          (SELECT count(*)::integer FROM updated) AS updated_count,
+          NOT EXISTS (SELECT 1 FROM updated)
+            AND EXISTS (SELECT 1 FROM candidates WHERE scope_id <> ${scope_id})
+            AS scope_mismatch
+      `)
       .catch(this.utils.wrapDbErrorNew())
+
+    const outcome = result.rows[0]
+    this.utils.assertExists(outcome, { message: 'line item update outcome is null' })
+    return outcome
   }
 }

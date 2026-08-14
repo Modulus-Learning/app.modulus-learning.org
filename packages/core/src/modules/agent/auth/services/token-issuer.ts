@@ -11,7 +11,7 @@ export class AgentTokenIssuer {
     this.renewAfterSeconds = deps.config.jwt.agent.renewAfterSeconds
   }
 
-  createAccessToken({ user, activity }: SignInResult): Promise<string> {
+  createAccessToken({ user, activity, scope_id }: SignInResult): Promise<string> {
     const renew_after = Math.floor(Date.now() / 1000 + this.renewAfterSeconds)
 
     const payload: AccessTokenPayload = {
@@ -20,6 +20,7 @@ export class AgentTokenIssuer {
         full_name: user.full_name ?? undefined,
       },
       activity_id: activity.id,
+      scope_id,
       renew_after,
     }
 

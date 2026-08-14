@@ -4,6 +4,7 @@ export {
   initCore,
   type StopHandle,
 } from './core.js'
+export { DEFAULT_SCOPE_ID } from './database/schema/constants.js'
 export { AdminAuth, AgentAuth, UserAuth } from './lib/auth.js'
 export type { Config, UrlBuilder } from './config.js'
 export type {

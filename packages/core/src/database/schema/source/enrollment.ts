@@ -3,7 +3,6 @@ import { pgTable, primaryKey, uuid } from 'drizzle-orm/pg-core'
 
 import { activities } from './activities.js'
 import { activityCodes } from './activity-codes.js'
-import { progress } from './progress.js'
 import { users } from './users.js'
 
 export const enrollment = pgTable(
@@ -26,7 +25,7 @@ export const enrollment = pgTable(
   ]
 )
 
-export const enrollmentProgressRelations = relations(enrollment, ({ one }) => ({
+export const enrollmentRelations = relations(enrollment, ({ one }) => ({
   activityCode: one(activityCodes, {
     fields: [enrollment.activity_code_id],
     references: [activityCodes.id],
@@ -38,9 +37,5 @@ export const enrollmentProgressRelations = relations(enrollment, ({ one }) => ({
   user: one(users, {
     fields: [enrollment.user_id],
     references: [users.id],
-  }),
-  progress: one(progress, {
-    fields: [enrollment.activity_id, enrollment.user_id],
-    references: [progress.activity_id, progress.user_id],
   }),
 }))

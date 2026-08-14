@@ -10,6 +10,7 @@ import {
   platforms,
   progress,
   progressEvents,
+  scopes,
 } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
@@ -26,11 +27,22 @@ export type PlatformRecord = typeof platforms.$inferSelect
 export type PlatformInsert = typeof platforms.$inferInsert
 export type PlatformHealthRecord = typeof platformHealth.$inferSelect
 export type PlatformHealthInsert = typeof platformHealth.$inferInsert
+export type ScopeRecord = typeof scopes.$inferSelect
 
-export type LineItemUpsert = Pick<
+export type PlatformScopeResolution = {
+  platform_id: string
+  external_id: string
+  name?: string
+  starts_at?: Date
+  ends_at?: Date
+  last_verified_launch_at: Date
+}
+
+export type LineItemReconciliation = Pick<
   LineItemInsert,
   | 'user_id'
   | 'activity_id'
+  | 'scope_id'
   | 'platform_issuer'
   | 'deployment_id'
   | 'lineitem_url'
@@ -111,6 +123,7 @@ export class LtiQueries extends BaseService {
   async getProgressWithCutoff(
     user_id: string,
     activity_id: string,
+    scope_id: string,
     cutoff: Date | undefined
   ): Promise<number> {
     const [row] = await this.db
@@ -123,6 +136,7 @@ export class LtiQueries extends BaseService {
         and(
           eq(progressEvents.user_id, user_id),
           eq(progressEvents.activity_id, activity_id),
+          eq(progressEvents.scope_id, scope_id),
           cutoff == null ? undefined : lte(progressEvents.submitted_at, cutoff)
         )
       )
@@ -144,6 +158,33 @@ export class LtiMutations extends BaseService {
     super(deps.logger, 'app', 'lti')
     this.utils = deps.utils
     this.db = deps.db
+  }
+
+  @method
+  async resolvePlatformScope(values: PlatformScopeResolution): Promise<ScopeRecord> {
+    const [scope] = await this.db
+      .get()
+      .insert(scopes)
+      .values({ id: uuidv7(), ...values })
+      .onConflictDoUpdate({
+        target: [scopes.platform_id, scopes.external_id],
+        set: {
+          name: sql`COALESCE(excluded.name, ${scopes.name})`,
+          starts_at: sql`COALESCE(excluded.starts_at, ${scopes.starts_at})`,
+          ends_at: sql`COALESCE(excluded.ends_at, ${scopes.ends_at})`,
+          last_verified_launch_at: sql`GREATEST(
+            excluded.last_verified_launch_at,
+            ${scopes.last_verified_launch_at}
+          )`,
+          updated_at: sql`NOW()`,
+        },
+      })
+      .returning()
+      .catch(this.utils.wrapDbErrorNew())
+
+    this.utils.assertExists(scope, { message: 'resolved scope record is null' })
+
+    return scope
   }
 
   @method
@@ -212,23 +253,25 @@ export class LtiMutations extends BaseService {
   }
 
   @method
-  async upsertLineItem({
+  async reconcileLineItem({
     user_id,
     activity_id,
+    scope_id,
     platform_issuer,
     deployment_id,
     lineitem_url,
     lti_user_id,
     cutoff_at,
     submittable_progress,
-  }: LineItemUpsert): Promise<void> {
-    await this.db
+  }: LineItemReconciliation): Promise<LineItemRecord> {
+    const [inserted] = await this.db
       .get()
       .insert(lineitems)
       .values({
         id: uuidv7(),
         user_id,
         activity_id,
+        scope_id,
         platform_issuer,
         deployment_id,
         lineitem_url,
@@ -237,20 +280,86 @@ export class LtiMutations extends BaseService {
         submittable_progress,
         submission_eligible_at: sql`now()`,
       })
-      .onConflictDoUpdate({
+      .onConflictDoNothing({
         target: [lineitems.user_id, lineitems.activity_id, lineitems.lineitem_url],
-        set: {
-          cutoff_at,
-          submittable_progress: sql`GREATEST(${lineitems.submittable_progress}, ${submittable_progress})`,
-          dead_at: null,
-          submission_eligible_at: sql`
-            CASE WHEN ${lineitems.submittable_progress} > ${lineitems.submitted_progress}
-            THEN COALESCE(${lineitems.submission_eligible_at}, now())
-            ELSE GREATEST(${lineitems.submission_eligible_at}, now()) END`,
-          updated_at: sql`now()`,
-        },
       })
+      .returning()
       .catch(this.utils.wrapDbErrorNew())
+
+    if (inserted != null) {
+      return inserted
+    }
+
+    const [existing] = await this.db
+      .get()
+      .select()
+      .from(lineitems)
+      .where(
+        and(
+          eq(lineitems.user_id, user_id),
+          eq(lineitems.activity_id, activity_id),
+          eq(lineitems.lineitem_url, lineitem_url)
+        )
+      )
+      .for('update')
+      .catch(this.utils.wrapDbErrorNew())
+
+    this.utils.assertExists(existing, { message: 'conflicting line item is null' })
+
+    const scopeChanged = existing.scope_id !== scope_id
+    // The current verified launch is authoritative for the platform,
+    // deployment, and LTI user identity used by subsequent AGS submissions.
+    const [updated] = await this.db
+      .get()
+      .update(lineitems)
+      .set(
+        scopeChanged
+          ? {
+              scope_id,
+              platform_issuer,
+              deployment_id,
+              lti_user_id,
+              cutoff_at,
+              dead_at: null,
+              submitted_progress: 0,
+              submitted_at: null,
+              submittable_progress,
+              submission_eligible_at: sql`now()`,
+              submission_lease_expires_at: null,
+              submission_lease_token: null,
+              submission_error_count: 0,
+              submission_error_category: null,
+              submission_error_message: null,
+              updated_at: sql`now()`,
+            }
+          : {
+              platform_issuer,
+              deployment_id,
+              lti_user_id,
+              cutoff_at,
+              submittable_progress: sql`GREATEST(${lineitems.submittable_progress}, ${submittable_progress})`,
+              dead_at: null,
+              submission_eligible_at: sql`
+                CASE WHEN ${lineitems.submittable_progress} > ${lineitems.submitted_progress}
+                THEN COALESCE(${lineitems.submission_eligible_at}, now())
+                ELSE GREATEST(${lineitems.submission_eligible_at}, now()) END`,
+              updated_at: sql`now()`,
+            }
+      )
+      .where(eq(lineitems.id, existing.id))
+      .returning()
+      .catch(this.utils.wrapDbErrorNew())
+
+    this.utils.assertExists(updated, { message: 'reconciled line item is null' })
+
+    if (scopeChanged) {
+      this.logger.info(
+        { lineitem_id: existing.id, old_scope_id: existing.scope_id, new_scope_id: scope_id },
+        'line item scope reassigned'
+      )
+    }
+
+    return updated
   }
 
   @method
@@ -270,19 +379,20 @@ export class LtiMutations extends BaseService {
   }
 
   @method
-  async upsertProgress(activity_id: string, user_id: string): Promise<void> {
+  async upsertProgress(activity_id: string, user_id: string, scope_id: string): Promise<void> {
     await this.db
       .get()
       .insert(progress)
       .values({
         activity_id,
         user_id,
+        scope_id,
         progress: 0,
         created_at: sql`now()`,
         updated_at: sql`now()`,
       })
       .onConflictDoUpdate({
-        target: [progress.activity_id, progress.user_id],
+        target: [progress.activity_id, progress.user_id, progress.scope_id],
         set: { progress: progress.progress },
       })
       .catch(this.utils.wrapDbErrorNew())

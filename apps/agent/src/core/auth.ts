@@ -1,44 +1,66 @@
+import {
+  clearOAuthSession,
+  clearStoredContextsForIssuer,
+  createActivityContext,
+  DEFAULT_SCOPE_ID,
+  readLocalContext,
+  readOAuthSession,
+  readTabContext,
+  type StoredActivityContext,
+  type StoredOAuthSession,
+  type StoredReturnLocation,
+  sameActivityContextIdentity,
+  writeLocalContext,
+  writeOAuthSession,
+  writeTabContext,
+} from './activity-context.js'
 import type { Logger } from './logger.js'
 import type { User } from './types.js'
 
 type AuthResult =
   | { status: 'none' }
-  | { status: 'authenticated'; baseUrl: string; user: User; token: string }
+  | {
+      status: 'authenticated'
+      baseUrl: string
+      user: User
+      token: string
+      scope_id: string
+      scope_name: string | null
+    }
   | { status: 'expired' }
   | { status: 'failed'; baseUrl?: string | undefined; error: string }
 
-export const authenticate = async (logger: Logger | undefined): Promise<AuthResult> => {
+type AuthOptions = {
+  navigate?: (url: URL) => void
+}
+
+const authenticateOnce = async (
+  logger: Logger | undefined,
+  options: AuthOptions = {}
+): Promise<AuthResult> => {
   const params = getQueryParams()
 
   const { state, code, error, error_description, error_uri } = params
-
-  // If we received any OAuth response parameters, assume we've been redirected
-  // back from an authorization request, and handle the response accordingly.
-  if (state != null || code != null || error != null) {
-    await logger?.log('Received OAuth response')
-    return await handleAuthCodeResponse(state, code, error, error_description, error_uri, logger)
-  }
 
   // If we received a Modulus server url in the query parameters, check that
   // it's legitimate and then attempt to request an auth code from that server.
   if (params.issuer != null) {
     await logger?.log('Received Modulus server url in query parameters:', params.issuer)
 
-    let issuer: string
-    try {
-      issuer = decodeURIComponent(params.issuer)
-    } catch (_err) {
-      // The url was improperly encoded -- report an error and make no further
-      // attempt at auth.
-      await logger?.log('Invalid issuer in query parameters')
+    const context = createActivityContext(params.issuer, params.scope_id ?? DEFAULT_SCOPE_ID)
+    if (context == null) {
+      await logger?.log('Invalid activity context in query parameters')
       return {
         status: 'failed',
-        error: 'invalid_issuer',
+        error:
+          createActivityContext(params.issuer, DEFAULT_SCOPE_ID) == null
+            ? 'invalid_issuer'
+            : 'invalid_scope',
       }
     }
 
     const validationResult = await validateIssuer(
-      issuer,
+      context.issuer,
       'https://modulus-learning.org/api/registry',
       logger
     )
@@ -53,9 +75,34 @@ export const authenticate = async (logger: Logger | undefined): Promise<AuthResu
       }
     }
 
+    const previousTabContext = readTabContext()
+    const previousLocalContext = previousTabContext == null ? readLocalContext() : null
+    const previousContext = previousTabContext ?? previousLocalContext
+    if (previousContext != null && !sameActivityContextIdentity(previousContext, context)) {
+      await logger?.log('Fresh launch changed the activity context', {
+        history: previousTabContext == null ? 'local' : 'tab',
+        previous_scope_id: previousContext.scope_id,
+        scope_id: context.scope_id,
+        issuer_changed: previousContext.issuer !== context.issuer,
+      })
+    }
+
+    // Commit the complete pair before OAuth starts. Reloads and navigation in
+    // this tab now use one atomic issuer/scope identity.
+    if (!writeTabContext(context)) {
+      await logger?.log('Unable to commit fresh activity context to tab storage')
+      return { status: 'failed', error: 'storage_unavailable' }
+    }
+
     // Request an auth code.  This will redirect the browser to the Modulus
     // server's authorization endpoint, so this call will never return.
-    return await requestAuthCode(issuer, logger)
+    return await requestAuthCode(context, logger, options)
+  }
+
+  // OAuth response handling uses only the exact pre-redirect session snapshot.
+  if (state != null || code != null || error != null) {
+    await logger?.log('Received OAuth response')
+    return await handleAuthCodeResponse(state, code, error, error_description, error_uri, logger)
   }
 
   // Window.sessionStorage contains stored state suggesting this browser session
@@ -64,7 +111,7 @@ export const authenticate = async (logger: Logger | undefined): Promise<AuthResu
   // or there was some other (hopefully transient) issue that prevented the
   // redirect back.  In this case, report an error and make no further attempt
   // at auth.
-  const authRequestInProgress = window.sessionStorage.getItem('oauth_state') != null
+  const authRequestInProgress = readOAuthSession() != null
   if (authRequestInProgress) {
     await logger?.log('Auth request in progress, but no auth response received yet')
     return {
@@ -73,13 +120,15 @@ export const authenticate = async (logger: Logger | undefined): Promise<AuthResu
     }
   }
 
-  // Check if there's a stored Modulus server url in localStorage
-  const storedIssuer = window.localStorage.getItem(MODULUS_BASE_URL_STORAGE_KEY)
-  if (storedIssuer != null) {
-    await logger?.log('Found stored issuer in localStorage:', storedIssuer)
+  const storedContext = readTabContext()
+  if (storedContext != null) {
+    await logger?.log('Found stored tab activity context:', {
+      issuer: storedContext.issuer,
+      scope_id: storedContext.scope_id,
+    })
 
     const validationResult = await validateIssuer(
-      storedIssuer,
+      storedContext.issuer,
       'https://modulus-learning.org/api/registry',
       logger
     )
@@ -88,12 +137,8 @@ export const authenticate = async (logger: Logger | undefined): Promise<AuthResu
       // The issuer is not recognized (or the attempt to validate it failed) --
       // report an error and make no further attempt at auth.
       await logger?.log('Issuer validation failed:', validationResult.error)
-      // If the registry definitively rejected the stored issuer, drop the
-      // cached value so the next page load doesn't keep trying it.  Transient
-      // registry-fetch failures (issuer_validation_failed) are left alone --
-      // we don't want a flaky network to flush a good cache.
       if (validationResult.error === 'invalid_issuer') {
-        await clearStoredIssuer(logger, 'stored issuer no longer in registry')
+        clearStoredContextsForIssuer(storedContext.issuer)
       }
       return {
         status: 'failed',
@@ -101,17 +146,73 @@ export const authenticate = async (logger: Logger | undefined): Promise<AuthResu
       }
     }
 
-    // TODO: Should we validate the stored issuer before requesting an auth
-    // code?  In principle the issuer should already have been validated during
-    // a previous auth flow, so the only concern would be if the value in
-    // localStorage was somehow tampered with, and it'd be nice to avoid the
-    // latency of an extra network request.
-    return await requestAuthCode(storedIssuer, logger)
+    return await requestAuthCode(storedContext, logger, options)
+  }
+
+  const localContext = readLocalContext()
+  if (localContext != null) {
+    await logger?.log('Cold tab selected the local activity context', {
+      scope_id: localContext.scope_id,
+    })
+
+    const validationResult = await validateIssuer(
+      localContext.issuer,
+      'https://modulus-learning.org/api/registry',
+      logger
+    )
+    if (!validationResult.ok) {
+      await logger?.log('Local issuer validation failed:', validationResult.error)
+      if (validationResult.error === 'invalid_issuer') {
+        clearStoredContextsForIssuer(localContext.issuer)
+      }
+      return {
+        status: 'failed',
+        error: validationResult.error,
+      }
+    }
+
+    // The OAuth transaction carries this candidate context across the
+    // redirect. It becomes an established tab context only after a verified
+    // token response succeeds.
+    return await requestAuthCode(localContext, logger, options)
   }
 
   return {
     status: 'none',
   }
+}
+
+// Authentication consumes page-global URL and storage state, so concurrent
+// agent instances in the same page must participate in one operation. The
+// initial authorization redirect intentionally never settles and unloads this
+// module; completed callback, failure, and local-only paths release the guard.
+let authenticationInFlight: Promise<AuthResult> | null = null
+
+// Test isolation only. This module is intentionally not part of the package's
+// public entry point, so consumers cannot cancel a legitimate authentication.
+export const resetAuthenticationStateForTesting = (): void => {
+  authenticationInFlight = null
+}
+
+export const authenticate = (
+  logger: Logger | undefined,
+  options: AuthOptions = {}
+): Promise<AuthResult> => {
+  if (authenticationInFlight != null) {
+    return authenticationInFlight
+  }
+
+  const attempt = authenticateOnce(logger, options)
+  authenticationInFlight = attempt
+
+  const clearAttempt = (): void => {
+    if (authenticationInFlight === attempt) {
+      authenticationInFlight = null
+    }
+  }
+  void attempt.then(clearAttempt, clearAttempt)
+
+  return attempt
 }
 
 const validateIssuer = async (
@@ -147,27 +248,18 @@ const validateIssuer = async (
   }
 }
 
-const requestAuthCode = async (issuer: string, logger: Logger | undefined): Promise<never> => {
-  await logger?.log('Preparing authorization request')
-
-  const code_verifier = createPKCECodeVerifier()
-  const code_challenge = await createPKCECodeChallenge(code_verifier)
-  const state = createOAuthState()
-
-  // TODO: Think about ways to deal with query string parameters / url fragments
-  // in current location url.  One option is to stash them in session storage,
-  // and restore them if/when modulus redirects back.  Or, we could relax the
-  // OAuth conformance a bit and allow the redirect_uri to contain a fragment or
-  // extra query parameters (other than the reserved ones the agent itself
-  // uses).  For now, we just strip any existing query parameters or fragment from
-  // the current url, and use that as the redirect_uri.
-  const redirect_uri = getOAuthRedirectUri()
-
-  // TODO: This request conforms to RFC 7636, but seems a bit redundant in our
-  // case.  For example, we only ever support response_type = 'code' and
-  // code_challenge_method = 'S256', and we always set the client_id equal to
-  // the redirect_uri, so do we really need to transmit those?
-  const requestParams = {
+export const createAuthorizationRequestParams = ({
+  redirect_uri,
+  state,
+  code_challenge,
+  scope_id,
+}: {
+  redirect_uri: string
+  state: string
+  code_challenge: string
+  scope_id: string | null | undefined
+}): Record<string, string> => {
+  const requestParams: Record<string, string> = {
     response_type: 'code',
     client_id: redirect_uri,
     redirect_uri,
@@ -176,21 +268,67 @@ const requestAuthCode = async (issuer: string, logger: Logger | undefined): Prom
     code_challenge_method: 'S256',
   }
 
+  if (scope_id != null) {
+    requestParams.scope_id = scope_id
+  }
+
+  return requestParams
+}
+
+const requestAuthCode = async (
+  context: StoredActivityContext,
+  logger: Logger | undefined,
+  options: AuthOptions
+): Promise<AuthResult> => {
+  await logger?.log('Preparing authorization request')
+
+  const code_verifier = createPKCECodeVerifier()
+  const code_challenge = await createPKCECodeChallenge(code_verifier)
+  const state = createOAuthState()
+
+  const redirect_uri = getOAuthRedirectUri()
+
+  // TODO: This request conforms to RFC 7636, but seems a bit redundant in our
+  // case.  For example, we only ever support response_type = 'code' and
+  // code_challenge_method = 'S256', and we always set the client_id equal to
+  // the redirect_uri, so do we really need to transmit those?
+  const requestParams = createAuthorizationRequestParams({
+    redirect_uri,
+    state,
+    code_challenge,
+    scope_id: context.scope_id,
+  })
+
   await logger?.log('Auth request parameters:', JSON.stringify(requestParams, null, 2))
 
-  const requestUrl = new URL('/routes/agent/authorize', issuer)
+  const requestUrl = new URL('/routes/agent/authorize', context.issuer)
   requestUrl.search = new URLSearchParams(requestParams).toString()
 
   await logger?.log('Redirecting to', requestUrl.toString())
 
-  window.sessionStorage.setItem('oauth_code_verifier', code_verifier)
-  window.sessionStorage.setItem('oauth_state', state)
-  window.sessionStorage.setItem('issuer', issuer)
+  const oauthSession: StoredOAuthSession = {
+    version: 1,
+    state,
+    code_verifier,
+    context,
+    return_location: {
+      search: window.location.search,
+      hash: window.location.hash,
+    },
+  }
+  if (!writeOAuthSession(oauthSession)) {
+    await logger?.log('Unable to save OAuth session in tab storage')
+    return { status: 'failed', error: 'storage_unavailable' }
+  }
 
   // NOTE: This redirects to requestUrl, which immediately unloads the current
   // page and discontinues all further javascript execution.  In other words,
   // this function never returns.
-  window.location.assign(requestUrl)
+  if (options.navigate != null) {
+    options.navigate(requestUrl)
+  } else {
+    window.location.assign(requestUrl)
+  }
 
   // Satisfy TypeScript that this function never returns
   return new Promise(() => {})
@@ -204,19 +342,11 @@ const handleAuthCodeResponse = async (
   error_uri: string | null,
   logger: Logger | undefined
 ): Promise<AuthResult> => {
-  const storedState = window.sessionStorage.getItem('oauth_state')
-  const code_verifier = window.sessionStorage.getItem('oauth_code_verifier')
-  const issuer = window.sessionStorage.getItem('issuer')
-
-  window.sessionStorage.removeItem('oauth_state')
-  window.sessionStorage.removeItem('oauth_code_verifier')
-  window.sessionStorage.removeItem('issuer')
-
-  // Drop any cached issuer up front; the success branch below re-sets it after
-  // a successful token exchange.  This way every failure return path implicitly
-  // leaves localStorage clean, so the next page load won't keep retrying a
-  // gradebook that just refused us (e.g., access_denied, expired session).
-  await clearStoredIssuer(logger, 'auth response received; will re-set on success')
+  const oauthSession = readOAuthSession()
+  clearOAuthSession()
+  if (oauthSession != null) {
+    restoreReturnLocation(oauthSession.return_location)
+  }
 
   if (state == null) {
     await logger?.log('OAuth state not supplied')
@@ -228,7 +358,7 @@ const handleAuthCodeResponse = async (
 
   // If the state in the response doesn't match the stored state, report an
   // error and make no further attempt at auth.
-  if (state !== storedState) {
+  if (oauthSession == null || state !== oauthSession.state) {
     await logger?.log('OAuth state is invalid')
     return {
       status: 'failed',
@@ -243,7 +373,7 @@ const handleAuthCodeResponse = async (
       error,
       error_description,
       error_uri,
-      issuer,
+      issuer: oauthSession?.context.issuer,
       redirect_uri: getOAuthRedirectUri(),
     })
 
@@ -272,26 +402,6 @@ const handleAuthCodeResponse = async (
     }
   }
 
-  // If we're missing the issuer, report an error and make no further attempt at
-  // auth.
-  if (issuer == null) {
-    await logger?.log('Modulus base url not found')
-    return {
-      status: 'failed',
-      error: 'oauth_state_mismatch',
-    }
-  }
-
-  // If we're missing the code verifier, report an error and make no further
-  // attempt at auth.
-  if (code_verifier == null) {
-    await logger?.log('OAuth code verifier not found')
-    return {
-      status: 'failed',
-      error: 'oauth_state_mismatch',
-    }
-  }
-
   const redirect_uri = getOAuthRedirectUri()
 
   const requestParams = {
@@ -299,15 +409,15 @@ const handleAuthCodeResponse = async (
     code,
     client_id: redirect_uri,
     redirect_uri,
-    code_verifier,
+    code_verifier: oauthSession.code_verifier,
   }
 
   await logger?.log(
     'Token request parameters:',
-    JSON.stringify({ ...requestParams, code_verifier: '[redacted]' })
+    JSON.stringify({ ...requestParams, code: '[redacted]', code_verifier: '[redacted]' })
   )
 
-  const requestUrl = new URL('/routes/agent/token', issuer)
+  const requestUrl = new URL('/routes/agent/token', oauthSession.context.issuer)
   await logger?.log('Posting token request to', requestUrl.toString())
   try {
     const response = await fetch(requestUrl, {
@@ -319,17 +429,40 @@ const handleAuthCodeResponse = async (
     })
 
     if (response.ok) {
-      const { api_base_url, access_token, user } = await response.json()
+      const { api_base_url, access_token, user, scope_id, scope_name } = await response.json()
       await logger?.log(
         'Received token response:',
-        JSON.stringify({ access_token: '[redacted]', api_base_url, user })
+        JSON.stringify({ access_token: '[redacted]', api_base_url, scope_id, scope_name })
       )
-      window.localStorage.setItem(MODULUS_BASE_URL_STORAGE_KEY, issuer)
+      const refreshedContext = createActivityContext(
+        oauthSession.context.issuer,
+        scope_id,
+        scope_name
+      )
+      if (refreshedContext == null || refreshedContext.scope_id !== oauthSession.context.scope_id) {
+        await logger?.log('Token response scope did not match requested activity context', {
+          expected_scope_id: oauthSession.context.scope_id,
+          received_scope_id: scope_id,
+        })
+        return {
+          status: 'failed',
+          error: 'token_scope_mismatch',
+        }
+      }
+
+      if (!writeTabContext(refreshedContext)) {
+        await logger?.log('Unable to refresh activity context in tab storage')
+      }
+      if (!writeLocalContext(refreshedContext)) {
+        await logger?.log('Unable to save authenticated activity context as the local default')
+      }
       return {
         status: 'authenticated',
         baseUrl: api_base_url,
         token: access_token,
         user,
+        scope_id: refreshedContext.scope_id,
+        scope_name: refreshedContext.scope_name ?? null,
       }
     }
     const err = await response.text()
@@ -347,15 +480,6 @@ const handleAuthCodeResponse = async (
   }
 }
 
-const MODULUS_BASE_URL_STORAGE_KEY = 'modulus_base_url'
-
-const clearStoredIssuer = async (logger: Logger | undefined, reason: string) => {
-  const previous = window.localStorage.getItem(MODULUS_BASE_URL_STORAGE_KEY)
-  if (previous == null) return
-  window.localStorage.removeItem(MODULUS_BASE_URL_STORAGE_KEY)
-  await logger?.log('Cleared stored Modulus issuer:', { previous, reason })
-}
-
 const OAUTH_ERRORS = [
   'invalid_request',
   'unauthorized_client',
@@ -367,13 +491,14 @@ const OAUTH_ERRORS = [
 ]
 
 const MODULUS_BASE_URL_PARAM = 'modulus'
+const SCOPE_ID_PARAM = 'scope_id'
 const OAUTH_CODE_PARAM = 'code'
 const OAUTH_STATE_PARAM = 'state'
 const OAUTH_ERROR_PARAM = 'error'
 const OAUTH_ERROR_DESCRIPTION_PARAM = 'error_description'
 const OAUTH_ERROR_URI_PARAM = 'error_uri'
 
-const getQueryParams = () => {
+export const getQueryParams = () => {
   const query = new URLSearchParams(window.location.search)
   const state = query.get(OAUTH_STATE_PARAM)
   const code = query.get(OAUTH_CODE_PARAM)
@@ -381,6 +506,7 @@ const getQueryParams = () => {
   const error_description = query.get(OAUTH_ERROR_DESCRIPTION_PARAM)
   const error_uri = query.get(OAUTH_ERROR_URI_PARAM)
   const issuer = query.get(MODULUS_BASE_URL_PARAM)
+  const scope_id = query.get(SCOPE_ID_PARAM)
 
   query.delete(OAUTH_STATE_PARAM)
   query.delete(OAUTH_CODE_PARAM)
@@ -388,12 +514,20 @@ const getQueryParams = () => {
   query.delete(OAUTH_ERROR_DESCRIPTION_PARAM)
   query.delete(OAUTH_ERROR_URI_PARAM)
   query.delete(MODULUS_BASE_URL_PARAM)
+  query.delete(SCOPE_ID_PARAM)
 
   const newUrl = new URL(window.location.href)
   newUrl.search = query.toString()
   window.history.replaceState(null, '', newUrl)
 
-  return { state, code, error, error_description, error_uri, issuer }
+  return { state, code, error, error_description, error_uri, issuer, scope_id }
+}
+
+const restoreReturnLocation = ({ search, hash }: StoredReturnLocation): void => {
+  const returnUrl = new URL(window.location.href)
+  returnUrl.search = search
+  returnUrl.hash = hash
+  window.history.replaceState(null, '', returnUrl)
 }
 
 // Warning: this method only works with relatively short byte arrays, say less

@@ -1,7 +1,7 @@
 ---
 title: "Data Model"
 path: "data-model"
-summary: "The Modulus Postgres schema: identity and RBAC for two actor types, the activity / activity-code / enrollment graph, the two learner-signal tables, LTI integration tables, agent OAuth storage, and the conventions (UUIDv7, version counters, UTC timestamps) shared across them."
+summary: "The Modulus Postgres schema: identity and RBAC, the activity and unscoped cohort graph, academic scopes, scope-partitioned learner signals, LTI passback, agent OAuth storage, and the conventions shared across them."
 ---
 
 # Data Model
@@ -41,7 +41,7 @@ A few patterns recur across nearly every table:
 
 ## Entity Groups
 
-The tables fall into seven groups.
+The tables fall into eight groups.
 
 ### 1. Identity & access — learners
 
@@ -111,31 +111,46 @@ This is the graph that connects learners to Ximera content.
 - **`activity_code_member`** — which users belong to a code (M:N), i.e. roster
   membership of a code.
 - **`enrollment`** — the three-way link `(activity_code_id, activity_id,
-  user_id)` that records a learner working a specific activity in the context of a
-  specific code. Its Drizzle relations map one-to-one onto a `progress` row for
-  the same `(activity_id, user_id)`.
+  user_id)` that records a learner working a specific activity in the context of
+  a specific code. Enrollment and activity-code membership deliberately remain
+  broad, unscoped cohorts; scope is applied only when learner state is read or
+  written.
 
-### 4. Learner signals
+### 4. Academic scopes
 
-The two shapes of recorded learner activity — the heart of what Modulus is for.
-Both are keyed by `(user_id, activity_id)` and hold the **latest** value for that
-pair:
+**`scopes`** defines opaque buckets that partition learner state and score
+passback. A non-default row is identified by the platform-qualified pair
+`(platform_id, external_id)` and may carry a nullable display `name`, nullable
+descriptive `starts_at` / `ends_at`, and `last_verified_launch_at`. The external
+id is retained inside Modulus and never sent to activity content.
 
-- **`progress`** — a single `real` `progress` value, normalized **0–1.0**, with
-  `timestamps`. This is the score the agent reports and that LTI passback
-  ultimately submits to the LMS.
+The global fallback row has the fixed id
+`00000000-0000-0000-0000-000000000000`, with null `platform_id` and
+`external_id`. A check constraint permits that null identity only for the
+fallback row; every other scope must have both identity columns. Existing or
+unscoped data therefore remains explicit rather than relying on nullable foreign
+keys.
+
+### 5. Learner signals
+
+The current learner state is partitioned by the token-bound
+`(user_id, activity_id, scope_id)` tuple:
+
+- **`progress`** — a `real` high-water mark normalized **0–1.0**, with
+  `timestamps`. Its composite primary key is
+  `(activity_id, user_id, scope_id)`.
 - **`page_state`** — a `state` blob (currently `text`, defaulting to `'{}'`) that
-  lets a learner resume an activity where they left off.
+  lets a learner resume an activity where they left off. Its composite primary
+  key is `(user_id, activity_id, scope_id)`.
+- **`progress_events`** — an append-only event stream recording each direct
+  high-water-mark advance and cumulative contribution. Events carry the same
+  scope and an optional `source_activity_id` for contributions.
 
-> **Scope note.** As the schema stands, `progress` and `page_state` store the
-> *current* state per learner/activity, not a full time-series history. The
-> "time-series" ambition described in INTRODUCTION and the summary doc is today
-> represented by the append-only `user_logins` table and the stated direction
-> toward TimescaleDB; a per-interaction history of progress/page-state would be a
-> future addition. Documenting this honestly matters — see
-> [Open questions](#open-questions).
+`progress` and `page_state` are latest-state tables within a scope;
+`progress_events` is progress history, not page-state history. All five tables
+that gained `scope_id` use a non-null foreign key with the sentinel default.
 
-### 5. LTI integration
+### 6. LTI integration
 
 Everything needed to be an LTI 1.3 tool and to passback grades (see [LTI](./LTI.md)):
 
@@ -149,33 +164,36 @@ Everything needed to be an LTI 1.3 tool and to passback grades (see [LTI](./LTI.
   + `expires_at`).
 - **`lti_nonces`** — one-time-use nonces (`used` flag) for **replay protection**
   on launches.
-- **`lti_lineitems`** — the AGS passback ledger, and the richest table in the
-  schema. Beyond the identity columns (`user_id`, `activity_id`, `lineitem_url`,
+- **`lti_lineitems`** — the AGS passback ledger and durable work queue. Beyond
+  the identity columns (`user_id`, `activity_id`, `scope_id`, `lineitem_url`,
   `platform_issuer`, `deployment_id`, `lti_user_id`) it tracks both what has been
   sent and the retry machinery the background worker relies on:
 
   ```ts
-  submitted_progress        // last value successfully submitted
-  submitted_at              // when that succeeded
-  submission_locked_at      // worker lock; also a staleness/crash-recovery marker
-  submission_attempts       // consecutive failures, for backoff
-  submission_next_retry_at  // earliest eligible retry (NOW() + backoff)
-  submission_last_error     // diagnostic from the last failure
+  submittable_progress          // scoped target value eligible for passback
+  submitted_progress            // last value successfully submitted
+  submission_eligible_at        // throttle/backoff schedule
+  submission_lease_token        // fencing token for the active worker
+  submission_lease_expires_at   // when another worker may reclaim it
+  submission_error_*            // consecutive failure diagnostics
   ```
 
-  These columns are what make passback **reliable at scale** — the worker claims
-  a line item via `submission_locked_at`, backs off on failure, and recovers
-  stale locks after a crash. The flow is documented in
-  [LTI → Score passback](./LTI.md) and the worker config lives under
+  These columns make passback **reliable at scale** — workers claim with
+  lease-fenced updates, back off on failure, and recover expired leases after a
+  crash. The flow is documented in
+  [LTI Score Submission](./LTI-SCORE-SUBMISSION.md), and worker config lives under
   `config.lti.score_submission`. Unique on `(user_id, activity_id, lineitem_url)`.
+  Scope is deliberately absent from that unique key: a verified term change
+  rebinds and resets the existing row instead of creating a second line item.
 
-### 6. Agent authorization (OAuth 2.0 + PKCE)
+### 7. Agent authorization (OAuth 2.0 + PKCE)
 
 Storage for the browser agent's authorization (see [AGENT](./AGENT.md)):
 
 - **`agent_auth_codes`** — short-lived authorization codes for the OAuth
   Authorization Code flow. The `code_challenge` column is the **PKCE** challenge,
-  bound to a `client_id` and `redirect_uri` and tied to a `user_id`.
+  bound to a `client_id`, `redirect_uri`, `user_id`, and `scope_id`. The scope is
+  fixed before redirect and cannot be substituted at token exchange.
 - **`agent_refresh_tokens`** — issued refresh tokens (`id`, `user_id`,
   `expires_at`, `used_at`); `used_at` supports rotation/replay detection.
 
@@ -183,11 +201,18 @@ Note the boundary this enforces, consistent with the
 [data-isolation rule](./ARCHITECTURE.md#system-context-three-tiers): the agent's
 authorization is tied to an opaque `users.id`, not to any LMS identity.
 
-### 7. Reporting
+### 8. Reporting
 
 - **`admin_reports_mau`** — a small precomputed rollup of monthly active users,
   keyed `(year, month)` with a `total`. The basis for the admin reports surface
   ([REPORTS](./REPORTS.md)).
+
+Instructor activity-code reports deliberately remain scope-agnostic. The query
+first projects all scoped progress to one row per `(user_id, activity_id)` using
+maximum progress, earliest creation, and latest update, then joins the unscoped
+`enrollment` cohort. Totals and offset pagination operate on enrollments, with
+nulls last and stable ascending activity/user tie-breakers; no arbitrary
+`scope_id` is exposed in the report.
 
 ## The Data-Isolation Boundary, in Schema Terms
 
@@ -200,6 +225,7 @@ minimal projection the agent is allowed to see:
 | `users.email`, `username`, provider ids | opaque `users.id` (UUID) |
 | `lti_*` issuer/sub/lineitem/platform data | display name |
 | course / context identity | activity context / `activities.url` |
+| raw scope external id and term dates | opaque `scope_id` and nullable display name |
 | — | normalized `progress` (0–1.0) |
 | — | `page_state` (activity-specific) |
 
@@ -209,7 +235,7 @@ see [AGENT](./AGENT.md) and [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md).
 ## Migrations & Seeds
 
 - **Migrations** live in `packages/core/src/database/migrations/` as Drizzle
-  migrations (`0000_…`–`0006_…` plus the `meta/` journal), generated with
+  migrations (`0000_…`–`0014_…` plus the `meta/` journal), generated with
   `pnpm drizzle:generate` and applied with `pnpm drizzle:migrate`.
 - **Historical SQL** under `database/sql/` (`modulus-deploy-YYYY-MM-DD.sql` and a
   few targeted `migrate-*.sql` scripts) predates the Drizzle migration track and
@@ -228,10 +254,9 @@ in a future revision:
 - **`page_state.state` type.** Currently `text`; a `TODO` in the schema asks
   whether `jsonb` would be better (queryability, indexing) — relevant if
   page-state ever needs to be inspected server-side.
-- **Time-series history.** Whether `progress` / `page_state` should retain a full
-  per-interaction history (and whether that, plus `user_logins`, moves to a
-  TimescaleDB hypertable) to fully deliver the "time-series assignment database"
-  framing.
+- **Page-state history.** `progress_events` records progress advances, but
+  `page_state` remains latest-only. Whether page-state needs history, and whether
+  event/audit tables move to TimescaleDB, remains open.
 - **`user_logins.provider`.** A `TODO` asks whether this free-text column should
   become an enum like `outcome`.
 

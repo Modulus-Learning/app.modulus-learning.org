@@ -72,8 +72,6 @@ export class HttpLtiAgsClient extends BaseService implements LtiAgsClient {
   async publishScore(input: PublishScoreInput): Promise<PublishScoreOutcome> {
     this.logger.debug(
       {
-        lineitem_url: input.lineitemUrl,
-        lti_user_id: input.ltiUserId,
         issuer: this.issuer,
         progress: input.scoreGiven,
       },

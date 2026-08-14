@@ -55,27 +55,40 @@ export const startActivitySchema = z.object({
       error: 'Activity URL is too long.',
     })
     .transform((s) => s.trim())
-    .refine((s) => s.length > 0, 'Activity URL cannot be empty.'),
+    .pipe(z.url({ error: 'Valid activity URL is required.' })),
 })
 
-export interface StartActivityResult {
-  status: 'success' | 'failed' | 'needs_user'
-  message: string
-  data?: {
-    user: {
-      id: string
-      // username: string | null
-      full_name?: string
-    }
-    activity_code: {
-      id: string
-      code: string
-    }
-    activity: {
-      id: string
-      url: string
-    }
-    modulus_server_url: string
+interface StartActivityData {
+  user: {
+    id: string
+    full_name?: string
   }
-  // token?: string
+  activity_code: {
+    id: string
+    code: string
+  }
+  activity: {
+    id: string
+    url: string
+  }
+  scope_id: string
+  scope_name: string | null
+  modulus_server_url: string
 }
+
+export type StartActivityResult =
+  | {
+      status: 'success'
+      message: string
+      data: StartActivityData
+    }
+  | {
+      status: 'failed'
+      message: string
+      data?: never
+    }
+  | {
+      status: 'needs_user'
+      message: string
+      data?: never
+    }

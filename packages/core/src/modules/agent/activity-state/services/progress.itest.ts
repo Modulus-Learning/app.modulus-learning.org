@@ -4,9 +4,15 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import { and, eq } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
-import { activities, lineitems, progress, progressEvents } from '@/database/schema/index.js'
+import {
+  activities,
+  DEFAULT_SCOPE_ID,
+  lineitems,
+  progress,
+  progressEvents,
+} from '@/database/schema/index.js'
 import { AgentAuth } from '@/lib/auth.js'
-import { seedActivity, seedLineItem, seedScenario } from '@/test-support/fixtures.js'
+import { seedActivity, seedLineItem, seedScenario, seedScope } from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
 
 let h: TestHarness
@@ -24,24 +30,35 @@ beforeEach(async () => {
 })
 
 // renew_after is irrelevant to setProgress; 0 keeps the fixtures terse.
-const authFor = (userId: string, activityId: string) => new AgentAuth(userId, activityId, 0)
+const authFor = (userId: string, activityId: string, scopeId: string = DEFAULT_SCOPE_ID) =>
+  new AgentAuth(userId, activityId, scopeId, 0)
 
 const approx = (actual: number | undefined, expected: number, eps = 1e-4): void => {
   assert.ok(actual != null && Math.abs(actual - expected) <= eps, `${actual} ≈ ${expected}`)
 }
 
-const readProgress = (userId: string, activityId: string) =>
+const readProgress = (userId: string, activityId: string, scopeId: string = DEFAULT_SCOPE_ID) =>
   h.db.query.progress.findFirst({
-    where: and(eq(progress.user_id, userId), eq(progress.activity_id, activityId)),
+    where: and(
+      eq(progress.user_id, userId),
+      eq(progress.activity_id, activityId),
+      eq(progress.scope_id, scopeId)
+    ),
   })
 
 const readLineItem = (id: string) => h.db.query.lineitems.findFirst({ where: eq(lineitems.id, id) })
 
-const eventsFor = (userId: string, activityId: string) =>
+const eventsFor = (userId: string, activityId: string, scopeId: string = DEFAULT_SCOPE_ID) =>
   h.db
     .select()
     .from(progressEvents)
-    .where(and(eq(progressEvents.user_id, userId), eq(progressEvents.activity_id, activityId)))
+    .where(
+      and(
+        eq(progressEvents.user_id, userId),
+        eq(progressEvents.activity_id, activityId),
+        eq(progressEvents.scope_id, scopeId)
+      )
+    )
 
 describe('ActivityProgressService.setProgress — self write fan-out', () => {
   it('advances self, records exactly one event, and schedules the self line item', async () => {
@@ -162,6 +179,127 @@ describe('ActivityProgressService.setProgress — umbrella fan-out', () => {
   })
 })
 
+describe('ActivityProgressService — scope partitioning', () => {
+  it('reads and writes self progress only in the token scope', async () => {
+    const s = await seedScenario(h.db)
+    const scopeB = await seedScope(h.db, s.platformId)
+    const authA = authFor(s.userId, s.activityId)
+    const authB = authFor(s.userId, s.activityId, scopeB)
+
+    await h.services.activityProgress.setProgress(authA, {
+      progress_for_current_page: 0.8,
+      increments_for_other_pages: [],
+    })
+    await h.services.activityProgress.setProgress(authB, {
+      progress_for_current_page: 0.3,
+      increments_for_other_pages: [],
+    })
+    const lowerB = await h.services.activityProgress.setProgress(authB, {
+      progress_for_current_page: 0.2,
+      increments_for_other_pages: [],
+    })
+
+    approx(lowerB.progress, 0.3)
+    approx((await h.services.activityProgress.getProgress(authA, {})).progress, 0.8)
+    approx((await h.services.activityProgress.getProgress(authB, {})).progress, 0.3)
+    assert.equal((await eventsFor(s.userId, s.activityId)).length, 1)
+    assert.equal((await eventsFor(s.userId, s.activityId, scopeB)).length, 1)
+  })
+
+  it('keeps cumulative reads, increments, and events in the source token scope', async () => {
+    const s = await seedScenario(h.db)
+    const scopeB = await seedScope(h.db, s.platformId)
+    const targetUrl = `https://content.test/target-${uuidv7()}`
+    const targetId = await seedActivity(h.db, targetUrl)
+    await h.db.insert(progress).values({
+      user_id: s.userId,
+      activity_id: targetId,
+      scope_id: DEFAULT_SCOPE_ID,
+      progress: 1,
+    })
+
+    const result = await h.services.activityProgress.setProgress(
+      authFor(s.userId, s.activityId, scopeB),
+      {
+        progress_for_current_page: 0.5,
+        increments_for_other_pages: [{ url: targetUrl, factor: 0.5 }],
+      }
+    )
+
+    approx(result.others?.[0]?.progress, 0.25)
+    approx((await readProgress(s.userId, targetId))?.progress, 1)
+    approx((await readProgress(s.userId, targetId, scopeB))?.progress, 0.25)
+    assert.equal((await eventsFor(s.userId, targetId)).length, 0)
+    const eventsB = await eventsFor(s.userId, targetId, scopeB)
+    assert.equal(eventsB.length, 1)
+    assert.equal(eventsB[0]?.source_activity_id, s.activityId)
+
+    const readB = await h.services.activityProgress.getProgress(
+      authFor(s.userId, s.activityId, scopeB),
+      { urls: [targetUrl] }
+    )
+    approx(readB.others?.[0]?.progress, 0.25)
+  })
+
+  it('updates only matching-scope direct and cumulative line items', async () => {
+    const s = await seedScenario(h.db)
+    const scopeB = await seedScope(h.db, s.platformId)
+    const targetUrl = `https://content.test/target-${uuidv7()}`
+    const targetId = await seedActivity(h.db, targetUrl)
+    const selfLineItem = await seedLineItem(h.db, s, {
+      submittable_progress: 0,
+      submission_eligible_at: null,
+    })
+    const targetLineItem = await seedLineItem(
+      h.db,
+      { ...s, activityId: targetId },
+      {
+        submittable_progress: 0,
+        submission_eligible_at: null,
+      }
+    )
+
+    await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId, scopeB), {
+      progress_for_current_page: 0.6,
+      increments_for_other_pages: [{ url: targetUrl, factor: 0.5 }],
+    })
+
+    approx((await readLineItem(selfLineItem.id))?.submittable_progress, 0)
+    approx((await readLineItem(targetLineItem.id))?.submittable_progress, 0)
+    assert.equal((await readLineItem(selfLineItem.id))?.submission_eligible_at, null)
+    assert.equal((await readLineItem(targetLineItem.id))?.submission_eligible_at, null)
+  })
+
+  it('executes exactly one line-item statement for self and each cumulative target', async () => {
+    const s = await seedScenario(h.db)
+    const firstUrl = `https://content.test/target-${uuidv7()}`
+    const secondUrl = `https://content.test/target-${uuidv7()}`
+    await seedActivity(h.db, firstUrl)
+    await seedActivity(h.db, secondUrl)
+    const mutations = h.repos.activityMutations
+    const original = mutations.updateLineItems.bind(mutations)
+    let statements = 0
+    mutations.updateLineItems = async (values) => {
+      statements += 1
+      return original(values)
+    }
+
+    try {
+      await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+        progress_for_current_page: 0.6,
+        increments_for_other_pages: [
+          { url: firstUrl, factor: 0.5 },
+          { url: secondUrl, factor: 0.5 },
+        ],
+      })
+    } finally {
+      mutations.updateLineItems = original
+    }
+
+    assert.equal(statements, 3)
+  })
+})
+
 describe('ActivityProgressService.setProgress — concurrency', () => {
   it('serializes a concurrent create of the same unseen target (one row, both land)', async () => {
     const a = await seedScenario(h.db)
@@ -219,6 +357,25 @@ describe('ActivityProgressService.setProgress — concurrency', () => {
     approx((await readProgress(s.userId, s.activityId))?.progress, 1)
     assert.ok(((await readProgress(s.userId, t1))?.progress ?? 0) > 0, 'target 1 advanced')
     assert.ok(((await readProgress(s.userId, t2))?.progress ?? 0) > 0, 'target 2 advanced')
+  })
+
+  it('serializes same-user progress transactions across scopes', async () => {
+    const s = await seedScenario(h.db)
+    const scopeB = await seedScope(h.db, s.platformId)
+
+    await Promise.all([
+      h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+        progress_for_current_page: 0.4,
+        increments_for_other_pages: [],
+      }),
+      h.services.activityProgress.setProgress(authFor(s.userId, s.activityId, scopeB), {
+        progress_for_current_page: 0.7,
+        increments_for_other_pages: [],
+      }),
+    ])
+
+    approx((await readProgress(s.userId, s.activityId))?.progress, 0.4)
+    approx((await readProgress(s.userId, s.activityId, scopeB))?.progress, 0.7)
   })
 })
 

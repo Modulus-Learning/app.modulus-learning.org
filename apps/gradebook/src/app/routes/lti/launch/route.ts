@@ -20,6 +20,17 @@ const authenticationResponseSchema = z.object({
   state: z.string(),
 })
 
+// Retaining the fragment here only keeps the Location header recognizable in
+// the browser; browsers do not send fragments to the interstitial server.
+const appendQueryBeforeFragment = (url: string, query: URLSearchParams): string => {
+  const fragmentIndex = url.indexOf('#')
+  const beforeFragment = fragmentIndex === -1 ? url : url.slice(0, fragmentIndex)
+  const fragment = fragmentIndex === -1 ? '' : url.slice(fragmentIndex)
+  const separator = beforeFragment.includes('?') ? '&' : '?'
+
+  return `${beforeFragment}${separator}${query}${fragment}`
+}
+
 /**
  * Handler for the LTI 'authentication response', in which the platform responds
  * to an authentication request with an id token (which contains the parameters
@@ -98,8 +109,12 @@ export async function POST(request: NextRequest) {
 
   // Redirect to the appropriate url based on the type of launch.
   if (type === 'start-activity') {
-    const { activity_code, activity_url } = launchResult.data
-    redirect(`/lti/launch/${activity_code}/${activity_url}`)
+    const { activity_code, activity_url, scope_id } = launchResult.data
+    // The nested activity URL deliberately remains raw so learners and
+    // instructors can recognize the destination in the browser address bar.
+    const launchPath = `/lti/launch/${activity_code}/${activity_url}`
+    const launchQuery = new URLSearchParams({ scope_id })
+    redirect(appendQueryBeforeFragment(launchPath, launchQuery))
   }
 
   if (type === 'deep-link') {

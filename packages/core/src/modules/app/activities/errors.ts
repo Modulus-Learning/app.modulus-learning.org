@@ -4,6 +4,7 @@ export const ErrorCodes = {
   ACTIVITY_CODE_GENERATION: 'ERR_ACTIVITY_CODE_GENERATION',
   ACTIVITY_CODE_NOT_FOUND: 'ERR_ACTIVITY_CODE_NOT_FOUND',
   ACTIVITY_NOT_FOUND: 'ERR_ACTIVITY_NOT_FOUND',
+  ACTIVITY_SCOPE_NOT_FOUND: 'ERR_ACTIVITY_SCOPE_NOT_FOUND',
   LEARNER_NOT_FOUND: 'ERR_LEARNER_NOT_FOUND',
   NOT_A_MEMBER: 'ERR_NOT_A_MEMBER',
   USER_NOT_INSTRUCTOR: 'ERR_USER_NOT_INSTRUCTOR',
@@ -15,6 +16,10 @@ export const ERR_ACTIVITY_CODE_NOT_FOUND = createCoreErrorType(
   'warn'
 )
 export const ERR_ACTIVITY_NOT_FOUND = createCoreErrorType(ErrorCodes.ACTIVITY_NOT_FOUND, 'warn')
+export const ERR_ACTIVITY_SCOPE_NOT_FOUND = createCoreErrorType(
+  ErrorCodes.ACTIVITY_SCOPE_NOT_FOUND,
+  'warn'
+)
 export const ERR_LEARNER_NOT_FOUND = createCoreErrorType(ErrorCodes.LEARNER_NOT_FOUND, 'warn')
 export const ERR_NOT_A_MEMBER = createCoreErrorType(ErrorCodes.NOT_A_MEMBER, 'warn')
 export const ERR_USER_NOT_INSTRUCTOR = createCoreErrorType(ErrorCodes.USER_NOT_INSTRUCTOR, 'warn')

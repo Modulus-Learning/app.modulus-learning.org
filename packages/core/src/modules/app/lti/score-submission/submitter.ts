@@ -82,6 +82,13 @@ export class LtiScoreSubmitter extends BaseService {
     })
     const leaseValid = await this.recordResult(lineitem, result)
 
+    if (!leaseValid) {
+      this.logger.warn(
+        { lineitem_id: lineitem.id, scope_id: lineitem.scope_id },
+        'submission result rejected by lease fencing'
+      )
+    }
+
     return {
       type: 'submitted',
       leaseValid,

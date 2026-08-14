@@ -28,7 +28,7 @@ export class TokenRefreshService extends BaseService {
     }
 
     this.logger.debug(
-      { user_id: auth.user_id, activity_id: auth.activity_id },
+      { activity_id: auth.activity_id, scope_id: auth.scope_id },
       'renewing agent token'
     )
 
@@ -36,14 +36,12 @@ export class TokenRefreshService extends BaseService {
     if (user == null) {
       throw ERR_UNAUTHORIZED({
         message: 'user not found',
-        logExtra: { user_id: auth.user_id },
       }).log(this.logger)
     }
 
     if (!user.is_enabled) {
       throw ERR_UNAUTHORIZED({
         message: 'user is disabled',
-        logExtra: { user_id: auth.user_id },
       }).log(this.logger)
     }
 
@@ -55,6 +53,6 @@ export class TokenRefreshService extends BaseService {
       }).log(this.logger)
     }
 
-    return await this.tokenIssuer.createAccessToken({ user, activity })
+    return await this.tokenIssuer.createAccessToken({ user, activity, scope_id: auth.scope_id })
   }
 }

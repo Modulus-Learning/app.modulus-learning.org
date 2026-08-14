@@ -15,7 +15,10 @@ import {
   ActivityStateMutations,
   ActivityStateQueries,
 } from '@/modules/agent/activity-state/repository/index.js'
+import { ActivityPageStateService } from '@/modules/agent/activity-state/services/pagestate.js'
 import { ActivityProgressService } from '@/modules/agent/activity-state/services/progress.js'
+import { ActivityQueries as AppActivityQueries } from '@/modules/app/activities/repository/index.js'
+import { LtiMutations, LtiQueries } from '@/modules/app/lti/repository/index.js'
 import {
   LtiScoreSubmissionMutations,
   LtiScoreSubmissionQueries,
@@ -60,10 +63,13 @@ export function assertTestDatabase(connectionString: string | undefined): string
 }
 
 export type TestRepos = {
+  ltiMutations: LtiMutations
+  ltiQueries: LtiQueries
   scoreQueries: LtiScoreSubmissionQueries
   scoreMutations: LtiScoreSubmissionMutations
   activityQueries: ActivityStateQueries
   activityMutations: ActivityStateMutations
+  appActivityQueries: AppActivityQueries
 }
 
 // Service-layer seam for the 7.1b composition tests: the real service over the
@@ -71,6 +77,7 @@ export type TestRepos = {
 // a submitter around an injected (fake) AGS client.
 export type TestServices = {
   activityProgress: ActivityProgressService
+  activityPageState: ActivityPageStateService
   makeSubmitter: (agsClient: LtiAgsClient) => LtiScoreSubmitter
 }
 
@@ -117,16 +124,24 @@ export async function setupTestHarness(): Promise<TestHarness> {
 
   const deps = { logger, utils, db: dbManager }
   const repos: TestRepos = {
+    ltiMutations: new LtiMutations(deps),
+    ltiQueries: new LtiQueries(deps),
     scoreQueries: new LtiScoreSubmissionQueries(deps),
     scoreMutations: new LtiScoreSubmissionMutations(deps),
     activityQueries: new ActivityStateQueries(deps),
     activityMutations: new ActivityStateMutations(deps),
+    appActivityQueries: new AppActivityQueries(deps),
   }
 
   const services: TestServices = {
     activityProgress: new ActivityProgressService({
       logger,
       tx,
+      queries: repos.activityQueries,
+      mutations: repos.activityMutations,
+    }),
+    activityPageState: new ActivityPageStateService({
+      logger,
       queries: repos.activityQueries,
       mutations: repos.activityMutations,
     }),
@@ -153,6 +168,9 @@ export async function setupTestHarness(): Promise<TestHarness> {
     if (tables.length > 0) {
       await pool.query(`TRUNCATE ${tables.join(', ')} RESTART IDENTITY CASCADE`)
     }
+    await pool.query('INSERT INTO scopes (id) VALUES ($1) ON CONFLICT DO NOTHING', [
+      schema.DEFAULT_SCOPE_ID,
+    ])
   }
 
   const teardown = async (): Promise<void> => {

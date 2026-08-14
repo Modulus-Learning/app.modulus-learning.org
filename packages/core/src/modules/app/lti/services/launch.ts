@@ -1,6 +1,8 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 import { v7 as uuidv7 } from 'uuid'
+import { z } from 'zod'
 
+import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import {
   CLAIM_AGS_ENDPOINT,
@@ -26,6 +28,141 @@ import type { DeepLinkingRequest } from '../types/messages/platform-originating/
 import type { ResourceLinkLaunchRequest } from '../types/messages/platform-originating/resource-link-launch-request.js'
 
 type RemoteJWKSet = ReturnType<typeof createRemoteJWKSet>
+
+type CustomFields = PlatformMessage[typeof CLAIM_CUSTOM]
+
+type CanvasTermFieldQuality = 'missing' | 'empty' | 'unexpanded' | 'malformed' | 'usable'
+
+type NormalizedCanvasField<T> = {
+  value?: T
+  quality: CanvasTermFieldQuality
+}
+
+type CanvasTermInspection = {
+  term?: NormalizedCanvasTerm
+  quality: {
+    term_id: CanvasTermFieldQuality
+    name: CanvasTermFieldQuality
+    starts_at: CanvasTermFieldQuality
+    ends_at: CanvasTermFieldQuality
+  }
+}
+
+export type NormalizedCanvasTerm = {
+  external_id: string
+  name?: string
+  starts_at?: Date
+  ends_at?: Date
+}
+
+export type VerifiedLaunchScope = {
+  scope_id: string
+  scope_name: string | null
+}
+
+const canvasTermDateSchema = z.iso.datetime({ offset: true })
+
+const inspectCanvasString = (custom: CustomFields, key: string): NormalizedCanvasField<string> => {
+  const value = custom[key]
+  if (value == null) {
+    return { quality: 'missing' }
+  }
+  if (typeof value !== 'string') {
+    return { quality: 'malformed' }
+  }
+
+  const normalized = value.trim()
+  if (normalized.length === 0) {
+    return { quality: 'empty' }
+  }
+  if (normalized === `$${key}`) {
+    return { quality: 'unexpanded' }
+  }
+
+  return { value: normalized, quality: 'usable' }
+}
+
+const inspectCanvasDate = (custom: CustomFields, key: string): NormalizedCanvasField<Date> => {
+  const inspected = inspectCanvasString(custom, key)
+  if (inspected.value == null) {
+    return { quality: inspected.quality }
+  }
+  if (!canvasTermDateSchema.safeParse(inspected.value).success) {
+    return { quality: 'malformed' }
+  }
+
+  return { value: new Date(inspected.value), quality: 'usable' }
+}
+
+const inspectCanvasTerm = (custom: CustomFields): CanvasTermInspection => {
+  const externalId = inspectCanvasString(custom, 'Canvas.term.id')
+  const name = inspectCanvasString(custom, 'Canvas.term.name')
+  const startsAt = inspectCanvasDate(custom, 'Canvas.term.startAt')
+  const endsAt = inspectCanvasDate(custom, 'Canvas.term.endAt')
+  const quality = {
+    term_id: externalId.quality,
+    name: name.quality,
+    starts_at: startsAt.quality,
+    ends_at: endsAt.quality,
+  }
+
+  if (externalId.value == null) {
+    return { quality }
+  }
+
+  return {
+    term: {
+      external_id: externalId.value,
+      name: name.value,
+      starts_at: startsAt.value,
+      ends_at: endsAt.value,
+    },
+    quality,
+  }
+}
+
+export const normalizeCanvasTerm = (custom: CustomFields): NormalizedCanvasTerm | undefined =>
+  inspectCanvasTerm(custom).term
+
+type ScopeResolutionOptions = {
+  verified_at?: Date
+  logger?: Pick<CoreLogger, 'info'>
+}
+
+export const resolveVerifiedLaunchScope = async (
+  mutations: Pick<LtiMutations, 'resolvePlatformScope'>,
+  platform_id: string,
+  custom: CustomFields,
+  options: ScopeResolutionOptions = {}
+): Promise<VerifiedLaunchScope> => {
+  const { term, quality } = inspectCanvasTerm(custom)
+  if (term == null) {
+    const resolved = { scope_id: DEFAULT_SCOPE_ID, scope_name: null }
+    options.logger?.info(
+      { scope_id: resolved.scope_id, source: 'default', quality },
+      'activity scope resolved'
+    )
+    return resolved
+  }
+
+  const scope = await mutations.resolvePlatformScope({
+    platform_id,
+    ...term,
+    last_verified_launch_at: options.verified_at ?? new Date(),
+  })
+
+  const resolved = { scope_id: scope.id, scope_name: scope.name }
+  options.logger?.info(
+    { scope_id: resolved.scope_id, source: 'platform', quality },
+    'activity scope resolved'
+  )
+  return resolved
+}
+
+type VerifiedLaunch = {
+  launch: PlatformMessage
+  platform: PlatformRecord
+}
 
 export class LtiLaunchService extends BaseService {
   // TODO: Move this to a seprate service
@@ -68,7 +205,7 @@ export class LtiLaunchService extends BaseService {
    */
   @method
   async handleLaunch(request: LaunchRequest): Promise<LaunchResponse> {
-    const launch = await this.validateLaunch(request)
+    const { launch, platform } = await this.validateLaunch(request)
 
     const messageType = launch[CLAIM_MESSAGE_TYPE]
     const launchType = launch[CLAIM_CUSTOM].modulus_launch_type
@@ -76,7 +213,7 @@ export class LtiLaunchService extends BaseService {
     // We only support specific combinations of messageType and launchType, so
     // to be safe we handle each combination explicitly.
     if (launchType === 'start-activity' && messageType === 'LtiResourceLinkRequest') {
-      return await this.handleActivityLaunch(launch)
+      return await this.handleActivityLaunch(launch, platform)
     }
 
     if (launchType === 'deep-link' && messageType === 'LtiDeepLinkingRequest') {
@@ -92,7 +229,10 @@ export class LtiLaunchService extends BaseService {
     }).log(this.logger)
   }
 
-  private async handleActivityLaunch(launch: ResourceLinkLaunchRequest): Promise<LaunchResponse> {
+  private async handleActivityLaunch(
+    launch: ResourceLinkLaunchRequest,
+    platform: PlatformRecord
+  ): Promise<LaunchResponse> {
     // TODO: Deep linking should probably add modulus_activity_id rather than
     // (or in addition to) modulus_activity_url
     const { modulus_activity_code: activity_code, modulus_activity_url: activity_url } =
@@ -122,6 +262,13 @@ export class LtiLaunchService extends BaseService {
       }).log(this.logger)
     }
 
+    const scope = await resolveVerifiedLaunchScope(
+      this.ltiMutations,
+      platform.id,
+      launch[CLAIM_CUSTOM],
+      { logger: this.logger }
+    )
+
     // Sign the user in.
     const signIn = await this.ltiSignInService.signInLti(launch, isInstructor(launch[CLAIM_ROLES]))
 
@@ -135,31 +282,27 @@ export class LtiLaunchService extends BaseService {
       ])
 
       await this.tx.withTransaction(async () => {
-        await this.ltiMutations.upsertProgress(activity.id, signIn.user.id)
+        await this.ltiMutations.upsertProgress(activity.id, signIn.user.id, scope.scope_id)
 
         const submittable_progress = await this.ltiQueries.getProgressWithCutoff(
           signIn.user.id,
           activity.id,
+          scope.scope_id,
           cutoff_at
         )
 
-        // If no lineitem record exists, create one.  If a lineitem does
-        // exist, update the existing lineitem to ensure it has the cutoff_at
-        // date supplied in the current launch and an up-to-date
-        // submittable_progress value.  Also revive the lineitem if it has been
-        // marked 'dead' and mark it as eligible for submission (though it won't
-        // be submitted unless its submittable progress exceeds its submitted
-        // progress).
+        // Insert a complete line item when none exists.  A conflicting identity
+        // is locked before reconciliation: the same-scope branch revives the
+        // row while preserving submission state, while a verified scope change
+        // rebinds the row and resets stale submission, retry, and lease state.
         //
-        // This deliberately leaves the submission lease and error counters
-        // untouched: launch and the submission worker are separate writers on
-        // this row, and clobbering an in-flight lease here would break fencing.
-        // A submission already in progress finishes and records its result under
-        // its own fencing token; the updated data is picked up on the next
-        // eligible pass.  (See LTI-SCORE-SUBMISSION.md.)
-        await this.ltiMutations.upsertLineItem({
+        // Same-scope launches deliberately leave an in-flight worker's fencing
+        // token untouched.  A scope rebind clears that token, so the stale
+        // completion is rejected by the existing id/token fence.
+        await this.ltiMutations.reconcileLineItem({
           user_id: signIn.user.id,
           activity_id: activity.id,
+          scope_id: scope.scope_id,
           platform_issuer: launch.iss,
           deployment_id: launch[CLAIM_DEPLOYMENT_ID],
           lineitem_url,
@@ -176,6 +319,7 @@ export class LtiLaunchService extends BaseService {
       type: 'start-activity',
       activity_code,
       activity_url,
+      ...scope,
       tokens,
     }
   }
@@ -240,7 +384,7 @@ export class LtiLaunchService extends BaseService {
   // TODO: It probably makes more sense to parse and extract from the id_token
   // the specific values we need, and return data in a shape that is more useful
   // downstream.
-  private async validateLaunch({ id_token, issuer }: LaunchRequest): Promise<PlatformMessage> {
+  private async validateLaunch({ id_token, issuer }: LaunchRequest): Promise<VerifiedLaunch> {
     const platform = await this.ltiQueries.findPlatformByIssuer(issuer)
     if (platform == null) {
       // TODO: Here and below, add more metadata to be logged -- in this case,
@@ -312,7 +456,7 @@ export class LtiLaunchService extends BaseService {
     // performs no writes.
     await this.ltiMutations.upsertPlatformDeployment(issuer, launch[CLAIM_DEPLOYMENT_ID])
 
-    return launch
+    return { launch, platform }
   }
 }
 

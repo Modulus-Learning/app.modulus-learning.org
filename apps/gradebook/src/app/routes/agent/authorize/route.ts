@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
+import { DEFAULT_SCOPE_ID } from '@modulus-learning/core'
+import { z } from 'zod'
+
 import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
+import { getLogger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -27,6 +31,16 @@ export const GET = async (request: NextRequest) => {
   const state = query.get('state')
   const code_challenge = query.get('code_challenge')
   const code_challenge_method = query.get('code_challenge_method')
+  const requestedScopeId = query.get('scope_id')
+  const parsedScope = z.uuid().safeParse(requestedScopeId ?? DEFAULT_SCOPE_ID)
+  const logger = getLogger()
+
+  if (!parsedScope.success) {
+    logger.warn(
+      { scope_id_present: requestedScopeId != null },
+      'malformed agent authorization scope label'
+    )
+  }
 
   // TODO: Respond to errors by showing an error or sign-in page, or redirecting
   // to the redirect_uri (assuming it's valid) with error message in query
@@ -38,7 +52,8 @@ export const GET = async (request: NextRequest) => {
     redirect_uri == null ||
     state == null ||
     code_challenge == null ||
-    code_challenge_method !== 'S256'
+    code_challenge_method !== 'S256' ||
+    !parsedScope.success
   ) {
     // TODO: Show a properly-formatted error page.  Or -- is it ever appropriate
     // to redirect back with an error message here?
@@ -60,6 +75,14 @@ export const GET = async (request: NextRequest) => {
     )
   }
 
+  logger.info(
+    {
+      scope_id: parsedScope.data,
+      source: requestedScopeId == null ? 'default' : 'client',
+    },
+    'agent authorization scope selected'
+  )
+
   const redirectURL = new URL(redirect_uri)
   const redirectParams = new URLSearchParams({ state })
 
@@ -75,9 +98,17 @@ export const GET = async (request: NextRequest) => {
     client_id,
     redirect_uri,
     code_challenge,
+    scope_id: parsedScope.data,
   })
 
   if (!result.ok) {
+    if (result.error.code === 'ERR_VALIDATION') {
+      return NextResponse.json(
+        { error: 'error -- malformed authentication request' },
+        { status: 400 }
+      )
+    }
+
     // TODO: Inspect result.error.code and respond with more specific error messages if appropriate.
     redirectParams.set('error', 'server_error')
     redirectURL.search = redirectParams.toString()

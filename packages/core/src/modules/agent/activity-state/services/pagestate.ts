@@ -21,7 +21,11 @@ export class ActivityPageStateService extends BaseService {
 
   @method
   async getPageState(auth: AgentAuth): Promise<GetPageStateResponse> {
-    const pageStateRecord = await this.queries.getPageState(auth.user_id, auth.activity_id)
+    const pageStateRecord = await this.queries.getPageState(
+      auth.user_id,
+      auth.activity_id,
+      auth.scope_id
+    )
 
     try {
       const page_state = pageStateRecord == null ? {} : JSON.parse(pageStateRecord.state)
@@ -30,7 +34,11 @@ export class ActivityPageStateService extends BaseService {
       // Stored state is corrupt/unparseable.  Recover by returning empty state
       // rather than failing the read, but log it so it isn't lost silently.
       this.logger.warn(
-        { err, user_id: auth.user_id, activity_id: auth.activity_id },
+        {
+          err,
+          activity_id: auth.activity_id,
+          scope_id: auth.scope_id,
+        },
         'failed to parse stored page state; returning empty state'
       )
       return { page_state: {} }
@@ -50,13 +58,17 @@ export class ActivityPageStateService extends BaseService {
       throw ERR_VALIDATION({
         message: 'page state is not serializable',
         cause: err,
-        logExtra: { user_id: auth.user_id, activity_id: auth.activity_id },
+        logExtra: {
+          activity_id: auth.activity_id,
+          scope_id: auth.scope_id,
+        },
       }).log(this.logger)
     }
 
     await this.mutations.setPageState({
       user_id: auth.user_id,
       activity_id: auth.activity_id,
+      scope_id: auth.scope_id,
       state,
     })
   }

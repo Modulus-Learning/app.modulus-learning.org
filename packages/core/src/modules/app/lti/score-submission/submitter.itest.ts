@@ -6,7 +6,7 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { lineitems } from '@/database/schema/index.js'
 import { deadResult, FakeLtiAgsClient, retryableResult, successResult } from '@/test-support/ags.js'
-import { seedLineItem, seedScenario } from '@/test-support/fixtures.js'
+import { seedLineItem, seedScenario, seedScope } from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
 
 let h: TestHarness
@@ -141,6 +141,45 @@ describe('LtiScoreSubmitter.processOne', () => {
     const row = await readLineItem(li.id)
     approxEqual(row?.submitted_progress, 0.1, 'our success write did not land')
     assert.equal(row?.submission_lease_token, stolenToken, 'the other worker still owns the lease')
+  })
+
+  it('fences a stale completion after a verified-launch scope rebind', async () => {
+    const s = await seedScenario(h.db)
+    const scopeA = await seedScope(h.db, s.platformId, 'term-a')
+    const scopeB = await seedScope(h.db, s.platformId, 'term-b')
+    const li = await seedLineItem(h.db, s, {
+      scope_id: scopeA,
+      submittable_progress: 0.5,
+      submitted_progress: 0.1,
+    })
+    const fake = new FakeLtiAgsClient({
+      issuer: s.issuer,
+      result: successResult,
+      onPublish: async () => {
+        await h.tx.withTransaction(() =>
+          h.repos.ltiMutations.reconcileLineItem({
+            user_id: s.userId,
+            activity_id: s.activityId,
+            scope_id: scopeB,
+            platform_issuer: s.issuer,
+            deployment_id: s.deploymentId,
+            lineitem_url: li.lineitem_url,
+            lti_user_id: li.lti_user_id,
+            cutoff_at: null,
+            submittable_progress: 0.3,
+          })
+        )
+      },
+    })
+
+    const outcome = await h.services.makeSubmitter(fake).processOne()
+
+    assert.equal(outcome.type === 'submitted' && outcome.leaseValid, false)
+    const row = await readLineItem(li.id)
+    assert.equal(row?.scope_id, scopeB)
+    approxEqual(row?.submittable_progress, 0.3)
+    assert.equal(row?.submitted_progress, 0)
+    assert.equal(row?.submission_lease_token, null)
   })
 })
 

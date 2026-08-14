@@ -5,28 +5,38 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { Button } from '@infonomic/uikit/react'
 
+import { buildActivityLaunchUrl } from '@/modules/app/activity/launch-url'
 import type { StartActivityResult } from '@/modules/app/activity/@types'
 import type { UserSession } from '@/modules/app/session/@types'
 
 const COUNTDOWN_SECONDS = 10
 
+const replaceLocation = (url: string): void => window.location.replace(url)
+
 export function LtiLaunchActivity({
   session,
   startActivityResult,
+  isDefaultScope,
+  navigate = replaceLocation,
 }: {
   session: UserSession | null
   startActivityResult: StartActivityResult
+  isDefaultScope: boolean
+  navigate?: (url: string) => void
 }): React.JSX.Element {
   const [countdown, setCountdown] = useState<number | null>(COUNTDOWN_SECONDS)
 
   const handleLaunch = useCallback(() => {
     if (startActivityResult.data != null) {
-      const modulusServerURL = encodeURIComponent(startActivityResult.data.modulus_server_url)
-      window.location.replace(
-        `${startActivityResult.data.activity.url}?modulus=${modulusServerURL}`
+      navigate(
+        buildActivityLaunchUrl({
+          activityUrl: startActivityResult.data.activity.url,
+          modulusServerUrl: startActivityResult.data.modulus_server_url,
+          scopeId: startActivityResult.data.scope_id,
+        })
       )
     }
-  }, [startActivityResult])
+  }, [navigate, startActivityResult])
 
   const handleCancelTimer = useCallback(() => {
     setCountdown(null)
@@ -48,6 +58,7 @@ export function LtiLaunchActivity({
 
   const sessionName = session?.user?.full_name ?? 'unknown'
   const activityUrl = startActivityResult.data?.activity?.url
+  const scopeName = startActivityResult.data?.scope_name
 
   return (
     <div className="flex justify-center mt-[12vh] sm:mt-[18vh] bg-gray-50 not-dark">
@@ -60,6 +71,17 @@ export function LtiLaunchActivity({
             Modulus-enabled activity at:
           </p>
           <p className="text-blue-600 text-sm break-all font-medium">{activityUrl}</p>
+          <p className="text-gray-600" data-testid="scope-context">
+            {scopeName != null ? (
+              <>
+                This activity will use the <strong>{scopeName}</strong> learning context.
+              </>
+            ) : isDefaultScope ? (
+              'This activity will use the default learning context.'
+            ) : (
+              'This activity will use a scoped learning context.'
+            )}
+          </p>
         </div>
 
         <div className="flex flex-col items-center gap-4">
@@ -92,6 +114,11 @@ export function LtiLaunchActivity({
           </button>
           .
         </p>
+        <noscript>
+          <p className="mt-6 text-sm text-red-700">
+            JavaScript is required to launch this activity.
+          </p>
+        </noscript>
       </div>
     </div>
   )

@@ -165,8 +165,10 @@ export const startActivityResponseSchema = z.strictObject({
   activity: z.strictObject({
     id: z.string(),
     name: z.string().optional(),
-    url: z.string(),
+    url: z.url(),
   }),
+  scope_id: z.uuid(),
+  scope_name: z.string().nullable(),
   modulus_server_url: z.string(),
 })
 
@@ -269,7 +271,8 @@ export const startActivityRequestSchema = z.object({
       error: 'Activity URL is too long.',
     })
     .transform((s) => s.trim())
-    .refine((s) => s.length > 0, 'Activity URL cannot be empty.'),
+    .pipe(z.url({ error: 'Valid activity URL is required.' })),
+  scope_id: z.uuid(),
 })
 
 export type StartActivityRequest = z.infer<typeof startActivityRequestSchema>

@@ -1,6 +1,6 @@
 import { and, eq, gt, lt } from 'drizzle-orm'
 
-import { activities, agentAuthCodes, users } from '@/database/schema/index.js'
+import { activities, agentAuthCodes, scopes, users } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
@@ -8,6 +8,7 @@ import type { CoreUtils } from '@/lib/utils.js'
 
 export type UserRecord = typeof users.$inferSelect
 export type ActivityRecord = typeof activities.$inferSelect
+export type ScopeRecord = typeof scopes.$inferSelect
 export type AuthCodeRecord = typeof agentAuthCodes.$inferSelect
 export type AuthCodeInsert = typeof agentAuthCodes.$inferInsert
 
@@ -46,6 +47,14 @@ export class AgentAuthQueries extends BaseService {
     return await this.db
       .get()
       .query.activities.findFirst({ where: eq(activities.url, url) })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
+  async findScopeById(id: string): Promise<ScopeRecord | undefined> {
+    return await this.db
+      .get()
+      .query.scopes.findFirst({ where: eq(scopes.id, id) })
       .catch(this.utils.wrapDbErrorNew())
   }
 }

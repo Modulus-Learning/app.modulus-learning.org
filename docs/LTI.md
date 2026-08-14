@@ -16,7 +16,7 @@ Assignment & Grade Services (AGS) grade passback.
 The implementation lives in `packages/core/src/modules/app/lti/`, with the
 tool keystore in `lib/lti-keystore.ts` and the passback worker in
 `workers/score-submission.ts`. The schema it drives is in
-[DATA-MODEL → LTI integration](./DATA-MODEL.md#5-lti-integration).
+[DATA-MODEL → LTI integration](./DATA-MODEL.md#6-lti-integration).
 
 This doc maps onto the data-flow table in the institutional summary; the eight
 flows there correspond to the sections below.
@@ -101,13 +101,30 @@ All three resolve the launching user through **`LtiSignInService`** (resolve by
 [AUTHN-AUTHZ → Learner sessions](./AUTHN-AUTHZ.md#learner-sessions-appsession))
 and mint Modulus session tokens.
 
-`handleActivityLaunch` additionally provisions grade passback: it reads the
-`modulus_activity_code` / `modulus_activity_url` custom claims, finds the
-activity, and — if the launch carries an AGS endpoint — **finds or creates a
-`lti_lineitems` row** (`submitted_progress: 0`) binding this `(user, activity)`
-to the platform's line-item URL. No score is sent here; that is the worker's job
-(Flow 4). The host then renders the interstitial launch page and redirects the
-learner into the Ximera activity.
+`handleActivityLaunch` also resolves an academic scope from the **verified**
+launch. Canvas links created by current deep linking request four custom
+substitutions: `Canvas.term.id`, `Canvas.term.name`, `Canvas.term.startAt`, and
+`Canvas.term.endAt`. A trimmed, expanded term id resolves the unique
+`(platform.id, external term id)` scope. Missing, null, empty, or unexpanded ids
+use the global default sentinel instead. The optional name and ISO dates are
+normalised independently: unusable metadata never rejects the launch, erases a
+previously known value, or mutates the sentinel. Dates are descriptive and do
+not gate access or passback.
+
+If the launch carries an AGS endpoint, core reconciles the one line-item row
+unique on `(user, activity, lineitem_url)` with that resolved scope. The current
+verified launch is authoritative for platform, deployment, and LTI user
+identity. A scope change rebinds the locked row and resets its stale submission,
+lease, error, and retry state while leaving historical activity state intact.
+No score is sent inline; that is the worker's job (Flow 4).
+
+The host then renders the first-party interstitial. It carries only the opaque
+`scope_id` into the activity query; `scope_name` is display-only on the
+interstitial and in the later token response. The redirect deliberately leaves
+the target activity URL readable and unencoded at stakeholder request. As a
+consequence, an authored query, fragment, or literal percent escape embedded in
+that target is not guaranteed to round-trip through the catch-all route. Authors
+should avoid those forms until link validation or a transport change is agreed.
 
 ## Flow 3 — Deep Linking (instructor content selection)
 
@@ -127,13 +144,18 @@ an assignment points to.
      the activity code (idempotent — see the in-code note on the cancel-after-
      submit caveat);
    - build an `ltiResourceLink` content item whose launch URL carries the custom
-     claims (`modulus_launch_type: 'start-activity'`, the activity code/URL, plus
-     a broad set of Canvas substitution variables), **sign** a
+     claims (`modulus_launch_type: 'start-activity'`, the activity code/URL,
+     Canvas term identity/display fields, plus the existing Canvas substitution
+     variables), **sign** a
      `LtiDeepLinkingResponse` with the tool keystore, and return `{ jwt,
      return_url }`.
 3. The host auto-posts the signed response back to the platform's
    `deep_link_return_url`; Canvas creates the assignment link. A later learner
    click on that link is a `start-activity` launch (Flow 2).
+
+Canvas substitutions are stored on each resource link. Links created before the
+term fields were added must be deep-linked again before their launches can
+resolve a named scope; otherwise they correctly fall back to the sentinel.
 
 ## Flow 4 — AGS Score Passback
 
@@ -144,73 +166,33 @@ passback in a background worker rather than inline on a request.
 
 ### How a score becomes a submission
 
-The agent records normalized progress (0–1.0) into the `progress` table
-([AGENT](./AGENT.md)). The worker does the rest:
+The agent records normalized progress (0–1.0) under its token-bound scope. The
+same ingestion transaction advances `progress_events` and runs one scoped line-
+item scheduling statement:
 
 ```
-agent → progress table → [worker: findNext → claim → submit → mark] → LMS AGS
+agent → scoped progress/event → scoped line-item queue → lease-fenced worker → LMS AGS
 ```
 
-`startScoreSubmissionWorker` (`workers/score-submission.ts`) is launched by
-`initCore`'s `startBackgroundJobs()`
-([ARCHITECTURE → Single-instance](./ARCHITECTURE.md#3-single-instance-no-separate-api-server))
-and polls `ScoreSubmissionProcessor.processOne()` in a loop. Each call does one
-unit of work:
-
-1. **Find the next eligible line item** (`findNextPendingSubmission`). A single
-   SQL query joins `lti_lineitems` to `progress` and selects rows where:
-   - `progress.progress > lineitems.submitted_progress` (there's something new
-     to send),
-   - the progress update is older than `debounce_seconds` (so a flurry of rapid
-     updates coalesces into one submission of the *latest* value),
-   - the row is **not locked** (or its lock is older than `lock_timeout_seconds`,
-     i.e. stale), and
-   - it is **not in a backoff** window (`submission_next_retry_at` is null or
-     past).
-
-   Results are ordered by the `GREATEST(...)` of their eligibility timestamps, so
-   the longest-waiting work goes first; `LIMIT 1`.
-
-2. **Claim it** (`claimLineItemForSubmission`). An atomic
-   `UPDATE … SET submission_locked_at = NOW() WHERE id = ? AND (unlocked OR
-   stale) RETURNING id`. If it returns no row, another worker won the race →
-   `claimed_by_other`. This row-level compare-and-set is what makes running
-   **multiple workers** safe.
-
-3. **Submit** (`submitScore`). Fetch a platform access token (below) and
-   `POST {lineitem_url}/scores` with `scoreGiven`, `scoreMaximum: 1`,
-   `activityProgress: InProgress`, `gradingProgress: FullyGraded`, and the LMS
-   `lti_user_id`.
-
-4. **Record the outcome:**
-   - success → `markSubmissionSuccess` clears the lock/attempts/retry/error and
-     sets `submitted_progress` + `submitted_at`;
-   - failure → `markSubmissionFailure` releases the lock, increments
-     `submission_attempts`, stores the error, and sets
-     `submission_next_retry_at = NOW() + LEAST(max, base * 2^attempts)` —
-     **exponential backoff** capped at `backoff_max_seconds`.
-
-The loop sleeps `poll_interval_ms` only when nothing is pending; on success,
-contended claim, or failure it loops immediately to drain the queue. An
-unexpected error backs off `error_interval_ms`. All knobs live under
-`config.lti.score_submission` (`debounce_seconds`, `lock_timeout_seconds`,
-`poll_interval_ms`, `error_interval_ms`, `backoff_base_seconds`,
-`backoff_max_seconds`).
+The scheduling update only matches a live line item with the same `scope_id`.
+If another-scope row exists, it is classified and logged without being locked or
+rewritten. The worker selects due items from the partial queue index, claims one
+with `FOR UPDATE SKIP LOCKED`, persists an expiring lease and fencing token,
+posts the row's `submittable_progress`, then records the outcome only if its
+fencing token still matches. Per-item throttling/backoff and the per-platform
+circuit breaker are described in the canonical
+[LTI Score Submission](./LTI-SCORE-SUBMISSION.md) reference.
 
 ### Why this survives scale and crashes
 
-- **Debounce** collapses many progress writes per learner into one passback of
-  the current value — essential when an activity reports frequently.
-- **Idempotent target state** — the worker always sends the *current* progress
-  and only when it exceeds what was last submitted, so a missed cycle simply
-  gets picked up later.
-- **Stale-lock reclaim** — a worker that crashes mid-submission leaves a lock
-  that becomes claimable again after `lock_timeout_seconds`, so no line item is
-  stranded.
-- **Independent scaling** — because claiming is an atomic row update, passback
-  can be scaled out to several worker processes for high-volume installs (the
-  summary doc's note), and is the obvious candidate to run out-of-process behind
-  the planned [remote connector](./REMOTE-CONNECTOR.md).
+- **Level-triggered state** — work exists whenever
+  `submittable_progress > submitted_progress`; no enqueue flag can be lost.
+- **Scope isolation** — only the line item matching the progress event's scope is
+  scheduled, and the claimed row carries that same scope to diagnostics.
+- **Lease expiry and fencing** — a crash leaves a reclaimable lease, while a
+  stale worker cannot overwrite the newer claimant's result.
+- **Bounded concurrency** — independent line items run concurrently under a
+  per-platform quota governor and circuit breaker.
 
 ### Platform access tokens
 
@@ -221,12 +203,6 @@ no shared secret. It signs a short-lived assertion with the tool keystore
 (`…/lineitem`, `…/result.readonly`, `…/score`), and caches the resulting token
 in-memory per platform, refreshing ~30s before expiry (Canvas tokens last an
 hour).
-
-> **Note — superseded inline path.** `services/score-passback.ts`
-> (`LtiScorePassbackService`) is an earlier, synchronous submit-on-demand variant.
-> It is **not wired into the DI registry** and is not on the live path; the
-> worker-driven `ScoreSubmissionProcessor` replaces it. Treat it as legacy until
-> removed.
 
 ## Commands & Host Routes
 
@@ -265,7 +241,7 @@ instead of `none`.)
 
 - [AGENT](./AGENT.md) — how normalized progress reaches the `progress` table that
   feeds passback.
-- [DATA-MODEL → LTI integration](./DATA-MODEL.md#5-lti-integration) — the table
+- [DATA-MODEL → LTI integration](./DATA-MODEL.md#6-lti-integration) — the table
   definitions, including the `lti_lineitems` submission-tracking columns.
 - [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) — auto-provisioning and the session tokens
   minted at launch.

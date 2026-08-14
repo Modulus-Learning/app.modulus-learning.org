@@ -12,6 +12,7 @@ import type { User } from './types.js'
 
 const USER: User = { id: 'u1', full_name: 'Test User' }
 const BASE_URL = 'https://gradebook.test'
+const SCOPE_ID = '019c3298-2644-72f8-83c6-cdc77cc2d90e'
 
 type ClientResult = { status: string; [key: string]: unknown }
 type MockClient = {
@@ -40,6 +41,8 @@ const AUTHENTICATED = {
   baseUrl: BASE_URL,
   user: USER,
   token: 'tok',
+  scope_id: SCOPE_ID,
+  scope_name: 'Autumn 2026',
 }
 
 const makeAgent = (
@@ -83,6 +86,12 @@ describe('ModulusAgent authenticated request state machine', () => {
     expect(agent.progress()).toBe(0.4)
     expect(agent.submittedProgress()).toBe(0.4)
     expect(client.getProgress).toHaveBeenCalledTimes(1)
+    expect(agent.authStatus()).toEqual({
+      status: 'authenticated',
+      user: USER,
+      scope_id: SCOPE_ID,
+      scope_name: 'Autumn 2026',
+    })
   })
 
   it('maps an access_denied page-load result to the expired (signed-out) state', async () => {
