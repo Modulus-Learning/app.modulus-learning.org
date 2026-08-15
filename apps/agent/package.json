@@ -1,6 +1,6 @@
 {
   "name": "@modulus-learning/agent",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "private": false,
   "description": "Modulus client agent.",
   "type": "module",
