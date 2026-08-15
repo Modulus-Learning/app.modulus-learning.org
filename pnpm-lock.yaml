@@ -62,9 +62,9 @@ importers:
       '@tanstack/react-router':
         specifier: ^1.170.29
         version: 1.170.29(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      classnames:
-        specifier: ^2.5.1
-        version: 2.5.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
       jwt-decode:
         specifier: ^4.0.0
         version: 4.0.0
@@ -178,9 +178,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
-      classnames:
-        specifier: ^2.5.1
-        version: 2.5.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
       cookie:
         specifier: ^2.0.1
         version: 2.0.1

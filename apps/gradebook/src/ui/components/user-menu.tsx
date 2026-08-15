@@ -10,7 +10,7 @@ import {
   SignOutIcon,
   UserIcon,
 } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { useTranslations } from '@/i18n/client'
 import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'

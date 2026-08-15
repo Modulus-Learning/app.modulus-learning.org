@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 
 import { Accordion, HomeIcon } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 import { useSwipeable } from 'react-swipeable'
 
 import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'

@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useState } from 'react'
 
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { Branding } from './branding'
 import { ResetButton } from './reset-button'

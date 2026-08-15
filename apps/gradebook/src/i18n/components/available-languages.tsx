@@ -3,7 +3,7 @@
 import type React from 'react'
 
 import { CheckIcon } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
 import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 import { Table } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
 import { SortAscendingIcon, SortDescendingIcon, SortNeutralIcon } from '@/ui/components/sort-icons'

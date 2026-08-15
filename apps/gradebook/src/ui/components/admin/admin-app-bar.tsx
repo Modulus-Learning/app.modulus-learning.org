@@ -4,7 +4,7 @@ import type React from 'react'
 import { Suspense, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { ProgressBar } from '@/context/progress-bar-provider'
 import { ThemeSwitch } from '@/ui/theme/theme-switch'

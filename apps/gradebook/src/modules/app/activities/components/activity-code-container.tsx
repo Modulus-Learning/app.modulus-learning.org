@@ -3,7 +3,7 @@
 import { useState } from 'react'
 
 import { Button, Tabs } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { ActivityCodeMembersPanel } from '@/modules/app/activities/components/activity-code-members-panel'
 import { UpdateActivityCodeForm } from '@/modules/app/activities/components/update-activity-code-form'

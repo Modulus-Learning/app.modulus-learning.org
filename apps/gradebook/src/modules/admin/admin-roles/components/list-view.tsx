@@ -14,7 +14,7 @@ import {
   Section,
   Table,
 } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { useProgressBarContext } from '@/context/progress-bar-provider'
 import { LangLink } from '@/i18n/components/lang-link'

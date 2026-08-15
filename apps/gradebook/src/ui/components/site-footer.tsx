@@ -1,6 +1,6 @@
 import Image from 'next/image'
 
-import cx from 'classnames'
+import cx from 'clsx'
 
 import logoWhite from '@/images/logo/modulus-logo-white.svg'
 import { LangLink } from '../../i18n/components/lang-link'

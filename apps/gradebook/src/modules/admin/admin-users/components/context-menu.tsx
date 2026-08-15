@@ -8,7 +8,7 @@ import {
   EmailIcon,
   IconButton,
 } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { LangLink } from '@/i18n/components/lang-link'
 import type { Locale } from '@/i18n/i18n-config'

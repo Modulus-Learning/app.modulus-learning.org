@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { useModulus } from './modulus-provider'
 

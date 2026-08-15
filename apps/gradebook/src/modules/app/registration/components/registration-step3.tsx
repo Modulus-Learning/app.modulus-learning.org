@@ -3,7 +3,7 @@
 import { type FormEvent, startTransition, useActionState, useEffect, useRef, useState } from 'react'
 
 import { Alert, Button, Card, Input, LoaderEllipsis } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { useTranslations } from '@/i18n/client'
 import { LangLink } from '@/i18n/components/lang-link'

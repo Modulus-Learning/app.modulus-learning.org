@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { truncate } from '@/utils/utils.general.ts'
 

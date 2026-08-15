@@ -14,7 +14,7 @@
     "@infonomic/uikit": "^6.8.2",
     "@modulus-learning/agent": "workspace:*",
     "@tanstack/react-router": "^1.170.29",
-    "classnames": "^2.5.1",
+    "clsx": "^2.1.1",
     "jwt-decode": "^4.0.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"

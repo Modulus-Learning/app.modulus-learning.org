@@ -12,7 +12,7 @@ import {
   Section,
   Table,
 } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { usePublicConfig } from '@/config/provider'
 import { useProgressBarContext } from '@/context/progress-bar-provider'

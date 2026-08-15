@@ -1,7 +1,7 @@
 'use client'
 
 import { CheckIcon, Dropdown as DropdownMenu, GlobeIcon } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { useLanguageSwitcher } from '@/i18n/hooks/use-languag-switcher'
 import { interfaceLanguageMap as languageMap } from '@/i18n/language-map'

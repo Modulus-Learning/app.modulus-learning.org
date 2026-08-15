@@ -4,7 +4,7 @@ import type React from 'react'
 import { useState } from 'react'
 
 import { Button, CloseIcon, Drawer, EditIcon, IconButton, Modal } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { formatDateTime } from '@/utils/utils.general'
 import { ChangeEmailContainer } from './change-email/change-email-container'

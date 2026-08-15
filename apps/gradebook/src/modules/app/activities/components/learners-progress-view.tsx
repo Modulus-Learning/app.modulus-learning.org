@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 import { Container, LoaderRing, Search, Section, Select, Table } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { useProgressBarContext } from '@/context/progress-bar-provider'
 import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'

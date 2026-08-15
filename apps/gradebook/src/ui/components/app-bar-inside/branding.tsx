@@ -1,7 +1,7 @@
 import type React from 'react'
 import Image from 'next/image'
 
-import cx from 'classnames'
+import cx from 'clsx'
 
 import { LangLink } from '@/i18n/components/lang-link'
 import logoBlack from '@/images/logo/modulus-logo-black.svg'

@@ -4,7 +4,7 @@ import type React from 'react'
 import { usePathname } from 'next/navigation'
 
 import { ActivityIcon, HomeIcon, RolesIcon, UsersIcon } from '@infonomic/uikit/react'
-import cx from 'classnames'
+import cx from 'clsx'
 import { useSwipeable } from 'react-swipeable'
 
 import { LangLink } from '@/i18n/components/lang-link.tsx'
