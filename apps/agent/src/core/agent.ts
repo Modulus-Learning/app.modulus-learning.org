@@ -25,6 +25,26 @@ type AuthState =
   | { status: 'failed'; baseUrl?: string | undefined; error: string }
   | { status: 'expired'; baseUrl?: string }
 
+interface AgentStatus {
+  authenticated: boolean
+  authStatus: AuthStatus
+  connectionLost: boolean
+  initialStateLoaded: boolean
+  progress: {
+    current: number
+    submitted: number
+    submitting: boolean
+    retryAttempt: number
+  }
+  pageState: {
+    current: any
+    inSync: boolean
+    submitting: boolean
+    retryAttempt: number
+  }
+  lastError: AgentError | undefined
+}
+
 // The dependencies the agent needs to run: its logger and the collaborators for
 // authentication and API access.  `createModulusAgent` wires in the real
 // implementations; this package's own tests construct `ModulusAgentImpl`
@@ -119,7 +139,7 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
   // Convenience method -- unlike agent.on('ready') or agent.once('ready'), this
   // method ensures that the callback will be called even if the agent is
   // already ready when the callback is registered.
-  onReady(callback: (event: ReadyEvent) => void) {
+  onReady(callback: (event: ReadyEvent) => void): void {
     if (this.isReady()) {
       callback({ auth: this.authStatus() })
     } else {
@@ -235,7 +255,7 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
 
   // Return the full status of the agent.  Mostly useful for debugging /
   // testing.
-  status() {
+  status(): AgentStatus {
     return {
       authenticated: this.#auth.status === 'authenticated',
       authStatus: this.authStatus(),
@@ -263,7 +283,7 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
   // and 1.  If this value is smaller than the current progress, it will be
   // silently ignored.  If the agent is currently connected to a Modulus server,
   // this will submit the progress (in the background).
-  setProgress(progress: number) {
+  setProgress(progress: number): void {
     if (this.isReady() === false) {
       throw new Error('Cannot set progress before Modulus agent is ready')
     }
@@ -309,7 +329,7 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
   // Set the page state for the current page.  Any JSON-serializable value is
   // allowed. If the agent is currently connected to a Modulus server, this will
   // submit the page state (in the background).
-  setPageState(pageState: any) {
+  setPageState(pageState: any): void {
     if (this.isReady() === false) {
       throw new Error('Cannot set page state before Modulus agent is ready')
     }
@@ -327,7 +347,7 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
   // Attempt to re-submit progress and/or page state if the connection to the
   // Modulus server is currently lost.  If successful, the connectionLost status
   // will be cleared, and the 'connection-restored' event will be emitted.
-  async retry() {
+  async retry(): Promise<void> {
     if (this.isConnectionLost()) {
       await this.#submitProgress()
       await this.#submitPageState()
@@ -353,7 +373,7 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
   // state, overwriting whatever the server holds.  Only meaningful after the
   // initial load failed: clears the load-failed state and pushes the current
   // (local) page state to the server.
-  startFreshFromLocalState() {
+  startFreshFromLocalState(): void {
     if (this.#auth.status !== 'authenticated' || this.#initialStateLoaded) {
       return
     }

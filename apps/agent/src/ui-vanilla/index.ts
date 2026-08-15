@@ -362,7 +362,7 @@ export const setupModulusAvatar = (
   }
 }
 
-export const removeModulusAvatar = () => {
+export const removeModulusAvatar = (): void => {
   const container = document.getElementById('modulus-agent-ui-container') as HTMLElement
   container?.remove()
 }

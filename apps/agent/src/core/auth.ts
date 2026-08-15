@@ -34,6 +34,16 @@ type AuthOptions = {
   navigate?: (url: URL) => void
 }
 
+type OAuthQueryParams = {
+  state: string | null
+  code: string | null
+  error: string | null
+  error_description: string | null
+  error_uri: string | null
+  issuer: string | null
+  scope_id: string | null
+}
+
 const authenticateOnce = async (
   logger: Logger | undefined,
   options: AuthOptions = {}
@@ -498,7 +508,7 @@ const OAUTH_ERROR_PARAM = 'error'
 const OAUTH_ERROR_DESCRIPTION_PARAM = 'error_description'
 const OAUTH_ERROR_URI_PARAM = 'error_uri'
 
-export const getQueryParams = () => {
+export const getQueryParams = (): OAuthQueryParams => {
   const query = new URLSearchParams(window.location.search)
   const state = query.get(OAUTH_STATE_PARAM)
   const code = query.get(OAUTH_CODE_PARAM)

@@ -19,9 +19,9 @@
   "main": "./dist/core/index.js",
   "scripts": {
     "clean": "rm -rf node_modules build dist .turbo",
-    "build": "rollup -c",
-    "dev": "rollup -c -w",
-    "devlti": "rollup -c -w",
+    "build": "rm -rf dist && rolldown -c",
+    "dev": "rm -rf dist && rolldown -c -w",
+    "devlti": "rm -rf dist && rolldown -c -w",
     "lint": "biome check --write --unsafe --diagnostic-level=error",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --mode=jsdom && vitest run --mode=node --passWithNoTests",
@@ -50,29 +50,15 @@
   "keywords": [],
   "author": "",
   "devDependencies": {
-    "@biomejs/biome": "^2.5.2",
-    "@rollup/plugin-commonjs": "^29.0.3",
-    "@rollup/plugin-node-resolve": "^16.0.3",
-    "@rollup/plugin-swc": "^0.4.1",
-    "@rollup/plugin-terser": "^1.0.0",
-    "@rollup/plugin-typescript": "^12.3.0",
-    "@swc/core": "^1.15.43",
-    "jsdom": "^29.1.1",
-    "rollup": "^4.62.2",
-    "rollup-plugin-delete": "^3.0.2",
-    "rollup-plugin-dts": "^6.4.1",
-    "rollup-plugin-swc3": "^0.12.1",
-    "tslib": "^2.8.1",
-    "typescript": "6.0.3",
+    "@biomejs/biome": "^2.5.8",
+    "jsdom": "^30.0.1",
+    "rolldown": "^1.2.4",
+    "rolldown-plugin-dts": "^0.28.2",
+    "typescript": "7.0.2",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   },
   "publishConfig": {
     "access": "public"
-  },
-  "dependencies": {
-    "@rollup/plugin-babel": "^7.1.0",
-    "@rollup/plugin-image": "^3.0.3",
-    "rollup-plugin-postcss": "^4.0.2"
   }
 }

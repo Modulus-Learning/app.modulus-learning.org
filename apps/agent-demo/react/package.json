@@ -11,24 +11,24 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@infonomic/uikit": "^6.7.7",
+    "@infonomic/uikit": "^6.8.2",
     "@modulus-learning/agent": "workspace:*",
-    "@tanstack/react-router": "^1.170.17",
+    "@tanstack/react-router": "^1.170.29",
     "classnames": "^2.5.1",
     "jwt-decode": "^4.0.0",
-    "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.2",
-    "@tanstack/router-plugin": "^1.168.19",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.3",
-    "autoprefixer": "^10.5.2",
-    "postcss": "^8.5.16",
-    "tailwindcss": "^4.3.2",
-    "typescript": "^6.0.3",
-    "vite": "^8.1.3"
+    "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/router-plugin": "^1.168.32",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1"
   }
 }

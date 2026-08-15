@@ -9,30 +9,30 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as PublicRouteRouteImport } from './routes/_public/route'
 import { Route as CoursesRouteRouteImport } from './routes/_courses/route'
+import { Route as PublicRouteRouteImport } from './routes/_public/route'
 import { Route as PublicIndexRouteImport } from './routes/_public/index'
-import { Route as CoursesCalculus2IndexRouteImport } from './routes/_courses/calculus-2/index'
 import { Route as CoursesCalculus1IndexRouteImport } from './routes/_courses/calculus-1/index'
-import { Route as CoursesCalculus1Lesson12RouteImport } from './routes/_courses/calculus-1/lesson-12'
-import { Route as CoursesCalculus1Lesson11RouteImport } from './routes/_courses/calculus-1/lesson-11'
-import { Route as CoursesCalculus1Lesson10RouteImport } from './routes/_courses/calculus-1/lesson-10'
-import { Route as CoursesCalculus1Lesson09RouteImport } from './routes/_courses/calculus-1/lesson-09'
-import { Route as CoursesCalculus1Lesson08RouteImport } from './routes/_courses/calculus-1/lesson-08'
-import { Route as CoursesCalculus1Lesson07RouteImport } from './routes/_courses/calculus-1/lesson-07'
-import { Route as CoursesCalculus1Lesson06RouteImport } from './routes/_courses/calculus-1/lesson-06'
-import { Route as CoursesCalculus1Lesson05RouteImport } from './routes/_courses/calculus-1/lesson-05'
-import { Route as CoursesCalculus1Lesson04RouteImport } from './routes/_courses/calculus-1/lesson-04'
-import { Route as CoursesCalculus1Lesson03RouteImport } from './routes/_courses/calculus-1/lesson-03'
-import { Route as CoursesCalculus1Lesson02RouteImport } from './routes/_courses/calculus-1/lesson-02'
 import { Route as CoursesCalculus1Lesson01RouteImport } from './routes/_courses/calculus-1/lesson-01'
+import { Route as CoursesCalculus1Lesson02RouteImport } from './routes/_courses/calculus-1/lesson-02'
+import { Route as CoursesCalculus1Lesson03RouteImport } from './routes/_courses/calculus-1/lesson-03'
+import { Route as CoursesCalculus1Lesson04RouteImport } from './routes/_courses/calculus-1/lesson-04'
+import { Route as CoursesCalculus1Lesson05RouteImport } from './routes/_courses/calculus-1/lesson-05'
+import { Route as CoursesCalculus1Lesson06RouteImport } from './routes/_courses/calculus-1/lesson-06'
+import { Route as CoursesCalculus1Lesson07RouteImport } from './routes/_courses/calculus-1/lesson-07'
+import { Route as CoursesCalculus1Lesson08RouteImport } from './routes/_courses/calculus-1/lesson-08'
+import { Route as CoursesCalculus1Lesson09RouteImport } from './routes/_courses/calculus-1/lesson-09'
+import { Route as CoursesCalculus1Lesson10RouteImport } from './routes/_courses/calculus-1/lesson-10'
+import { Route as CoursesCalculus1Lesson11RouteImport } from './routes/_courses/calculus-1/lesson-11'
+import { Route as CoursesCalculus1Lesson12RouteImport } from './routes/_courses/calculus-1/lesson-12'
+import { Route as CoursesCalculus2IndexRouteImport } from './routes/_courses/calculus-2/index'
 
-const PublicRouteRoute = PublicRouteRouteImport.update({
-  id: '/_public',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CoursesRouteRoute = CoursesRouteRouteImport.update({
   id: '/_courses',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PublicRouteRoute = PublicRouteRouteImport.update({
+  id: '/_public',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PublicIndexRoute = PublicIndexRouteImport.update({
@@ -40,74 +40,15 @@ const PublicIndexRoute = PublicIndexRouteImport.update({
   path: '/',
   getParentRoute: () => PublicRouteRoute,
 } as any)
-const CoursesCalculus2IndexRoute = CoursesCalculus2IndexRouteImport.update({
-  id: '/calculus-2/',
-  path: '/calculus-2/',
-  getParentRoute: () => CoursesRouteRoute,
-} as any)
 const CoursesCalculus1IndexRoute = CoursesCalculus1IndexRouteImport.update({
   id: '/calculus-1/',
   path: '/calculus-1/',
   getParentRoute: () => CoursesRouteRoute,
 } as any)
-const CoursesCalculus1Lesson12Route =
-  CoursesCalculus1Lesson12RouteImport.update({
-    id: '/calculus-1/lesson-12',
-    path: '/calculus-1/lesson-12',
-    getParentRoute: () => CoursesRouteRoute,
-  } as any)
-const CoursesCalculus1Lesson11Route =
-  CoursesCalculus1Lesson11RouteImport.update({
-    id: '/calculus-1/lesson-11',
-    path: '/calculus-1/lesson-11',
-    getParentRoute: () => CoursesRouteRoute,
-  } as any)
-const CoursesCalculus1Lesson10Route =
-  CoursesCalculus1Lesson10RouteImport.update({
-    id: '/calculus-1/lesson-10',
-    path: '/calculus-1/lesson-10',
-    getParentRoute: () => CoursesRouteRoute,
-  } as any)
-const CoursesCalculus1Lesson09Route =
-  CoursesCalculus1Lesson09RouteImport.update({
-    id: '/calculus-1/lesson-09',
-    path: '/calculus-1/lesson-09',
-    getParentRoute: () => CoursesRouteRoute,
-  } as any)
-const CoursesCalculus1Lesson08Route =
-  CoursesCalculus1Lesson08RouteImport.update({
-    id: '/calculus-1/lesson-08',
-    path: '/calculus-1/lesson-08',
-    getParentRoute: () => CoursesRouteRoute,
-  } as any)
-const CoursesCalculus1Lesson07Route =
-  CoursesCalculus1Lesson07RouteImport.update({
-    id: '/calculus-1/lesson-07',
-    path: '/calculus-1/lesson-07',
-    getParentRoute: () => CoursesRouteRoute,
-  } as any)
-const CoursesCalculus1Lesson06Route =
-  CoursesCalculus1Lesson06RouteImport.update({
-    id: '/calculus-1/lesson-06',
-    path: '/calculus-1/lesson-06',
-    getParentRoute: () => CoursesRouteRoute,
-  } as any)
-const CoursesCalculus1Lesson05Route =
-  CoursesCalculus1Lesson05RouteImport.update({
-    id: '/calculus-1/lesson-05',
-    path: '/calculus-1/lesson-05',
-    getParentRoute: () => CoursesRouteRoute,
-  } as any)
-const CoursesCalculus1Lesson04Route =
-  CoursesCalculus1Lesson04RouteImport.update({
-    id: '/calculus-1/lesson-04',
-    path: '/calculus-1/lesson-04',
-    getParentRoute: () => CoursesRouteRoute,
-  } as any)
-const CoursesCalculus1Lesson03Route =
-  CoursesCalculus1Lesson03RouteImport.update({
-    id: '/calculus-1/lesson-03',
-    path: '/calculus-1/lesson-03',
+const CoursesCalculus1Lesson01Route =
+  CoursesCalculus1Lesson01RouteImport.update({
+    id: '/calculus-1/lesson-01',
+    path: '/calculus-1/lesson-01',
     getParentRoute: () => CoursesRouteRoute,
   } as any)
 const CoursesCalculus1Lesson02Route =
@@ -116,12 +57,71 @@ const CoursesCalculus1Lesson02Route =
     path: '/calculus-1/lesson-02',
     getParentRoute: () => CoursesRouteRoute,
   } as any)
-const CoursesCalculus1Lesson01Route =
-  CoursesCalculus1Lesson01RouteImport.update({
-    id: '/calculus-1/lesson-01',
-    path: '/calculus-1/lesson-01',
+const CoursesCalculus1Lesson03Route =
+  CoursesCalculus1Lesson03RouteImport.update({
+    id: '/calculus-1/lesson-03',
+    path: '/calculus-1/lesson-03',
     getParentRoute: () => CoursesRouteRoute,
   } as any)
+const CoursesCalculus1Lesson04Route =
+  CoursesCalculus1Lesson04RouteImport.update({
+    id: '/calculus-1/lesson-04',
+    path: '/calculus-1/lesson-04',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson05Route =
+  CoursesCalculus1Lesson05RouteImport.update({
+    id: '/calculus-1/lesson-05',
+    path: '/calculus-1/lesson-05',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson06Route =
+  CoursesCalculus1Lesson06RouteImport.update({
+    id: '/calculus-1/lesson-06',
+    path: '/calculus-1/lesson-06',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson07Route =
+  CoursesCalculus1Lesson07RouteImport.update({
+    id: '/calculus-1/lesson-07',
+    path: '/calculus-1/lesson-07',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson08Route =
+  CoursesCalculus1Lesson08RouteImport.update({
+    id: '/calculus-1/lesson-08',
+    path: '/calculus-1/lesson-08',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson09Route =
+  CoursesCalculus1Lesson09RouteImport.update({
+    id: '/calculus-1/lesson-09',
+    path: '/calculus-1/lesson-09',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson10Route =
+  CoursesCalculus1Lesson10RouteImport.update({
+    id: '/calculus-1/lesson-10',
+    path: '/calculus-1/lesson-10',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson11Route =
+  CoursesCalculus1Lesson11RouteImport.update({
+    id: '/calculus-1/lesson-11',
+    path: '/calculus-1/lesson-11',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus1Lesson12Route =
+  CoursesCalculus1Lesson12RouteImport.update({
+    id: '/calculus-1/lesson-12',
+    path: '/calculus-1/lesson-12',
+    getParentRoute: () => CoursesRouteRoute,
+  } as any)
+const CoursesCalculus2IndexRoute = CoursesCalculus2IndexRouteImport.update({
+  id: '/calculus-2/',
+  path: '/calculus-2/',
+  getParentRoute: () => CoursesRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof PublicIndexRoute
@@ -240,18 +240,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/_public': {
-      id: '/_public'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof PublicRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_courses': {
       id: '/_courses'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof CoursesRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_public': {
+      id: '/_public'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof PublicRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_public/': {
@@ -261,13 +261,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PublicIndexRouteImport
       parentRoute: typeof PublicRouteRoute
     }
-    '/_courses/calculus-2/': {
-      id: '/_courses/calculus-2/'
-      path: '/calculus-2'
-      fullPath: '/calculus-2/'
-      preLoaderRoute: typeof CoursesCalculus2IndexRouteImport
-      parentRoute: typeof CoursesRouteRoute
-    }
     '/_courses/calculus-1/': {
       id: '/_courses/calculus-1/'
       path: '/calculus-1'
@@ -275,74 +268,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CoursesCalculus1IndexRouteImport
       parentRoute: typeof CoursesRouteRoute
     }
-    '/_courses/calculus-1/lesson-12': {
-      id: '/_courses/calculus-1/lesson-12'
-      path: '/calculus-1/lesson-12'
-      fullPath: '/calculus-1/lesson-12'
-      preLoaderRoute: typeof CoursesCalculus1Lesson12RouteImport
-      parentRoute: typeof CoursesRouteRoute
-    }
-    '/_courses/calculus-1/lesson-11': {
-      id: '/_courses/calculus-1/lesson-11'
-      path: '/calculus-1/lesson-11'
-      fullPath: '/calculus-1/lesson-11'
-      preLoaderRoute: typeof CoursesCalculus1Lesson11RouteImport
-      parentRoute: typeof CoursesRouteRoute
-    }
-    '/_courses/calculus-1/lesson-10': {
-      id: '/_courses/calculus-1/lesson-10'
-      path: '/calculus-1/lesson-10'
-      fullPath: '/calculus-1/lesson-10'
-      preLoaderRoute: typeof CoursesCalculus1Lesson10RouteImport
-      parentRoute: typeof CoursesRouteRoute
-    }
-    '/_courses/calculus-1/lesson-09': {
-      id: '/_courses/calculus-1/lesson-09'
-      path: '/calculus-1/lesson-09'
-      fullPath: '/calculus-1/lesson-09'
-      preLoaderRoute: typeof CoursesCalculus1Lesson09RouteImport
-      parentRoute: typeof CoursesRouteRoute
-    }
-    '/_courses/calculus-1/lesson-08': {
-      id: '/_courses/calculus-1/lesson-08'
-      path: '/calculus-1/lesson-08'
-      fullPath: '/calculus-1/lesson-08'
-      preLoaderRoute: typeof CoursesCalculus1Lesson08RouteImport
-      parentRoute: typeof CoursesRouteRoute
-    }
-    '/_courses/calculus-1/lesson-07': {
-      id: '/_courses/calculus-1/lesson-07'
-      path: '/calculus-1/lesson-07'
-      fullPath: '/calculus-1/lesson-07'
-      preLoaderRoute: typeof CoursesCalculus1Lesson07RouteImport
-      parentRoute: typeof CoursesRouteRoute
-    }
-    '/_courses/calculus-1/lesson-06': {
-      id: '/_courses/calculus-1/lesson-06'
-      path: '/calculus-1/lesson-06'
-      fullPath: '/calculus-1/lesson-06'
-      preLoaderRoute: typeof CoursesCalculus1Lesson06RouteImport
-      parentRoute: typeof CoursesRouteRoute
-    }
-    '/_courses/calculus-1/lesson-05': {
-      id: '/_courses/calculus-1/lesson-05'
-      path: '/calculus-1/lesson-05'
-      fullPath: '/calculus-1/lesson-05'
-      preLoaderRoute: typeof CoursesCalculus1Lesson05RouteImport
-      parentRoute: typeof CoursesRouteRoute
-    }
-    '/_courses/calculus-1/lesson-04': {
-      id: '/_courses/calculus-1/lesson-04'
-      path: '/calculus-1/lesson-04'
-      fullPath: '/calculus-1/lesson-04'
-      preLoaderRoute: typeof CoursesCalculus1Lesson04RouteImport
-      parentRoute: typeof CoursesRouteRoute
-    }
-    '/_courses/calculus-1/lesson-03': {
-      id: '/_courses/calculus-1/lesson-03'
-      path: '/calculus-1/lesson-03'
-      fullPath: '/calculus-1/lesson-03'
-      preLoaderRoute: typeof CoursesCalculus1Lesson03RouteImport
+    '/_courses/calculus-1/lesson-01': {
+      id: '/_courses/calculus-1/lesson-01'
+      path: '/calculus-1/lesson-01'
+      fullPath: '/calculus-1/lesson-01'
+      preLoaderRoute: typeof CoursesCalculus1Lesson01RouteImport
       parentRoute: typeof CoursesRouteRoute
     }
     '/_courses/calculus-1/lesson-02': {
@@ -352,11 +282,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CoursesCalculus1Lesson02RouteImport
       parentRoute: typeof CoursesRouteRoute
     }
-    '/_courses/calculus-1/lesson-01': {
-      id: '/_courses/calculus-1/lesson-01'
-      path: '/calculus-1/lesson-01'
-      fullPath: '/calculus-1/lesson-01'
-      preLoaderRoute: typeof CoursesCalculus1Lesson01RouteImport
+    '/_courses/calculus-1/lesson-03': {
+      id: '/_courses/calculus-1/lesson-03'
+      path: '/calculus-1/lesson-03'
+      fullPath: '/calculus-1/lesson-03'
+      preLoaderRoute: typeof CoursesCalculus1Lesson03RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-04': {
+      id: '/_courses/calculus-1/lesson-04'
+      path: '/calculus-1/lesson-04'
+      fullPath: '/calculus-1/lesson-04'
+      preLoaderRoute: typeof CoursesCalculus1Lesson04RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-05': {
+      id: '/_courses/calculus-1/lesson-05'
+      path: '/calculus-1/lesson-05'
+      fullPath: '/calculus-1/lesson-05'
+      preLoaderRoute: typeof CoursesCalculus1Lesson05RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-06': {
+      id: '/_courses/calculus-1/lesson-06'
+      path: '/calculus-1/lesson-06'
+      fullPath: '/calculus-1/lesson-06'
+      preLoaderRoute: typeof CoursesCalculus1Lesson06RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-07': {
+      id: '/_courses/calculus-1/lesson-07'
+      path: '/calculus-1/lesson-07'
+      fullPath: '/calculus-1/lesson-07'
+      preLoaderRoute: typeof CoursesCalculus1Lesson07RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-08': {
+      id: '/_courses/calculus-1/lesson-08'
+      path: '/calculus-1/lesson-08'
+      fullPath: '/calculus-1/lesson-08'
+      preLoaderRoute: typeof CoursesCalculus1Lesson08RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-09': {
+      id: '/_courses/calculus-1/lesson-09'
+      path: '/calculus-1/lesson-09'
+      fullPath: '/calculus-1/lesson-09'
+      preLoaderRoute: typeof CoursesCalculus1Lesson09RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-10': {
+      id: '/_courses/calculus-1/lesson-10'
+      path: '/calculus-1/lesson-10'
+      fullPath: '/calculus-1/lesson-10'
+      preLoaderRoute: typeof CoursesCalculus1Lesson10RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-11': {
+      id: '/_courses/calculus-1/lesson-11'
+      path: '/calculus-1/lesson-11'
+      fullPath: '/calculus-1/lesson-11'
+      preLoaderRoute: typeof CoursesCalculus1Lesson11RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-1/lesson-12': {
+      id: '/_courses/calculus-1/lesson-12'
+      path: '/calculus-1/lesson-12'
+      fullPath: '/calculus-1/lesson-12'
+      preLoaderRoute: typeof CoursesCalculus1Lesson12RouteImport
+      parentRoute: typeof CoursesRouteRoute
+    }
+    '/_courses/calculus-2/': {
+      id: '/_courses/calculus-2/'
+      path: '/calculus-2'
+      fullPath: '/calculus-2/'
+      preLoaderRoute: typeof CoursesCalculus2IndexRouteImport
       parentRoute: typeof CoursesRouteRoute
     }
   }

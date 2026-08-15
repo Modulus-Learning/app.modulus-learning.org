@@ -49,12 +49,12 @@ export class EventEmitter<
   off<Event extends keyof EventTypes>(
     event: Event,
     listener: (...args: EventTypes[Event]) => void
-  ) {
+  ): void {
     const listeners = this.#listeners[event] ?? []
     this.#listeners[event] = listeners.filter((it) => it !== listener)
   }
 
-  emit<Event extends keyof EventTypes>(event: Event, ...args: EventTypes[Event]) {
+  emit<Event extends keyof EventTypes>(event: Event, ...args: EventTypes[Event]): void {
     for (const listener of this.#listeners[event] ?? []) {
       try {
         listener(...args)
