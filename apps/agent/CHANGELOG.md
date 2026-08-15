@@ -1,5 +1,15 @@
 # @modulus-learning/agent
 
+## 0.10.0
+
+### Minor Changes
+
+- 856e996: Added scope-bound agent authentication, stable per-tab activity context across OAuth redirects, last-successful context restoration for cold tabs, same-page authentication single-flight handling, and canonical scope identity and display metadata in authenticated status.
+
+### Patch Changes
+
+- Deps updates
+
 ## 0.9.1
 
 ### Patch Changes
