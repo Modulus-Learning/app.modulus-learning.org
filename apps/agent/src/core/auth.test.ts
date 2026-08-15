@@ -266,26 +266,29 @@ describe('activity context resolution', () => {
   it.each([
     ['invalid issuer', 'not-a-url', SCOPE_ID, 'invalid_issuer'],
     ['invalid scope', ISSUER, 'not-a-uuid', 'invalid_scope'],
-  ])('fails safely for an %s in a fresh launch without clearing stored context', async (_label, issuer, scopeId, expectedError) => {
-    const established = context({ scope_id: OTHER_SCOPE_ID })
-    storeTabContext(established)
-    storeLocalContext(established)
-    window.history.replaceState(
-      null,
-      '',
-      `/activity?modulus=${encodeURIComponent(issuer)}&scope_id=${scopeId}&authored=yes#part`
-    )
+  ])(
+    'fails safely for an %s in a fresh launch without clearing stored context',
+    async (_label, issuer, scopeId, expectedError) => {
+      const established = context({ scope_id: OTHER_SCOPE_ID })
+      storeTabContext(established)
+      storeLocalContext(established)
+      window.history.replaceState(
+        null,
+        '',
+        `/activity?modulus=${encodeURIComponent(issuer)}&scope_id=${scopeId}&authored=yes#part`
+      )
 
-    await expect(authenticate(undefined)).resolves.toEqual({
-      status: 'failed',
-      error: expectedError,
-    })
+      await expect(authenticate(undefined)).resolves.toEqual({
+        status: 'failed',
+        error: expectedError,
+      })
 
-    expect(readTabContext()).toEqual(established)
-    expect(readLocalContext()).toEqual(established)
-    expect(window.location.search).toBe('?authored=yes')
-    expect(window.location.hash).toBe('#part')
-  })
+      expect(readTabContext()).toEqual(established)
+      expect(readLocalContext()).toEqual(established)
+      expect(window.location.search).toBe('?authored=yes')
+      expect(window.location.hash).toBe('#part')
+    }
+  )
 
   it('uses an established tab context before a different local default', async () => {
     const established = context({ scope_id: OTHER_SCOPE_ID, scope_name: 'Other Term' })

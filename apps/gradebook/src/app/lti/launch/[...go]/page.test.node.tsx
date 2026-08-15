@@ -54,29 +54,28 @@ describe('LTI launch interstitial page', () => {
       go: ['course-code', 'https%3A', 'content.test', 'activity?discount=50%'],
       expected: 'https://content.test/activity?discount=50%',
     },
-  ])('preserves authored path escapes in Next-delivered activity parameters', async ({
-    go,
-    expected,
-  }) => {
-    await LtiLaunchPage({
-      params: Promise.resolve({ go }),
-      searchParams: Promise.resolve({ scope_id: scopeId }),
-    })
+  ])(
+    'preserves authored path escapes in Next-delivered activity parameters',
+    async ({ go, expected }) => {
+      await LtiLaunchPage({
+        params: Promise.resolve({ go }),
+        searchParams: Promise.resolve({ scope_id: scopeId }),
+      })
 
-    expect(mocks.startActivity).toHaveBeenCalledWith('course-code', expected, scopeId)
-  })
+      expect(mocks.startActivity).toHaveBeenCalledWith('course-code', expected, scopeId)
+    }
+  )
 
-  test.each([
-    {},
-    { scope_id: 'not-a-uuid' },
-    { scope_id: [scopeId, scopeId] },
-  ])('renders a launch error for an invalid first-party scope parameter', async (searchParams) => {
-    const result = await LtiLaunchPage({
-      params: Promise.resolve({ go: encodedGo }),
-      searchParams: Promise.resolve(searchParams),
-    })
+  test.each([{}, { scope_id: 'not-a-uuid' }, { scope_id: [scopeId, scopeId] }])(
+    'renders a launch error for an invalid first-party scope parameter',
+    async (searchParams) => {
+      const result = await LtiLaunchPage({
+        params: Promise.resolve({ go: encodedGo }),
+        searchParams: Promise.resolve(searchParams),
+      })
 
-    expect(renderToStaticMarkup(result)).toContain('Invalid or missing activity parameters.')
-    expect(mocks.startActivity).not.toHaveBeenCalled()
-  })
+      expect(renderToStaticMarkup(result)).toContain('Invalid or missing activity parameters.')
+      expect(mocks.startActivity).not.toHaveBeenCalled()
+    }
+  )
 })
