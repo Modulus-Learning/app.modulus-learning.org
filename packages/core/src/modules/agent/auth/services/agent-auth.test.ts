@@ -51,24 +51,33 @@ const makeRecords = (scopeName: string | null = 'Autumn 2026') => {
 const makeService = ({
   claimedCode,
   scopeExists = true,
+  activityExists = true,
+  activityCreateReturnsRecord = true,
 }: {
   claimedCode?: AuthCodeRecord
   scopeExists?: boolean
+  activityExists?: boolean
+  activityCreateReturnsRecord?: boolean
 } = {}) => {
   const records = makeRecords()
   const inserted: AuthCodeInsert[] = []
+  const createdActivityUrls: string[] = []
   let issued: SignInResult | undefined
 
   const service = new AgentAuthService({
     logger,
     config: { server: { baseUrl: 'https://gradebook.test' } } as Config,
     queries: {
-      findActivityByUrl: async () => records.activity,
+      findActivityByUrl: async () => (activityExists ? records.activity : undefined),
       findScopeById: async (id: string) =>
         scopeExists && id === records.scope.id ? records.scope : undefined,
       getUser: async () => records.user,
     } as unknown as AgentAuthQueries,
     mutations: {
+      createActivity: async (url: string) => {
+        createdActivityUrls.push(url)
+        return activityCreateReturnsRecord ? records.activity : undefined
+      },
       createAuthCode: async (data: AuthCodeInsert) => {
         inserted.push(data)
       },
@@ -82,7 +91,7 @@ const makeService = ({
     } as AgentTokenIssuer,
   })
 
-  return { service, inserted, getIssued: () => issued, ...records }
+  return { service, inserted, createdActivityUrls, getIssued: () => issued, ...records }
 }
 
 describe('AgentAuthService scope binding', () => {
@@ -98,7 +107,10 @@ describe('AgentAuthService scope binding', () => {
   })
 
   it('rejects an unknown scope without creating an authorization code', async () => {
-    const { service, inserted, user, activity, scope } = makeService({ scopeExists: false })
+    const { service, inserted, createdActivityUrls, user, activity, scope } = makeService({
+      scopeExists: false,
+      activityExists: false,
+    })
 
     await assert.rejects(
       service.createAuthCode(new UserAuth(user.id, []), {
@@ -113,10 +125,11 @@ describe('AgentAuthService scope binding', () => {
       }
     )
     assert.deepEqual(inserted, [])
+    assert.deepEqual(createdActivityUrls, [])
   })
 
   it('stores any existing selected scope on the single-use code', async () => {
-    const { service, inserted, user, activity, scope } = makeService()
+    const { service, inserted, createdActivityUrls, user, activity, scope } = makeService()
 
     await service.createAuthCode(new UserAuth(user.id, []), {
       client_id: activity.url,
@@ -127,6 +140,39 @@ describe('AgentAuthService scope binding', () => {
 
     assert.equal(inserted.length, 1)
     assert.equal(inserted[0]?.scope_id, scope.id)
+    assert.deepEqual(createdActivityUrls, [])
+  })
+
+  it('creates an unknown activity before issuing an authorization code', async () => {
+    const { service, inserted, createdActivityUrls, user, activity, scope } = makeService({
+      activityExists: false,
+    })
+
+    await service.createAuthCode(new UserAuth(user.id, []), {
+      client_id: activity.url,
+      redirect_uri: activity.url,
+      code_challenge: 'challenge',
+      scope_id: scope.id,
+    })
+
+    assert.deepEqual(createdActivityUrls, [activity.url])
+    assert.equal(inserted.length, 1)
+  })
+
+  it('issues an authorization code when another request wins the activity create race', async () => {
+    const { service, inserted, user, activity, scope } = makeService({
+      activityExists: false,
+      activityCreateReturnsRecord: false,
+    })
+
+    await service.createAuthCode(new UserAuth(user.id, []), {
+      client_id: activity.url,
+      redirect_uri: activity.url,
+      code_challenge: 'challenge',
+      scope_id: scope.id,
+    })
+
+    assert.equal(inserted.length, 1)
   })
 
   it('uses only the claimed code scope for token identity and canonical display metadata', async () => {

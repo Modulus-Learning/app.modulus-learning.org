@@ -1,4 +1,5 @@
 import { and, eq, gt, lt } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 
 import { activities, agentAuthCodes, scopes, users } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
@@ -67,6 +68,19 @@ export class AgentAuthMutations extends BaseService {
     super(deps.logger, 'agent', 'auth')
     this.utils = deps.utils
     this.db = deps.db
+  }
+
+  @method
+  async createActivity(url: string): Promise<ActivityRecord | undefined> {
+    const [activity] = await this.db
+      .get()
+      .insert(activities)
+      .values({ id: uuidv7(), url })
+      .onConflictDoNothing({ target: activities.url })
+      .returning()
+      .catch(this.utils.wrapDbErrorNew())
+
+    return activity
   }
 
   @method

@@ -6,10 +6,11 @@ summary: "How new activities are materialized on demand ('lazy-created') from ag
 
 # Dynamic Activities (Lazy Create)
 
-> **Status: PARTIALLY SUPERSEDED.** The umbrella-target half of this design has
-> since been simplified. As built, `set-progress` **accepts every target URL
-> unconditionally and lazy-creates** the activity row on miss (a bare
-> `activities` row — `id` + `url`, no code association). Critically, the
+> **Status: PARTIALLY SUPERSEDED.** Both agent entry points now **accept every
+> activity URL unconditionally and lazy-create** a bare `activities` row on
+> miss (`id` + `url`, no code association). This applies to an activity's own URL
+> during authorization and to cumulative targets during `set-progress`.
+> Critically, the
 > **activity-code scope gate (`sharesActivityCode`) has been removed entirely**,
 > which means the **"coded vs un-coded" authorization model this document builds
 > its central decision around no longer exists** — there is nothing to bifurcate,
@@ -34,29 +35,28 @@ path this relaxes — its deferred "Phase 2b"), and the
 `activity_activity_code`). It also touches [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) for the
 new admin ability.
 
-## Why this exists
+## Why This Exists
 
-Today the system is **strict**: a progress submission is only honored against an
-activity that **already exists** as a recorded row. That strictness lives at two
-independent enforcement sites, and both block real authoring workflows:
+The original system was strict: agent traffic was accepted only for an activity
+that already existed as a recorded row. That strictness lived at two independent
+enforcement sites and blocked real authoring workflows:
 
 1. **Self, at OAuth time.** The agent's OAuth `redirect_uri` *is* the activity
    URL. `AgentAuthService.createAuthCode` /`claimAuthCode`
    (`modules/agent/auth/services/agent-auth.ts`) call `findActivityByUrl()` and
-   throw `ERR_UNAUTHORIZED('Unknown activity')` when it misses — so a brand-new
-   page is rejected **before a token is even issued** and can never report any
-   progress.
+   threw `ERR_UNAUTHORIZED('Unknown activity')` when it missed, so a brand-new
+   page was rejected before a token could be issued. `createAuthCode` now creates
+   a bare row on a miss and continues issuing the code.
 2. **Umbrella targets, at set-progress time.** `ActivityProgressService.applyContribution`
    (`modules/agent/activity-state/services/progress.ts`) resolves the target URL
-   and **skips + warns** when it is unknown (or shares no activity code with the
-   source). This is the "Activity existence — Lazy-create (Phase 2b)" case
-   deferred in [CUMMULATIVE-PROGRESS](./CUMMULATIVE-PROGRESS.md).
+   formerly skipped an unknown target. It now creates the bare row and applies
+   the contribution without an activity-code scope check.
 
-We want new activities to come into being **on first contact** from authored
-content — but not unconditionally. An institution must be able to constrain
-*which* URLs may auto-create activity rows. So lazy creation is gated by a
-**site-wide policy**: an allowlist of **domain** and **domain + path** rules,
-managed by an admin.
+New activities now come into being on first contact from authored content. The
+current pre-release behaviour is intentionally unconditional. A later phase may
+let an institution constrain which URLs may auto-create activity rows through a
+site-wide allow-list, deny-list, or both; the policy design below records the
+earlier allow-list proposal and is not implemented.
 
 ## The policy model
 

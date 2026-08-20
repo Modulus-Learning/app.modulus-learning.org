@@ -38,20 +38,17 @@ export class AgentAuthService extends BaseService {
     userAuth: UserAuth,
     { client_id, redirect_uri, code_challenge, scope_id }: CreateAuthCodeRequest
   ): Promise<CreateAuthCodeResponse> {
-    const activity = await this.queries.findActivityByUrl(redirect_uri)
-    if (!activity) {
-      throw ERR_UNAUTHORIZED({
-        message: 'Unknown activity',
-        logExtra: { activity_url: redirect_uri },
-      }).log(this.logger)
-    }
-
     const scope = await this.queries.findScopeById(scope_id)
     if (scope == null) {
       throw ERR_VALIDATION({
         message: 'Unknown scope',
         logExtra: { scope_id },
       }).log(this.logger)
+    }
+
+    const activity = await this.queries.findActivityByUrl(redirect_uri)
+    if (!activity) {
+      await this.mutations.createActivity(redirect_uri)
     }
 
     const code = randomBytes(60).toString('base64url')
