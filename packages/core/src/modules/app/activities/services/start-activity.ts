@@ -8,24 +8,25 @@ import {
 import type { Config } from '@/config.js'
 import type { UserAuth } from '@/lib/auth.js'
 import type { CoreLogger } from '@/lib/logger.js'
-import type { ActivityMutations, ActivityQueries } from '../repository/index.js'
+import type { ActivityQueries } from '../repository/index.js'
 import type { StartActivityRequest, StartActivityResponse } from '../schemas.js'
+import type { EnrollmentService } from './enrollment.js'
 
 export class StartActivityService extends BaseService {
   private config: Config
   private queries: ActivityQueries
-  private mutations: ActivityMutations
+  private enrollmentService: EnrollmentService
 
   constructor(deps: {
     logger: CoreLogger
     config: Config
     queries: ActivityQueries
-    mutations: ActivityMutations
+    enrollmentService: EnrollmentService
   }) {
     super(deps.logger, 'app', 'activities')
     this.config = deps.config
     this.queries = deps.queries
-    this.mutations = deps.mutations
+    this.enrollmentService = deps.enrollmentService
   }
 
   @method
@@ -61,9 +62,14 @@ export class StartActivityService extends BaseService {
       }).log(this.logger)
     }
 
-    // TODO: Check that the activity is associated with the activity_code.
-
-    await this.mutations.enrollInActivityCode(user.id, activityCode.id)
+    // Enrollment is best-effort with respect to the response: the shared
+    // service decides eligibility from the canonical records resolved above,
+    // and a skipped enrollment leaves this response unchanged.
+    await this.enrollmentService.enrollByActivityCodeId({
+      user_id: user.id,
+      activity_code_id: activityCode.id,
+      activity_id: activity.id,
+    })
 
     return {
       user: {
