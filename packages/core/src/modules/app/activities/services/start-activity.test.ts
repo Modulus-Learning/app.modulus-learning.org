@@ -52,7 +52,7 @@ const createService = ({ scopeId, scopeName }: { scopeId?: string; scopeName?: s
             },
     } as unknown as ActivityQueries,
     mutations: {
-      enrollInActivity: async (...values: string[]) => {
+      enrollInActivityCode: async (...values: string[]) => {
         enrollments.push(values)
       },
     } as unknown as ActivityMutations,
@@ -88,7 +88,7 @@ describe('StartActivityService', () => {
     assert.equal(result.scope_name, 'Autumn 2026')
     assert.equal(result.activity.id, activityId)
     assert.equal(result.modulus_server_url, 'https://modulus.test')
-    assert.deepEqual(enrollments, [[userId, activityCodeId, activityId]])
+    assert.deepEqual(enrollments, [[userId, activityCodeId]])
   })
 
   it('returns the canonical metadata-free default scope', async () => {

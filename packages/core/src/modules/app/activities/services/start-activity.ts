@@ -63,7 +63,7 @@ export class StartActivityService extends BaseService {
 
     // TODO: Check that the activity is associated with the activity_code.
 
-    await this.mutations.enrollInActivity(user.id, activityCode.id, activity.id)
+    await this.mutations.enrollInActivityCode(user.id, activityCode.id)
 
     return {
       user: {

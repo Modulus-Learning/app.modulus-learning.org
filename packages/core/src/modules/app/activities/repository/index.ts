@@ -254,6 +254,29 @@ export class ActivityQueries extends BaseService {
       .catch(this.utils.wrapDbErrorNew())
   }
 
+  /**
+   * Answers, from core's own records alone, whether an activity is currently
+   * associated with an activity code. Enrollment eligibility is decided from
+   * this, never from a client-supplied relationship.
+   */
+  @method
+  async isActivityInActivityCode(activity_code_id: string, activity_id: string): Promise<boolean> {
+    const rows = await this.db
+      .get()
+      .select({ marker: sql`1` })
+      .from(activityActivityCode)
+      .where(
+        and(
+          eq(activityActivityCode.activity_code_id, activity_code_id),
+          eq(activityActivityCode.activity_id, activity_id)
+        )
+      )
+      .limit(1)
+      .catch(this.utils.wrapDbErrorNew())
+
+    return rows.length > 0
+  }
+
   @method
   async getActivityCodeProgress(activity_code_id: string, options: ProgressRequest['options']) {
     const { page, page_size, order, desc: descending } = options
@@ -268,8 +291,18 @@ export class ActivityQueries extends BaseService {
       .where(
         and(
           eq(enrollment.activity_code_id, activity_code_id),
-          eq(enrollment.user_id, progress.user_id),
-          eq(enrollment.activity_id, progress.activity_id)
+          eq(enrollment.user_id, progress.user_id)
+        )
+      )
+
+    const activityInActivityCode = this.db
+      .get()
+      .select({ marker: sql`1` })
+      .from(activityActivityCode)
+      .where(
+        and(
+          eq(activityActivityCode.activity_code_id, activity_code_id),
+          eq(activityActivityCode.activity_id, progress.activity_id)
         )
       )
 
@@ -283,7 +316,7 @@ export class ActivityQueries extends BaseService {
         updated_at: max(progress.updated_at).as('aggregate_updated_at'),
       })
       .from(progress)
-      .where(exists(enrolledInActivityCode))
+      .where(and(exists(enrolledInActivityCode), exists(activityInActivityCode)))
       .groupBy(progress.user_id, progress.activity_id)
       .as('progress_by_enrollment')
 
@@ -315,16 +348,20 @@ export class ActivityQueries extends BaseService {
       })
       .from(enrollment)
       .innerJoin(users, eq(enrollment.user_id, users.id))
+      .innerJoin(
+        activityActivityCode,
+        eq(activityActivityCode.activity_code_id, enrollment.activity_code_id)
+      )
+      .innerJoin(activities, eq(activities.id, activityActivityCode.activity_id))
+      .innerJoin(activityCodes, eq(activityCodes.id, enrollment.activity_code_id))
       .leftJoin(
         progressByEnrollment,
         and(
-          eq(enrollment.activity_id, progressByEnrollment.activity_id),
-          eq(enrollment.user_id, progressByEnrollment.user_id)
+          eq(progressByEnrollment.activity_id, activityActivityCode.activity_id),
+          eq(progressByEnrollment.user_id, enrollment.user_id)
         )
       )
-      .innerJoin(activities, eq(enrollment.activity_id, activities.id))
-      .innerJoin(activityCodes, eq(enrollment.activity_code_id, activityCodes.id))
-      .where(eq(activityCodes.id, activity_code_id))
+      .where(eq(enrollment.activity_code_id, activity_code_id))
       .orderBy(primaryOrder, asc(activities.id), asc(users.id))
       .limit(limit)
       .offset(offset)
@@ -467,15 +504,11 @@ export class ActivityMutations extends BaseService {
   }
 
   @method
-  async enrollInActivity(
-    user_id: string,
-    activity_code_id: string,
-    activity_id: string
-  ): Promise<void> {
+  async enrollInActivityCode(user_id: string, activity_code_id: string): Promise<void> {
     await this.db
       .get()
       .insert(enrollment)
-      .values({ user_id, activity_code_id, activity_id })
+      .values({ user_id, activity_code_id })
       .onConflictDoNothing()
       .catch(this.utils.wrapDbErrorNew())
   }

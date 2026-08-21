@@ -6,8 +6,7 @@ import type * as schema from '../schema/index.js'
 export const seedEnrollment = async (
   db: NodePgDatabase<typeof schema>,
   userIds: { id: string }[],
-  activityCodeIds: { id: string }[],
-  activityIds: { id: string }[]
+  activityCodeIds: { id: string }[]
 ) => {
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   // Activity codes activity user data
@@ -15,38 +14,33 @@ export const seedEnrollment = async (
     {
       user_id: userIds[3]!.id,
       activity_code_id: activityCodeIds[0]!.id,
-      activity_id: activityIds[0]!.id,
     },
     {
       user_id: userIds[3]!.id,
       activity_code_id: activityCodeIds[1]!.id,
-      activity_id: activityIds[1]!.id,
     },
     {
       user_id: userIds[3]!.id,
       activity_code_id: activityCodeIds[2]!.id,
-      activity_id: activityIds[2]!.id,
     },
   ]
 
   // Bulk enrollment
   const generateBulkEnrollments = (
     userIds: { id: string }[],
-    activityCodeIds: { id: string }[],
-    activityIds: { id: string }[]
+    activityCodeIds: { id: string }[]
   ) => {
     const bulkEnrollmentData: (typeof enrollment.$inferInsert)[] = []
     for (let i = 5; i < 5005; i++) {
       bulkEnrollmentData.push({
         user_id: userIds[i]!.id,
         activity_code_id: activityCodeIds[3]!.id,
-        activity_id: activityIds[1]!.id,
       })
     }
     return bulkEnrollmentData
   }
 
-  const bulkEnrollmentData = generateBulkEnrollments(userIds, activityCodeIds, activityIds)
+  const bulkEnrollmentData = generateBulkEnrollments(userIds, activityCodeIds)
 
   const enrollmentData = [...initialEnrollments, ...bulkEnrollmentData]
 

@@ -68,7 +68,7 @@ const main = async () => {
     await seedRoleUser(db, roleIds, userIds)
     const activityCodeIds = await seedActivityCodes(db, userIds)
     const activityIds = await seedActivities(db)
-    await seedEnrollment(db, userIds, activityCodeIds, activityIds)
+    await seedEnrollment(db, userIds, activityCodeIds)
     await seedProgress(db, userIds, activityIds)
 
     console.log('All seeds completed successfully')
