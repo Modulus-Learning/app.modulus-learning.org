@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { describe, it } from 'node:test'
+import { after, before, describe, it } from 'node:test'
 
 import type { JWK } from 'jose'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
@@ -19,6 +19,7 @@ import {
   CLAIM_TARGET_LINK_URI,
   CLAIM_VERSION,
 } from '@/modules/app/lti/constants.js'
+import { ErrorCodes } from '@/modules/app/lti/errors.js'
 import {
   LtiLaunchService,
   normalizeCanvasTerm,
@@ -26,6 +27,10 @@ import {
 } from '@/modules/app/lti/services/launch.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { ActivityQueries } from '@/modules/app/activities/repository/index.js'
+import type {
+  EnrollmentOutcome,
+  EnrollmentService,
+} from '@/modules/app/activities/services/enrollment.js'
 import type {
   LineItemReconciliation,
   LtiMutations,
@@ -249,151 +254,365 @@ describe('resolveVerifiedLaunchScope', () => {
   })
 })
 
+type LaunchRecorders = {
+  resolvedValues?: PlatformScopeResolution
+  initializedScope?: string
+  cutoffScope?: string
+  reconciled?: LineItemReconciliation
+  enrollments: { user_id: string; activity_code: string; activity_id: string }[]
+  /** Whether sign-in was told the launching user holds an instructor role. */
+  signedInAsInstructor?: boolean
+  /** Every recorded step, in the order it ran, so ordering can be asserted. */
+  order: string[]
+}
+
+type ServiceOptions = {
+  /** Outcome the enrollment-service fake returns. Defaults to `enrolled`. */
+  enrollmentOutcome?: EnrollmentOutcome
+  /** When set, `withTransaction` rejects with this error. */
+  transactionError?: Error
+  /** When false, `findActivityByURL` resolves to undefined. */
+  activityExists?: boolean
+}
+
+const ACTIVITY_URL = 'https://content.launch.test/activity'
+const ACTIVITY_CODE = 'activity-code'
+const RAW_TERM_ID = 'canvas-term-raw-17'
+const RAW_START = '2026-08-20T00:00:00Z'
+const RAW_END = '2026-12-15T23:59:59Z'
+
 describe('LtiLaunchService.handleLaunch', () => {
-  it('resolves scope with the authenticated platform and omits raw Canvas identity', async () => {
-    const { publicKey, privateKey } = await generateKeyPair('RS256')
+  let jwks: Awaited<ReturnType<typeof startJwksServer>>
+  let privateKey: CryptoKey
+  let platform: PlatformRecord
+
+  const issuer = 'https://canvas.launch.test'
+
+  before(async () => {
+    const keyPair = await generateKeyPair('RS256')
+    privateKey = keyPair.privateKey
     const jwk: JWK = {
-      ...(await exportJWK(publicKey)),
+      ...(await exportJWK(keyPair.publicKey)),
       kid: 'test-key',
       alg: 'RS256',
       use: 'sig',
     }
-    const jwks = await startJwksServer(jwk)
+    jwks = await startJwksServer(jwk)
+    platform = {
+      id: uuidv7(),
+      issuer,
+      name: 'Launch Test Platform',
+      client_id: 'launch-client',
+      authorization_endpoint: `${issuer}/auth`,
+      token_endpoint: `${issuer}/token`,
+      jwks_uri: jwks.uri,
+      authorization_server: issuer,
+    }
+  })
 
-    try {
-      const issuer = 'https://canvas.launch.test'
-      const platform: PlatformRecord = {
-        id: uuidv7(),
-        issuer,
-        name: 'Launch Test Platform',
-        client_id: 'launch-client',
-        authorization_endpoint: `${issuer}/auth`,
-        token_endpoint: `${issuer}/token`,
-        jwks_uri: jwks.uri,
-        authorization_server: issuer,
-      }
-      const activityId = uuidv7()
-      const activityUrl = 'https://content.launch.test/activity'
-      const userId = uuidv7()
-      const scopeId = uuidv7()
-      const tokens: UserTokens = {
-        access: { token: 'access-token', expiration_in_ms: 60_000 },
-        refresh: { token: 'refresh-token', expiration_in_ms: 120_000 },
-        remember_me: false,
-      }
-      let resolvedValues: PlatformScopeResolution | undefined
-      let initializedScope: string | undefined
-      let cutoffScope: string | undefined
-      let reconciled: LineItemReconciliation | undefined
+  after(async () => {
+    await jwks.close()
+  })
 
-      const service = new LtiLaunchService({
-        logger: createCoreLogger({ pinoLogger: pino({ level: 'silent' }) }),
-        tx: {
-          withTransaction: async (fn) => await fn(),
-        } as TXManager,
-        queries: {
-          findPlatformByIssuer: async () => platform,
-          getProgressWithCutoff: async (_userId: string, _activityId: string, scope: string) => {
-            cutoffScope = scope
-            return 0.35
-          },
-        } as unknown as LtiQueries,
-        mutations: {
-          claimNonce: async () => true,
-          upsertPlatformDeployment: async () => undefined,
-          resolvePlatformScope: async (values: PlatformScopeResolution) => {
-            resolvedValues = values
-            return scopeRecord(values, { id: scopeId, name: 'Autumn 2026' })
-          },
-          upsertProgress: async (_activityId: string, _userId: string, scope: string) => {
-            initializedScope = scope
-          },
-          reconcileLineItem: async (values: LineItemReconciliation) => {
-            reconciled = values
-          },
-        } as unknown as LtiMutations,
-        activities: {
-          queries: {
-            findActivityByURL: async () => ({
-              id: activityId,
-              url: activityUrl,
-              name: null,
-              created_at: new Date(),
-              updated_at: new Date(),
-            }),
-          } as unknown as ActivityQueries,
+  const createService = (options: ServiceOptions = {}) => {
+    const { enrollmentOutcome, transactionError, activityExists = true } = options
+    const activityId = uuidv7()
+    const userId = uuidv7()
+    const scopeId = uuidv7()
+    const tokens: UserTokens = {
+      access: { token: 'access-token', expiration_in_ms: 60_000 },
+      refresh: { token: 'refresh-token', expiration_in_ms: 120_000 },
+      remember_me: false,
+    }
+    const recorders: LaunchRecorders = { enrollments: [], order: [] }
+
+    const service = new LtiLaunchService({
+      logger: createCoreLogger({ pinoLogger: pino({ level: 'silent' }) }),
+      tx: {
+        withTransaction: async (fn) => {
+          recorders.order.push('transaction')
+          if (transactionError != null) {
+            throw transactionError
+          }
+          return await fn()
         },
-        session: {
-          ltiSignInService: {
-            signInLti: async () => ({
+      } as TXManager,
+      queries: {
+        findPlatformByIssuer: async () => platform,
+        getProgressWithCutoff: async (_userId: string, _activityId: string, scope: string) => {
+          recorders.cutoffScope = scope
+          return 0.35
+        },
+      } as unknown as LtiQueries,
+      mutations: {
+        claimNonce: async () => true,
+        upsertPlatformDeployment: async () => undefined,
+        resolvePlatformScope: async (values: PlatformScopeResolution) => {
+          recorders.resolvedValues = values
+          return scopeRecord(values, { id: scopeId, name: 'Autumn 2026' })
+        },
+        upsertProgress: async (_activityId: string, _userId: string, scope: string) => {
+          recorders.initializedScope = scope
+        },
+        reconcileLineItem: async (values: LineItemReconciliation) => {
+          recorders.reconciled = values
+        },
+      } as unknown as LtiMutations,
+      activities: {
+        queries: {
+          findActivityByURL: async () =>
+            activityExists
+              ? {
+                  id: activityId,
+                  url: ACTIVITY_URL,
+                  name: null,
+                  created_at: new Date(),
+                  updated_at: new Date(),
+                }
+              : undefined,
+        } as unknown as ActivityQueries,
+        enrollmentService: {
+          enrollByActivityCodeId: async (): Promise<EnrollmentOutcome> => {
+            throw new Error('the LTI launch must enroll by public activity code')
+          },
+          enrollByPublicActivityCode: async (params: {
+            user_id: string
+            activity_code: string
+            activity_id: string
+          }): Promise<EnrollmentOutcome> => {
+            recorders.order.push('enrollment')
+            recorders.enrollments.push(params)
+            return enrollmentOutcome ?? { status: 'enrolled', activity_code_id: uuidv7() }
+          },
+        } as unknown as EnrollmentService,
+      },
+      session: {
+        ltiSignInService: {
+          signInLti: async (_launch: unknown, asInstructor: boolean) => {
+            recorders.signedInAsInstructor = asInstructor
+            return {
               user: { id: userId, full_name: 'Test Learner' },
               abilities: [],
               remember_me: false,
-            }),
-          } as unknown as LtiSignInService,
-          tokenIssuer: {
-            createTokens: async () => tokens,
-          } as unknown as TokenIssuer,
-        },
-      })
+            }
+          },
+        } as unknown as LtiSignInService,
+        tokenIssuer: {
+          createTokens: async () => tokens,
+        } as unknown as TokenIssuer,
+      },
+    })
 
-      const rawTermId = 'canvas-term-raw-17'
-      const rawStart = '2026-08-20T00:00:00Z'
-      const rawEnd = '2026-12-15T23:59:59Z'
-      const idToken = await new SignJWT({
-        sub: 'canvas-user-1',
-        nonce: 'launch-nonce',
-        [CLAIM_VERSION]: '1.3.0',
-        [CLAIM_DEPLOYMENT_ID]: 'deployment-1',
-        [CLAIM_TARGET_LINK_URI]: 'https://gradebook.launch.test/lti/launch',
-        [CLAIM_ROLES]: [],
-        [CLAIM_AGS_ENDPOINT]: {
-          lineitem: 'https://canvas.launch.test/lineitems/1',
-          scope: ['https://purl.imsglobal.org/spec/lti-ags/scope/score'],
-        },
-        [CLAIM_CUSTOM]: {
-          modulus_launch_type: 'start-activity',
-          modulus_activity_code: 'activity-code',
-          modulus_activity_url: activityUrl,
-          'Canvas.term.id': rawTermId,
-          'Canvas.term.name': 'Autumn 2026',
-          'Canvas.term.startAt': rawStart,
-          'Canvas.term.endAt': rawEnd,
-        },
-        [CLAIM_MESSAGE_TYPE]: 'LtiResourceLinkRequest',
-        [CLAIM_RESOURCE_LINK]: { id: 'resource-link-1' },
-      })
-        .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
-        .setIssuer(issuer)
-        .setAudience(platform.client_id)
-        .setIssuedAt()
-        .setExpirationTime('5m')
-        .sign(privateKey)
+    return { service, recorders, activityId, userId, scopeId }
+  }
 
-      const response = await service.handleLaunch({ id_token: idToken, issuer })
+  const signLaunch = async ({
+    ags = true,
+    roles = [] as string[],
+    activityCode = ACTIVITY_CODE,
+  } = {}) =>
+    await new SignJWT({
+      sub: 'canvas-user-1',
+      nonce: 'launch-nonce',
+      [CLAIM_VERSION]: '1.3.0',
+      [CLAIM_DEPLOYMENT_ID]: 'deployment-1',
+      [CLAIM_TARGET_LINK_URI]: 'https://gradebook.launch.test/lti/launch',
+      [CLAIM_ROLES]: roles,
+      ...(ags
+        ? {
+            [CLAIM_AGS_ENDPOINT]: {
+              lineitem: 'https://canvas.launch.test/lineitems/1',
+              scope: ['https://purl.imsglobal.org/spec/lti-ags/scope/score'],
+            },
+          }
+        : {}),
+      [CLAIM_CUSTOM]: {
+        modulus_launch_type: 'start-activity',
+        modulus_activity_code: activityCode,
+        modulus_activity_url: ACTIVITY_URL,
+        'Canvas.term.id': RAW_TERM_ID,
+        'Canvas.term.name': 'Autumn 2026',
+        'Canvas.term.startAt': RAW_START,
+        'Canvas.term.endAt': RAW_END,
+      },
+      [CLAIM_MESSAGE_TYPE]: 'LtiResourceLinkRequest',
+      [CLAIM_RESOURCE_LINK]: { id: 'resource-link-1' },
+    })
+      .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
+      .setIssuer(issuer)
+      .setAudience(platform.client_id)
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(privateKey)
 
-      assert.equal(response.type, 'start-activity')
-      if (response.type !== 'start-activity') {
-        assert.fail('expected a start-activity launch response')
+  it('resolves scope with the authenticated platform and omits raw Canvas identity', async () => {
+    const { service, recorders, scopeId } = createService()
+
+    const response = await service.handleLaunch({
+      id_token: await signLaunch(),
+      issuer,
+    })
+
+    assert.equal(response.type, 'start-activity')
+    if (response.type !== 'start-activity') {
+      assert.fail('expected a start-activity launch response')
+    }
+    assert.equal(response.scope_id, scopeId)
+    assert.equal(response.scope_name, 'Autumn 2026')
+    assert.equal(recorders.resolvedValues?.platform_id, platform.id)
+    assert.equal(recorders.resolvedValues?.external_id, RAW_TERM_ID)
+    assert.equal(recorders.resolvedValues?.starts_at?.toISOString(), '2026-08-20T00:00:00.000Z')
+    assert.equal(recorders.resolvedValues?.ends_at?.toISOString(), '2026-12-15T23:59:59.000Z')
+    assert.ok(recorders.resolvedValues?.last_verified_launch_at instanceof Date)
+    assert.equal(recorders.initializedScope, scopeId)
+    assert.equal(recorders.cutoffScope, scopeId)
+    assert.equal(recorders.reconciled?.scope_id, scopeId)
+    assert.equal(recorders.reconciled?.submittable_progress, 0.35)
+
+    const serialized = JSON.stringify(response)
+    assert.equal(serialized.includes(RAW_TERM_ID), false)
+    assert.equal(serialized.includes(RAW_START), false)
+    assert.equal(serialized.includes(RAW_END), false)
+  })
+
+  it('enrolls an AGS launch and still reconciles the line item', async () => {
+    const { service, recorders, activityId, userId, scopeId } = createService()
+
+    await service.handleLaunch({ id_token: await signLaunch(), issuer })
+
+    assert.equal(recorders.signedInAsInstructor, false)
+    assert.deepEqual(recorders.enrollments, [
+      { user_id: userId, activity_code: ACTIVITY_CODE, activity_id: activityId },
+    ])
+    assert.equal(recorders.reconciled?.scope_id, scopeId)
+  })
+
+  it('enrolls an instructor resource-link launch under current policy', async () => {
+    const { service, recorders, activityId, userId } = createService()
+
+    await service.handleLaunch({
+      id_token: await signLaunch({
+        roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
+      }),
+      issuer,
+    })
+
+    // The launch really did take the instructor path ...
+    assert.equal(recorders.signedInAsInstructor, true)
+    // ... and current policy makes no role distinction: an instructor launch
+    // performs the same enrollment attempt as a learner launch.
+    assert.deepEqual(recorders.enrollments, [
+      { user_id: userId, activity_code: ACTIVITY_CODE, activity_id: activityId },
+    ])
+  })
+
+  it('enrolls a launch with no AGS endpoint and performs no transaction', async () => {
+    const { service, recorders, activityId, userId, scopeId } = createService()
+
+    const response = await service.handleLaunch({
+      id_token: await signLaunch({ ags: false }),
+      issuer,
+    })
+
+    assert.equal(response.type, 'start-activity')
+    if (response.type !== 'start-activity') {
+      assert.fail('expected a start-activity launch response')
+    }
+    assert.equal(response.scope_id, scopeId)
+    assert.deepEqual(recorders.enrollments, [
+      { user_id: userId, activity_code: ACTIVITY_CODE, activity_id: activityId },
+    ])
+    assert.deepEqual(recorders.order, ['enrollment'])
+    assert.equal(recorders.reconciled, undefined)
+  })
+
+  it('records the enrollment before the AGS transaction runs', async () => {
+    const { service, recorders } = createService()
+
+    await service.handleLaunch({ id_token: await signLaunch(), issuer })
+
+    assert.deepEqual(recorders.order, ['enrollment', 'transaction'])
+  })
+
+  it('leaves the enrollment in place when the AGS transaction rejects', async () => {
+    const transactionError = new Error('line item reconciliation failed')
+    const { service, recorders, activityId, userId } = createService({ transactionError })
+
+    await assert.rejects(
+      service.handleLaunch({ id_token: await signLaunch(), issuer }),
+      transactionError
+    )
+
+    // The enrollment write is not inside the rolled-back unit of work.
+    assert.deepEqual(recorders.enrollments, [
+      { user_id: userId, activity_code: ACTIVITY_CODE, activity_id: activityId },
+    ])
+    assert.deepEqual(recorders.order, ['enrollment', 'transaction'])
+  })
+
+  it('honours the launch when the public activity code does not resolve', async () => {
+    const { service, recorders, scopeId } = createService({
+      enrollmentOutcome: { status: 'skipped', reason: 'unknown_activity_code' },
+    })
+
+    const response = await service.handleLaunch({
+      id_token: await signLaunch({ activityCode: 'retired-code' }),
+      issuer,
+    })
+
+    assert.equal(response.type, 'start-activity')
+    if (response.type !== 'start-activity') {
+      assert.fail('expected a start-activity launch response')
+    }
+    assert.equal(response.activity_code, 'retired-code')
+    assert.equal(response.scope_id, scopeId)
+    assert.equal(response.scope_name, 'Autumn 2026')
+    assert.equal(response.tokens.access.token, 'access-token')
+    assert.equal(recorders.enrollments.length, 1)
+  })
+
+  it('honours the launch when the activity is no longer associated with the code', async () => {
+    const { service, recorders, scopeId } = createService({
+      enrollmentOutcome: { status: 'skipped', reason: 'activity_not_in_activity_code' },
+    })
+
+    const response = await service.handleLaunch({ id_token: await signLaunch(), issuer })
+
+    assert.equal(response.type, 'start-activity')
+    if (response.type !== 'start-activity') {
+      assert.fail('expected a start-activity launch response')
+    }
+    assert.equal(response.activity_code, ACTIVITY_CODE)
+    assert.equal(response.scope_id, scopeId)
+    assert.equal(response.tokens.refresh.token, 'refresh-token')
+    assert.equal(recorders.reconciled?.scope_id, scopeId)
+    assert.equal(recorders.enrollments.length, 1)
+  })
+
+  it('still rejects an activity URL that resolves to no activity', async () => {
+    const { service, recorders } = createService({ activityExists: false })
+
+    await assert.rejects(
+      service.handleLaunch({ id_token: await signLaunch(), issuer }),
+      (error: unknown) => {
+        assert.equal((error as { code?: string }).code, ErrorCodes.INVALID_LAUNCH)
+        return true
       }
-      assert.equal(response.scope_id, scopeId)
-      assert.equal(response.scope_name, 'Autumn 2026')
-      assert.equal(resolvedValues?.platform_id, platform.id)
-      assert.equal(resolvedValues?.external_id, rawTermId)
-      assert.equal(resolvedValues?.starts_at?.toISOString(), '2026-08-20T00:00:00.000Z')
-      assert.equal(resolvedValues?.ends_at?.toISOString(), '2026-12-15T23:59:59.000Z')
-      assert.ok(resolvedValues?.last_verified_launch_at instanceof Date)
-      assert.equal(initializedScope, scopeId)
-      assert.equal(cutoffScope, scopeId)
-      assert.equal(reconciled?.scope_id, scopeId)
-      assert.equal(reconciled?.submittable_progress, 0.35)
+    )
+    assert.deepEqual(recorders.enrollments, [])
+  })
 
-      const serialized = JSON.stringify(response)
-      assert.equal(serialized.includes(rawTermId), false)
-      assert.equal(serialized.includes(rawStart), false)
-      assert.equal(serialized.includes(rawEnd), false)
-    } finally {
-      await jwks.close()
+  it('carries no raw Canvas term identity into the response or the enrollment call', async () => {
+    const { service, recorders } = createService()
+
+    const response = await service.handleLaunch({ id_token: await signLaunch(), issuer })
+
+    const serialized = JSON.stringify({
+      response,
+      enrollments: recorders.enrollments,
+    })
+    for (const value of [RAW_TERM_ID, RAW_START, RAW_END, 'canvas-user-1']) {
+      assert.equal(serialized.includes(value), false, `launch leaked ${value}`)
     }
   })
 })

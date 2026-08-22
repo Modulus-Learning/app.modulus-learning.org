@@ -189,6 +189,7 @@ export class ActivityQueries extends BaseService {
     return await this.db
       .get()
       .query.activityCodes.findFirst({ where: eq(activityCodes.code, code) })
+      .catch(this.utils.wrapDbErrorNew())
   }
 
   @method
