@@ -5,6 +5,7 @@ import pg from 'pg'
 
 import * as schema from '../schema/index.js'
 import { activities } from '../schema/source/activities.js'
+import { activityActivityCode } from '../schema/source/activity-activity-code.js'
 import { activityCodes } from '../schema/source/activity-codes.js'
 import { adminPermissions } from '../schema/source/admin-permissions.js'
 import { adminRoleAdminUser } from '../schema/source/admin-role-admin-user.js'
@@ -13,6 +14,7 @@ import { adminUsers } from '../schema/source/admin-users.js'
 import { enrollment } from '../schema/source/enrollment.js'
 import { permissions } from '../schema/source/permissions.js'
 import { progress } from '../schema/source/progress.js'
+import { progressEvents } from '../schema/source/progress-events.js'
 import { roleUser } from '../schema/source/role-user.js'
 import { roles } from '../schema/source/roles.js'
 import { users } from '../schema/source/users.js'
@@ -43,8 +45,14 @@ const main = async () => {
   const db = drizzle(client, { schema })
 
   try {
+    // `progress_events.activity_id` is ON DELETE RESTRICT, so these rows must go
+    // before `activities`.  Everything else below cascades from its parent.
+    await db.delete(progressEvents)
     await db.delete(progress)
     await db.delete(enrollment)
+    // Deleted explicitly rather than relying on the cascade from `activities`,
+    // so the seed's teardown order states what it depends on.
+    await db.delete(activityActivityCode)
     await db.delete(activities)
     await db.delete(activityCodes)
     await db.delete(permissions)
@@ -67,16 +75,21 @@ const main = async () => {
     await seedPermissions(db, roleIds)
     await seedRoleUser(db, roleIds, userIds)
     const activityCodeIds = await seedActivityCodes(db, userIds)
-    const activityIds = await seedActivities(db)
+    const activityIds = await seedActivities(db, activityCodeIds)
     await seedEnrollment(db, userIds, activityCodeIds)
     await seedProgress(db, userIds, activityIds)
 
     console.log('All seeds completed successfully')
   } catch (error) {
+    // Rethrow so a failed stage cannot report success: `drizzle:seed` must exit
+    // nonzero when the database is left half-seeded.
     console.error('Error seeding database:', error)
+    throw error
   } finally {
     await client.end()
   }
 }
 
-main()
+main().catch(() => {
+  process.exitCode = 1
+})
