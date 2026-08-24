@@ -1,7 +1,7 @@
 # Activity-code enrollment — implementation plan
 
 Date: 2026-08-20
-Status: proposed; no implementation has started
+Status: implemented on `feat/activity-code-enrollment`; Tasks 1-6 complete and reviewed
 Related:
 
 - `specs/2026-08-20-activity-code-enrollment-analysis.md` — approved analysis and

@@ -1,7 +1,7 @@
 # Activity-code enrollment — analysis
 
 Date: 2026-08-20
-Status: proposed; awaiting review; no implementation has started
+Status: approved; implemented on `feat/activity-code-enrollment`
 Related:
 
 - `docs/DATA-MODEL.md` — current activity, code, enrollment, scope, and learner-signal tables
