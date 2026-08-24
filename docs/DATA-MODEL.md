@@ -93,11 +93,11 @@ This is the graph that connects learners to Ximera content.
 
 ```
         activity_codes ──< activity_activity_code >── activities
-              │  │                                        │
-              │  └──< activity_code_member >── users      │
-              │                                  │        │
-              └──────────< enrollment >──────────┴────────┘
-                          (code, activity, user)
+              │  │
+              │  └──< activity_code_member >── users
+              │                                  │
+              └──────────< enrollment >──────────┘
+                          (code, user)
 ```
 
 - **`activities`** — a Ximera activity/page, identified by a unique `url` (plus
@@ -108,13 +108,33 @@ This is the graph that connects learners to Ximera content.
   and `created_by`. Activity codes are what let an institution control which
   activities are accessible and reuse a set across courses/semesters.
 - **`activity_activity_code`** — which activities belong to which code (M:N).
-- **`activity_code_member`** — which users belong to a code (M:N), i.e. roster
-  membership of a code.
-- **`enrollment`** — the three-way link `(activity_code_id, activity_id,
-  user_id)` that records a learner working a specific activity in the context of
-  a specific code. Enrollment and activity-code membership deliberately remain
-  broad, unscoped cohorts; scope is applied only when learner state is read or
-  written.
+- **`activity_code_member`** — which users administer a code (M:N). This is the
+  instructor-facing access relation: membership is what lets a user open a code's
+  dashboard and reports.
+- **`enrollment`** — the two-column relation `(activity_code_id, user_id)`, which
+  is the primary key, plus an immutable `created_at`. It answers exactly one
+  question: which activity codes a learner is enrolled under. It carries no
+  activity, no scope, and no lifecycle flag, so a learner has at most one
+  enrollment per code however many of the code's activities they open, and a
+  repeated launch neither inserts a second row nor rewrites `created_at`. Which
+  activities appear for an enrolled learner comes from `activity_activity_code`,
+  not from the enrollment itself.
+
+  Enrollment is the learner-reporting cohort; `activity_code_member` is
+  instructor access. The two are separate relations and a user may appear in
+  either, both, or neither. Both deliberately remain broad and unscoped — scope
+  is applied only when learner state is read or written — and that independence
+  from scope is a design choice, not an omission: a cohort that survives across
+  terms is what makes the relation reusable.
+
+  Enrollment is written by one shared operation
+  (`packages/core/src/modules/app/activities/services/enrollment.ts`), which both
+  a verified LTI resource-link launch and `startActivity` call. It writes only
+  when core's own records show the activity is associated with the code. Under
+  current policy an instructor who performs a resource-link launch is enrolled
+  alongside learners. Nothing else creates an enrollment — not cumulative
+  progress, not agent authorization, not activity auto-creation, and not
+  navigation between authored pages.
 
 ### 4. Academic scopes
 
@@ -209,10 +229,25 @@ authorization is tied to an opaque `users.id`, not to any LMS identity.
 
 Instructor activity-code reports deliberately remain scope-agnostic. The query
 first projects all scoped progress to one row per `(user_id, activity_id)` using
-maximum progress, earliest creation, and latest update, then joins the unscoped
-`enrollment` cohort. Totals and offset pagination operate on enrollments, with
-nulls last and stable ascending activity/user tie-breakers; no arbitrary
-`scope_id` is exposed in the report.
+maximum progress, earliest creation, and latest update. It then intersects that
+aggregate with two independent memberships of the selected code: the learner must
+appear in `enrollment` for the code, and the activity must appear in
+`activity_activity_code` for the same code. Because aggregation happens before
+either join, no `scope_id` is exposed in the report, and an activity outside the
+selected code cannot appear in it.
+
+A report row is therefore a learner × associated-activity pair, and totals and
+offset pagination operate on those pairs — not on enrollments, of which there is
+now only one per learner and code. Ordering places nulls last with stable
+ascending activity and user tie-breakers. A null `progress`, `created_at`, or
+`updated_at` means the learner has no progress for that activity in any scope.
+
+:::note[Status]
+This view is a placeholder. Its row shape, its treatment of null progress, its
+pagination contract, and whether configuration membership should be distinguished
+from participation are all deferred to the long-term reporting and analytics
+model.
+:::
 
 ## The Data-Isolation Boundary, in Schema Terms
 
@@ -235,7 +270,7 @@ see [AGENT](./AGENT.md) and [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md).
 ## Migrations & Seeds
 
 - **Migrations** live in `packages/core/src/database/migrations/` as Drizzle
-  migrations (`0000_…`–`0014_…` plus the `meta/` journal), generated with
+  migrations (`0000_…`–`0015_…` plus the `meta/` journal), generated with
   `pnpm drizzle:generate` and applied with `pnpm drizzle:migrate`.
 - **Historical SQL** under `database/sql/` (`modulus-deploy-YYYY-MM-DD.sql` and a
   few targeted `migrate-*.sql` scripts) predates the Drizzle migration track and
@@ -244,7 +279,9 @@ see [AGENT](./AGENT.md) and [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md).
 - **Seeds** in `database/seeds/` run in numbered order via `index.ts`
   (`pnpm drizzle:seed`), and the ordering encodes the dependency chain: admin
   identity (`01`–`04`) → learner identity (`05`–`08`) → activity codes and
-  activities (`09`–`10`) → enrollment (`11`) → progress (`12`).
+  activities (`09`–`10`) → enrollment (`11`) → progress (`12`). Activity/code
+  associations are seeded alongside the activities at step `10`, because the
+  reporting intersection is empty without them.
 
 ## Open Questions
 
