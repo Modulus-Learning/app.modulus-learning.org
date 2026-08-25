@@ -17,7 +17,10 @@ import {
 } from '@/modules/agent/activity-state/repository/index.js'
 import { ActivityPageStateService } from '@/modules/agent/activity-state/services/pagestate.js'
 import { ActivityProgressService } from '@/modules/agent/activity-state/services/progress.js'
-import { ActivityQueries as AppActivityQueries } from '@/modules/app/activities/repository/index.js'
+import {
+  ActivityMutations as AppActivityMutations,
+  ActivityQueries as AppActivityQueries,
+} from '@/modules/app/activities/repository/index.js'
 import { LtiMutations, LtiQueries } from '@/modules/app/lti/repository/index.js'
 import {
   LtiScoreSubmissionMutations,
@@ -70,6 +73,7 @@ export type TestRepos = {
   activityQueries: ActivityStateQueries
   activityMutations: ActivityStateMutations
   appActivityQueries: AppActivityQueries
+  appActivityMutations: AppActivityMutations
 }
 
 // Service-layer seam for the 7.1b composition tests: the real service over the
@@ -131,6 +135,7 @@ export async function setupTestHarness(): Promise<TestHarness> {
     activityQueries: new ActivityStateQueries(deps),
     activityMutations: new ActivityStateMutations(deps),
     appActivityQueries: new AppActivityQueries(deps),
+    appActivityMutations: new AppActivityMutations(deps),
   }
 
   const services: TestServices = {

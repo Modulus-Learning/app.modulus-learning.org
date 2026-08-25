@@ -111,6 +111,34 @@ normalised independently: unusable metadata never rejects the launch, erases a
 previously known value, or mutates the sentinel. Dates are descriptive and do
 not gate access or passback.
 
+After sign-in, `handleActivityLaunch` enrolls the launching user in the activity
+code named by the launch. Modulus resolves the public code from the custom
+`modulus_activity_code` claim against its own records and writes the enrollment
+only when that code resolves *and* the launched activity is still associated with
+it. The write is idempotent, so a learner who opens the same link every week
+keeps one enrollment row with its original `created_at`. Under current policy no
+role distinction is made here: an instructor performing a resource-link launch is
+enrolled in the same cohort as a learner. Enrollment is defined in
+[DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping).
+
+Two conditions skip the write without disturbing the launch. A public code that
+no longer resolves, and an activity that has been removed from the code since the
+LMS link was created, each produce a warn-level structured log carrying only the
+available code identifier and the activity id — never learner PII — and the
+launch response is returned unchanged. Modulus does not restore a removed
+association or invent one, and neither condition turns into an invalid launch. An
+activity URL that resolves to no `activities` row at all is a different matter:
+there is nothing to launch, and that remains an error.
+
+The enrollment write runs before the redirect is returned, whether or not the
+launch carries an AGS endpoint, and outside the AGS transaction described next —
+a line-item reconciliation failure cannot roll it back.
+
+:::note[Interim diagnostic]
+An instructor whose LMS link points at a missing code or a removed association
+gets no feedback in the launch itself. The warn log is the only signal today.
+:::
+
 If the launch carries an AGS endpoint, core reconciles the one line-item row
 unique on `(user, activity, lineitem_url)` with that resolved scope. The current
 verified launch is authoritative for platform, deployment, and LTI user
@@ -142,7 +170,10 @@ an assignment points to.
      `url_prefix` if set;
    - **find-or-create** the `activities` row for the URL and **associate** it with
      the activity code (idempotent — see the in-code note on the cancel-after-
-     submit caveat);
+     submit caveat). This association is what a later resource-link launch checks
+     before enrolling the learner, so removing an activity from a code in the
+     Modulus dashboard stops enrollment through any LMS link that still points at
+     it;
    - build an `ltiResourceLink` content item whose launch URL carries the custom
      claims (`modulus_launch_type: 'start-activity'`, the activity code/URL,
      Canvas term identity/display fields, plus the existing Canvas substitution
