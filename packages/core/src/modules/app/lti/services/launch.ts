@@ -331,10 +331,17 @@ export class LtiLaunchService extends BaseService {
 
     const tokens = await this.tokens.createTokens(signIn)
 
+    // The resolved row is the authority for both fields.  `activity.url` and
+    // the `activity_url` claim agree today -- `findActivityByURL` matched on
+    // that exact value -- but the redirect is built from the database column,
+    // not from the claim.  `activity_code` stays in the response: enrollment
+    // above still needs it and it is informative in the logs, even though
+    // nothing downstream of the launch route consumes it.
     return {
       type: 'start-activity',
       activity_code,
-      activity_url,
+      activity_id: activity.id,
+      activity_url: activity.url,
       ...scope,
       tokens,
     }
