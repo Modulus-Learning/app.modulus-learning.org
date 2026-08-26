@@ -44,8 +44,11 @@ The work is complete when:
    both modes;
 8. no Modulus-owned URL on the LTI path embeds an activity URL, and the old
    `/lti/launch/[...go]` catch-all is deleted with no shim;
-9. `/lti/error?code=<slug>` renders readably with no launch context, and every
-   failure branch in `/routes/lti/launch` redirects there;
+9. `/lti/error?code=<slug>` renders readably with no launch context; every
+   failure branch in `/routes/lti/launch` **and** `/routes/lti/login` redirects
+   there; and an infrastructure failure inside core is distinguished from a
+   domain launch failure rather than both telling the learner to contact their
+   instructor;
 10. the interstitial's primary launch control is a server-rendered anchor, and
     the countdown is the only launch behaviour requiring scripting;
 11. the deep-link content item's `url` is the generic tool launch URL; and
@@ -69,7 +72,11 @@ Every task must preserve these, taken from the approved analysis:
   in both modes, so the agent's later `/routes/agent/authorize` request
   authenticates.
 - **Error codes carry no diagnostics.** `/lti/error` receives a slug from a closed
-  set. Detail stays in the existing `log.error({ lti_launch: … })` calls.
+  set. Detail stays in the existing `log.error({ lti_launch: … })` and
+  `log.error({ lti_login: … })` calls.
+- **An outage never tells the learner to contact their instructor.** A core
+  `ERR_UNHANDLED` or `ERR_DATABASE` must reach `server_error`, never
+  `invalid_launch`.
 - **No backward compatibility is owed.** Modulus has no live deployments, no
   pre-existing LTI links, and no learner bookmarks. No task may add a shim,
   fallback route, or migration on compatibility grounds.
@@ -92,6 +99,10 @@ Resolved during review; recorded so the implementer does not relitigate them.
   destination decision belongs to the route, and the route reads host config.
 - **An enum, not a boolean**, so `first-launch` can be added later without a
   breaking configuration change.
+- **Launch errors are classified, not caught.** Core commands never throw, so an
+  infrastructure failure arrives as an `!ok` result and is separated from a domain
+  failure by its error code. Neither LTI route gains a blanket `try/catch`, and
+  genuinely unhandled host exceptions remain 500s.
 - **`first-launch`, the per-code switch, the per-learner preference, the
   agent-side badge, framed-launch detection, and the LTI-conformant error
   response are all excluded.**
@@ -121,7 +132,7 @@ Resolved during review; recorded so the implementer does not relitigate them.
 | --- | --- | --- | --- |
 | 1 | 1. Add `getActivityLaunchView` | approved analysis | core repository, service, command, registry |
 | 1 | 2. Carry the resolved activity through the launch response | — | core LTI schema and handler |
-| 2 | 3. Add the generic LTI error route | — | host route + page |
+| 2 | 3. Add the generic LTI error route | — | host login + launch routes, error page |
 | 2 | 4. Add the re-keyed interstitial page | Tasks 1, 2 | host page + component |
 | 2 | 5. Flip the launch route and delete the catch-all | Tasks 2, 3, 4 | host config + launch route |
 | 3 | 6. Generic deep-link content item URL | Task 5 | core URL builder |
@@ -258,10 +269,19 @@ approach as `start-activity.test.ts`:
 - returns the view for a valid pair, with `modulus_server_url` from config;
 - throws `ERR_LEARNER_NOT_FOUND`, `ERR_ACTIVITY_NOT_FOUND`, and
   `ERR_ACTIVITY_SCOPE_NOT_FOUND` for each missing record;
-- **succeeds when the activity is associated with no activity code at all** —
-  the regression test for the stricter-than-the-handler defect;
-- asserts no enrollment mutation is invoked, by passing a mutations fake whose
-  `enrollInActivityCode` throws if called.
+- **succeeds when the activity is associated with no activity code at all.**
+  This is a characterization guard, not a regression test: the service never
+  looks at activity codes, so the test proves nothing about today's behaviour and
+  exists to fail loudly if someone later adds a code check here. Label it that
+  way in the test name so a reader does not mistake it for coverage of the
+  stricter-than-the-handler defect, which is exercised at the boundaries named
+  below.
+
+Do **not** attempt to assert "no enrollment mutation is invoked" by passing a
+mutations fake. `ActivityLaunchViewService` takes `{ logger, config, queries }`
+and has no mutations dependency at all — that is the point of the class — so such
+a fake is a type error or a cast-backed no-op. The absence of the dependency is
+the assertion, and `typecheck` enforces it.
 
 Add an integration case to `repository/index.itest.ts` covering
 `findActivityById` hit and miss.
@@ -315,7 +335,15 @@ the handler and is informative in logs; only the *interstitial* stops consuming
 it.
 
 Because the union member is `strictObject`, adding a field without updating
-`launch.test.ts` fixtures fails core's tests. Update them.
+`launch.test.ts` fixtures fails core's tests. Update them — but **preserve
+`launch.test.ts:555-567` exactly as it behaves today**. That case launches with
+`activityCode: 'retired-code'`, expects
+`enrollmentOutcome: { status: 'skipped', reason: 'unknown_activity_code' }`, and
+asserts the launch response still carries `activity_code: 'retired-code'`. It is
+the existing regression guard for the launch handler's tolerance of an
+unresolvable code, and it must keep passing unchanged apart from the new field.
+`enrollment.test.ts:208-217` covers the same policy one layer down and is not
+touched by this task.
 
 Verification:
 
@@ -339,8 +367,17 @@ Files:
 
 - add `apps/gradebook/src/app/lti/error/page.tsx`;
 - add `apps/gradebook/src/app/lti/error/page.test.node.tsx`;
-- revise `apps/gradebook/src/app/routes/lti/launch/route.ts`; and
-- revise `apps/gradebook/src/app/routes/lti/launch/route.test.node.ts`.
+- revise `apps/gradebook/src/app/routes/lti/launch/route.ts`;
+- revise `apps/gradebook/src/app/routes/lti/launch/route.test.node.ts`;
+- revise `apps/gradebook/src/app/routes/lti/login/route.ts`; and
+- add `apps/gradebook/src/app/routes/lti/login/route.test.node.ts`.
+
+**The login route is in scope too.** `routes/lti/login/route.ts` carries the same
+two `NextResponse.json({ status: 'failed' })` branches and the same
+`// TODO: Propert LTI error response` comment as the launch route, and a login
+failure is just as learner-visible. It has no test file today, so this task adds
+the first one, covering only the two failure branches and the success redirect —
+not the state-cookie semantics, which are unchanged.
 
 #### The Page
 
@@ -356,13 +393,13 @@ The closed set, with the learner-facing message each maps to:
 
 | `code` | Cause | Message |
 | --- | --- | --- |
-| `invalid_request` | malformed authentication response | The launch request was not valid. Please return to your LMS and try again. |
-| `invalid_launch` | `handleLaunch` returned `!ok` | This activity could not be launched. Please contact your instructor. |
+| `invalid_request` | the login or authentication response did not parse | The launch request was not valid. Please return to your LMS and try again. |
+| `invalid_launch` | `handleLogin` / `handleLaunch` returned `!ok` with a *domain* error code | This activity could not be launched. Please contact your instructor. |
 | `session_expired` | missing `state-<state>` cookie | Your launch could not be completed. Please return to your LMS and open the activity again. |
-| `server_error` | anything else | Something went wrong on our end. Please try again. |
+| `server_error` | `handleLogin` / `handleLaunch` returned `!ok` with `ERR_UNHANDLED` or `ERR_DATABASE`, or the slug is unknown or absent | Something went wrong on our end. This is not a problem with your course link. Please try again shortly. |
 
-An unrecognised or absent `code` renders `server_error`. No slug carries internal
-detail, and the page must not echo the raw query value into the DOM.
+No slug carries internal detail, and the page must not echo the raw query value
+into the DOM.
 
 `session_expired` deserves a code comment. The state cookie is set
 `SameSite=None`, so the most likely cause in practice is a launch rendered inside
@@ -372,35 +409,86 @@ after this task it is a readable instruction. Detecting and reporting the framed
 case is out of scope, but the comment should name it so the next reader does not
 mistake this for a generic fallback.
 
+#### Why `server_error` Is Reachable Without A Catch-All
+
+Core commands **never throw**. `CoreUtils.createCommand` wraps every handler in a
+try/catch, and `reportError` converts whatever escapes into a `Result.Err`: a
+`CoreError` reports its own code, and anything else becomes
+`{ code: 'ERR_UNHANDLED' }` logged with `unhandled: true`. Database failures are
+wrapped earlier still, by `wrapDbErrorNew`, into `ERR_DATABASE`.
+
+So an infrastructure failure inside core — a dead connection pool, an unexpected
+exception in a service — does not produce an exception in the host. It arrives at
+the call site as an ordinary `!ok` result.
+
+That matters, because mapping every `!ok` to a single slug would tell a learner
+to *contact their instructor* when the database is down. The failure is on the
+`!ok` branch we already handle; it just needs to be distinguished there.
+
+**No blanket `try/catch` is added to either route.** It would buy little — the
+residual host-side throw surface is core initialization and Next's own cookie and
+body APIs, where an ops-visible 500 is the honest signal and the learner has
+nothing to act on — and it would cost a rethrow guard against Next's internal
+error shape, since `redirect()` signals by throwing. Genuinely unhandled host
+exceptions continue to surface as 500s, as they do today.
+
 #### Route Wiring
 
-Replace, in `/routes/lti/launch`:
+In **both** `/routes/lti/launch` and `/routes/lti/login`, replace each
+`return NextResponse.json({ status: 'failed', … })` with a redirect:
 
-- both `return NextResponse.json({ status: 'failed', … })` branches with
-  `redirect('/lti/error?code=invalid_request')` and
-  `redirect('/lti/error?code=invalid_launch')` respectively; and
-- `throw new Error('Missing state cookie')` with
-  `redirect('/lti/error?code=session_expired')`.
+- the parse-failure branch → `/lti/error?code=invalid_request`;
+- the `!ok` branch → a slug selected from the result's error code:
 
-Keep every existing `log.error({ lti_launch: … })` call exactly as it is. The
-logging is the diagnostic channel; the slug is not.
+```ts
+const INFRASTRUCTURE_ERROR_CODES = new Set(['ERR_UNHANDLED', 'ERR_DATABASE'])
 
-Leave the `// TODO: Propert LTI error response` comment in place, reworded to say
-that the LTI-conformant response to the platform is still outstanding and that
-the redirect is the first-party surface only.
+const errorSlugFor = (code: string): 'server_error' | 'invalid_launch' =>
+  INFRASTRUCTURE_ERROR_CODES.has(code) ? 'server_error' : 'invalid_launch'
+```
+
+Put `errorSlugFor` in a small shared module — `apps/gradebook/src/modules/lti/error-slug.ts`
+— so both routes use one mapping and it can be unit-tested without a request.
+An unrecognised code falls through to `invalid_launch`, which is the right
+default: a domain error we have not enumerated is still a launch problem, not an
+outage.
+
+And in `/routes/lti/launch` only, replace `throw new Error('Missing state cookie')`
+with `redirect('/lti/error?code=session_expired')`.
+
+Keep every existing `log.error({ lti_launch: … })` and `log.error({ lti_login: … })`
+call exactly as it is. The logging is the diagnostic channel; the slug is not.
+
+Leave the `// TODO: Propert LTI error response` comment in both routes, reworded
+to say that the LTI-conformant response to the platform is still outstanding and
+that the redirect is the first-party surface only.
 
 #### Tests
 
 - `page.test.node.tsx`: each slug renders its message; an unknown slug and a
   missing slug both render `server_error`; a slug value containing markup is not
   reflected into the output.
-- `route.test.node.ts`: add three cases asserting the redirect target for a
-  malformed body, a missing state cookie, and a failed `handleLaunch`; assert no
-  response body is JSON on those paths.
+- `error-slug.test.node.ts`: `ERR_UNHANDLED` and `ERR_DATABASE` map to
+  `server_error`; a domain code such as `ERR_INVALID_LAUNCH` maps to
+  `invalid_launch`; an unrecognised code maps to `invalid_launch`.
+- `launch/route.test.node.ts`: add cases asserting the redirect target for a
+  malformed body, a missing state cookie, a `handleLaunch` failure with a domain
+  code, and **a `handleLaunch` failure with `ERR_UNHANDLED`**, which must reach
+  `server_error` rather than `invalid_launch`. Assert no response body is JSON on
+  any of those paths.
+- `login/route.test.node.ts` (new): a malformed body redirects to
+  `invalid_request`; a `handleLogin` failure with a domain code redirects to
+  `invalid_launch` and with `ERR_DATABASE` to `server_error`; a successful login
+  still redirects to the platform and still sets the `state-<id>` cookie with its
+  current attributes.
+
+Add `apps/gradebook/src/modules/lti/error-slug.ts` and its test to this task's
+file list.
 
 Verification:
 
 ```sh
+pnpm -F @modulus-learning/gradebook exec vitest run --mode=node src/modules/lti/error-slug.test.node.ts
 pnpm -F @modulus-learning/gradebook exec vitest run --mode=node src/app/lti/error/page.test.node.tsx
 pnpm -F @modulus-learning/gradebook test && pnpm typecheck && pnpm lint:check
 ```
@@ -415,9 +503,19 @@ The new page is added **beside** the old catch-all, not in place of it. Nothing
 redirects here yet, so `always` behaviour keeps working through the old route
 until Task 5 switches over and deletes it. This is what keeps every commit green.
 
+Because this task changes `LtiLaunchActivity`'s props, the old catch-all page —
+which still renders `<LtiLaunchActivity … startActivityResult={result} />` — stops
+compiling unless it is updated in the same commit. It is therefore in the file
+list below even though Task 5 deletes it. The change there is three lines: build
+`destination` from `result.data` with `buildActivityLaunchUrl`, and pass
+`destination` and `activityUrl` instead of `startActivityResult`. Its test file
+needs no change, because it already mocks the component as `() => null`.
+
 Files:
 
 - add `apps/gradebook/src/app/lti/launch/[activity_id]/page.tsx`;
+- revise `apps/gradebook/src/app/lti/launch/[...go]/page.tsx` (call site only —
+  deleted in Task 5);
 - add `apps/gradebook/src/app/lti/launch/[activity_id]/page.test.node.tsx`;
 - add `apps/gradebook/src/modules/app/activity/activity-launch-view.ts`;
 - revise `apps/gradebook/src/modules/lti/components/lti-launch-activity.tsx`; and
@@ -471,9 +569,20 @@ and keeps serving `/start-activity` unchanged.
 
 Rework `LtiLaunchActivity` so the launch is a navigation rather than a script:
 
-- accept `destination: string` and render the primary control as
-  `<a href={destination}>` styled as a button — present in the server-rendered
-  HTML;
+- accept **two distinct URL props**, because the component today displays a
+  different string from the one it navigates to:
+  - `destination: string` — the fully-built launch URL, used only as the anchor
+    `href`; and
+  - `activityUrl: string` — the clean canonical `activities.url`, used only for
+    the displayed destination disclosure that the component currently reads from
+    `startActivityResult.data?.activity?.url`.
+
+  Collapsing these would either lose the disclosure or show the learner
+  `…?modulus=https://…&scope_id=…`, which is a materially worse disclosure than
+  the bare activity URL — and the disclosure is one of the reasons the analysis
+  gives for keeping the page at all;
+- render the primary control as `<a href={destination}>` styled as a button —
+  present in the server-rendered HTML;
 - replace the secondary "click here" `<button onClick>` with an anchor to the
   same `href`;
 - keep the countdown, its live counter, and its Cancel control client-side; they
@@ -485,8 +594,8 @@ Rework `LtiLaunchActivity` so the launch is a navigation rather than a script:
   be launched.
 
 Delete the client-side `buildActivityLaunchUrl` call and the
-`startActivityResult` prop plumbing it needed, replacing them with the
-`destination` prop and the display fields (`scope_name`, `isDefaultScope`, the
+`startActivityResult` prop plumbing it needed, replacing them with `destination`,
+`activityUrl`, and the display fields (`scope_name`, `isDefaultScope`, and the
 session name) the component already reads.
 
 #### Tests
@@ -500,14 +609,28 @@ session name) the component already reads.
 - `ERR_ACTIVITY_NOT_FOUND` and `ERR_ACTIVITY_SCOPE_NOT_FOUND` each render "Launch
   Error" — the bad-activity-id and bad-scope-id cases the analysis requires;
 - no user context renders "Authentication Required";
-- **an activity belonging to no activity code renders normally**, mirroring the
-  core-side regression test.
+- **a deliberately awkward canonical activity URL survives into the anchor.**
+  Have the mocked command return a URL carrying an authored query, a fragment,
+  and a literal percent escape, then assert the server-rendered anchor `href`
+  equals `buildActivityLaunchUrl`'s output for it and that the displayed
+  `activityUrl` is the undecorated original. This is where URL preservation is
+  observable in `always` mode — the route test cannot see it, because the route
+  only emits `/lti/launch/{id}?scope_id=…`. In this mode preservation is a
+  property of construction rather than transport: the URL goes from the database
+  row to the anchor without transiting a Modulus-owned URL at all.
+
+Do not add a page-level test asserting that "an activity belonging to no activity
+code renders normally". The command is mocked here, so such a test establishes
+nothing about code association. That policy is covered by the preserved core
+tests (Task 2) and by the route-level cases in Task 5.
 
 `lti-launch-activity.test.tsx` (jsdom), extending the existing suite:
 
-- the rendered markup contains an `<a href>` equal to the destination, asserted
+- the rendered markup contains an `<a href>` equal to `destination`, asserted
   against `renderToStaticMarkup` output so it is proven present without
   hydration;
+- the displayed destination text is `activityUrl` and is **not** the decorated
+  `destination`, so the disclosure does not silently regress;
 - manual click and countdown expiry still reach the same destination;
 - countdown cancellation still works;
 - the `<noscript>` no longer asserts that JavaScript is required to launch.
@@ -612,8 +735,15 @@ stub.
 - the existing "no `scope_name` in the target" assertion now runs against both
   modes;
 - an activity URL carrying an authored query, fragment, and literal percent
-  escape survives in both modes — the case that fails today through the
-  catch-all;
+  escape survives **in `never` mode** — the case that fails today through the
+  catch-all. The `always` equivalent is not assertable here and lives in Task 4's
+  page test, since this route emits only `/lti/launch/{id}?scope_id=…`;
+- **a launch whose response carries `activity_code: 'retired-code'` produces a
+  valid destination in both modes, and neither destination contains the code.**
+  This is where the stricter-than-the-handler defect is actually observable: the
+  launch handler tolerates an unresolvable code, and after this task nothing
+  downstream consumes it. Assert the destination string in both modes rather than
+  asserting that some command was not called;
 - an instructor-role launch and a learner-role launch produce identical targets.
 
 Verification:
@@ -730,21 +860,23 @@ Every criterion in the analysis, mapped to the task that satisfies it.
 | Neither mode branches on `isInstructor` | 5 |
 | Read-only command for one `(activity_id, scope_id)` pair, no activity code, no enrollment | 1 |
 | `startActivity` not called on the LTI path; no duplicate enrollment or association check | 1, 4, 5 |
-| Unresolvable activity code still reaches the activity in both modes | 1, 4, 5 |
+| Unresolvable activity code still reaches the activity in both modes | 2 (preserved core tests), 5 (route cases) |
 | Interstitial keyed `/lti/launch/{activity_id}`; no activity URL in any LTI-path Modulus URL | 4, 5 |
 | `LaunchResponse` carries the resolved activity's `id` and `url` | 2 |
 | Old catch-all deleted, no shim | 5 |
 | Deep-link `url` is the generic launch URL; `startActivityUrl` unchanged | 6 |
-| Authored query, fragment, percent escape survive in both modes | 5 |
+| Authored query, fragment, percent escape survive in both modes | 5 (`never`), 4 (`always`, via the anchor `href`) |
 | No `scope_name` in any redirect URL, both modes | 5 |
 | Session cookies set before the redirect; agent authorize succeeds | 5 |
 | Command exposed on `core.app.activities` | 1 |
 | Session-only authorisation, stated in code | 1 |
 | Unresolvable pair renders "Launch Error", bad activity id and bad scope id tested | 1, 4 |
 | `/lti/error?code=<slug>` renders without launch context | 3 |
-| Every JSON branch and the bare throw redirect to it | 3 |
+| Every JSON branch and the bare throw redirect to it, in both LTI routes | 3 |
+| `ERR_UNHANDLED` / `ERR_DATABASE` reach `server_error`, not `invalid_launch` | 3 |
 | Error codes are opaque slugs; `log.error` detail unchanged | 3 |
 | Interstitial renders error, auth-required, and success states under the new URL | 4 |
+| Destination disclosure still shows the clean activity URL, not the decorated one | 4 |
 | Server-rendered launch anchor in the initial HTML | 4 |
 | Works with JavaScript disabled; truthful `<noscript>` | 4 |
 | Countdown is the only scripting-dependent launch behaviour | 4 |
