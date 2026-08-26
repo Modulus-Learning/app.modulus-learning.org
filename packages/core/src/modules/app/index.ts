@@ -5,6 +5,7 @@ import { AccountService } from './account/services/account.js'
 import { ActivityCommands } from './activities/commands.js'
 import { ActivityMutations, ActivityQueries } from './activities/repository/index.js'
 import { ActivityService } from './activities/services/activity.js'
+import { ActivityLaunchViewService } from './activities/services/activity-launch-view.js'
 import { EnrollmentService } from './activities/services/enrollment.js'
 import { StartActivityService } from './activities/services/start-activity.js'
 import { LtiCommands } from './lti/commands.js'
@@ -45,6 +46,7 @@ const createActivityRegistry = () =>
     .addClass('enrollmentService', EnrollmentService)
     .addClass('service', ActivityService)
     .addClass('startService', StartActivityService)
+    .addClass('launchViewService', ActivityLaunchViewService)
     .addClass('commands', ActivityCommands)
 
 const createSessionRegistry = () =>

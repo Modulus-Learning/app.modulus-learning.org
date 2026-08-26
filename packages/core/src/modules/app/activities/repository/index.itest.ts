@@ -352,6 +352,25 @@ describe('ActivityQueries all-scope progress reporting', () => {
   })
 })
 
+describe('ActivityQueries.findActivityById', () => {
+  it('returns the activity row for a known id', async () => {
+    const activityId = await seedActivity()
+
+    const activity = await h.repos.appActivityQueries.findActivityById(activityId)
+
+    assert.equal(activity?.id, activityId)
+    assert.equal(activity?.url, `https://content.test/${activityId}`)
+  })
+
+  it('returns undefined for an id with no activity row', async () => {
+    await seedActivity()
+
+    const activity = await h.repos.appActivityQueries.findActivityById(uuidv7())
+
+    assert.equal(activity, undefined)
+  })
+})
+
 describe('ActivityMutations.enrollInActivityCode', () => {
   const readEnrollmentRows = async (activityCodeId: string, userId: string) =>
     await h.db.query.enrollment.findMany({
