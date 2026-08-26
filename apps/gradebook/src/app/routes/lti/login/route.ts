@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 
 import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
+import { ltiErrorRedirect } from '@/modules/lti/error-redirect'
+import { errorSlugFor } from '@/modules/lti/error-slug'
 
 /**
  * Handler for the LTI 'init login request' from the platform, which begins the
@@ -36,8 +38,10 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // TODO: Propert LTI error response, here and below
-    return NextResponse.json({ status: 'failed', message: 'error in lti launch' })
+    // TODO: An LTI-conformant error response to the *platform* is still
+    // outstanding, here and below. The redirect is the first-party surface
+    // only -- it tells the learner what to do, not the platform what failed.
+    return ltiErrorRedirect(request, 'invalid_request')
   }
 
   const ctx = await getCoreRequestContext()
@@ -50,8 +54,9 @@ export async function POST(request: NextRequest) {
         error: result.error,
       },
     })
-    // TODO: Respond with a proper LTI error response
-    return NextResponse.json({ status: 'failed', message: 'error in lti login' })
+    // TODO: An LTI-conformant error response to the platform is still
+    // outstanding; this redirect is the first-party surface only.
+    return ltiErrorRedirect(request, errorSlugFor(result.error.code))
   }
 
   const { redirectUrl, stateId, stateValue } = result.data

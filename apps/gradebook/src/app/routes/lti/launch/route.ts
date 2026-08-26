@@ -1,12 +1,14 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { type NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
 import z from 'zod'
 
 import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import { setUserSession } from '@/modules/app/session/storage'
+import { ltiErrorRedirect } from '@/modules/lti/error-redirect'
+import { errorSlugFor } from '@/modules/lti/error-slug'
 
 /**
  * The response the platform sends back to the tool in response to an
@@ -63,8 +65,10 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // TODO: Propert LTI error response, here and below
-    return NextResponse.json({ status: 'failed', message: 'error in lti launch' })
+    // TODO: An LTI-conformant error response to the *platform* is still
+    // outstanding, here and below. The redirect is the first-party surface
+    // only -- it tells the learner what to do, not the platform what failed.
+    return ltiErrorRedirect(request, 'invalid_request')
   }
   const { id_token, state } = parseResult.data
 
@@ -73,7 +77,7 @@ export async function POST(request: NextRequest) {
   const stateCookieName = `state-${state}`
   const stateCookie = cookieStore.get(stateCookieName)
   if (stateCookie == null) {
-    throw new Error('Missing state cookie')
+    return ltiErrorRedirect(request, 'session_expired')
   }
   const issuer = stateCookie.value
 
@@ -99,8 +103,9 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // TODO: Respond with a proper LTI error response
-    return NextResponse.json({ status: 'failed', message: 'error in lti launch' })
+    // TODO: An LTI-conformant error response to the platform is still
+    // outstanding; this redirect is the first-party surface only.
+    return ltiErrorRedirect(request, errorSlugFor(launchResult.error.code))
   }
 
   const { type, tokens } = launchResult.data
