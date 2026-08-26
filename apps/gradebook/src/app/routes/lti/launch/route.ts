@@ -4,11 +4,13 @@ import type { NextRequest } from 'next/server'
 
 import z from 'zod'
 
+import { getServerConfig } from '@/config'
 import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import { setUserSession } from '@/modules/app/session/storage'
 import { ltiErrorRedirect } from '@/modules/lti/error-redirect'
 import { errorSlugFor } from '@/modules/lti/error-slug'
+import { selectLaunchDestination } from '@/modules/lti/launch-destination'
 
 /**
  * The response the platform sends back to the tool in response to an
@@ -21,17 +23,6 @@ const authenticationResponseSchema = z.object({
   id_token: z.string(),
   state: z.string(),
 })
-
-// Retaining the fragment here only keeps the Location header recognizable in
-// the browser; browsers do not send fragments to the interstitial server.
-const appendQueryBeforeFragment = (url: string, query: URLSearchParams): string => {
-  const fragmentIndex = url.indexOf('#')
-  const beforeFragment = fragmentIndex === -1 ? url : url.slice(0, fragmentIndex)
-  const fragment = fragmentIndex === -1 ? '' : url.slice(fragmentIndex)
-  const separator = beforeFragment.includes('?') ? '&' : '?'
-
-  return `${beforeFragment}${separator}${query}${fragment}`
-}
 
 /**
  * Handler for the LTI 'authentication response', in which the platform responds
@@ -114,12 +105,20 @@ export async function POST(request: NextRequest) {
 
   // Redirect to the appropriate url based on the type of launch.
   if (type === 'start-activity') {
-    const { activity_code, activity_url, scope_id } = launchResult.data
-    // The nested activity URL deliberately remains raw so learners and
-    // instructors can recognize the destination in the browser address bar.
-    const launchPath = `/lti/launch/${activity_code}/${activity_url}`
-    const launchQuery = new URLSearchParams({ scope_id })
-    redirect(appendQueryBeforeFragment(launchPath, launchQuery))
+    const { activity_id, activity_url, scope_id, modulus_server_url } = launchResult.data
+    // Neither mode branches on the launching user's LTI role, and neither
+    // carries the activity code onward: `handleActivityLaunch` has already
+    // resolved it and made the enrollment decision, including the decision to
+    // honour a launch whose code no longer resolves.
+    redirect(
+      selectLaunchDestination({
+        mode: getServerConfig().lti.launchInterstitial,
+        activityId: activity_id,
+        activityUrl: activity_url,
+        scopeId: scope_id,
+        modulusServerUrl: modulus_server_url,
+      })
+    )
   }
 
   if (type === 'deep-link') {

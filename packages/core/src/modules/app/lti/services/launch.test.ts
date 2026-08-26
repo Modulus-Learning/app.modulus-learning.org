@@ -25,6 +25,7 @@ import {
   normalizeCanvasTerm,
   resolveVerifiedLaunchScope,
 } from '@/modules/app/lti/services/launch.js'
+import type { Config } from '@/config.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { ActivityQueries } from '@/modules/app/activities/repository/index.js'
 import type {
@@ -282,6 +283,7 @@ type ServiceOptions = {
 }
 
 const ACTIVITY_URL = 'https://content.launch.test/activity'
+const MODULUS_SERVER_URL = 'https://modulus.launch.test'
 const ACTIVITY_CODE = 'activity-code'
 const RAW_TERM_ID = 'canvas-term-raw-17'
 const RAW_START = '2026-08-20T00:00:00Z'
@@ -339,6 +341,7 @@ describe('LtiLaunchService.handleLaunch', () => {
 
     const service = new LtiLaunchService({
       logger: createCoreLogger({ pinoLogger: pino({ level: 'silent' }) }),
+      config: { server: { baseUrl: MODULUS_SERVER_URL } } as Config,
       tx: {
         withTransaction: async (fn) => {
           recorders.order.push('transaction')
@@ -585,6 +588,7 @@ describe('LtiLaunchService.handleLaunch', () => {
     // destination, so a code that no longer resolves cannot strand the learner.
     assert.equal(response.activity_id, activityId)
     assert.equal(response.activity_url, ACTIVITY_URL)
+    assert.equal(response.modulus_server_url, MODULUS_SERVER_URL)
   })
 
   it('honours the launch when the activity is no longer associated with the code', async () => {
@@ -628,6 +632,20 @@ describe('LtiLaunchService.handleLaunch', () => {
       assert.fail('expected a start-activity launch response')
     }
     assert.equal(response.activity_id, activityId)
+  })
+
+  it('carries the configured modulus server url in the launch response', async () => {
+    // The launch route stamps `?modulus=` from this value, so both destination
+    // modes read the one config key rather than two that happen to agree.
+    const { service } = createService()
+
+    const response = await service.handleLaunch({ id_token: await signLaunch(), issuer })
+
+    assert.equal(response.type, 'start-activity')
+    if (response.type !== 'start-activity') {
+      assert.fail('expected a start-activity launch response')
+    }
+    assert.equal(response.modulus_server_url, MODULUS_SERVER_URL)
   })
 
   it('carries the activities row URL rather than the launched claim', async () => {
