@@ -74,9 +74,10 @@ Every task must preserve these, taken from the approved analysis:
 - **Error codes carry no diagnostics.** `/lti/error` receives a slug from a closed
   set. Detail stays in the existing `log.error({ lti_launch: … })` and
   `log.error({ lti_login: … })` calls.
-- **An outage never tells the learner to contact their instructor.** A core
-  `ERR_UNHANDLED` or `ERR_DATABASE` must reach `server_error`, never
-  `invalid_launch`.
+- **An outage never tells the learner to contact their instructor.** Only an
+  allowlisted domain error may reach `invalid_launch`; every other core error
+  code defaults to `server_error`. The classification is an allowlist precisely
+  so that the unsafe direction requires a deliberate edit.
 - **No backward compatibility is owed.** Modulus has no live deployments, no
   pre-existing LTI links, and no learner bookmarks. No task may add a shim,
   fallback route, or migration on compatibility grounds.
@@ -103,6 +104,10 @@ Resolved during review; recorded so the implementer does not relitigate them.
   infrastructure failure arrives as an `!ok` result and is separated from a domain
   failure by its error code. Neither LTI route gains a blanket `try/catch`, and
   genuinely unhandled host exceptions remain 500s.
+- **The classification is an allowlist of domain errors, defaulting to
+  `server_error`.** Core's internal error codes outnumber the reachable domain
+  ones and grow over time, so a denylist would misclassify each newly added code
+  as the learner's fault.
 - **`first-launch`, the per-code switch, the per-learner preference, the
   agent-side badge, framed-launch detection, and the LTI-conformant error
   response are all excluded.**
@@ -393,10 +398,10 @@ The closed set, with the learner-facing message each maps to:
 
 | `code` | Cause | Message |
 | --- | --- | --- |
-| `invalid_request` | the login or authentication response did not parse | The launch request was not valid. Please return to your LMS and try again. |
-| `invalid_launch` | `handleLogin` / `handleLaunch` returned `!ok` with a *domain* error code | This activity could not be launched. Please contact your instructor. |
+| `invalid_request` | the login or authentication response did not parse, or core reported `ERR_VALIDATION` | The launch request was not valid. Please return to your LMS and try again. |
+| `invalid_launch` | core reported an allowlisted domain error — `ERR_INVALID_LOGIN` or `ERR_INVALID_LAUNCH` | This activity could not be launched. Please contact your instructor. |
 | `session_expired` | missing `state-<state>` cookie | Your launch could not be completed. Please return to your LMS and open the activity again. |
-| `server_error` | `handleLogin` / `handleLaunch` returned `!ok` with `ERR_UNHANDLED` or `ERR_DATABASE`, or the slug is unknown or absent | Something went wrong on our end. This is not a problem with your course link. Please try again shortly. |
+| `server_error` | **default** — any other core error code, or an unknown or absent slug | Something went wrong on our end. This is not a problem with your course link. Please try again shortly. |
 
 No slug carries internal detail, and the page must not echo the raw query value
 into the DOM.
@@ -408,6 +413,11 @@ a Canvas iframe with third-party cookies blocked — the instructor did not tick
 after this task it is a readable instruction. Detecting and reporting the framed
 case is out of scope, but the comment should name it so the next reader does not
 mistake this for a generic fallback.
+
+#### Classifying A Failed Result
+
+Two things are true at once: core commands never throw, and most of what core can
+report is *internal*. Both matter for the mapping below.
 
 #### Why `server_error` Is Reachable Without A Catch-All
 
@@ -425,6 +435,16 @@ That matters, because mapping every `!ok` to a single slug would tell a learner
 to *contact their instructor* when the database is down. The failure is on the
 `!ok` branch we already handle; it just needs to be distinguished there.
 
+The distinction must be drawn as an **allowlist of domain errors**, not a
+denylist of infrastructure ones. `ERR_UNHANDLED` and `ERR_DATABASE` are not the
+only internal failures core can report on these paths. `createTokens` runs on
+every launch (`launch.ts:332`, `365`, `376`), so a signing failure surfaces as
+`ERR_JWT_ENCODE`; a command whose response does not match its own output schema
+surfaces as `ERR_OUTPUT_VALIDATION` (`utils.ts:176`); `ERR_ASSERTION`,
+`ERR_UNIQUE_CONSTRAINT`, and `ERR_VERSION_CONFLICT` are all defined in
+`lib/errors.ts`. Under a denylist each of these would tell the learner to contact
+their instructor, breaking the contract this plan states.
+
 **No blanket `try/catch` is added to either route.** It would buy little — the
 residual host-side throw surface is core initialization and Next's own cookie and
 body APIs, where an ops-visible 500 is the honest signal and the learner has
@@ -438,20 +458,50 @@ In **both** `/routes/lti/launch` and `/routes/lti/login`, replace each
 `return NextResponse.json({ status: 'failed', … })` with a redirect:
 
 - the parse-failure branch → `/lti/error?code=invalid_request`;
-- the `!ok` branch → a slug selected from the result's error code:
+- the `!ok` branch → a slug selected from the result's error code, by
+  **allowlist**:
 
 ```ts
-const INFRASTRUCTURE_ERROR_CODES = new Set(['ERR_UNHANDLED', 'ERR_DATABASE'])
+// apps/gradebook/src/modules/lti/error-slug.ts
 
-const errorSlugFor = (code: string): 'server_error' | 'invalid_launch' =>
-  INFRASTRUCTURE_ERROR_CODES.has(code) ? 'server_error' : 'invalid_launch'
+/**
+ * Core error codes that mean the launch itself is bad -- a malformed or
+ * unrecognised login/launch, not a fault on our side. Everything not listed
+ * here is treated as an internal failure.
+ *
+ * This list is deliberately an allowlist. Core has many internal error codes
+ * (ERR_JWT_ENCODE, ERR_OUTPUT_VALIDATION, ERR_ASSERTION, ERR_UNIQUE_CONSTRAINT,
+ * ...) and gains more over time; a denylist would silently misclassify each new
+ * one as the learner's problem. Forgetting to add a *domain* code here is safe
+ * -- the learner is told we had a problem. Forgetting to add an *internal* code
+ * to a denylist is not -- the learner is sent to their instructor over an
+ * outage.
+ */
+const LAUNCH_FAULT_CODES = new Set(['ERR_INVALID_LOGIN', 'ERR_INVALID_LAUNCH'])
+const REQUEST_FAULT_CODES = new Set(['ERR_VALIDATION'])
+
+export const errorSlugFor = (
+  code: string
+): 'invalid_launch' | 'invalid_request' | 'server_error' => {
+  if (LAUNCH_FAULT_CODES.has(code)) return 'invalid_launch'
+  if (REQUEST_FAULT_CODES.has(code)) return 'invalid_request'
+  return 'server_error'
+}
 ```
 
-Put `errorSlugFor` in a small shared module — `apps/gradebook/src/modules/lti/error-slug.ts`
-— so both routes use one mapping and it can be unit-tested without a request.
-An unrecognised code falls through to `invalid_launch`, which is the right
-default: a domain error we have not enumerated is still a launch problem, not an
-outage.
+Put it in `apps/gradebook/src/modules/lti/error-slug.ts` so both routes share one
+mapping and it can be unit-tested without a request.
+
+The allowlist is small because the reachable domain set is small.
+`packages/core/src/modules/app/lti/errors.ts` defines five codes, and only
+`ERR_INVALID_LOGIN` and `ERR_INVALID_LAUNCH` can surface from `handleLogin` and
+`handleLaunch`; `ERR_DEEP_LINKING` belongs to the content-item submission, and
+`ERR_SCORE_PASSBACK` and `ERR_LTI_ACCESS_TOKEN` to the passback worker.
+`ERR_VALIDATION` is separated out because a request that fails core's own input
+schema is a malformed request, not a bad course link.
+
+Any future domain code added to the LTI module must be added here deliberately,
+with the classification stated in its review.
 
 And in `/routes/lti/launch` only, replace `throw new Error('Missing state cookie')`
 with `redirect('/lti/error?code=session_expired')`.
@@ -468,14 +518,19 @@ that the redirect is the first-party surface only.
 - `page.test.node.tsx`: each slug renders its message; an unknown slug and a
   missing slug both render `server_error`; a slug value containing markup is not
   reflected into the output.
-- `error-slug.test.node.ts`: `ERR_UNHANDLED` and `ERR_DATABASE` map to
-  `server_error`; a domain code such as `ERR_INVALID_LAUNCH` maps to
-  `invalid_launch`; an unrecognised code maps to `invalid_launch`.
+- `error-slug.test.node.ts`: `ERR_INVALID_LOGIN` and `ERR_INVALID_LAUNCH` map to
+  `invalid_launch`; `ERR_VALIDATION` maps to `invalid_request`;
+  `ERR_UNHANDLED`, `ERR_DATABASE`, **`ERR_JWT_ENCODE`, and
+  `ERR_OUTPUT_VALIDATION`** each map to `server_error`; and an unrecognised code
+  maps to `server_error`. The last case is the one that enforces the allowlist
+  direction — assert it against a deliberately invented code so the test cannot
+  be satisfied by extending a denylist.
 - `launch/route.test.node.ts`: add cases asserting the redirect target for a
   malformed body, a missing state cookie, a `handleLaunch` failure with a domain
-  code, and **a `handleLaunch` failure with `ERR_UNHANDLED`**, which must reach
-  `server_error` rather than `invalid_launch`. Assert no response body is JSON on
-  any of those paths.
+  code, and **a `handleLaunch` failure with `ERR_JWT_ENCODE`**, which must reach
+  `server_error` rather than `invalid_launch` — token signing runs on every
+  launch, so this is a live path rather than a hypothetical one. Assert no
+  response body is JSON on any of those paths.
 - `login/route.test.node.ts` (new): a malformed body redirects to
   `invalid_request`; a `handleLogin` failure with a domain code redirects to
   `invalid_launch` and with `ERR_DATABASE` to `server_error`; a successful login
@@ -873,7 +928,7 @@ Every criterion in the analysis, mapped to the task that satisfies it.
 | Unresolvable pair renders "Launch Error", bad activity id and bad scope id tested | 1, 4 |
 | `/lti/error?code=<slug>` renders without launch context | 3 |
 | Every JSON branch and the bare throw redirect to it, in both LTI routes | 3 |
-| `ERR_UNHANDLED` / `ERR_DATABASE` reach `server_error`, not `invalid_launch` | 3 |
+| Only allowlisted domain codes reach `invalid_launch`; all others default to `server_error` | 3 |
 | Error codes are opaque slugs; `log.error` detail unchanged | 3 |
 | Interstitial renders error, auth-required, and success states under the new URL | 4 |
 | Destination disclosure still shows the clean activity URL, not the decorated one | 4 |
