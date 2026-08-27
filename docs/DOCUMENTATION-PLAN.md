@@ -117,7 +117,8 @@ environment configuration, and running the app in development.
 The three runtime deployment modes — all-in-one, frontend-only, and admin-only —
 selected via `DEPLOYMENT_MODE`: what each mode serves, how route surfaces are
 classified and gated (the proxy gate plus the LTI/admin layout guards), the
-background-jobs switch, and the rule that a frontend instance may never run jobs.
+background-jobs switch, the LTI launch-interstitial switch, and the rule that a
+frontend instance may never run jobs.
 
 ### Remote Connector — Planned
 The planned HTTP proxy layer — a thin wrapper over the core service layer with

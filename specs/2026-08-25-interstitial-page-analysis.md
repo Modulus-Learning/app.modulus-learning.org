@@ -1,7 +1,7 @@
 # Launch interstitial optionality — analysis
 
 Date: 2026-08-25
-Status: proposed; review complete 2026-08-25; awaiting approval to plan
+Status: implemented on feat/interstitial-page
 Related:
 
 - `docs/LTI.md` — Flow 2 (resource-link launch) and the interstitial's place in it
