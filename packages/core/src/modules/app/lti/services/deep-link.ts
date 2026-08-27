@@ -144,7 +144,13 @@ export class LtiDeepLinkingService extends BaseService {
 
     const link: DeepLinkingContentItem = {
       type: 'ltiResourceLink',
-      url: this.urlBuilder.startActivityUrl(activity_code, activity_url),
+      // The generic tool launch URL, not a per-activity one. Canvas surfaces
+      // this URL nowhere, `LtiLoginService` ignores `target_link_uri`, and the
+      // resource identity the launch actually uses travels in the custom
+      // claims below. Under the default `never` interstitial mode there is no
+      // per-activity Modulus page to name at all, so an activity-specific URL
+      // here would point at a page the learner never reaches.
+      url: this.urlBuilder.ltiLaunchUrl,
       // title: undefined,
       // text: undefined,
       window: { targetName: `modulus-${activity_code}-${activity_url}` },
