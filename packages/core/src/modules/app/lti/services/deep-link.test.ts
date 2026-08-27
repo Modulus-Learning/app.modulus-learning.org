@@ -35,11 +35,9 @@ const createService = () => {
     logger,
     urlBuilder: {
       baseUrl: 'https://modulus.test',
-      // Deliberately distinguishable: if the content item ever goes back to
-      // the per-activity builder, the assertions below will say so rather than
-      // silently matching a URL that merely looks right.
-      startActivityUrl: (code: string, url: string) =>
-        `https://modulus.test/per-activity/${code}/${url}`,
+      // There is no per-activity URL builder to reach for any more, so a
+      // return to an activity-specific content-item URL is a typecheck
+      // failure rather than something these assertions have to catch.
       ltiLaunchUrl: LTI_LAUNCH_URL,
       dashboardUrl: 'https://modulus.test/dashboard',
     } satisfies UrlBuilder,
@@ -124,7 +122,6 @@ describe('LtiDeepLinkingService.handleDeepLink', () => {
     assert.ok(!url.includes(ACTIVITY_URL))
     assert.ok(!url.includes(encodeURIComponent(ACTIVITY_URL)))
     assert.ok(!url.includes(ACTIVITY_CODE))
-    assert.ok(!url.includes('per-activity'))
   })
 
   it('leaves the window target name unchanged', async () => {

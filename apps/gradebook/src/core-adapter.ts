@@ -30,8 +30,6 @@ export const getCoreInstance = (): Promise<CoreInstance> => {
       pinoLogger: getLogger(),
       urlBuilder: {
         baseUrl: publicServerUrl,
-        startActivityUrl: (activityCode: string, activityUrl: string) =>
-          `${publicServerUrl}/lti/launch/${activityCode}/${activityUrl}`,
         ltiLaunchUrl: `${publicServerUrl}/lti/launch`,
         dashboardUrl: `${publicServerUrl}/dashboard`,
       },
