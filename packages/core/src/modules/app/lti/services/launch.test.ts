@@ -25,6 +25,7 @@ import {
   normalizeCanvasTerm,
   resolveVerifiedLaunchScope,
 } from '@/modules/app/lti/services/launch.js'
+import type { Config } from '@/config.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { ActivityQueries } from '@/modules/app/activities/repository/index.js'
 import type {
@@ -273,9 +274,16 @@ type ServiceOptions = {
   transactionError?: Error
   /** When false, `findActivityByURL` resolves to undefined. */
   activityExists?: boolean
+  /**
+   * The `url` on the resolved `activities` row. Defaults to the launched URL,
+   * which is what a real `findActivityByURL` match guarantees; a test sets it
+   * apart only to observe which of the two the response carries.
+   */
+  canonicalActivityUrl?: string
 }
 
 const ACTIVITY_URL = 'https://content.launch.test/activity'
+const MODULUS_SERVER_URL = 'https://modulus.launch.test'
 const ACTIVITY_CODE = 'activity-code'
 const RAW_TERM_ID = 'canvas-term-raw-17'
 const RAW_START = '2026-08-20T00:00:00Z'
@@ -315,7 +323,12 @@ describe('LtiLaunchService.handleLaunch', () => {
   })
 
   const createService = (options: ServiceOptions = {}) => {
-    const { enrollmentOutcome, transactionError, activityExists = true } = options
+    const {
+      enrollmentOutcome,
+      transactionError,
+      activityExists = true,
+      canonicalActivityUrl = ACTIVITY_URL,
+    } = options
     const activityId = uuidv7()
     const userId = uuidv7()
     const scopeId = uuidv7()
@@ -328,6 +341,7 @@ describe('LtiLaunchService.handleLaunch', () => {
 
     const service = new LtiLaunchService({
       logger: createCoreLogger({ pinoLogger: pino({ level: 'silent' }) }),
+      config: { server: { baseUrl: MODULUS_SERVER_URL } } as Config,
       tx: {
         withTransaction: async (fn) => {
           recorders.order.push('transaction')
@@ -364,7 +378,7 @@ describe('LtiLaunchService.handleLaunch', () => {
             activityExists
               ? {
                   id: activityId,
-                  url: ACTIVITY_URL,
+                  url: canonicalActivityUrl,
                   name: null,
                   created_at: new Date(),
                   updated_at: new Date(),
@@ -551,7 +565,7 @@ describe('LtiLaunchService.handleLaunch', () => {
   })
 
   it('honours the launch when the public activity code does not resolve', async () => {
-    const { service, recorders, scopeId } = createService({
+    const { service, recorders, scopeId, activityId } = createService({
       enrollmentOutcome: { status: 'skipped', reason: 'unknown_activity_code' },
     })
 
@@ -569,6 +583,12 @@ describe('LtiLaunchService.handleLaunch', () => {
     assert.equal(response.scope_name, 'Autumn 2026')
     assert.equal(response.tokens.access.token, 'access-token')
     assert.equal(recorders.enrollments.length, 1)
+
+    // The response still carries everything the launch route needs to build a
+    // destination, so a code that no longer resolves cannot strand the learner.
+    assert.equal(response.activity_id, activityId)
+    assert.equal(response.activity_url, ACTIVITY_URL)
+    assert.equal(response.modulus_server_url, MODULUS_SERVER_URL)
   })
 
   it('honours the launch when the activity is no longer associated with the code', async () => {
@@ -600,6 +620,49 @@ describe('LtiLaunchService.handleLaunch', () => {
       }
     )
     assert.deepEqual(recorders.enrollments, [])
+  })
+
+  it('carries the resolved activity id in the launch response', async () => {
+    const { service, activityId } = createService()
+
+    const response = await service.handleLaunch({ id_token: await signLaunch(), issuer })
+
+    assert.equal(response.type, 'start-activity')
+    if (response.type !== 'start-activity') {
+      assert.fail('expected a start-activity launch response')
+    }
+    assert.equal(response.activity_id, activityId)
+  })
+
+  it('carries the configured modulus server url in the launch response', async () => {
+    // The launch route stamps `?modulus=` from this value, so both destination
+    // modes read the one config key rather than two that happen to agree.
+    const { service } = createService()
+
+    const response = await service.handleLaunch({ id_token: await signLaunch(), issuer })
+
+    assert.equal(response.type, 'start-activity')
+    if (response.type !== 'start-activity') {
+      assert.fail('expected a start-activity launch response')
+    }
+    assert.equal(response.modulus_server_url, MODULUS_SERVER_URL)
+  })
+
+  it('carries the activities row URL rather than the launched claim', async () => {
+    // The two agree in production -- `findActivityByURL` matched the claim on
+    // that exact value -- so they are set apart here only to observe which one
+    // the response carries. The database row is the authority.
+    const canonicalActivityUrl = 'https://content.launch.test/canonical?authored=one#section'
+    const { service } = createService({ canonicalActivityUrl })
+
+    const response = await service.handleLaunch({ id_token: await signLaunch(), issuer })
+
+    assert.equal(response.type, 'start-activity')
+    if (response.type !== 'start-activity') {
+      assert.fail('expected a start-activity launch response')
+    }
+    assert.equal(response.activity_url, canonicalActivityUrl)
+    assert.notEqual(response.activity_url, ACTIVITY_URL)
   })
 
   it('carries no raw Canvas term identity into the response or the enrollment call', async () => {

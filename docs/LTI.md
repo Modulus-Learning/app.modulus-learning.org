@@ -33,7 +33,7 @@ understanding the rest:
 | **Platform keys** | remote, per platform | verify *incoming* `id_token` launches | this doc |
 
 The tool's keypair is held by **`LtiKeyStore`** (`LtiKeyStore.create` from
-`config.lti.jwks`). It exposes `getJWKS()` (served at the host's `/lti/jwks` route
+`config.lti.jwks`). It exposes `getJWKS()` (served at the host's `/routes/lti/jwks` route
 so the LMS can fetch our public key), `signPlatformMessage()` (used by deep
 linking), and the private key + `kid` (used to mint AGS client-assertions). Keys
 are currently in-memory and regenerated on restart — persistence is a noted
@@ -55,7 +55,7 @@ admin `ltiPlatforms` commands (`modules/admin/lti-platforms/`). Each
 ## Flow 1 — OIDC Login (third-party initiated)
 
 Every LTI 1.3 launch begins with an OpenID Connect *third-party initiated login*.
-The platform redirects the browser to the host's `/lti/login`, which calls
+The platform redirects the browser to the host's `/routes/lti/login`, which calls
 `LtiCommands.handleLogin` → `LtiLoginService` (`services/login.ts`):
 
 1. Resolve the platform by `iss`; if a `client_id` was supplied, verify it
@@ -73,7 +73,7 @@ replay mechanism closes in Flow 2.
 
 ## Flow 2 — Launch & Validation
 
-The platform posts a signed `id_token` back to the host's `/lti/launch`, which
+The platform posts a signed `id_token` back to the host's `/routes/lti/launch`, which
 calls `LtiCommands.handleLaunch` → `LtiLaunchService.handleLaunch`. Validation
 (`validateLaunch`) is strict and ordered:
 
@@ -146,13 +146,62 @@ identity. A scope change rebinds the locked row and resets its stale submission,
 lease, error, and retry state while leaving historical activity state intact.
 No score is sent inline; that is the worker's job (Flow 4).
 
-The host then renders the first-party interstitial. It carries only the opaque
-`scope_id` into the activity query; `scope_name` is display-only on the
-interstitial and in the later token response. The redirect deliberately leaves
-the target activity URL readable and unencoded at stakeholder request. As a
-consequence, an authored query, fragment, or literal percent escape embedded in
-that target is not guaranteed to round-trip through the catch-all route. Authors
-should avoid those forms until link validation or a transport change is agreed.
+### Where The Learner Lands
+
+The host sets the learner's session cookies and then redirects. Where it
+redirects is a deployment choice, made by `LTI_LAUNCH_INTERSTITIAL` and
+documented in
+[DEPLOYMENT → Launch Interstitial](./DEPLOYMENT.md#launch-interstitial):
+
+| Mode | The browser goes to | Hops to the activity |
+| --- | --- | --- |
+| `never` (default) | the activity URL itself | one |
+| `always` | `/lti/launch/{activity_id}?scope_id={uuid}` — the Modulus interstitial, which links on to the same activity URL | two |
+
+Both modes end at the same activity URL, carrying exactly two added query
+parameters: `modulus`, the Modulus server the agent reports progress to, and
+`scope_id`. Neither mode branches on the launching user's LTI role. The
+destination is chosen by `selectLaunchDestination`
+(`apps/gradebook/src/modules/lti/launch-destination.ts`), which takes no role
+argument.
+
+`scope_name` never appears in a URL in either mode. It is display-only — on the
+interstitial, and in the later token response the agent receives.
+
+The session is established before the redirect in both modes, which is what lets
+the agent's later `/routes/agent/authorize` request authenticate. Every redirect
+out of an LTI route is sent as **303 See Other**. The platform delivers the
+launch as an auto-submitting HTML form, so a 307 would preserve the method and
+replay the learner's `id_token` and `state` to whatever comes next — including,
+under `never`, a third-party activity origin.
+
+No Modulus-owned URL on the LTI path embeds an activity URL. Under `never` the
+redirect target is the activity URL itself, and under `always` the interstitial
+is keyed on the activity's uuid and reads the URL from the `activities` row. An
+authored query, fragment, or literal percent escape in an activity URL therefore
+survives both modes. The readable nested-URL form, and the round-trip caveat that
+came with it, now apply only to the direct `/start-activity` path described
+below.
+
+:::note[The direct `/start-activity` path is unchanged]
+`/{lng}/start-activity/{code}/{activity-url}` — the non-LTI path, for a learner
+who arrives with an activity code rather than through an LMS link — still nests
+the target activity URL in the route, readable and unencoded, at stakeholder
+request. An authored query, fragment, or literal percent escape embedded in that
+target is not guaranteed to round-trip through that catch-all route. Authors
+should avoid those forms on that path until link validation or a transport change
+is agreed.
+:::
+
+If a launch fails before or during any of this, the host redirects to
+`/lti/error?code=<slug>`, a readable page carrying no diagnostic detail. The
+slugs are a closed set — `invalid_request`, `invalid_launch`, `session_expired`,
+and `server_error` — chosen for what the learner should do next rather than for
+what went wrong. Only an allowlist of domain errors from core can reach
+`invalid_launch`; every other error code defaults to `server_error`, so an outage
+never tells a learner to contact their instructor. The diagnostic detail stays in
+the existing `log.error({ lti_launch: … })` and `log.error({ lti_login: … })`
+calls.
 
 ## Flow 3 — Deep Linking (instructor content selection)
 
@@ -162,8 +211,9 @@ an assignment points to.
 1. The instructor's deep-link launch (Flow 2 → `handleDeepLinkLaunch`) stores the
    full launch JSON in `lti_launches` (1-hour expiry) and returns a `launch_id`
    to the Modulus UI.
-2. The instructor selects/enters an activity in the Modulus interstitial; the
-   host posts to `/lti/deep-link/activities` → `LtiCommands.handleDeepLink` →
+2. The instructor selects/enters an activity in the Modulus deep-linking form
+   at `/lti/deep-link?id=<launch_id>`; the
+   host posts to `/routes/lti/deep-link/activities` → `LtiCommands.handleDeepLink` →
    `LtiDeepLinkingService.handleDeepLink`:
    - load the stored launch (reject if expired), resolve the platform;
    - resolve the **activity code** by its public code and enforce its
@@ -174,12 +224,20 @@ an assignment points to.
      before enrolling the learner, so removing an activity from a code in the
      Modulus dashboard stops enrollment through any LMS link that still points at
      it;
-   - build an `ltiResourceLink` content item whose launch URL carries the custom
-     claims (`modulus_launch_type: 'start-activity'`, the activity code/URL,
-     Canvas term identity/display fields, plus the existing Canvas substitution
-     variables), **sign** a
-     `LtiDeepLinkingResponse` with the tool keystore, and return `{ jwt,
-     return_url }`.
+   - build an `ltiResourceLink` content item whose `url` is the **tool's launch
+     endpoint** — `urlBuilder.ltiLaunchUrl`, `{publicServerUrl}/routes/lti/launch`
+     — with the resource identity carried in the custom claims
+     (`modulus_launch_type: 'start-activity'`, the activity code/URL, Canvas
+     term identity/display fields, plus the existing Canvas substitution
+     variables), **sign** a `LtiDeepLinkingResponse` with the tool keystore, and
+     return `{ jwt, return_url }`. This value becomes the resource link's
+     `target_link_uri`, which LTI 1.3 defines as the end-point executed at the
+     end of the OIDC flow — an endpoint reached by POST, not a page. A
+     per-activity URL would be wrong here: the resource identity is already in
+     the custom claims, under the default `never` mode there is no per-activity
+     Modulus page to name, and a scope baked into a durable link would go stale,
+     because the scope is resolved from the term claims on every launch so that
+     a link survives into a new term.
 3. The host auto-posts the signed response back to the platform's
    `deep_link_return_url`; Canvas creates the assignment link. A later learner
    click on that link is a `start-activity` launch (Flow 2).
@@ -237,21 +295,41 @@ hour).
 
 ## Commands & Host Routes
 
-The LTI commands are all **`auth: { mode: 'none' }`** — they are
-platform-to-platform exchanges authenticated by JWT signatures and nonces, not by
-a Modulus session ([CORE-COMPOSITION → The Command Pattern](./CORE-COMPOSITION.md#the-command-pattern)):
+The three platform-to-platform commands are **`auth: { mode: 'none' }`** — they
+are authenticated by JWT signatures and nonces, not by a Modulus session
+([CORE-COMPOSITION → The Command Pattern](./CORE-COMPOSITION.md#the-command-pattern)).
+`handleDeepLink` is the exception: it is submitted by a signed-in instructor from
+a Modulus form, so it requires a user session and an ability
+([AUTHN-AUTHZ](./AUTHN-AUTHZ.md)).
 
-| Command | Host route | Purpose |
-| --- | --- | --- |
-| `getJWKS` | `/lti/jwks` | publish the tool's public key set |
-| `handleLogin` | `/lti/login` | OIDC login initiation (Flow 1) |
-| `handleLaunch` | `/lti/launch` | id_token launch (Flow 2) |
-| `handleDeepLink` | `/lti/deep-link/activities` | content-item response (Flow 3) |
+| Command | Host route | Auth | Purpose |
+| --- | --- | --- | --- |
+| `getJWKS` | `/routes/lti/jwks` | `none` | publish the tool's public key set |
+| `handleLogin` | `/routes/lti/login` | `none` | OIDC login initiation (Flow 1) |
+| `handleLaunch` | `/routes/lti/launch` | `none` | id_token launch (Flow 2) |
+| `handleDeepLink` | `/routes/lti/deep-link/activities` | `user` + `activity_codes:update_own` | content-item response (Flow 3) |
 
-The host also serves the activity launch interstitial under
-`app/lti/launch/[...go]` and a registration helper at `/lti/register`. (An open
-`TODO` asks whether `handleDeepLink` should require an authenticated `user`
-instead of `none`.)
+The handler routes all live under `/routes/lti/…`. The bare `/lti/…` paths are
+first-party pages the host renders for a person to look at, and none of them is a
+core command:
+
+| Page | Purpose |
+| --- | --- |
+| `/lti/deep-link?id=<launch_id>` | the deep-linking form an instructor fills in (Flow 3) |
+| `/lti/launch/{activity_id}?scope_id=<uuid>` | the launch interstitial, reached only when `LTI_LAUNCH_INTERSTITIAL=always` |
+| `/lti/error?code=<slug>` | the readable launch-failure page |
+
+The dynamic-registration helper is a page rather than a handler despite its
+location, at `/routes/lti/register`.
+
+The interstitial reads its display data from
+`core.app.activities.getActivityLaunchView`, a read-only command keyed on
+`(activity_id, scope_id)`. It takes no activity code and writes nothing: by the
+time it renders, `handleActivityLaunch` has already resolved the code and made
+the enrollment decision, including the decision to honour a launch whose code no
+longer resolves. Its authorisation rule is session-only, and deliberately no
+tighter — requiring the learner to be enrolled would fail the page for exactly
+that case.
 
 ## Honest Notes & Open Questions
 
@@ -265,6 +343,27 @@ instead of `none`.)
 - **Nonce cleanup.** Used nonces are marked but not yet pruned.
 - **Multi-platform reality.** The code currently targets Canvas; role mapping
   (`INSTRUCTOR_LTI_ROLES`) and some custom fields are Canvas-shaped.
+- **`target_link_uri` is stored but not read.** Deep links name
+  `/routes/lti/launch` as their `target_link_uri`, and Canvas returns it on
+  every launch, but `LtiLoginService` currently ignores the claim — an open
+  `TODO` in `services/login.ts` asks what it should do with it. The launch
+  instead reaches the endpoint registered as `LTI_REDIRECT_URI` — a separate
+  configuration key, conventionally set to the same URL, but free to diverge
+  from it.
+- **No LTI-conformant error response.** `/lti/error` is a first-party page for
+  the learner. Signing and posting an error back to the platform, or honouring a
+  platform-supplied error return URL, is still outstanding and is what the
+  `TODO` in both LTI routes refers to.
+- **Framed launches are not detected.** The `state-<state>` cookie is set
+  `SameSite=None`, so the likeliest cause of a missing one — and therefore of
+  `session_expired` — is a launch rendered inside a Canvas iframe with
+  third-party cookies blocked, because the instructor did not tick "open in a new
+  tab". Modulus does not currently detect or report that case specifically.
+- **The interstitial needs JavaScript for its countdown.** Its launch control is
+  a server-rendered anchor, so the hop itself is a plain navigation, but the
+  automatic redirect is not. This is not a supported no-JavaScript path: a Canvas
+  launch cannot complete without JavaScript in the first place, and Ximera
+  activities generally require it too.
 
 ---
 

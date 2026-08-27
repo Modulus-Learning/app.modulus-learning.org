@@ -17,6 +17,7 @@ import {
   type PlatformMessage,
   platformMessageSchema,
 } from '../types/messages/platform-originating/platform-message.js'
+import type { Config } from '@/config.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { ActivityQueries } from '@/modules/app/activities/repository/index.js'
@@ -169,6 +170,7 @@ export class LtiLaunchService extends BaseService {
   // TODO: Move this to a seprate service
   private platformJWKS: Record<string, RemoteJWKSet> = {}
 
+  private config: Config
   private tx: TXManager
   private ltiQueries: LtiQueries
   private ltiMutations: LtiMutations
@@ -179,6 +181,7 @@ export class LtiLaunchService extends BaseService {
 
   constructor(deps: {
     logger: CoreLogger
+    config: Config
     tx: TXManager
     queries: LtiQueries
     mutations: LtiMutations
@@ -186,6 +189,7 @@ export class LtiLaunchService extends BaseService {
     session: { ltiSignInService: LtiSignInService; tokenIssuer: TokenIssuer }
   }) {
     super(deps.logger, 'app', 'lti')
+    this.config = deps.config
     this.tx = deps.tx
     this.ltiQueries = deps.queries
     this.ltiMutations = deps.mutations
@@ -331,10 +335,24 @@ export class LtiLaunchService extends BaseService {
 
     const tokens = await this.tokens.createTokens(signIn)
 
+    // The resolved row is the authority for both activity fields.
+    // `activity.url` and the `activity_url` claim agree today --
+    // `findActivityByURL` matched on that exact value -- but the redirect is
+    // built from the database column, not from the claim.  `activity_code`
+    // stays in the response: enrollment above still needs it and it is
+    // informative in the logs, even though nothing downstream of the launch
+    // route consumes it.
+    //
+    // `modulus_server_url` is carried so that a launch route redirecting
+    // straight to the activity stamps the same `modulus` value the
+    // interstitial would have -- both come from this one config key rather
+    // than from two that merely happen to agree.
     return {
       type: 'start-activity',
       activity_code,
-      activity_url,
+      activity_id: activity.id,
+      activity_url: activity.url,
+      modulus_server_url: this.config.server.baseUrl,
       ...scope,
       tokens,
     }

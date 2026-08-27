@@ -174,6 +174,35 @@ export const startActivityResponseSchema = z.strictObject({
 
 export type StartActivityResponse = z.infer<typeof startActivityResponseSchema>
 
+// ----------------------------------------------
+//  ActivityLaunchViewResponse
+// ----------------------------------------------
+
+/**
+ * The display data behind the LTI launch interstitial. This is deliberately
+ * `startActivityResponseSchema` minus `activity_code`, and deliberately not
+ * derived from it: the two are separate contracts that happen to overlap, and
+ * coupling them would re-create the pressure to reuse `startActivity` on the
+ * LTI path -- the duplicate enrollment and stricter-than-the-handler code check
+ * that this command exists to avoid.
+ */
+export const activityLaunchViewResponseSchema = z.strictObject({
+  user: z.strictObject({
+    id: z.string(),
+    full_name: z.string().optional(),
+  }),
+  activity: z.strictObject({
+    id: z.string(),
+    name: z.string().optional(),
+    url: z.url(),
+  }),
+  scope_id: z.uuid(),
+  scope_name: z.string().nullable(),
+  modulus_server_url: z.string(),
+})
+
+export type ActivityLaunchViewResponse = z.infer<typeof activityLaunchViewResponseSchema>
+
 // ==============================================
 //  Input schemas
 // ==============================================
@@ -276,6 +305,17 @@ export const startActivityRequestSchema = z.object({
 })
 
 export type StartActivityRequest = z.infer<typeof startActivityRequestSchema>
+
+// ----------------------------------------------
+//  ActivityLaunchViewRequest
+// ----------------------------------------------
+
+export const activityLaunchViewRequestSchema = z.strictObject({
+  activity_id: z.uuid(),
+  scope_id: z.uuid(),
+})
+
+export type ActivityLaunchViewRequest = z.infer<typeof activityLaunchViewRequestSchema>
 
 // ----------------------------------------------
 //  Membership requests

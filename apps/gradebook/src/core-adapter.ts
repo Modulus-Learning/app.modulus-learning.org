@@ -30,9 +30,12 @@ export const getCoreInstance = (): Promise<CoreInstance> => {
       pinoLogger: getLogger(),
       urlBuilder: {
         baseUrl: publicServerUrl,
-        startActivityUrl: (activityCode: string, activityUrl: string) =>
-          `${publicServerUrl}/lti/launch/${activityCode}/${activityUrl}`,
-        ltiLaunchUrl: `${publicServerUrl}/lti/launch`,
+        // The tool's launch endpoint, which is what an LTI resource link's
+        // `target_link_uri` names: the end-point executed at the end of the
+        // OIDC flow, reached by POST. It is deliberately not a page -- see
+        // `LtiDeepLinkingService`, which uses this as the deep-link content
+        // item's url.
+        ltiLaunchUrl: `${publicServerUrl}/routes/lti/launch`,
         dashboardUrl: `${publicServerUrl}/dashboard`,
       },
     })

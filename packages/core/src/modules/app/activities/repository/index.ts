@@ -236,6 +236,14 @@ export class ActivityQueries extends BaseService {
   }
 
   @method
+  async findActivityById(id: string): Promise<ActivityRecord | undefined> {
+    return await this.db
+      .get()
+      .query.activities.findFirst({ where: eq(activities.id, id) })
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  @method
   async findScopeById(id: string): Promise<ScopeRecord | undefined> {
     return await this.db
       .get()

@@ -1,12 +1,15 @@
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
-import { type NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
 import z from 'zod'
 
+import { getServerConfig } from '@/config'
 import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import { setUserSession } from '@/modules/app/session/storage'
+import { errorSlugFor } from '@/modules/lti/error-slug'
+import { selectLaunchDestination } from '@/modules/lti/launch-destination'
+import { ltiErrorRedirect, ltiSeeOther } from '@/modules/lti/redirect'
 
 /**
  * The response the platform sends back to the tool in response to an
@@ -19,17 +22,6 @@ const authenticationResponseSchema = z.object({
   id_token: z.string(),
   state: z.string(),
 })
-
-// Retaining the fragment here only keeps the Location header recognizable in
-// the browser; browsers do not send fragments to the interstitial server.
-const appendQueryBeforeFragment = (url: string, query: URLSearchParams): string => {
-  const fragmentIndex = url.indexOf('#')
-  const beforeFragment = fragmentIndex === -1 ? url : url.slice(0, fragmentIndex)
-  const fragment = fragmentIndex === -1 ? '' : url.slice(fragmentIndex)
-  const separator = beforeFragment.includes('?') ? '&' : '?'
-
-  return `${beforeFragment}${separator}${query}${fragment}`
-}
 
 /**
  * Handler for the LTI 'authentication response', in which the platform responds
@@ -63,8 +55,10 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // TODO: Propert LTI error response, here and below
-    return NextResponse.json({ status: 'failed', message: 'error in lti launch' })
+    // TODO: An LTI-conformant error response to the *platform* is still
+    // outstanding, here and below. The redirect is the first-party surface
+    // only -- it tells the learner what to do, not the platform what failed.
+    return ltiErrorRedirect(request, 'invalid_request')
   }
   const { id_token, state } = parseResult.data
 
@@ -73,7 +67,7 @@ export async function POST(request: NextRequest) {
   const stateCookieName = `state-${state}`
   const stateCookie = cookieStore.get(stateCookieName)
   if (stateCookie == null) {
-    throw new Error('Missing state cookie')
+    return ltiErrorRedirect(request, 'session_expired')
   }
   const issuer = stateCookie.value
 
@@ -99,28 +93,40 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // TODO: Respond with a proper LTI error response
-    return NextResponse.json({ status: 'failed', message: 'error in lti launch' })
+    // TODO: An LTI-conformant error response to the platform is still
+    // outstanding; this redirect is the first-party surface only.
+    return ltiErrorRedirect(request, errorSlugFor(launchResult.error.code))
   }
 
   const { type, tokens } = launchResult.data
 
   await setUserSession(tokens)
 
-  // Redirect to the appropriate url based on the type of launch.
+  // Redirect to the appropriate url based on the type of launch. Every hop
+  // leaves as a 303 so the platform's POST body is never replayed onward --
+  // see `ltiSeeOther`.
   if (type === 'start-activity') {
-    const { activity_code, activity_url, scope_id } = launchResult.data
-    // The nested activity URL deliberately remains raw so learners and
-    // instructors can recognize the destination in the browser address bar.
-    const launchPath = `/lti/launch/${activity_code}/${activity_url}`
-    const launchQuery = new URLSearchParams({ scope_id })
-    redirect(appendQueryBeforeFragment(launchPath, launchQuery))
+    const { activity_id, activity_url, scope_id, modulus_server_url } = launchResult.data
+    // Neither mode branches on the launching user's LTI role, and neither
+    // carries the activity code onward: `handleActivityLaunch` has already
+    // resolved it and made the enrollment decision, including the decision to
+    // honour a launch whose code no longer resolves.
+    return ltiSeeOther(
+      request,
+      selectLaunchDestination({
+        mode: getServerConfig().lti.launchInterstitial,
+        activityId: activity_id,
+        activityUrl: activity_url,
+        scopeId: scope_id,
+        modulusServerUrl: modulus_server_url,
+      })
+    )
   }
 
   if (type === 'deep-link') {
     const { launch_id } = launchResult.data
-    redirect(`/lti/deep-link?id=${launch_id}`)
+    return ltiSeeOther(request, `/lti/deep-link?id=${launch_id}`)
   }
 
-  redirect('/dashboard')
+  return ltiSeeOther(request, '/dashboard')
 }

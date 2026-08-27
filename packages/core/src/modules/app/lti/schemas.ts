@@ -18,7 +18,9 @@ export const launchResponseSchema = z.discriminatedUnion('type', [
   z.strictObject({
     type: z.literal('start-activity'),
     activity_code: z.string(),
+    activity_id: z.uuid(),
     activity_url: z.string(),
+    modulus_server_url: z.string(),
     scope_id: z.uuid(),
     scope_name: z.string().nullable(),
     tokens: userTokensSchema,
