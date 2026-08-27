@@ -19,7 +19,7 @@ import type { DeepLinkingContentItem } from '../types/messages/tool-originating/
 
 const logger = createCoreLogger({ pinoLogger: pino({ level: 'silent' }) })
 
-const LTI_LAUNCH_URL = 'https://modulus.test/lti/launch'
+const LTI_LAUNCH_URL = 'https://modulus.test/routes/lti/launch'
 const ACTIVITY_URL = 'https://content.test/activity?existing=one#authored'
 const ACTIVITY_CODE = 'course-code'
 const DEPLOYMENT_ID = 'deployment-17'

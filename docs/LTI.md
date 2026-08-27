@@ -224,16 +224,20 @@ an assignment points to.
      before enrolling the learner, so removing an activity from a code in the
      Modulus dashboard stops enrollment through any LMS link that still points at
      it;
-   - build an `ltiResourceLink` content item whose `url` is the **generic tool
-     launch URL** — `urlBuilder.ltiLaunchUrl`, currently
-     `{publicServerUrl}/lti/launch` — with the resource identity carried in the
-     custom claims (`modulus_launch_type: 'start-activity'`, the activity
-     code/URL, Canvas term identity/display fields, plus the existing Canvas
-     substitution variables), **sign** a `LtiDeepLinkingResponse` with the tool
-     keystore, and return `{ jwt, return_url }`. The URL is generic rather than
-     per-activity because Canvas surfaces it nowhere, `LtiLoginService` ignores
-     `target_link_uri`, and under the default `never` mode there is no
-     per-activity Modulus page for it to name.
+   - build an `ltiResourceLink` content item whose `url` is the **tool's launch
+     endpoint** — `urlBuilder.ltiLaunchUrl`, `{publicServerUrl}/routes/lti/launch`
+     — with the resource identity carried in the custom claims
+     (`modulus_launch_type: 'start-activity'`, the activity code/URL, Canvas
+     term identity/display fields, plus the existing Canvas substitution
+     variables), **sign** a `LtiDeepLinkingResponse` with the tool keystore, and
+     return `{ jwt, return_url }`. This value becomes the resource link's
+     `target_link_uri`, which LTI 1.3 defines as the end-point executed at the
+     end of the OIDC flow — an endpoint reached by POST, not a page. A
+     per-activity URL would be wrong here: the resource identity is already in
+     the custom claims, under the default `never` mode there is no per-activity
+     Modulus page to name, and a scope baked into a durable link would go stale,
+     because the scope is resolved from the term claims on every launch so that
+     a link survives into a new term.
 3. The host auto-posts the signed response back to the platform's
    `deep_link_return_url`; Canvas creates the assignment link. A later learner
    click on that link is a `start-activity` launch (Flow 2).
@@ -339,13 +343,13 @@ that case.
 - **Nonce cleanup.** Used nonces are marked but not yet pruned.
 - **Multi-platform reality.** The code currently targets Canvas; role mapping
   (`INSTRUCTOR_LTI_ROLES`) and some custom fields are Canvas-shaped.
-- **The deep-link content item's `url` points at nothing.**
-  `urlBuilder.ltiLaunchUrl` is `{publicServerUrl}/lti/launch`, which is neither
-  a handler (those are under `/routes/lti/…`) nor a page (the interstitial is
-  `/lti/launch/{activity_id}`). Nothing fetches it — Canvas stores it as
-  `target_link_uri` and `LtiLoginService` ignores that claim — so it is inert
-  rather than broken. Pointing it at `/routes/lti/launch`, the real tool launch
-  endpoint, would be more honest.
+- **`target_link_uri` is stored but not read.** Deep links name
+  `/routes/lti/launch` as their `target_link_uri`, and Canvas returns it on
+  every launch, but `LtiLoginService` currently ignores the claim — an open
+  `TODO` in `services/login.ts` asks what it should do with it. The launch
+  instead reaches the endpoint registered as `LTI_REDIRECT_URI` — a separate
+  configuration key, conventionally set to the same URL, but free to diverge
+  from it.
 - **No LTI-conformant error response.** `/lti/error` is a first-party page for
   the learner. Signing and posting an error back to the platform, or honouring a
   platform-supplied error return URL, is still outstanding and is what the

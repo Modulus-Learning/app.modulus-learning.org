@@ -144,12 +144,18 @@ export class LtiDeepLinkingService extends BaseService {
 
     const link: DeepLinkingContentItem = {
       type: 'ltiResourceLink',
-      // The generic tool launch URL, not a per-activity one. Canvas surfaces
-      // this URL nowhere, `LtiLoginService` ignores `target_link_uri`, and the
-      // resource identity the launch actually uses travels in the custom
-      // claims below. Under the default `never` interstitial mode there is no
-      // per-activity Modulus page to name at all, so an activity-specific URL
-      // here would point at a page the learner never reaches.
+      // The tool's launch endpoint, not a per-activity URL. This becomes the
+      // resource link's `target_link_uri`, which LTI 1.3 defines as the
+      // end-point executed at the end of the OIDC flow -- an endpoint that
+      // receives a POST, not a page a browser opens.
+      //
+      // A per-activity URL would be wrong here on three counts: the resource
+      // identity already travels in the custom claims below, which is what
+      // `handleActivityLaunch` reads; under the default `never` interstitial
+      // mode there is no per-activity Modulus page for it to name; and a scope
+      // baked into a durable link would go stale, since the scope is resolved
+      // from the term claims on every launch precisely so a link survives into
+      // a new term.
       url: this.urlBuilder.ltiLaunchUrl,
       // title: undefined,
       // text: undefined,
