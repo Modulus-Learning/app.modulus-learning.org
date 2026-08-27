@@ -2,8 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 
 import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
-import { ltiErrorRedirect } from '@/modules/lti/error-redirect'
 import { errorSlugFor } from '@/modules/lti/error-slug'
+import { ltiErrorRedirect } from '@/modules/lti/redirect'
 
 /**
  * Handler for the LTI 'init login request' from the platform, which begins the
@@ -61,7 +61,12 @@ export async function POST(request: NextRequest) {
 
   const { redirectUrl, stateId, stateValue } = result.data
 
-  const response = NextResponse.redirect(redirectUrl)
+  // 303, for the same reason every other hop out of an LTI route is a 303 (see
+  // `ltiSeeOther`): the platform delivers the login request as a form POST, and
+  // a 307 would replay that body to the platform's authorization endpoint. The
+  // OIDC authentication request lives in this URL's query string and is meant
+  // to be fetched with GET.
+  const response = NextResponse.redirect(redirectUrl, 303)
 
   // NOTE: In principle, multiple LTI launches could be in flight at once
   // (e.g. the learner middle-clicks on multiple Modulus links in short

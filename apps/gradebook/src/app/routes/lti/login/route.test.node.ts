@@ -95,6 +95,10 @@ describe('LTI login route', () => {
 
     const response = await post(loginForm())
 
+    // 303, not 307: the platform posts the login request as a form, and the
+    // OIDC authentication request in this URL must be fetched with GET rather
+    // than have that body replayed to the platform.
+    expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe(REDIRECT_URL)
 
     // The state cookie's attributes are unchanged by this task; asserted here

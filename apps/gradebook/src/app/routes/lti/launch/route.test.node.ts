@@ -9,13 +9,11 @@ const mocks = vi.hoisted(() => ({
   getCoreRequestContext: vi.fn(),
   getServerConfig: vi.fn(),
   handleLaunch: vi.fn(),
-  redirect: vi.fn(),
   setUserSession: vi.fn(),
 }))
 
 vi.mock('@/config', () => ({ getServerConfig: mocks.getServerConfig }))
 vi.mock('next/headers', () => ({ cookies: mocks.cookies }))
-vi.mock('next/navigation', () => ({ redirect: mocks.redirect }))
 vi.mock('@/core-adapter', () => ({
   getCoreCommands: mocks.getCoreCommands,
   getCoreRequestContext: mocks.getCoreRequestContext,
@@ -36,9 +34,6 @@ const resetLaunchMocks = () => {
     app: { lti: { handleLaunch: mocks.handleLaunch } },
   })
   mocks.setUserSession.mockResolvedValue(undefined)
-  mocks.redirect.mockImplementation(() => {
-    throw new Error('NEXT_REDIRECT')
-  })
 }
 
 describe('LTI launch route', () => {
@@ -65,7 +60,27 @@ describe('LTI launch route', () => {
     tokens,
   })
 
-  /** Drives a successful launch and returns the target the route redirected to. */
+  const post = async (form: FormData) =>
+    await POST({
+      url: 'https://gradebook.test/routes/lti/launch',
+      formData: async () => form,
+    } as NextRequest)
+
+  const launchForm = () => {
+    const form = new FormData()
+    form.set('id_token', 'signed-token')
+    form.set('state', 'state-value')
+    return form
+  }
+
+  /**
+   * Drives a successful launch and returns where the route sent the browser.
+   *
+   * The status is asserted on every hop, not just once. The platform delivers
+   * the authentication response as a form POST, so a 307 would replay the
+   * `id_token` and `state` to wherever we redirect -- including, in `never`
+   * mode, a third-party activity origin.
+   */
   const launchTo = async (
     mode: 'never' | 'always',
     overrides: { activity_url?: string; activity_code?: string } = {}
@@ -73,18 +88,12 @@ describe('LTI launch route', () => {
     mocks.getServerConfig.mockReturnValue({ lti: { launchInterstitial: mode } })
     mocks.handleLaunch.mockResolvedValue({ ok: true, data: launchData(overrides) })
 
-    const form = new FormData()
-    form.set('id_token', 'signed-token')
-    form.set('state', 'state-value')
+    const response = await post(launchForm())
 
-    await expect(
-      POST({
-        url: 'https://gradebook.test/routes/lti/launch',
-        formData: async () => form,
-      } as NextRequest)
-    ).rejects.toThrow('NEXT_REDIRECT')
+    expect(response.status).toBe(303)
+    expect(await response.text()).toBe('')
 
-    return String(mocks.redirect.mock.calls[0]?.[0])
+    return String(response.headers.get('location'))
   }
 
   test('redirects straight to the activity under the default configuration', async () => {
@@ -101,8 +110,14 @@ describe('LTI launch route', () => {
 
   test('redirects to the id-keyed interstitial under always', async () => {
     const target = await launchTo('always')
+    const destination = new URL(target)
 
-    expect(target).toBe(`/lti/launch/${activityId}?scope_id=${scopeId}`)
+    // `NextResponse.redirect` requires an absolute URL, so the interstitial's
+    // relative path is resolved against this host before it goes out.
+    expect(destination.origin).toBe('https://gradebook.test')
+    expect(destination.pathname + destination.search).toBe(
+      `/lti/launch/${activityId}?scope_id=${scopeId}`
+    )
     expect(target).not.toContain('content.test')
   })
 
@@ -112,10 +127,12 @@ describe('LTI launch route', () => {
       await launchTo(mode)
 
       // The agent's later /routes/agent/authorize request depends on this
-      // ordering: the session must exist before the browser leaves.
+      // ordering: the session must exist before the browser leaves. The
+      // destination is not even chosen until afterwards -- `getServerConfig`
+      // is read only in the redirect branch, so it stands in for the hop.
       expect(mocks.setUserSession).toHaveBeenCalledWith(tokens)
       expect(mocks.setUserSession.mock.invocationCallOrder[0]).toBeLessThan(
-        mocks.redirect.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+        Number(mocks.getServerConfig.mock.invocationCallOrder[0])
       )
     }
   )
@@ -176,16 +193,9 @@ describe('LTI launch route', () => {
           roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
         },
       })
-      const form = new FormData()
-      form.set('id_token', 'signed-token')
-      form.set('state', 'state-value')
-      await expect(
-        POST({
-          url: 'https://gradebook.test/routes/lti/launch',
-          formData: async () => form,
-        } as NextRequest)
-      ).rejects.toThrow('NEXT_REDIRECT')
-      const withRole = String(mocks.redirect.mock.calls[0]?.[0])
+      const response = await post(launchForm())
+      expect(response.status).toBe(303)
+      const withRole = String(response.headers.get('location'))
 
       expect(withRole).toBe(plain)
       expect(withRole).not.toContain('Instructor')
@@ -193,19 +203,6 @@ describe('LTI launch route', () => {
   )
 
   describe('failure branches', () => {
-    const launchForm = () => {
-      const form = new FormData()
-      form.set('id_token', 'signed-token')
-      form.set('state', 'state-value')
-      return form
-    }
-
-    const post = async (form: FormData) =>
-      await POST({
-        url: 'https://gradebook.test/routes/lti/launch',
-        formData: async () => form,
-      } as NextRequest)
-
     /**
      * The status is load-bearing, not incidental. A 307 would preserve the
      * POST and the browser would post to `/lti/error`, which only answers GET
@@ -222,7 +219,6 @@ describe('LTI launch route', () => {
       expect(location.searchParams.get('code')).toBe(slug)
       expect(await response.text()).toBe('')
       expect(response.headers.get('content-type') ?? '').not.toContain('json')
-      expect(mocks.redirect).not.toHaveBeenCalled()
     }
 
     test('redirects a malformed authentication response to invalid_request', async () => {

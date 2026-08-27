@@ -1,5 +1,4 @@
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 import type { NextRequest } from 'next/server'
 
 import z from 'zod'
@@ -8,9 +7,9 @@ import { getServerConfig } from '@/config'
 import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import { setUserSession } from '@/modules/app/session/storage'
-import { ltiErrorRedirect } from '@/modules/lti/error-redirect'
 import { errorSlugFor } from '@/modules/lti/error-slug'
 import { selectLaunchDestination } from '@/modules/lti/launch-destination'
+import { ltiErrorRedirect, ltiSeeOther } from '@/modules/lti/redirect'
 
 /**
  * The response the platform sends back to the tool in response to an
@@ -103,14 +102,17 @@ export async function POST(request: NextRequest) {
 
   await setUserSession(tokens)
 
-  // Redirect to the appropriate url based on the type of launch.
+  // Redirect to the appropriate url based on the type of launch. Every hop
+  // leaves as a 303 so the platform's POST body is never replayed onward --
+  // see `ltiSeeOther`.
   if (type === 'start-activity') {
     const { activity_id, activity_url, scope_id, modulus_server_url } = launchResult.data
     // Neither mode branches on the launching user's LTI role, and neither
     // carries the activity code onward: `handleActivityLaunch` has already
     // resolved it and made the enrollment decision, including the decision to
     // honour a launch whose code no longer resolves.
-    redirect(
+    return ltiSeeOther(
+      request,
       selectLaunchDestination({
         mode: getServerConfig().lti.launchInterstitial,
         activityId: activity_id,
@@ -123,8 +125,8 @@ export async function POST(request: NextRequest) {
 
   if (type === 'deep-link') {
     const { launch_id } = launchResult.data
-    redirect(`/lti/deep-link?id=${launch_id}`)
+    return ltiSeeOther(request, `/lti/deep-link?id=${launch_id}`)
   }
 
-  redirect('/dashboard')
+  return ltiSeeOther(request, '/dashboard')
 }
