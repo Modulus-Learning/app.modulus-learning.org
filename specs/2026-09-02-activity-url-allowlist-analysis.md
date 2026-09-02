@@ -34,8 +34,9 @@ activity registration across instructor workflows and agent traffic, and
 how—if at all—should changes to that allowlist affect activities and
 associations that Modulus previously accepted?
 
-The answer must cover every current runtime path that can insert an `activities`
-row or associate an activity with an activity code:
+The answer must cover every current runtime path that may insert an `activities`
+row, including instructor paths that also associate the resulting activity with
+an activity code:
 
 1. instructor activity-code creation and editing;
 2. instructor LTI deep linking;
@@ -76,23 +77,27 @@ The recommended contracts are:
    rule such as `https://ximera.osu.edu` accepts every path on that exact origin.
    A base rule such as `https://ximera.osu.edu/course/calculus/` accepts that
    path and descendants, not `/course/calculus-2` and not a subdomain.
-4. **Check the policy when an operation would admit a new URL.** Inserting a new
-   `activities` row is registration. Adding an existing global activity to a new
-   activity code is also registration for that instructor-owned grouping.
+4. **Check the policy when an operation would admit a new URL.** Registration
+   means inserting a new `activities` row. Adding an already-known activity to
+   an activity code is categorization, not registration, and remains allowed
+   by the sitewide policy even when the URL no longer matches a current rule.
+   The activity code's own `url_prefix`, when present, remains an independent
+   constraint.
 5. **Do not re-check ordinary use of an already-registered activity.** Agent
    OAuth, token exchange and renewal, direct/self progress, page state, LTI
    launch, and cumulative updates to an existing activity continue to work even
    if no current rule matches its URL.
-6. **Grandfather existing activities and associations.** Editing or deleting a
-   rule never deletes an activity, removes an activity-code association, rejects
-   an existing token, or blocks subsequent reads and writes. The admin UI should
-   preview how many existing activities would sit outside the prospective
-   policy and label them as grandfathered.
+6. **Grandfather existing activities globally.** Editing or deleting a rule
+   never deletes an activity, removes an activity-code association, rejects an
+   existing token, blocks subsequent reads and writes, or prevents a later
+   association with an activity code. The admin UI should preview how many
+   existing activities would sit outside the prospective policy and label them
+   as grandfathered.
 7. **Reject instructor registration atomically and visibly.** Activity-code
-   creation checks every submitted URL. Activity-code editing checks newly added
-   associations, while allowing unchanged grandfathered associations to remain.
-   If any addition is disallowed, nothing in the form submission changes and the
-   form identifies every rejected URL.
+   creation and editing resolve every submitted URL. Known activities may be
+   associated without a sitewide-policy check; each unseen URL must match the
+   allowlist before it is created. If any unseen URL is disallowed, nothing in
+   the form submission changes and the form identifies every rejected URL.
 8. **Never redirect an OAuth error to an unapproved, unseen URL.** A disallowed
    authorization request ends on a Modulus-owned `403` error page. It does not
    create an auth code or activity, and it does not navigate back to the
@@ -123,16 +128,16 @@ semantics.
 An allowlist is easy to apply inconsistently unless *registration* is defined as
 an operation rather than inferred from which endpoint was called.
 
-For this feature, an operation registers an activity URL when it does either of
-the following:
+For this feature, an operation registers an activity URL only when it inserts a
+new row into `activities`. That row is Modulus's durable record that the URL was
+admitted under the policy in force at the time.
 
-- inserts a new row into `activities`; or
-- adds a new row to `activity_activity_code` for that activity.
-
-The second case matters because an activity can already exist globally after
-agent OAuth or cumulative reporting but still be absent from every instructor's
-activity code. Associating that URL with a code is a new institutional use even
-though it does not insert another `activities` row.
+Adding a row to `activity_activity_code` categorizes an already-registered
+activity for curriculum grouping and reporting. It can be a new instructional
+use, but it does not admit another URL into Modulus and is not governed by this
+allowlist. A known activity is grandfathered globally, not only within the
+activity-code associations that happened to exist when its matching rule was
+changed.
 
 Use means reading or writing an activity that Modulus has already admitted.
 OAuth for a known activity, an LTI launch of an existing link, progress and page
@@ -143,9 +148,9 @@ This produces the following enforcement matrix:
 
 | Operation | When the allowlist is checked | Disallowed result |
 | --- | --- | --- |
-| Create an activity code with URLs | Every submitted URL | Reject the whole form; create neither code nor activities |
-| Edit an activity code | Each newly added URL/code association | Reject the whole edit; retained associations need not match |
-| LTI deep link | When the URL is not already associated with the selected code | Return a field error; create neither activity nor association |
+| Create an activity code with URLs | Each URL that does not resolve to an activity | Reject the whole form; create neither code nor unseen activities |
+| Edit an activity code | Each URL that does not resolve to an activity | Reject the whole edit; known grandfathered activities may be newly associated |
+| LTI deep link | Only when the URL does not resolve to an activity | Return a field error and create no activity; a known grandfathered activity may be linked and associated |
 | Agent authorization | Only when `redirect_uri` does not resolve to an activity | Render a Modulus-owned `403`; create no activity or auth code |
 | Agent token exchange | Never; the authorization code names an admitted activity | Existing OAuth checks remain authoritative |
 | Set self progress/page state | Never; the token is already activity-bound | Continue normally |
@@ -154,10 +159,12 @@ This produces the following enforcement matrix:
 | LTI/direct launch | Never; launch does not register | Continue the existing launch policy |
 | Seed/migration fixture insertion | Outside runtime policy | Explicit trusted bootstrap operation |
 
-If a deep-link request names an activity that is already associated with the
-selected code, it is reuse of an existing registration and may proceed while
-grandfathered. If it names an existing activity that is not associated with the
-selected code, the new association is checked.
+Every instructor-supplied URL is therefore resolved before it is evaluated.
+Known means admitted: the sitewide policy permits the activity to be newly
+associated with the selected code and used for deep linking even if it no longer
+matches an enabled rule. Independent rules, including the selected activity
+code's `url_prefix`, still apply. Unknown means a prospective registration: the
+URL must match before core creates the activity and any requested association.
 
 ## Current-State Findings
 
@@ -171,22 +178,27 @@ start with that activity code's `url_prefix`, but those host checks are neither 
 sitewide trust decision nor a core enforcement boundary.
 
 The update service currently removes every association and recreates the
-submitted set. An allowlist implementation cannot simply validate the complete
-submitted set: doing that would make a harmless description edit fail until an
-instructor also removed every grandfathered URL. It must load the old set and
-validate only additions before performing the replace operation.
+submitted set. An allowlist implementation cannot simply require the complete
+submitted set to match the current rules: doing that would make a harmless
+description edit fail until an instructor also removed every grandfathered URL.
+It must resolve submitted URLs first and evaluate only those with no existing
+`activities` row. No association-delta calculation is needed for allowlist
+purposes.
 
 ### LTI deep linking is another instructor registration path
 
 `LtiDeepLinkingService.handleDeepLink()` validates the selected code's optional
 `url_prefix`, creates the activity if necessary, and associates it with the
 code. This is semantically the same admission as the activity-code edit page and
-must use the same sitewide policy. Otherwise an instructor could bypass the
-allowlist by entering the URL through Canvas deep linking.
+must use the same sitewide policy when the URL is unseen. A known grandfathered
+activity may be newly associated and linked; otherwise an instructor could
+bypass the creation gate by entering an unseen disallowed URL through Canvas
+deep linking.
 
 The per-code prefix remains useful after this feature. It is an additional,
 instructor-managed curriculum constraint; it cannot broaden the site policy. A
-new URL must satisfy both rules when the code has a prefix:
+previously unseen URL must satisfy both rules when the code has a prefix, while
+a known grandfathered activity still must satisfy the prefix:
 
 ```text
 sitewide allowlist AND activity-code url_prefix
@@ -344,7 +356,7 @@ This shape is preferable because:
 - rules are shared across all application instances and deployment modes;
 - CRUD, uniqueness, provenance, and enable/disable state are explicit;
 - policy queries can participate in the same database transaction as activity
-  creation or association;
+  creation;
 - it avoids deployment restarts for routine admin changes; and
 - it does not overload the per-code `activity_codes.url_prefix`, whose owner and
   purpose are different.
@@ -385,10 +397,13 @@ steady-state default.
 
 ### Activity-code creation
 
-Validate and normalize input first, evaluate every submitted URL against the
-same policy snapshot, and return all disallowed URLs in one field error. Only
-after all URLs pass may the transaction create the code, its initial member, the
-activities, and the associations.
+Validate and normalize input first, including the activity code's optional
+prefix, then resolve every submitted URL. Existing activities—including
+grandfathered ones—need no sitewide-policy evaluation. Evaluate all unseen URLs
+against the same policy snapshot and return all disallowed unseen URLs in one
+field error. Only after every prospective registration passes may the
+transaction create the code, its initial member, the unseen activities, and all
+requested associations.
 
 No partial registration is useful here. Creating a code with only the approved
 subset would make the saved grouping differ silently from the instructor's
@@ -396,13 +411,15 @@ form.
 
 ### Activity-code editing
 
-Load the currently associated URLs and compare them with the requested set.
-Check only set additions. Retained associations are grandfathered and removals
-are always allowed.
+Resolve the requested URL set against the global activity catalog. Any known
+activity may be associated with the code, whether the association is retained,
+new, or being restored after an earlier removal, provided it satisfies the
+code's independent prefix rule. Check the sitewide policy only for URLs with no
+`activities` row. Removals are always allowed.
 
-If any addition is disallowed, reject the whole edit before changing the code's
-description, per-code prefix, or associations. The response should put a message
-beside the URL field such as:
+If any unseen URL is disallowed, reject the whole edit before changing the
+code's description, per-code prefix, or associations. The response should put a
+message beside the URL field such as:
 
 > This Modulus site does not allow these activity URLs: … Contact a Modulus
 > administrator to request access.
@@ -412,15 +429,21 @@ administrator identity or unrelated rules.
 
 ### LTI deep linking
 
-Apply the same association rule after authenticating the instructor and loading
-the selected activity code, but before creating an activity or association. A
-disallowed URL returns a dedicated `ERR_ACTIVITY_URL_NOT_ALLOWED` core error,
-which the gradebook maps to the deep-link form's `activity_url` field. It must
-not return a signed content item to Canvas.
+After authenticating the instructor and loading the selected activity code,
+resolve the URL globally. If it is known, associate it with the selected code if
+needed and continue without a sitewide-policy check; the code's existing
+`url_prefix` validation still applies. If it is unseen, require an allowlist
+match before creating the activity and association. A disallowed unseen URL
+returns a dedicated `ERR_ACTIVITY_URL_NOT_ALLOWED` core error, which the
+gradebook maps to the deep-link form's `activity_url` field. It must not return a
+signed content item to Canvas.
 
-An existing per-code association may be deep-linked while grandfathered. A
-global activity row without that selected association still needs approval,
-because adding the association is a registration event.
+This means a grandfathered activity can be deployed through a new Canvas deep
+link. That is a deliberate consequence of global activity-level grandfathering:
+the `activities` row, not a particular code association, records admission. If
+administrators later need to prevent new deployments of known activities, that
+is a separate deployment or blocking policy rather than this registration
+allowlist.
 
 ## Agent OAuth Behaviour
 
@@ -526,7 +549,7 @@ different cleanup strategies:
 | --- | --- | --- | --- |
 | Delete | Delete the activity and any data removed through its foreign-key relationships | The stored activity catalog mirrors the current allowlist | Destructive learner-state loss, broken historical reporting and links, and unclear cascade boundaries |
 | Block | Retain data, but consult current policy during some or all launches, OAuth operations, token use, state access, reporting, and passback | Provides an immediate revocation control | Turns every rule edit into a broad authorization change and requires explicit semantics for active tokens, reads, writes, and queued work |
-| Grandfather | Leave existing activities and associations operational; apply the new policy only to later registration | Preserves data and makes ordinary policy maintenance predictable | Content remains usable after its rule is removed, so urgent revocation requires a separate control |
+| Grandfather | Treat every existing activity as globally admitted; allow continued use and new code associations, and apply the new policy only to unseen URLs | Preserves data and gives the activity catalog a stable admission meaning | Content can still be adopted in new instructional contexts after its rule is removed, so urgent revocation requires a separate control |
 
 Deletion is the most destructive interpretation and provides little recovery
 value: an administrator cannot reliably reconstruct progress, page state,
@@ -538,9 +561,11 @@ leave learners in internally inconsistent states.
 Grandfathering best fits the stated core requirement, which is that only
 matching URLs may be *registered*. It also keeps a routine allowlist edit from
 silently becoming a data-retention or live-access operation. The cost is real:
-rule removal is not an incident-response mechanism. On balance, this analysis
-recommends grandfathering and treating emergency blocking as a separate feature
-whose broader semantics are visible to administrators.
+rule removal neither revokes the activity nor prevents instructors from adopting
+it in additional activity codes or LTI links. On balance, this analysis
+recommends global activity-level grandfathering and treating emergency blocking
+or deployment restrictions as separate features whose broader semantics are
+visible to administrators.
 
 ## Recommended Grandfathering Behaviour
 
@@ -555,11 +580,20 @@ An existing activity that no longer matches any rule continues to support:
 - cumulative reads and progress contributions when it is a known target;
 - existing LTI and direct launches;
 - existing activity-code reporting and associations; and
-- deep linking through an association that already exists.
+- new activity-code associations and LTI deep links.
 
 An instructor may remove its activity-code association. Re-adding that
-association later is a new registration and must satisfy the policy then in
-force.
+association later remains allowed because the activity itself is already
+registered.
+
+Adding an association is not inert: it can make the activity and historical
+progress for learners enrolled under that code appear in code-scoped reporting,
+and deep linking can deploy it into a new Canvas context. Those are consequences
+of the existing grouping and deep-link models. The allowlist answers whether the
+URL has entered Modulus, not whether every later instructional use needs renewed
+administrator approval. If that reporting or deployment authority is too broad,
+it should be addressed directly rather than by giving an activity-code join row
+a second meaning as a trust decision.
 
 No activity or learner state is deleted. Deletion would be disproportionate and
 could cascade through progress, events, page state, line items, and reporting.
@@ -569,8 +603,9 @@ learner-support consequences.
 
 The admin edit/delete confirmation should therefore use precise language:
 
-> This change stops new registrations under this base URL. Existing activities
-> and activity-code associations will continue to work.
+> This change stops previously unseen URLs under this base URL from being
+> registered. Existing activities will continue to work and may still be added
+> to activity codes or used in new deep links.
 
 It should also show a prospective count, and optionally a list, of existing
 activities that would no longer match any enabled rule. Call those activities
@@ -597,15 +632,15 @@ power behind an ordinary configuration edit.
 
 The policy check and the registration mutation must use one policy snapshot. A
 request must not pass a check, lose a race with an administrator removing the
-last matching rule, and then insert or associate the URL after the policy change
-has committed.
+last matching rule, and then insert the activity after the policy change has
+committed.
 
 The implementation plan should serialize allowlist mutations against admission
 transactions. A transaction-scoped PostgreSQL advisory lock is one suitable
-mechanism: registration attempts take a shared lock only after an activity or
-association miss, and admin mutations take the matching exclusive lock. The
-exact mechanism can be selected in implementation planning, but the externally
-observable contract is fixed:
+mechanism: registration attempts take a shared lock only after a URL does not
+resolve to an activity, and admin mutations take the matching exclusive lock.
+The exact mechanism can be selected in implementation planning, but the
+externally observable contract is fixed:
 
 - an admin change and a competing registration have a definite commit order;
 - if registration commits first, it is grandfathered by the later admin change;
@@ -655,11 +690,18 @@ routine configuration to learner access, persisted state, tokens, and passback.
 Rejected for this feature in favor of explicit grandfathering and a separately
 designed block control.
 
-### Check only new `activities` rows
+### Treat each new activity-code association as registration
 
-This is simpler, but an instructor could attach an old lazy-created URL to a new
-activity code after it ceased to be approved. Rejected because a new
-activity-code association is itself a registration of institutional use.
+This would let rule removal stop a grandfathered activity from spreading into
+additional codes while preserving its existing associations. It offers
+administrators more control over future institutional adoption, but makes the
+same known activity trusted for agent authentication and progress while
+untrusted for curriculum categorization. It also makes an accidentally removed
+association impossible to restore, can strand a bare lazy-created activity
+outside code-scoped reporting, and gives `activity_activity_code` both grouping
+and trust semantics. Rejected in favor of the simpler rule that the global
+`activities` row records admission. New-deployment restrictions, if needed,
+should be expressed directly.
 
 ### Delete activities that cease to match
 
@@ -699,12 +741,15 @@ A future implementation is complete when:
   path-segment-bounded subtree;
 - deceptive host prefixes, sibling path prefixes, userinfo, insecure remote
   HTTP, malformed URLs, and implicit subdomains do not match;
-- activity-code creation validates every URL and is atomic on denial;
-- activity-code editing validates only newly added associations, so an
-  instructor can edit metadata or remove URLs while grandfathered entries
-  remain;
-- LTI deep linking cannot bypass the sitewide check, and a denial is rendered
-  as an activity URL field error without returning a content item;
+- activity-code creation and editing resolve every URL, evaluate only unseen
+  URLs, and are atomic when any prospective registration is denied;
+- any known grandfathered activity may be newly associated with an activity
+  code or restored after its association was removed, subject to the code's
+  independent prefix rule;
+- LTI deep linking cannot create an unseen disallowed activity, and a denial is
+  rendered as an activity URL field error without returning a content item;
+- a known grandfathered activity may be associated and used in a new LTI deep
+  link without matching the current policy;
 - the existing per-code prefix remains an additional constraint;
 - agent authorization lazy-creates only an allowed unseen activity;
 - no OAuth branch redirects to an unseen disallowed or malformed URI, including
@@ -719,9 +764,8 @@ A future implementation is complete when:
   the agent logs rather than retries them;
 - known cumulative targets and side-effect-free reads do not query the policy;
 - disabling, editing, or deleting rules never deletes or blocks existing
-  activities, associations, tokens, state, launches, reports, or passback;
-- removing and later re-adding an activity-code association applies the policy
-  in force at re-add time;
+  activities, associations, tokens, state, launches, reports, passback, new code
+  associations, or new deep links for known activities;
 - the admin UI explains deny-all and grandfathering and previews the existing
   activities left outside the prospective policy;
 - policy mutation and registration races have deterministic commit-order
@@ -734,8 +778,9 @@ A future implementation is complete when:
 - **Administrators mistake removal for revocation.** Mitigate with explicit
   grandfathering copy and the prospective impact count. Do not use "block" or
   "disable activity" for rule operations.
-- **An instructor cannot save an unrelated edit.** Mitigate by validating the
-  association delta, not the complete post-edit URL set.
+- **An instructor cannot save an unrelated edit.** Mitigate by resolving the
+  submitted URLs first and evaluating only those that are unseen, not every URL
+  against the current policy.
 - **The OAuth error path becomes an open redirect.** Mitigate by making redirect
   eligibility a core decision before every branch that navigates to
   `redirect_uri`; invalid destinations stay on Modulus.
@@ -751,6 +796,10 @@ A future implementation is complete when:
 - **Grandfathering leaves content usable after a security incident.** Accepted
   for this admission feature; mitigate through a separately specified emergency
   block capability rather than undocumented allowlist side effects.
+- **A grandfathered activity can be adopted in new codes and deployments.**
+  Accepted as the consequence of activity-level admission. If administrators
+  need to stop new instructional uses without blocking existing ones, specify a
+  separate deployment policy rather than changing the meaning of registration.
 
 ## Out of Scope
 
@@ -777,7 +826,9 @@ during implementation planning:
    retained in a dedicated audit-event table?
 2. **Instructor visibility.** Should activity-code and deep-link forms show the
    currently approved base URLs proactively, or only explain a denial? The
-   policy is not secret, but a long list may be a poor authoring interface.
+   policy is not secret, but a long list may be a poor authoring interface and
+   is not an exhaustive list of usable URLs because known grandfathered
+   activities remain available.
 3. **Rollout inventory.** Does any non-disposable deployment need rules prepared
    before the strict gate ships, and which existing origins should an operator
    review rather than auto-approve?
@@ -796,8 +847,8 @@ tasks for:
 1. rule schema, migration, constraints, and development seed policy;
 2. the root-composed policy service and pure URL matcher;
 3. admin abilities, commands, server actions, and `/admin/activities` UI;
-4. activity-code create/update delta enforcement;
-5. LTI deep-link enforcement and form errors;
+4. activity-code create/update resolve-before-create enforcement;
+5. LTI deep-link enforcement for unseen URLs and form errors;
 6. OAuth redirect prevalidation, atomic lazy creation, and the Modulus-owned
    error page;
 7. cumulative-target filtering, response schema, and agent diagnostics;
