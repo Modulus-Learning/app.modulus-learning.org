@@ -12,6 +12,10 @@ import { DBManagerImpl, TXManagerImpl } from '@/lib/db-manager.js'
 import { createCoreLogger } from '@/lib/logger.js'
 import { CoreUtils } from '@/lib/utils.js'
 import {
+  ActivityUrlAllowlistMutations,
+  ActivityUrlAllowlistQueries,
+} from '@/modules/activity-registration/repository/index.js'
+import {
   ActivityStateMutations,
   ActivityStateQueries,
 } from '@/modules/agent/activity-state/repository/index.js'
@@ -74,6 +78,8 @@ export type TestRepos = {
   activityMutations: ActivityStateMutations
   appActivityQueries: AppActivityQueries
   appActivityMutations: AppActivityMutations
+  allowlistQueries: ActivityUrlAllowlistQueries
+  allowlistMutations: ActivityUrlAllowlistMutations
 }
 
 // Service-layer seam for the 7.1b composition tests: the real service over the
@@ -136,6 +142,8 @@ export async function setupTestHarness(): Promise<TestHarness> {
     activityMutations: new ActivityStateMutations(deps),
     appActivityQueries: new AppActivityQueries(deps),
     appActivityMutations: new AppActivityMutations(deps),
+    allowlistQueries: new ActivityUrlAllowlistQueries(deps),
+    allowlistMutations: new ActivityUrlAllowlistMutations(deps),
   }
 
   const services: TestServices = {
