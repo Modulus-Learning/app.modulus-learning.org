@@ -95,6 +95,24 @@ export class ActivityUrlAllowlistQueries extends BaseService {
   }
 
   /**
+   * Every activity URL, for the administrator's grandfathering preview.
+   *
+   * The preview matches these against a prospective rule set in the service,
+   * using the same pure matcher every admission uses. Doing it in SQL instead
+   * would be a second implementation of the matching contract, free to drift
+   * from the first.
+   */
+  @method
+  async listActivities(): Promise<Pick<ActivityRecord, 'id' | 'url'>[]> {
+    return await this.db
+      .get()
+      .select({ id: activities.id, url: activities.url })
+      .from(activities)
+      .orderBy(asc(activities.url))
+      .catch(this.utils.wrapDbErrorNew())
+  }
+
+  /**
    * Resolves an activity by its exact URL.
    *
    * This lives here, beside the rules, so the registration service can resolve

@@ -2,6 +2,8 @@ import { type RegisteredServices, Registry } from '@/lib/registry.js'
 import { AdminAccountCommands } from './account/commands.js'
 import { AdminAccountMutations, AdminAccountQueries } from './account/repository/index.js'
 import { AdminAccountService } from './account/services/admin-account.js'
+import { AdminActivityUrlAllowlistCommands } from './activity-url-allowlist/commands.js'
+import { AdminActivityUrlAllowlistService } from './activity-url-allowlist/services/activity-url-allowlist.js'
 import { AdminRoleCommands } from './admin-roles/commands.js'
 import { AdminRoleMutations, AdminRoleQueries } from './admin-roles/repository/index.js'
 import { AdminRoleService } from './admin-roles/services/admin-roles.js'
@@ -26,6 +28,34 @@ import { AdminTokenVerifier } from './session/services/token-verifier.js'
 import { UserCommands } from './users/commands.js'
 import { UserMutations, UserQueries } from './users/repository/index.js'
 import { UserService } from './users/services/users.js'
+import type { CoreLogger } from '@/lib/logger.js'
+import type {
+  ActivityUrlAllowlistMutations,
+  ActivityUrlAllowlistQueries,
+} from '@/modules/activity-registration/repository/index.js'
+import type { AllowlistPolicyService } from '@/modules/activity-registration/services/allowlist-policy.js'
+
+/**
+ * The allowlist admin surface has no repository of its own -- it consumes the
+ * root-composed `activityRegistration` context, so that policy reads and writes
+ * go through the same repository the admission path uses rather than a second
+ * copy of it. This factory is what unwraps that context, which lets the service
+ * keep a flat `{ logger, queries, mutations, policy }` constructor.
+ */
+const createAdminActivityUrlAllowlistService = (deps: {
+  logger: CoreLogger
+  activityRegistration: {
+    queries: ActivityUrlAllowlistQueries
+    mutations: ActivityUrlAllowlistMutations
+    policy: AllowlistPolicyService
+  }
+}) =>
+  new AdminActivityUrlAllowlistService({
+    logger: deps.logger,
+    queries: deps.activityRegistration.queries,
+    mutations: deps.activityRegistration.mutations,
+    policy: deps.activityRegistration.policy,
+  })
 
 const createAccountRegistry = () =>
   new Registry()
@@ -78,6 +108,11 @@ const createAdminSessionRegistry = () =>
     .addClass('passwordSignInService', AdminPasswordSignInService)
     .addClass('commands', AdminSessionCommands)
 
+const createActivityUrlAllowlistRegistry = () =>
+  new Registry()
+    .addFactory('service', createAdminActivityUrlAllowlistService)
+    .addClass('commands', AdminActivityUrlAllowlistCommands)
+
 const createLtiPlatformRegistry = () =>
   new Registry()
     .addClass('queries', LtiPlatformQueries)
@@ -95,6 +130,7 @@ export const createAdminRegistry = () =>
     .addNested('users', createUserRegistry())
     .addNested('session', createAdminSessionRegistry())
     .addNested('ltiPlatforms', createLtiPlatformRegistry())
+    .addNested('activityUrlAllowlist', createActivityUrlAllowlistRegistry())
 
 type AdminRegistry = ReturnType<typeof createAdminRegistry>
 
@@ -108,5 +144,6 @@ export const getAdminCommands = (services: RegisteredServices<AdminRegistry>) =>
     users: services.users.commands,
     session: services.session.commands,
     ltiPlatforms: services.ltiPlatforms.commands,
+    activityUrlAllowlist: services.activityUrlAllowlist.commands,
   }
 }
