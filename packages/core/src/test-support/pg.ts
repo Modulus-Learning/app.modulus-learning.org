@@ -34,8 +34,11 @@ import {
   LtiScoreSubmissionQueries,
 } from '@/modules/app/lti/score-submission/repository.js'
 import { LtiScoreSubmitter } from '@/modules/app/lti/score-submission/submitter.js'
+import { LtiDeepLinkingService } from '@/modules/app/lti/services/deep-link.js'
 import { testConfig } from '@/test-support/config.js'
+import type { UrlBuilder } from '@/config.js'
 import type { DB } from '@/database/index.js'
+import type { LtiKeyStore } from '@/lib/lti-keystore.js'
 import type { LtiAgsClient } from '@/modules/app/lti/score-submission/ags-client.js'
 
 const MIGRATIONS_FOLDER = path.resolve(
@@ -94,6 +97,11 @@ export type TestServices = {
   allowlistPolicy: AllowlistPolicyService
   activityRegistration: ActivityRegistrationService
   appActivity: AppActivityService
+  /** Built per test, so a fake key store and url builder can be injected. */
+  makeDeepLinking: (deps: {
+    urlBuilder: UrlBuilder
+    ltiKeyStore: LtiKeyStore
+  }) => LtiDeepLinkingService
   makeSubmitter: (agsClient: LtiAgsClient) => LtiScoreSubmitter
 }
 
@@ -185,6 +193,15 @@ export async function setupTestHarness(): Promise<TestHarness> {
       mutations: repos.appActivityMutations,
       activityRegistration: { service: activityRegistration },
     }),
+    makeDeepLinking: ({ urlBuilder, ltiKeyStore }) =>
+      new LtiDeepLinkingService({
+        logger,
+        urlBuilder,
+        queries: repos.ltiQueries,
+        activities: { queries: repos.appActivityQueries, mutations: repos.appActivityMutations },
+        ltiKeyStore,
+        activityRegistration: { service: activityRegistration },
+      }),
     makeSubmitter: (agsClient) =>
       new LtiScoreSubmitter({
         logger,
