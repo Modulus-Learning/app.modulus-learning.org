@@ -8,12 +8,9 @@
  *
  * There are only two, because there are only two things a learner can be told:
  * the request that arrived could not be used, or Modulus had a problem.
+ *
+ * `server_error` is the page's default for an unknown or absent slug,
+ * following `/lti/error`'s reasoning: an outage must never blame the learner's
+ * course link, or send them to an instructor who cannot help.
  */
 export type AgentErrorSlug = 'invalid_request' | 'server_error'
-
-/**
- * `server_error` is the default for an unknown or absent slug, following
- * `/lti/error`'s reasoning: an outage must never blame the learner's course
- * link, or send them to an instructor who cannot help.
- */
-export const AGENT_ERROR_SLUGS: readonly AgentErrorSlug[] = ['invalid_request', 'server_error']
