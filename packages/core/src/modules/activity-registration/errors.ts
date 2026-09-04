@@ -33,17 +33,23 @@ export const ERR_ACTIVITY_URL_NOT_ALLOWED = createCoreErrorType(
  * Every throw site and every reader agrees through this function rather than
  * by review.
  *
- * **Never call `.log()` on the result.** `details.rejected` carries whole URLs
- * -- query string and fragment included -- and `CoreError.log()` spreads
- * `details` directly into the log record, which would put a learner's
- * `redirect_uri` or an instructor's authored query values in the log. The
- * sanctioned denial diagnostic is `ActivityRegistrationService.register()`'s
- * warn line, which carries the normalized origin and path and nothing else. A
- * caller that wants to record an aggregate should log its own line with counts
- * and reasons, never the URLs.
+ * **It is silent by construction, and must stay that way.** Every path that
+ * logs a `CoreError` spreads `details` into the record -- `CoreError.log()` at
+ * a throw site, and `CoreUtils.reportError()` at the command boundary, which
+ * logs every `CoreError` it converts. `details.rejected` carries whole URLs,
+ * query string and fragment included, so any such line would put a learner's
+ * `redirect_uri` or an instructor's authored query values in the log. That is
+ * precisely what `ActivityRegistrationService.register()`'s diagnostic avoids
+ * by splitting origin from path and dropping the rest. `logLevel: 'silent'`
+ * wins over the type's default because `CoreError` spreads these options over
+ * it.
  *
- * The full URLs stay in `details` because the host needs them to tell the
- * submitter which lines to fix; they are for the response, not the log.
+ * The record of a denial is the sanitized warn line each throw site emits
+ * alongside this error, carrying reasons and counts but never a URL.
+ *
+ * `report()` returns `details` regardless of log level, so the host still
+ * receives every rejected URL and can tell the submitter which lines to fix.
+ * The URLs are for the response, never for the log.
  */
 export const activityUrlNotAllowed = (rejected: RejectedRegistration[]) =>
   ERR_ACTIVITY_URL_NOT_ALLOWED(
@@ -53,6 +59,7 @@ export const activityUrlNotAllowed = (rejected: RejectedRegistration[]) =>
           ? 'This activity URL is not allowed by the sitewide allowlist.'
           : `${rejected.length} activity URLs are not allowed by the sitewide allowlist.`,
       details: { rejected },
+      logLevel: 'silent',
     },
     activityUrlNotAllowed
   )
