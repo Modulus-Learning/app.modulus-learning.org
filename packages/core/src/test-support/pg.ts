@@ -15,6 +15,8 @@ import {
   ActivityUrlAllowlistMutations,
   ActivityUrlAllowlistQueries,
 } from '@/modules/activity-registration/repository/index.js'
+import { ActivityRegistrationService } from '@/modules/activity-registration/services/activity-registration.js'
+import { AllowlistPolicyService } from '@/modules/activity-registration/services/allowlist-policy.js'
 import {
   ActivityStateMutations,
   ActivityStateQueries,
@@ -88,6 +90,8 @@ export type TestRepos = {
 export type TestServices = {
   activityProgress: ActivityProgressService
   activityPageState: ActivityPageStateService
+  allowlistPolicy: AllowlistPolicyService
+  activityRegistration: ActivityRegistrationService
   makeSubmitter: (agsClient: LtiAgsClient) => LtiScoreSubmitter
 }
 
@@ -146,6 +150,11 @@ export async function setupTestHarness(): Promise<TestHarness> {
     allowlistMutations: new ActivityUrlAllowlistMutations(deps),
   }
 
+  const allowlistPolicy = new AllowlistPolicyService({
+    logger,
+    queries: repos.allowlistQueries,
+  })
+
   const services: TestServices = {
     activityProgress: new ActivityProgressService({
       logger,
@@ -157,6 +166,13 @@ export async function setupTestHarness(): Promise<TestHarness> {
       logger,
       queries: repos.activityQueries,
       mutations: repos.activityMutations,
+    }),
+    allowlistPolicy,
+    activityRegistration: new ActivityRegistrationService({
+      logger,
+      queries: repos.allowlistQueries,
+      mutations: repos.allowlistMutations,
+      policy: allowlistPolicy,
     }),
     makeSubmitter: (agsClient) =>
       new LtiScoreSubmitter({

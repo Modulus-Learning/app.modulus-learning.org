@@ -1,10 +1,13 @@
 import { and, asc, eq } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 
-import { activityUrlAllowlistRules } from '@/database/schema/index.js'
+import { activities, activityUrlAllowlistRules } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
 import type { DBManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { CoreUtils } from '@/lib/utils.js'
+
+export type ActivityRecord = typeof activities.$inferSelect
 
 export type AllowlistRuleRecord = typeof activityUrlAllowlistRules.$inferSelect
 export type AllowlistRuleInsert = typeof activityUrlAllowlistRules.$inferInsert
@@ -90,9 +93,24 @@ export class ActivityUrlAllowlistQueries extends BaseService {
       })
       .catch(this.utils.wrapDbErrorNew())
   }
+
+  /**
+   * Resolves an activity by its exact URL.
+   *
+   * This lives here, beside the rules, so the registration service can resolve
+   * a URL without borrowing another module's repository — it is the only writer
+   * of `activities`, so it owns the read that decides whether to write.
+   */
+  @method
+  async findActivityByUrl(url: string): Promise<ActivityRecord | undefined> {
+    return await this.db
+      .get()
+      .query.activities.findFirst({ where: eq(activities.url, url) })
+      .catch(this.utils.wrapDbErrorNew())
+  }
 }
 
-/** Writes over the sitewide activity URL allowlist. */
+/** Writes over the sitewide activity URL allowlist, and the one `activities` insert. */
 export class ActivityUrlAllowlistMutations extends BaseService {
   private utils: CoreUtils
   private db: DBManager
@@ -149,5 +167,29 @@ export class ActivityUrlAllowlistMutations extends BaseService {
       .delete(activityUrlAllowlistRules)
       .where(eq(activityUrlAllowlistRules.id, id))
       .catch(this.utils.wrapDbErrorNew())
+  }
+
+  /**
+   * Inserts an activity, or does nothing if one already holds the URL.
+   *
+   * Returns the inserted row, or `undefined` when a concurrent insert won the
+   * race — the caller then re-reads to find the winner.
+   *
+   * `onConflictDoNothing` is not optional here. Two instructors deep linking
+   * the same new URL at the same moment is ordinary behaviour, not an
+   * exception, and handling it in one place is the point of routing every
+   * activity insert through this seam.
+   */
+  @method
+  async insertActivity(url: string): Promise<ActivityRecord | undefined> {
+    const [activity] = await this.db
+      .get()
+      .insert(activities)
+      .values({ id: uuidv7(), url })
+      .onConflictDoNothing({ target: activities.url })
+      .returning()
+      .catch(this.utils.wrapDbErrorNew())
+
+    return activity
   }
 }
