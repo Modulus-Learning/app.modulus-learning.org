@@ -1,7 +1,7 @@
 import { v7 as uuidv7 } from 'uuid'
 
 import { BaseService, method } from '@/lib/base-service.js'
-import { ERR_NOT_FOUND, ERR_VALIDATION } from '@/lib/errors.js'
+import { ERR_NOT_FOUND, ERR_UNHANDLED, ERR_VALIDATION } from '@/lib/errors.js'
 import {
   matchesRule,
   normalizeRuleBaseUrl,
@@ -25,6 +25,7 @@ import type { CoreLogger } from '@/lib/logger.js'
 import type {
   ActivityUrlAllowlistMutations,
   ActivityUrlAllowlistQueries,
+  AllowlistRuleRecord,
 } from '@/modules/activity-registration/repository/index.js'
 import type { AllowlistPolicyService } from '@/modules/activity-registration/services/allowlist-policy.js'
 import type { NormalizedBaseUrl } from '@/modules/activity-registration/url-policy.js'
@@ -156,13 +157,7 @@ export class AdminActivityUrlAllowlistService extends BaseService {
 
     const existing = await this.queries.findRuleByBase(rule.origin, rule.path_prefix)
     if (existing !== undefined) {
-      // Nothing is written in either branch. Re-enabling is the administrator's
-      // explicit next action through `updateAllowlistRule`, not a silent side
-      // effect of a create they may not have realized was a collision.
-      return {
-        status: existing.is_enabled ? 'already_enabled' : 'disabled_match',
-        rule: toAllowlistRule(existing),
-      }
+      return this.reportExisting(existing)
     }
 
     const created = await this.mutations.createRule({
@@ -175,7 +170,41 @@ export class AdminActivityUrlAllowlistService extends BaseService {
       updated_by: auth.admin_id,
     })
 
-    return { status: 'created', rule: toAllowlistRule(created) }
+    if (created !== undefined) {
+      return { status: 'created', rule: toAllowlistRule(created) }
+    }
+
+    // The insert conflicted, so another administrator created the same rule
+    // between the lookup and the write. Report theirs, exactly as if the
+    // lookup had found it -- one of two simultaneous submissions must not
+    // become a unique-violation error.
+    const winner = await this.queries.findRuleByBase(rule.origin, rule.path_prefix)
+    if (winner !== undefined) {
+      return this.reportExisting(winner)
+    }
+
+    // Neither inserted nor found: the row was created and removed between two
+    // statements. Genuinely unhandled, and raised rather than returned because
+    // it is not a state the administrator can act on.
+    throw ERR_UNHANDLED({
+      message: 'allowlist rule neither inserted nor resolved a row',
+      details: { base_url: toBaseUrl(rule) },
+    }).log(this.logger)
+  }
+
+  /**
+   * Reports a rule that already holds the submitted base, without writing.
+   *
+   * Re-enabling a disabled match is the administrator's explicit next action
+   * through `updateAllowlistRule`, not a silent side effect of a create they
+   * may not have realized was a collision -- and going through the update is
+   * what keeps the rule's description and provenance intact.
+   */
+  private reportExisting(existing: AllowlistRuleRecord): CreateAllowlistRuleResponse {
+    return {
+      status: existing.is_enabled ? 'already_enabled' : 'disabled_match',
+      rule: toAllowlistRule(existing),
+    }
   }
 
   /**

@@ -143,16 +143,27 @@ export class ActivityUrlAllowlistMutations extends BaseService {
     this.db = deps.db
   }
 
+  /**
+   * Inserts a rule, or does nothing if one already holds the same normalized
+   * base.
+   *
+   * Returns the inserted row, or `undefined` when a concurrent create won the
+   * race -- the caller then re-reads to find the winner and reports it. Two
+   * administrators submitting the same base URL at the same moment must not
+   * turn one of their requests into a unique-violation error: they asked for a
+   * state, and the create outcome exists to answer them in those terms.
+   */
   @method
-  async createRule(data: AllowlistRuleInsert): Promise<AllowlistRuleRecord> {
+  async createRule(data: AllowlistRuleInsert): Promise<AllowlistRuleRecord | undefined> {
     const [rule] = await this.db
       .get()
       .insert(activityUrlAllowlistRules)
       .values(data)
+      .onConflictDoNothing({
+        target: [activityUrlAllowlistRules.origin, activityUrlAllowlistRules.path_prefix],
+      })
       .returning()
       .catch(this.utils.wrapDbErrorNew())
-
-    this.utils.assertExists(rule, { message: 'newly created allowlist rule is null' })
 
     return rule
   }

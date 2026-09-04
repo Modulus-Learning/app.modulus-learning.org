@@ -53,11 +53,21 @@ const makeService = ({
   rules = [],
   activities = [],
   enabledPolicyRules,
+  raceWinner,
+  createLosesRace = false,
 }: {
   rules?: AllowlistRuleRecord[]
   activities?: { id: string; url: string }[]
   /** What `policy.loadPolicy()` reports, for the no-argument preview. */
   enabledPolicyRules?: { origin: string; path_prefix: string }[]
+  /**
+   * A rule that appears only *after* the insert has been attempted, modelling a
+   * concurrent create that landed between the lookup and the re-read. Without
+   * this the first lookup would find it and the race path would never run.
+   */
+  raceWinner?: AllowlistRuleRecord
+  /** When true the insert absorbs a conflict and returns nothing, as it does when it loses. */
+  createLosesRace?: boolean
 } = {}) => {
   const writes: string[] = []
   const created: AllowlistRuleInsert[] = []
@@ -70,14 +80,19 @@ const makeService = ({
         listRules: async () => rules,
         listActivities: async () => activities,
         findRuleById: async (id: string) => rules.find((rule) => rule.id === id),
-        findRuleByBase: async (origin: string, path_prefix: string) =>
-          rules.find((rule) => rule.origin === origin && rule.path_prefix === path_prefix),
+        findRuleByBase: async (origin: string, path_prefix: string) => {
+          const visible =
+            raceWinner !== undefined && writes.includes('createRule')
+              ? [...rules, raceWinner]
+              : rules
+          return visible.find((rule) => rule.origin === origin && rule.path_prefix === path_prefix)
+        },
       } as unknown as ActivityUrlAllowlistQueries,
       mutations: {
         createRule: async (data: AllowlistRuleInsert) => {
           writes.push('createRule')
           created.push(data)
-          return ruleRecord({ ...data, origin: data.origin })
+          return createLosesRace ? undefined : ruleRecord({ ...data, origin: data.origin })
         },
         updateRule: async (id: string, data: AllowlistRuleUpdate) => {
           writes.push('updateRule')
@@ -171,6 +186,57 @@ describe('AdminActivityUrlAllowlistService.createAllowlistRule', () => {
     assert.equal(result.rule.created_by, author)
     assert.equal(result.rule.is_enabled, false)
     assert.deepEqual(writes, [])
+  })
+
+  it('reports the winner when a concurrent create takes the base first', async () => {
+    // The lookup missed, so the insert went ahead -- and lost. Two
+    // administrators submitting the same base URL at the same moment must both
+    // be told about the resulting state; one of them must not get a
+    // unique-violation error for asking.
+    const winner = ruleRecord({ origin: 'https://example.edu', path_prefix: '/course/calculus' })
+    const { service, writes } = makeService({ createLosesRace: true, raceWinner: winner })
+
+    const result = await service.createAllowlistRule(auth, {
+      base_url: 'https://example.edu/course/calculus',
+    })
+
+    assert.equal(result.status, 'already_enabled')
+    assert.equal(result.rule.id, winner.id)
+    // One insert attempt, absorbed. There is no second write.
+    assert.deepEqual(writes, ['createRule'])
+  })
+
+  it('reports a disabled winner as disabled_match when the create loses the race', async () => {
+    const winner = ruleRecord({
+      origin: 'https://example.edu',
+      path_prefix: '/course/calculus',
+      description: 'approved for the pilot',
+      is_enabled: false,
+    })
+    const { service, writes } = makeService({ createLosesRace: true, raceWinner: winner })
+
+    const result = await service.createAllowlistRule(auth, {
+      base_url: 'https://example.edu/course/calculus',
+    })
+
+    assert.equal(result.status, 'disabled_match')
+    assert.equal(result.rule.description, 'approved for the pilot')
+    assert.deepEqual(writes, ['createRule'])
+  })
+
+  it('raises ERR_UNHANDLED when the create neither inserts nor resolves', async () => {
+    // Same shape and same reasoning as the registration service's step 5: the
+    // row was created and removed between two statements, which is not a state
+    // the administrator can act on.
+    const { service } = makeService({ createLosesRace: true })
+
+    await assert.rejects(
+      service.createAllowlistRule(auth, { base_url: 'https://example.edu/course/calculus' }),
+      (error: CoreError) => {
+        assert.equal(error.code, ErrorCodes.UNHANDLED)
+        return true
+      }
+    )
   })
 
   it('rejects a derived base url over 255 characters, though both columns fit', async () => {

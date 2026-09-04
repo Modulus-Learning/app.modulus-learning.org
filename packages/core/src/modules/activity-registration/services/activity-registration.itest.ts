@@ -30,6 +30,7 @@ const seedRule = async (origin = ORIGIN, path_prefix = '/'): Promise<string> => 
     origin,
     path_prefix,
   })
+  assert.ok(created)
   return created.id
 }
 
