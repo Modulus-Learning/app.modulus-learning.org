@@ -2,8 +2,7 @@ import { Container, Section } from '@infonomic/uikit/react'
 import type { Metadata } from 'next'
 
 import { getMeta } from '@/lib/meta'
-import { AllowlistRulesListView } from '@/modules/admin/activity-url-allowlist/components/list-view'
-import { listAllowlistRules } from '@/modules/admin/activity-url-allowlist/list'
+import { AllowlistRuleCreateForm } from '@/modules/admin/activity-url-allowlist/components/create-form'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
 import type { Locale } from '@/i18n/i18n-config'
 
@@ -14,12 +13,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { lng } = await params
   return await getMeta(lng, {
-    title: 'Activities',
-    path: '/admin/activities',
+    title: 'Add Allowlist Rule',
+    path: '/admin/activities/add',
   })
 }
 
-export default async function ActivitiesPage({
+export default async function AddAllowlistRulePage({
   params,
 }: {
   params: Promise<{
@@ -27,7 +26,6 @@ export default async function ActivitiesPage({
   }>
 }): Promise<React.JSX.Element> {
   const { lng } = await params
-  const data = await listAllowlistRules(lng)
 
   return (
     <>
@@ -37,11 +35,19 @@ export default async function ActivitiesPage({
             homeLabel="Admin"
             homePath="/admin"
             lng={lng}
-            breadcrumbs={[{ label: 'Activities', href: '/admin/activities' }]}
+            breadcrumbs={[
+              { label: 'Activities', href: '/admin/activities' },
+              { label: 'Add Rule', href: '/admin/activities/add' },
+            ]}
           />
         </Container>
       </Section>
-      <AllowlistRulesListView data={data} lng={lng} />
+
+      <Section>
+        <Container>
+          <AllowlistRuleCreateForm lng={lng} />
+        </Container>
+      </Section>
     </>
   )
 }
