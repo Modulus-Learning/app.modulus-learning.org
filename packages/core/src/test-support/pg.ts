@@ -178,6 +178,7 @@ export async function setupTestHarness(): Promise<TestHarness> {
       tx,
       queries: repos.activityQueries,
       mutations: repos.activityMutations,
+      activityRegistration: { service: activityRegistration },
     }),
     activityPageState: new ActivityPageStateService({
       logger,

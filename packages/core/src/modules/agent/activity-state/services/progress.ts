@@ -1,8 +1,9 @@
 import { BaseService, method } from '@/lib/base-service.js'
-import { ERR_UNHANDLED, ERR_VALIDATION } from '@/lib/errors.js'
 import type { AgentAuth } from '@/lib/auth.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
+import type { PolicySnapshot } from '@/modules/activity-registration/schemas.js'
+import type { ActivityRegistrationService } from '@/modules/activity-registration/services/activity-registration.js'
 import type {
   ActivityRecord,
   ActivityStateMutations,
@@ -11,6 +12,7 @@ import type {
 import type {
   GetProgressRequest,
   GetProgressResponse,
+  RejectedTarget,
   SetProgressRequest,
   SetProgressResponse,
 } from '../schemas.js'
@@ -19,17 +21,20 @@ export class ActivityProgressService extends BaseService {
   private tx: TXManager
   private queries: ActivityStateQueries
   private mutations: ActivityStateMutations
+  private registration: ActivityRegistrationService
 
   constructor(deps: {
     logger: CoreLogger
     tx: TXManager
     queries: ActivityStateQueries
     mutations: ActivityStateMutations
+    activityRegistration: { service: ActivityRegistrationService }
   }) {
     super(deps.logger, 'agent', 'activity-state')
     this.tx = deps.tx
     this.queries = deps.queries
     this.mutations = deps.mutations
+    this.registration = deps.activityRegistration.service
   }
 
   @method
@@ -105,14 +110,40 @@ export class ActivityProgressService extends BaseService {
       // the observed advance of the idempotent high-water mark, a retry (where
       // the mark doesn't move) contributes nothing -- so the umbrella update
       // inherits self's idempotency.  Nothing to do when self didn't advance.
+      //
+      // A refused target never fails this submission. The target list comes
+      // from the page's authored markup, so the same bad URL recurs in every
+      // submission that page makes: failing the request would not cost one
+      // update, it would permanently stop all progress from that page --
+      // including the learner's own valid self high-water mark, which has
+      // already committed above.
       const others: { url: string; progress: number }[] = []
+      const rejected: RejectedTarget[] = []
+
       if (self.increase > 0) {
+        // One snapshot for every target in the submission, read once outside
+        // the loop so the whole list is decided coherently.
+        const policy = await this.registration.loadPolicy()
+
         for (const { url, factor } of request.increments_for_other_pages) {
-          others.push(await this.applyContribution(auth, url, self.increase * factor))
+          const target = await this.resolveTarget(auth, url, policy)
+
+          if (!target.ok) {
+            rejected.push({ url, reason: target.reason })
+            continue
+          }
+
+          others.push(
+            await this.applyContribution(auth, target.activity, url, self.increase * factor)
+          )
         }
       }
 
-      return { progress: self.progress, others: others.length > 0 ? others : undefined }
+      return {
+        progress: self.progress,
+        others: others.length > 0 ? others : undefined,
+        rejected_targets: rejected.length > 0 ? rejected : undefined,
+      }
     })
   }
 
@@ -123,11 +154,10 @@ export class ActivityProgressService extends BaseService {
   // check: codes are orthogonal to umbrella reporting.
   private async applyContribution(
     auth: AgentAuth,
+    target: ActivityRecord,
     url: string,
     amount: number
   ): Promise<{ url: string; progress: number }> {
-    const target = await this.resolveTarget(auth, url)
-
     const result = await this.mutations.incrementProgress({
       activity_id: target.id,
       user_id: auth.user_id,
@@ -162,47 +192,46 @@ export class ActivityProgressService extends BaseService {
     return { url, progress: result.progress }
   }
 
-  // Resolve an umbrella target URL to an activity, lazy-creating it if unseen.
-  // Rejects two static authoring errors (the page is misconfigured and will fail
-  // identically every submission, so we fail the whole request rather than
-  // silently repair it): an over-long URL that can't be stored, and a
-  // self-referencing target.  Self always exists as an activity (its token was
-  // minted against it), so a URL that resolves to `auth.activity_id` is the page
-  // naming itself -- checked before create so we never create-then-roll-back.
-  private async resolveTarget(auth: AgentAuth, url: string): Promise<ActivityRecord> {
-    if (url.length > 255) {
-      throw ERR_VALIDATION({
-        message: 'umbrella target URL exceeds the 255-character limit',
-        logExtra: { source: auth.activity_id, url },
-      }).log(this.logger)
+  /**
+   * Resolves an umbrella target URL to an activity, admitting it through the
+   * shared registration service if Modulus has not seen it before.
+   *
+   * Returns a refusal rather than throwing. The two authoring errors that used
+   * to fail the whole request -- an over-long URL and a self-reference -- are
+   * now per-target outcomes, because a page misconfigured in either way would
+   * otherwise be unable to report *any* progress, ever.
+   *
+   * Self-reference is compared by activity id, not by URL string: `register`
+   * resolves the URL to a row first, and a self-referencing URL always resolves
+   * to an existing row, since self's own activity was created when its token
+   * was minted. Nothing is created on the way to that refusal.
+   */
+  private async resolveTarget(
+    auth: AgentAuth,
+    url: string,
+    policy: PolicySnapshot
+  ): Promise<
+    { ok: true; activity: ActivityRecord } | { ok: false; reason: RejectedTarget['reason'] }
+  > {
+    const outcome = await this.registration.register(url, policy)
+
+    if (!outcome.ok) {
+      // Nothing was created: no activity, and so no progress row, no event and
+      // no line-item update downstream.
+      return { ok: false, reason: outcome.reason }
     }
 
-    const existing = await this.queries.findActivityByUrl(url)
-    if (existing) {
-      if (existing.id === auth.activity_id) {
-        throw ERR_VALIDATION({
-          message: 'umbrella target is the reporting activity itself (self-reference)',
-          logExtra: { source: auth.activity_id, url },
-        }).log(this.logger)
-      }
-      return existing
+    if (outcome.activity.id === auth.activity_id) {
+      // The page names itself. This caller owns the check because it is the
+      // only one that knows which activity is reporting.
+      this.logger.warn(
+        { source: auth.activity_id },
+        'umbrella target is the reporting activity itself (self-reference)'
+      )
+      return { ok: false, reason: 'self_reference' }
     }
 
-    const created = await this.mutations.createActivity({ url })
-    if (created) {
-      return created
-    }
-
-    // Lost a concurrent create race (another user created the same target URL
-    // between our miss and our insert); re-resolve the winning row.
-    const raced = await this.queries.findActivityByUrl(url)
-    if (!raced) {
-      throw ERR_UNHANDLED({
-        message: 'umbrella target activity missing after create race',
-        logExtra: { source: auth.activity_id, url },
-      }).log(this.logger)
-    }
-    return raced
+    return { ok: true, activity: outcome.activity }
   }
 
   private logLineItemScopeMismatch(
