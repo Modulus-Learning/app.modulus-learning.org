@@ -32,6 +32,18 @@ export const ERR_ACTIVITY_URL_NOT_ALLOWED = createCoreErrorType(
  * otherwise check that what goes in matches what the host reads back out.
  * Every throw site and every reader agrees through this function rather than
  * by review.
+ *
+ * **Never call `.log()` on the result.** `details.rejected` carries whole URLs
+ * -- query string and fragment included -- and `CoreError.log()` spreads
+ * `details` directly into the log record, which would put a learner's
+ * `redirect_uri` or an instructor's authored query values in the log. The
+ * sanctioned denial diagnostic is `ActivityRegistrationService.register()`'s
+ * warn line, which carries the normalized origin and path and nothing else. A
+ * caller that wants to record an aggregate should log its own line with counts
+ * and reasons, never the URLs.
+ *
+ * The full URLs stay in `details` because the host needs them to tell the
+ * submitter which lines to fix; they are for the response, not the log.
  */
 export const activityUrlNotAllowed = (rejected: RejectedRegistration[]) =>
   ERR_ACTIVITY_URL_NOT_ALLOWED(

@@ -94,10 +94,21 @@ export class ActivityService extends BaseService {
     }
 
     if (rejected.length > 0) {
+      // Never `.log()` this error: `details.rejected` carries the full URLs,
+      // query strings and fragments included, and `CoreError.log()` spreads
+      // `details` straight into the record. `register()` has already recorded
+      // each denial with its origin and path alone, so all that is left to say
+      // here is how many there were -- and `url_too_long`, which `register()`
+      // returns before its own warn, would otherwise go unrecorded.
+      this.logger.warn(
+        { rejected_count: rejected.length, reasons: rejected.map(({ reason }) => reason) },
+        'activity url registration denied for a submitted set'
+      )
+
       // Raised inside the caller's transaction, which rolls back: neither the
       // code, its first member, the unseen activities, nor any association
       // survives a denial.
-      throw activityUrlNotAllowed(rejected).log(this.logger)
+      throw activityUrlNotAllowed(rejected)
     }
 
     return activities

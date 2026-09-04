@@ -59,11 +59,14 @@ const makeService = ({
   allowed = [],
   existingCode = activityCodeRecord(),
   isMember = true,
+  logLines,
 }: {
   known?: string[]
   allowed?: string[]
   existingCode?: ActivityCodeRecord
   isMember?: boolean
+  /** When given, warn-level output is captured into it as raw JSON lines. */
+  logLines?: string[]
 } = {}) => {
   const rows = new Map(known.map((url) => [url, activityRecord(url)]))
   const assigned: string[] = []
@@ -82,6 +85,11 @@ const makeService = ({
         return { ok: true, activity: existing }
       }
 
+      // The column bound, checked before the policy, as the real service does.
+      if (url.length > 255) {
+        return { ok: false, url, reason: 'url_too_long' }
+      }
+
       // The real parser, not an approximation of it, so the fake cannot
       // disagree with production about what `malformed_url` means.
       const candidate = parseAdmissibleUrl(url)
@@ -98,8 +106,22 @@ const makeService = ({
     },
   } as unknown as ActivityRegistrationService
 
+  const serviceLogger =
+    logLines === undefined
+      ? logger
+      : createCoreLogger({
+          pinoLogger: pino(
+            { level: 'warn' },
+            {
+              write: (chunk: string) => {
+                logLines.push(chunk)
+              },
+            }
+          ),
+        })
+
   const service = new ActivityService({
-    logger,
+    logger: serviceLogger,
     tx: { withTransaction: async <T>(fn: () => Promise<T>) => await fn() } as TXManager,
     queries: {
       findActivityCodeById: async () => existingCode,
@@ -309,5 +331,56 @@ describe('ActivityService.updateActivityCode', () => {
     await service.updateActivityCode(userAuth, { id: uuidv7(), urls })
 
     assert.equal(counts().policyLoads, 1)
+  })
+})
+
+describe('ActivityService denial diagnostics', () => {
+  it('logs the count and reasons of a rejected set, never the urls', async () => {
+    // The aggregate line must not undo, one layer up, the discipline
+    // `register()` keeps: `details.rejected` holds whole URLs so the host can
+    // tell the instructor which lines to fix, and `CoreError.log()` would
+    // spread those straight into the record.
+    const logLines: string[] = []
+    const { service } = makeService({
+      allowed: ['https://content.test'],
+      logLines,
+    })
+
+    await assert.rejects(
+      service.createActivityCode(userAuth, {
+        code: 'brave-otter',
+        urls: [
+          'https://elsewhere.test/page?token=secret-token-value#frag',
+          // Allowed by origin, so the length is what rejects it.
+          `https://content.test/${'a'.repeat(256)}`,
+        ],
+      })
+    )
+
+    assert.equal(logLines.length, 1)
+    const line = logLines[0] ?? ''
+
+    assert.match(line, /rejected_count/)
+    assert.match(line, /activity_url_not_allowed/)
+    // `url_too_long` is returned by `register()` before its own warn line,
+    // so this aggregate is the only place it is recorded.
+    assert.match(line, /url_too_long/)
+
+    assert.doesNotMatch(line, /secret-token-value/)
+    assert.doesNotMatch(line, /elsewhere\.test/)
+    assert.doesNotMatch(line, /frag/)
+  })
+
+  it('still carries every full url in details, for the host to report', async () => {
+    const denied = 'https://elsewhere.test/page?token=secret-token-value#frag'
+    const { service } = makeService({ allowed: ['https://content.test'] })
+
+    await assert.rejects(
+      service.createActivityCode(userAuth, { code: 'brave-otter', urls: [denied] }),
+      (error: CoreError) => {
+        assert.deepEqual(rejectedFrom(error), [{ url: denied, reason: 'activity_url_not_allowed' }])
+        return true
+      }
+    )
   })
 })
