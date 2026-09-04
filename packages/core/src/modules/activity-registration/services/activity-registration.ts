@@ -1,5 +1,6 @@
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_UNHANDLED } from '@/lib/errors.js'
+import { parseAdmissibleUrl } from '../url-policy.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type {
   ActivityRecord,
@@ -67,6 +68,13 @@ export class ActivityRegistrationService extends BaseService {
    * activity that already exists is returned without the policy being consulted
    * at all, so editing, disabling or deleting a rule can never withdraw access
    * to content Modulus has already accepted.
+   *
+   * The URL is looked up, length-checked and stored in the raw form the caller
+   * supplied. Canonicalizing activity URLs -- so that variant spellings of one
+   * page resolve to one activity here, in the OAuth activity lookup, and in
+   * cumulative targets alike -- is deliberately deferred to separate work, and
+   * has to be done in all three places at once. Until then, treat the storage
+   * form as unsettled rather than intended.
    */
   @method
   async register(url: string, policy: PolicySnapshot): Promise<RegistrationOutcome> {
@@ -90,7 +98,11 @@ export class ActivityRegistrationService extends BaseService {
       // nothing else. No learner identity, LMS context, token, auth code or
       // PKCE value may ever appear in this line -- it is the one place a
       // denial is recorded, and a denial is not a reason to log a learner.
-      const candidate = evaluation.reason === 'malformed_url' ? null : new URL(url)
+      // Parsed with the checker that returns null rather than throwing, so
+      // nothing can escape from inside the denial branch. Keying this off the
+      // reason instead would rest on an invariant `PolicyEvaluation` does not
+      // express, and breaking it would turn a returned denial into a throw.
+      const candidate = parseAdmissibleUrl(url)
       this.logger.warn(
         {
           reason: evaluation.reason,
