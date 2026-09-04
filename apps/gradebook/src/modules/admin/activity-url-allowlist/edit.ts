@@ -32,7 +32,13 @@ export async function editAllowlistRule(
 
   const validatedFields = allowlistRuleEditSchema.safeParse({
     id: formData.get('id'),
-    description: formData.get('description'),
+    // `FormData.get` returns null for an absent key, which the schema rejects.
+    // An absent description means "leave it alone", and core reads it that
+    // way: `updateAllowlistRule` only sets the column when the field is not
+    // undefined. This is what lets the re-enable path send `id` and
+    // `is_enabled` alone and genuinely not touch the description -- which is
+    // what the collision notice promises.
+    description: formData.get('description') ?? undefined,
     is_enabled: formData.get('is_enabled'),
   })
 

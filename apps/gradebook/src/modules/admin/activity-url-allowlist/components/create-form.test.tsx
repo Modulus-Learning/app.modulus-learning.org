@@ -12,6 +12,11 @@ vi.mock('@infonomic/uikit/react', () => ({
     createElement('button', { type: 'button' }, children),
 }))
 
+import {
+  allowlistRuleCreateSchema,
+  allowlistRuleDeleteSchema,
+  allowlistRuleEditSchema,
+} from '../@types'
 import { ALLOWLIST_COPY, CollisionNotice, DenyAllEmptyState, GrandfatheringNotice } from './copy'
 import type { AllowlistRule } from '../@types'
 
@@ -159,5 +164,81 @@ describe('copy constants', () => {
       'This change stops previously unseen URLs under this base URL from being registered. Existing activities will continue to work and may still be added to activity codes or used in new deep links.'
     )
     expect(ALLOWLIST_COPY.grandfatheredLabel).toBe('grandfathered')
+  })
+})
+
+/**
+ * The component-to-action boundary.
+ *
+ * Each case builds the `FormData` the component actually sends and parses it
+ * exactly as the server action does -- through `formData.get(...)`, because the
+ * null-vs-undefined distinction there is the whole point. A schema that only
+ * ever sees hand-written object literals cannot catch a form that omits a key.
+ */
+describe('form submissions parse against their action schemas', () => {
+  const RULE_ID = '019c2d8e-842a-7715-a323-a7e31427db2d'
+
+  test('the re-enable button leaves the description alone', () => {
+    // What ReEnableRuleButton sends: id and is_enabled, nothing else.
+    const formData = new FormData()
+    formData.append('id', RULE_ID)
+    formData.append('is_enabled', 'true')
+
+    const parsed = allowlistRuleEditSchema.safeParse({
+      id: formData.get('id'),
+      description: formData.get('description') ?? undefined,
+      is_enabled: formData.get('is_enabled'),
+    })
+
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.is_enabled).toBe(true)
+    // Undefined, never '' -- core leaves an undefined description untouched,
+    // which is what the collision notice promises about re-enabling.
+    expect(parsed.success && parsed.data.description).toBeUndefined()
+  })
+
+  test('the edit form sends all three fields', () => {
+    const formData = new FormData()
+    formData.append('id', RULE_ID)
+    formData.append('description', 'approved for the pilot')
+    formData.append('is_enabled', 'false')
+
+    const parsed = allowlistRuleEditSchema.safeParse({
+      id: formData.get('id'),
+      description: formData.get('description') ?? undefined,
+      is_enabled: formData.get('is_enabled'),
+    })
+
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.description).toBe('approved for the pilot')
+    expect(parsed.success && parsed.data.is_enabled).toBe(false)
+  })
+
+  test('the delete form sends the id and the base URL', () => {
+    const formData = new FormData()
+    formData.append('id', RULE_ID)
+    formData.append('base_url', 'https://ximera.example/course/calculus')
+
+    const parsed = allowlistRuleDeleteSchema.safeParse({
+      id: formData.get('id'),
+      base_url: formData.get('base_url'),
+    })
+
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.base_url).toBe('https://ximera.example/course/calculus')
+  })
+
+  test('the create form sends a base URL and a possibly empty description', () => {
+    const formData = new FormData()
+    formData.append('base_url', 'https://ximera.example/course/calculus')
+    formData.append('description', '')
+
+    const parsed = allowlistRuleCreateSchema.safeParse({
+      base_url: formData.get('base_url'),
+      description: formData.get('description'),
+    })
+
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.base_url).toBe('https://ximera.example/course/calculus')
   })
 })
