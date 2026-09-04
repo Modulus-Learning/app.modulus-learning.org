@@ -65,32 +65,34 @@ const makeService = ({
 
   const service = new AdminActivityUrlAllowlistService({
     logger,
-    queries: {
-      listRules: async () => rules,
-      listActivities: async () => activities,
-      findRuleById: async (id: string) => rules.find((rule) => rule.id === id),
-      findRuleByBase: async (origin: string, path_prefix: string) =>
-        rules.find((rule) => rule.origin === origin && rule.path_prefix === path_prefix),
-    } as unknown as ActivityUrlAllowlistQueries,
-    mutations: {
-      createRule: async (data: AllowlistRuleInsert) => {
-        writes.push('createRule')
-        created.push(data)
-        return ruleRecord({ ...data, origin: data.origin })
-      },
-      updateRule: async (id: string, data: AllowlistRuleUpdate) => {
-        writes.push('updateRule')
-        updated.push({ id, data })
-        const existing = rules.find((rule) => rule.id === id)
-        return existing === undefined ? undefined : { ...existing, ...data }
-      },
-      deleteRule: async (_id: string) => {
-        writes.push('deleteRule')
-      },
-    } as unknown as ActivityUrlAllowlistMutations,
-    policy: {
-      loadPolicy: async () => ({ rules: enabledPolicyRules ?? [] }),
-    } as unknown as AllowlistPolicyService,
+    activityRegistration: {
+      queries: {
+        listRules: async () => rules,
+        listActivities: async () => activities,
+        findRuleById: async (id: string) => rules.find((rule) => rule.id === id),
+        findRuleByBase: async (origin: string, path_prefix: string) =>
+          rules.find((rule) => rule.origin === origin && rule.path_prefix === path_prefix),
+      } as unknown as ActivityUrlAllowlistQueries,
+      mutations: {
+        createRule: async (data: AllowlistRuleInsert) => {
+          writes.push('createRule')
+          created.push(data)
+          return ruleRecord({ ...data, origin: data.origin })
+        },
+        updateRule: async (id: string, data: AllowlistRuleUpdate) => {
+          writes.push('updateRule')
+          updated.push({ id, data })
+          const existing = rules.find((rule) => rule.id === id)
+          return existing === undefined ? undefined : { ...existing, ...data }
+        },
+        deleteRule: async (_id: string) => {
+          writes.push('deleteRule')
+        },
+      } as unknown as ActivityUrlAllowlistMutations,
+      policy: {
+        loadPolicy: async () => ({ rules: enabledPolicyRules ?? [] }),
+      } as unknown as AllowlistPolicyService,
+    },
   })
 
   return { service, writes, created, updated }

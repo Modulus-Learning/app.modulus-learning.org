@@ -48,14 +48,16 @@ export class AdminActivityUrlAllowlistService extends BaseService {
 
   constructor(deps: {
     logger: CoreLogger
-    queries: ActivityUrlAllowlistQueries
-    mutations: ActivityUrlAllowlistMutations
-    policy: AllowlistPolicyService
+    activityRegistration: {
+      queries: ActivityUrlAllowlistQueries
+      mutations: ActivityUrlAllowlistMutations
+      policy: AllowlistPolicyService
+    }
   }) {
     super(deps.logger, 'admin', 'activity-url-allowlist')
-    this.queries = deps.queries
-    this.mutations = deps.mutations
-    this.policy = deps.policy
+    this.queries = deps.activityRegistration.queries
+    this.mutations = deps.activityRegistration.mutations
+    this.policy = deps.activityRegistration.policy
   }
 
   /**
