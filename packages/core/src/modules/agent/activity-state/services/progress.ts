@@ -147,11 +147,19 @@ export class ActivityProgressService extends BaseService {
     })
   }
 
-  // Apply a single cumulative contribution to a target activity addressed by
-  // URL.  The target is created on first contact if Modulus hasn't seen the URL
-  // (the author is authoritative about which pages a lesson reports into --
-  // Modulus stores no page->page relationship).  There is no activity-code scope
-  // check: codes are orthogonal to umbrella reporting.
+  // Apply a single cumulative contribution to a target activity the caller has
+  // already resolved and admitted -- `resolveTarget` owns both, so by the time
+  // a target reaches here it exists and the sitewide allowlist has accepted it.
+  //
+  // Records a contribution event and touches line items only when the target's
+  // high-water mark actually advanced.
+  //
+  // There is no activity-code scope check: codes are orthogonal to umbrella
+  // reporting. Modulus stores no page->page relationship either, so the target
+  // list in each submission is the only statement of where a page reports --
+  // which is why a refused target is reported back rather than silently
+  // dropped, and why the allowlist, not the page's author, decides whether an
+  // unseen target may be registered at all.
   private async applyContribution(
     auth: AgentAuth,
     target: ActivityRecord,
