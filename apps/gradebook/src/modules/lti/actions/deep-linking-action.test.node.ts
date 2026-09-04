@@ -68,6 +68,12 @@ describe('deepLinking error mapping', () => {
     expect(state.message).toBe('Invalid activity URL.')
     expect(state.errors?.activity_url?.[0]).toContain(ACTIVITY_URL)
     expect(state.errors?.activity_url?.[0]).toContain('Contact a Modulus administrator')
+
+    // Returned before the error log, which serializes `result.error` whole --
+    // `details.rejected` carries the full URL, query and fragment included.
+    // An instructor typo is not an error, and core has already recorded the
+    // denial at warn with the normalized origin and path alone.
+    expect(mocks.loggerError).not.toHaveBeenCalled()
   })
 
   test('discloses no rule and no url the instructor did not submit', async () => {
@@ -108,6 +114,8 @@ describe('deepLinking error mapping', () => {
     expect(state.errors?.activity_url?.[0]).toBe(
       'activity url must start with https://content.test/'
     )
+    // Everything below the new branch is unchanged, including this log.
+    expect(mocks.loggerError).toHaveBeenCalledTimes(1)
   })
 
   test('falls back to the generic failure for any other error', async () => {
@@ -121,6 +129,7 @@ describe('deepLinking error mapping', () => {
     expect(state.status).toBe('failed')
     expect(state.message).toBe('An error occurred.')
     expect(state.errors).toBeUndefined()
+    expect(mocks.loggerError).toHaveBeenCalledTimes(1)
   })
 
   test('falls back to the generic failure when details carry no usable urls', async () => {
@@ -132,6 +141,8 @@ describe('deepLinking error mapping', () => {
     const state = await deepLinking(IDLE, makeFormData())
 
     expect(state.message).toBe('An error occurred.')
+    // The branch declined, so the original path still records the failure.
+    expect(mocks.loggerError).toHaveBeenCalledTimes(1)
   })
 
   test('returns the signed content item on success', async () => {

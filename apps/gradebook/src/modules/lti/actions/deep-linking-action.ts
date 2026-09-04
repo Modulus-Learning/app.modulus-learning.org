@@ -38,18 +38,15 @@ export const deepLinking = async (
 
   const result = await core.app.lti.handleDeepLink(ctx, validationResult.data)
   if (!result.ok) {
-    log.error({
-      deep_link: {
-        status: 'failed',
-        message: 'error in deep linking',
-        method: 'deepLinking',
-        error: result.error,
-      },
-    })
-
     // The sitewide allowlist refused the URL. This is a *second* code mapped
     // onto `activity_url`; without it a policy denial renders as the generic
     // "An error occurred." and the instructor is told nothing actionable.
+    //
+    // It returns ahead of the error log below deliberately, as the
+    // activity-code actions do. `result.error.details` carries the whole URL,
+    // query and fragment included, and an instructor typo is not an error
+    // anyway -- core has already recorded the denial at warn, with the
+    // normalized origin and path alone.
     if (result.error.code === 'ERR_ACTIVITY_URL_NOT_ALLOWED') {
       const rejected = readRejectedUrls(result.error.details)
       if (rejected.length > 0) {
@@ -62,6 +59,15 @@ export const deepLinking = async (
         }
       }
     }
+
+    log.error({
+      deep_link: {
+        status: 'failed',
+        message: 'error in deep linking',
+        method: 'deepLinking',
+        error: result.error,
+      },
+    })
 
     const errorMessage =
       result.error != null && typeof result.error === 'object' && 'message' in result.error
