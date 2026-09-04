@@ -1,4 +1,5 @@
 import { createCoreErrorType } from '@/lib/errors.js'
+import type { RejectedRegistration } from './schemas.js'
 
 export const ErrorCodes = {
   ACTIVITY_URL_NOT_ALLOWED: 'ERR_ACTIVITY_URL_NOT_ALLOWED',
@@ -23,3 +24,23 @@ export const ERR_ACTIVITY_URL_NOT_ALLOWED = createCoreErrorType(
   ErrorCodes.ACTIVITY_URL_NOT_ALLOWED,
   'warn'
 )
+
+/**
+ * Raises the denial with a `details.rejected` of the right shape.
+ *
+ * `CoreErrorOptions.details` is `Record<string, unknown>`, so nothing would
+ * otherwise check that what goes in matches what the host reads back out.
+ * Every throw site and every reader agrees through this function rather than
+ * by review.
+ */
+export const activityUrlNotAllowed = (rejected: RejectedRegistration[]) =>
+  ERR_ACTIVITY_URL_NOT_ALLOWED(
+    {
+      message:
+        rejected.length === 1
+          ? 'This activity URL is not allowed by the sitewide allowlist.'
+          : `${rejected.length} activity URLs are not allowed by the sitewide allowlist.`,
+      details: { rejected },
+    },
+    activityUrlNotAllowed
+  )

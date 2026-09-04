@@ -27,6 +27,7 @@ import {
   ActivityMutations as AppActivityMutations,
   ActivityQueries as AppActivityQueries,
 } from '@/modules/app/activities/repository/index.js'
+import { ActivityService as AppActivityService } from '@/modules/app/activities/services/activity.js'
 import { LtiMutations, LtiQueries } from '@/modules/app/lti/repository/index.js'
 import {
   LtiScoreSubmissionMutations,
@@ -92,6 +93,7 @@ export type TestServices = {
   activityPageState: ActivityPageStateService
   allowlistPolicy: AllowlistPolicyService
   activityRegistration: ActivityRegistrationService
+  appActivity: AppActivityService
   makeSubmitter: (agsClient: LtiAgsClient) => LtiScoreSubmitter
 }
 
@@ -155,6 +157,13 @@ export async function setupTestHarness(): Promise<TestHarness> {
     queries: repos.allowlistQueries,
   })
 
+  const activityRegistration = new ActivityRegistrationService({
+    logger,
+    queries: repos.allowlistQueries,
+    mutations: repos.allowlistMutations,
+    policy: allowlistPolicy,
+  })
+
   const services: TestServices = {
     activityProgress: new ActivityProgressService({
       logger,
@@ -168,11 +177,13 @@ export async function setupTestHarness(): Promise<TestHarness> {
       mutations: repos.activityMutations,
     }),
     allowlistPolicy,
-    activityRegistration: new ActivityRegistrationService({
+    activityRegistration,
+    appActivity: new AppActivityService({
       logger,
-      queries: repos.allowlistQueries,
-      mutations: repos.allowlistMutations,
-      policy: allowlistPolicy,
+      tx,
+      queries: repos.appActivityQueries,
+      mutations: repos.appActivityMutations,
+      activityRegistration: { service: activityRegistration },
     }),
     makeSubmitter: (agsClient) =>
       new LtiScoreSubmitter({
