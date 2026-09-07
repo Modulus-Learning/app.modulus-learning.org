@@ -5,7 +5,6 @@ import {
   exists,
   getTableColumns,
   ilike,
-  inArray,
   max,
   min,
   notExists,
@@ -246,18 +245,6 @@ export class ActivityQueries extends BaseService {
     return await this.db
       .get()
       .query.scopes.findFirst({ where: eq(scopes.id, id) })
-      .catch(this.utils.wrapDbErrorNew())
-  }
-
-  @method
-  async findActivitiesByURL(urls: string[]): Promise<ActivityRecord[]> {
-    if (urls.length === 0) {
-      return []
-    }
-
-    return await this.db
-      .get()
-      .query.activities.findMany({ where: inArray(activities.url, urls) })
       .catch(this.utils.wrapDbErrorNew())
   }
 

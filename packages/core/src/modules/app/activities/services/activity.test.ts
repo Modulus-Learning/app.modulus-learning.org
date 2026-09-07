@@ -126,9 +126,6 @@ const makeService = ({
     queries: {
       findActivityCodeById: async () => existingCode,
       isMember: async () => isMember,
-      findActivitiesByURL: async () => {
-        throw new Error('findActivitiesByURL must not be used: registration returns the rows')
-      },
     } as unknown as ActivityQueries,
     mutations: {
       createActivityCode: async () => existingCode,
