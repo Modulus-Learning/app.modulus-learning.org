@@ -206,20 +206,30 @@ backed by `agent_auth_codes` and `agent_refresh_tokens`:
 operation via the host's `routes/agent/authorize`). The learner is already
 signed in; the agent supplies a `client_id`, a `redirect_uri` (the activity URL),
 a structurally valid `scope_id`, and a PKCE `code_challenge`. An omitted scope
-label becomes the default sentinel. Modulus **registers** the activity URL — the
-step described in [Admitting the activity URL](#admitting-the-activity-url) —
-verifies the scope exists, then stores a random, 5-minute code bound to the full
-context and the challenge:
+label becomes the default sentinel. Modulus resolves the scope first, then
+**registers** the activity URL — the step described in
+[Admitting the activity URL](#admitting-the-activity-url) — and only then stores
+a random, 5-minute code bound to the full context and the challenge:
 
 ```ts
 // packages/core/src/modules/agent/auth/services/agent-auth.ts (excerpt)
+const scope = await this.queries.findScopeById(scope_id)
+if (scope == null) throw ERR_VALIDATION({ message: 'Unknown scope', logExtra: { scope_id } })
+
 const policy = await this.registration.loadPolicy()
 const outcome = await this.registration.register(redirect_uri, policy)
 // a denial is thrown as ERR_ACTIVITY_URL_NOT_ALLOWED; otherwise outcome.activity exists
+
 const code = randomBytes(60).toString('base64url')
 await this.mutations.createAuthCode({ code, user_id: userAuth.id,
-  client_id, redirect_uri, scope_id, code_challenge, expires_at: now + 5min })
+  client_id, redirect_uri, scope_id: scope.id, code_challenge, expires_at: now + 5min })
 ```
+
+That order is deliberate at both steps. An unknown `scope_id` fails before
+anything is registered, so a request naming a scope that does not exist leaves no
+`activities` row behind. Registration then commits the activity before the auth
+code that names it, so no interleaving can produce a code the agent cannot
+exchange, and a failure between the two leaves at most a bare activity row.
 
 **2 — Claim the auth code** (`claimAuthCode`, via `routes/agent/token`). The
 agent presents the code plus the PKCE `code_verifier`. Modulus claims the code

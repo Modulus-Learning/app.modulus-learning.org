@@ -447,8 +447,19 @@ Be clear about what that diagnostic is worth: the agent's default logger is
 `createSilentLogger()`, deliberately, because it runs in learners' browsers on
 third-party pages. The message reaches an author who passed `createConsoleLogger()`
 or `createDebugLogger()` and nobody else. The server log is the reliable record of
-a refused target, and it carries the normalized origin and path only — never a
-learner identity, token, or the URL's query string.
+a refused target.
+
+What that server line contains is worth stating exactly. The denial warn adds the
+refusal `reason` plus the candidate's normalized `origin` and `path` — the URL is
+split so its query string and fragment are dropped. On top of that sits the
+context every core log line carries by design: `request_id`, `command`, and, in
+`agent` auth mode, `user_id`, all spread in from the `AsyncLocalStorage` context
+`prepareLogContext` establishes at the command boundary
+(`packages/core/src/lib/utils.ts`). That `user_id` is Modulus's own opaque
+identifier, which is exactly the identifier the
+[data-isolation boundary](./DATA-MODEL.md#the-data-isolation-boundary-in-schema-terms)
+is built around. What never reaches the line is a token, an auth code, a PKCE
+value, or the rejected URL's query string or fragment.
 
 ## Names as built
 

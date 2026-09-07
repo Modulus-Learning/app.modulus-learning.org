@@ -423,3 +423,16 @@ editing.
 
 ### Dev helper
 - `postgres/reset-demo-progress.sh` — resets demo progress (clears target + sources by URL prefix); use during verification.
+
+---
+
+## Where to go next
+
+- [DATA-MODEL](./DATA-MODEL.md) — the `activity_url_allowlist_rules` table that
+  shipped in place of the policy table proposed here.
+- [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) — how an activity URL is admitted during agent
+  authorization, and the two abilities that govern the rules.
+- [Cumulative Progress](./CUMMULATIVE-PROGRESS.md) — the umbrella-target path
+  this document relaxes, and what happens now when a target is refused.
+- [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md) — what admission does and
+  does not control, and why removing a rule is not revocation.

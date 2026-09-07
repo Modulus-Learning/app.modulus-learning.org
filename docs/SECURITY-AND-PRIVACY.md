@@ -149,6 +149,14 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
   policy are counted and called **grandfathered** — not blocked, disabled,
   invalid, or noncompliant. Withdrawing access to an activity already accepted is
   a separate capability that does not exist (see Open Questions).
+
+  One qualification, because it bounds the guarantee: the lookup that
+  grandfathers a URL is an **exact string match** on `activities.url`, which
+  stores the raw URL as it was submitted. Activity URLs are not canonicalized on
+  storage — the registration service's own docstring calls that storage form
+  unsettled and names canonicalization as deferred work — so grandfathering is
+  spelling-sensitive. The same page reached by an equivalent but differently
+  spelled URL misses the lookup and is evaluated as a new registration.
 - **Activity codes remain a second, independent constraint.** Institutions also
   control which activities a given course grouping covers through **activity
   codes**, and deep linking enforces a code's `url_prefix`. A code's `url_prefix`
@@ -215,11 +223,14 @@ flagged directly in the code:
   be pointed at any `https` origin. A syntactic gate **narrows** this — it rejects
   the credentialed-host disguise (`https://modulus.example@evil.example/`),
   `javascript:` and `data:` destinations, and a value `new URL()` cannot parse,
-  sending those to a Modulus error page that reflects nothing — but it does not
-  close it. This is an accepted risk, not an oversight: closing the bounce means
-  replacing it with a Modulus page and a return link, and session expiry is the
-  common path through this endpoint and today resolves with no learner action at
-  all. See
+  sending those to a Modulus error page instead. The rejected value does not reach
+  that page, and the safety there is structural rather than a matter of what the
+  page renders: Next serializes the request URL and its query string into the
+  served HTML's RSC flight payload, so the route redirects with a fixed slug and
+  never with the rejected URI. None of that closes the redirect. Leaving it open
+  is an accepted risk, not an oversight: closing the bounce means replacing it
+  with a Modulus page and a return link, and session expiry is the common path
+  through this endpoint and today resolves with no learner action at all. See
   [AUTHN-AUTHZ → The Authorization Endpoint's Branch Ordering](./AUTHN-AUTHZ.md#the-authorization-endpoints-branch-ordering).
 - **Formal threat model & pen-test.** A written threat model and an independent
   review are not yet part of the repository.
