@@ -59,13 +59,11 @@ const makeService = ({
   claimedCode,
   scopeExists = true,
   activityExists = true,
-  activityCreateReturnsRecord = true,
   allowedOrigins = ['https://content.test'],
 }: {
   claimedCode?: AuthCodeRecord
   scopeExists?: boolean
   activityExists?: boolean
-  activityCreateReturnsRecord?: boolean
   /** The enabled policy. Empty denies every unseen redirect URI. */
   allowedOrigins?: string[]
 } = {}) => {
@@ -76,8 +74,9 @@ const makeService = ({
 
   /**
    * Mirrors `ActivityRegistrationService`, including its order: a known
-   * activity resolves with no policy evaluation, the column bound is checked
-   * before the policy, and a conflicting insert still resolves to a row.
+   * activity resolves with no policy evaluation, and the column bound is
+   * checked before the policy.  The insert conflict is absorbed by the real
+   * service and never reaches this caller, so it is not modelled here.
    */
   const registration = {
     loadPolicy: async (): Promise<PolicySnapshot> => ({
@@ -101,9 +100,6 @@ const makeService = ({
       }
 
       createdActivityUrls.push(url)
-      // `activityCreateReturnsRecord: false` models a concurrent create
-      // winning: the insert conflicts and `register` re-reads the winner, so
-      // the outcome is still a success carrying a row.
       return { ok: true, activity: records.activity }
     },
   } as unknown as ActivityRegistrationService
@@ -118,10 +114,6 @@ const makeService = ({
       getUser: async () => records.user,
     } as unknown as AgentAuthQueries,
     mutations: {
-      createActivity: async (url: string) => {
-        createdActivityUrls.push(url)
-        return activityCreateReturnsRecord ? records.activity : undefined
-      },
       createAuthCode: async (data: AuthCodeInsert) => {
         inserted.push(data)
       },
@@ -201,22 +193,6 @@ describe('AgentAuthService scope binding', () => {
     })
 
     assert.deepEqual(createdActivityUrls, [activity.url])
-    assert.equal(inserted.length, 1)
-  })
-
-  it('issues an authorization code when another request wins the activity create race', async () => {
-    const { service, inserted, user, activity, scope } = makeService({
-      activityExists: false,
-      activityCreateReturnsRecord: false,
-    })
-
-    await service.createAuthCode(new UserAuth(user.id, []), {
-      client_id: activity.url,
-      redirect_uri: activity.url,
-      code_challenge: 'challenge',
-      scope_id: scope.id,
-    })
-
     assert.equal(inserted.length, 1)
   })
 

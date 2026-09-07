@@ -1,5 +1,4 @@
 import { and, eq, getTableColumns, sql } from 'drizzle-orm'
-import { v7 as uuidv7 } from 'uuid'
 
 import {
   activities,
@@ -200,27 +199,6 @@ export class ActivityStateMutations extends BaseService {
       .catch(this.utils.wrapDbErrorNew())
 
     this.utils.assertExists(result, { message: 'incremented progress record is null' })
-
-    return result
-  }
-
-  // Lazy-create a bare `activities` row for a URL Modulus hasn't seen before (an
-  // umbrella target named by an authored page).  No activity-code association --
-  // codes are orthogonal to umbrella reporting.  Safe against a concurrent create
-  // of the same URL by another user: on the unique-`url` conflict we do nothing
-  // and return undefined, leaving the caller to re-resolve the winning row.
-  @method
-  async createActivity(values: {
-    url: string
-    name?: string
-  }): Promise<ActivityRecord | undefined> {
-    const [result] = await this.db
-      .get()
-      .insert(activities)
-      .values({ id: uuidv7(), url: values.url, name: values.name ?? null })
-      .onConflictDoNothing({ target: activities.url })
-      .returning()
-      .catch(this.utils.wrapDbErrorNew())
 
     return result
   }

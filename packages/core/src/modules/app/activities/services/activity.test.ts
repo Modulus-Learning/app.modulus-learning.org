@@ -143,9 +143,6 @@ const makeService = ({
       ) => {
         assigned.push(...activities.map(({ url }) => url))
       },
-      ensureActivitiesExist: async () => {
-        throw new Error('ensureActivitiesExist must not be used: registration is the only writer')
-      },
     } as unknown as ActivityMutations,
     activityRegistration: { service: registration },
   })

@@ -131,9 +131,6 @@ const createService = ({
         },
       } as unknown as ActivityQueries,
       mutations: {
-        createActivity: async () => {
-          throw new Error('createActivity must not be used: registration is the only writer')
-        },
         assignActivitiesToActivityCode: async (_code: unknown, activities: ActivityRecord[]) => {
           assigned.push(...activities.map(({ url }) => url))
         },
