@@ -11,7 +11,23 @@ type PageStateResponse = { page_state: any }
 // increment from the observed change in self's high-water mark (Δself × factor).
 export type ProgressContribution = { url: string; factor: number }
 export type ProgressResult = { url: string; progress: number }
-type ProgressResponse = { progress: number; others?: ProgressResult[] }
+
+// A cumulative contribution target the server refused, with the reason it gave.
+// The first three reasons come from the server's sitewide activity URL
+// allowlist; `self_reference` means the target named the reporting activity
+// itself.  A refused target never fails the submission carrying it -- the
+// target list comes from the page's authored markup, so failing would stop that
+// page reporting anything at all, including the learner's own valid progress.
+export type RejectedTarget = {
+  url: string
+  reason: 'activity_url_not_allowed' | 'malformed_url' | 'url_too_long' | 'self_reference'
+}
+
+type ProgressResponse = {
+  progress: number
+  others?: ProgressResult[]
+  rejected_targets?: RejectedTarget[]
+}
 
 // The single unified agent activity-state endpoint.
 const AGENT_ACTIVITY_URL = '/routes/agent/activity'
