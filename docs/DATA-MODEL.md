@@ -1,7 +1,7 @@
 ---
 title: "Data Model"
 path: "data-model"
-summary: "The Modulus Postgres schema: identity and RBAC, the activity and unscoped cohort graph, academic scopes, scope-partitioned learner signals, LTI passback, agent OAuth storage, and the conventions shared across them."
+summary: "The Modulus Postgres schema: identity and RBAC, the activity and unscoped cohort graph, the sitewide activity URL allowlist, academic scopes, scope-partitioned learner signals, LTI passback, agent OAuth storage, and the conventions shared across them."
 ---
 
 # Data Model
@@ -135,6 +135,47 @@ This is the graph that connects learners to Ximera content.
   alongside learners. Nothing else creates an enrollment — not cumulative
   progress, not agent authorization, not activity auto-creation, and not
   navigation between authored pages.
+
+- **`activity_url_allowlist_rules`** — the **sitewide activity URL allowlist**:
+  which previously unseen activity URLs Modulus will admit as new `activities`
+  rows. This is site trust policy owned by administrators, not curriculum
+  structure, so it sits beside the graph above rather than in it, and instructors
+  and learners never see it.
+
+  | Column | Type | Meaning |
+  | --- | --- | --- |
+  | `id` | `uuid` PK | UUIDv7, as everywhere else |
+  | `origin` | `varchar(255)` not null | The normalized origin the rule admits, e.g. `https://ximera.example.edu` |
+  | `path_prefix` | `varchar(255)` not null, default `'/'` | The normalized subtree root within that origin. `/` admits the whole origin |
+  | `description` | `varchar(1024)` | An administrator's note explaining why the rule exists |
+  | `is_enabled` | `boolean` not null, default `true` | A disabled rule admits nothing and keeps its description and provenance |
+  | `created_by` / `updated_by` | `uuid` → `admin_users.id`, `on delete set null` | Provenance |
+  | `created_at` / `updated_at` | `timestamps` | As everywhere else |
+
+  A **`unique (origin, path_prefix)`** constraint
+  (`activity_url_allowlist_rules_origin_path_prefix_idx`) makes each normalized
+  base URL a single row. `path_prefix` defaults to `'/'` rather than being
+  nullable so that constraint needs no `NULLS NOT DISTINCT` reasoning. Because
+  normalization collapses `https://example.edu`, `https://example.edu/` and
+  `https://example.edu:443/?x=1` onto one pair, creating a rule reports a
+  collision with an existing row — including a disabled one, which can be
+  re-enabled with its description and provenance intact — rather than raising a
+  constraint error at the administrator.
+
+  **The table holds no learner or instructor data.** Provenance references
+  `admin_users`, never `users`, and `on delete set null` keeps a rule alive when
+  the administrator who wrote it is removed.
+
+  Two things this table does *not* do. It is **deny-by-default**: with no enabled
+  rows nothing new is admitted, which is why there is deliberately no seed for it.
+  And it governs **admission only** — no query joins `activities` to it, and no
+  operation re-checks a URL that already has an `activities` row, so editing,
+  disabling or deleting a rule never withdraws access to existing content. The
+  rules are read by `ActivityRegistrationService`
+  (`packages/core/src/modules/activity-registration/`), the only writer of
+  `activities` rows outside seeds and fixtures, and managed through the admin
+  commands gated by `activity-url-allowlist:list` / `:manage`
+  ([AUTHN-AUTHZ → The Activity URL Allowlist Abilities](./AUTHN-AUTHZ.md#the-activity-url-allowlist-abilities)).
 
 ### 4. Academic scopes
 
@@ -270,7 +311,7 @@ see [AGENT](./AGENT.md) and [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md).
 ## Migrations & Seeds
 
 - **Migrations** live in `packages/core/src/database/migrations/` as Drizzle
-  migrations (`0000_…`–`0015_…` plus the `meta/` journal), generated with
+  migrations (`0000_…`–`0016_…` plus the `meta/` journal), generated with
   `pnpm drizzle:generate` and applied with `pnpm drizzle:migrate`.
 - **Historical SQL** under `database/sql/` (`modulus-deploy-YYYY-MM-DD.sql` and a
   few targeted `migrate-*.sql` scripts) predates the Drizzle migration track and
@@ -282,6 +323,12 @@ see [AGENT](./AGENT.md) and [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md).
   activities (`09`–`10`) → enrollment (`11`) → progress (`12`). Activity/code
   associations are seeded alongside the activities at step `10`, because the
   reporting intersection is empty without them.
+- **Seeds deliberately create no `activity_url_allowlist_rules` rows.** A seeded
+  database therefore starts deny-all and refuses every runtime registration —
+  activity codes, deep links, agent authorization and cumulative targets alike —
+  until an administrator adds the first rule at `/admin/activities`. The seeded
+  Manager role holds both allowlist abilities, so it can. This is the intended
+  starting state, not a gap in the seeds.
 
 ## Open Questions
 

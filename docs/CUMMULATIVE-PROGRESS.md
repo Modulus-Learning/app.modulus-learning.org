@@ -1,7 +1,7 @@
 ---
 title: "Cumulative ('Umbrella') Progress Reporting"
 path: "cumulative-progress"
-summary: "Design for activities that report a calculation of their own progress against other activities. Defines the new URL-based, list-shaped agent ↔ gradebook contract and the single RPC activity-state endpoint. Phase 1 (the contract) is specified here; Phase 2 (transactional multi-activity storage and accumulation) is deferred. STATUS: IN PROGRESS."
+summary: "Design for activities that report a calculation of their own progress against other activities: the URL-based, list-shaped agent ↔ gradebook contract, the single RPC activity-state endpoint, the increment-from-high-water-mark accumulation model, and the per-target `rejected_targets` outcome that reports a refused cumulative target without failing the submission carrying it."
 ---
 
 # Cumulative ('Umbrella') Progress Reporting
@@ -18,16 +18,24 @@ summary: "Design for activities that report a calculation of their own progress 
 > targets to a "Phase 2b." That gate contradicted the core model — the author is
 > authoritative about which pages a lesson reports into, and Modulus stores no
 > page→page relationship — and, worse, was incompatible with creating targets on
-> demand (a freshly created row shares no code with anyone). **As built now:**
-> a `set-progress` submission **accepts every target URL unconditionally** and
-> **lazy-creates** the activity row when the URL is unseen; there is **no**
-> activity-code scope check on either the write or read path. Activity codes are
-> orthogonal to umbrella reporting. The only planned restriction on lazy-create is
-> a future **URL allow/deny policy** (a whitelist), applied identically here and
-> on the OAuth self path — see [Dynamic Activities](./DYNAMIC-ACTIVITIES.md),
-> whose "coded vs un-coded" authorization model is **superseded** by this change.
-> The passages below that describe the `sharesActivityCode` gate are retained for
-> history; read them through this update.
+> demand (a freshly created row shares no code with anyone). **As built in that
+> cut:** a `set-progress` submission accepted every target URL unconditionally and
+> **created** the activity row when the URL was unseen — the unconditional part is
+> itself superseded by the update below — and there is **no** activity-code scope
+> check on either the write or read path. Activity codes are
+> orthogonal to umbrella reporting. The passages below that describe the
+> `sharesActivityCode` gate are retained for history; read them through this
+> update.
+>
+> **Update — the sitewide activity URL allowlist has shipped.** Creating a
+> target on demand is no longer unconditional. A target URL Modulus has not seen
+> before is admitted only if an enabled allowlist rule matches it, and with no
+> enabled rules nothing new is admitted at all. A refused target is reported
+> per-target in `rejected_targets` and **never fails the submission carrying
+> it** — see [Refused targets](#refused-targets). The allowlist is an
+> **admission** policy: a target that already exists as an `activities` row is
+> resolved without the policy being consulted, so a rule change cannot stop an
+> existing cumulative page from being reported into.
 
 This is the design for **cumulative** (informally "umbrella") progress: letting an
 activity report a *calculation of its own progress* against one or more **other**
@@ -130,8 +138,16 @@ so the server can derive each increment from the idempotent self change — see
   increments_for_other_pages: [{ url: string, factor: number }],  // server applies Δself × factor
 }
 // output
-{ progress: number, others?: [{ url: string, progress: number }], new_token?: string }
+{
+  progress: number,                                   // self high-water mark
+  others?: [{ url: string, progress: number }],       // each applied target
+  rejected_targets?: [{ url: string, reason: RejectedTargetReason }],  // each refused target
+  new_token?: string,
+}
 ```
+
+`rejected_targets` is omitted rather than empty when every target was accepted,
+matching how `others` is already handled. See [Refused targets](#refused-targets).
 
 `getProgress` takes an **optional list of URLs** rather than `void`:
 
@@ -200,8 +216,9 @@ follow:
   Each registration cleans up on unmount and is accumulated separately:
   `Δself × 1/12` flows to the course index and `Δself × 1/30` to the bootcamp on
   the same submission. Factors are independent (no constraint that they sum to
-  anything). Each target is applied on its own (and lazy-created if unseen); there
-  is no per-target activity-code scope check (superseded — see the status note).
+  anything). Each target is applied on its own — created if unseen and admitted by
+  the allowlist, refused on its own if not; there is no per-target activity-code
+  scope check (superseded — see the status note).
 - `calculus-1/index.tsx` is a **live cumulative activity** (Phase 2). It shows its
   own accumulated total via `modulus.progress()` (the index is itself an activity,
   with no problems of its own) and a per-child roll-up fetched with
@@ -228,20 +245,25 @@ system compiles and round-trips end-to-end.
   amount added is computed **server-side** from the observed advance of the
   source's idempotent high-water mark (`Δself × factor`). No per-source breakdown
   table is needed.
-- **Unconditional resolution + lazy-create.** ~~A target URL is honored only if it
-  is already a recorded activity that shares an activity code with the source.~~
-  **(Superseded.)** Every target URL is honored; when the URL is unseen the
-  activity row is **lazy-created** in the same transaction. There is **no**
-  activity-code scope check — codes are orthogonal to umbrella reporting. (A
-  future URL allow/deny policy is the only planned gate; not built yet.)
-- **Reject authoring errors; clamp value glitches.** The learner's own (self)
-  progress is **always** persisted. *Structural* authoring errors — a duplicate
-  target URL, a self-referencing target, or a URL over the 255-char column limit
-  — **reject the whole request** (they fail identically every submission, so
-  failing loudly surfaces the misconfiguration). *Value* glitches — a
-  `progress`/`factor` outside `[0,1]` — are **clamped**, never rejected, so a
-  transient glitch can't discard real progress. `result.others` lists each
-  applied target.
+- **Allowlist-gated resolution + create-on-demand.** ~~A target URL is honored
+  only if it is already a recorded activity that shares an activity code with the
+  source.~~ **(Superseded.)** There is **no** activity-code scope check — codes
+  are orthogonal to umbrella reporting. A target that is already a recorded
+  activity is honored outright. A target Modulus has **not** seen before is
+  admitted only if the sitewide activity URL allowlist has an enabled rule
+  matching it, and its row is then created in the same transaction. Every target
+  in one submission is decided against a **single policy snapshot**, read once
+  before the loop.
+- **Refuse authoring errors per target; clamp value glitches.** The learner's own
+  (self) progress is **always** persisted. A *structural* authoring error in a
+  target — a self-reference, a URL over the 255-character column limit, a URL
+  that is not an admissible absolute URL, or one no allowlist rule admits —
+  refuses **that target alone** and is reported in `rejected_targets`; the
+  submission still succeeds. The one structural error that still rejects the
+  whole request is a **duplicate target URL**, which the input schema refuses
+  before any work is done. *Value* glitches — a `progress`/`factor` outside
+  `[0,1]` — are **clamped**, never rejected, so a transient glitch can't discard
+  real progress. `result.others` lists each applied target.
 - **No token change.** Resolution is purely by URL
   (`findActivityByUrl` / lazy-create), so the Phase 1 token (`activity_id` only)
   is left untouched. The `activity_activity_code` self-join that formerly scoped
@@ -297,14 +319,22 @@ reconstructability for a far smaller surface; see the trade-offs below.
 1. **Self** → high-water `progress` update (submitted value clamped to `[0,1]`;
    returns `Δself`, the real advance) + a self `progress_events` row
    (`source_activity_id = null`), as Phase 1.
-2. **Per target** — only when `Δself > 0` (a retry/no-op skips this entirely):
-   1. resolve the activity by URL, **lazy-creating** it if unseen (no code check);
+2. **Per target** — only when `Δself > 0` (a retry/no-op skips this entirely).
+   The allowlist snapshot is read once, before the loop, so every target in the
+   submission is decided against the same policy. Then, for each target:
+   1. resolve the activity by URL through the shared registration service, which
+      **creates the row** when the URL is unseen *and* an enabled allowlist rule
+      admits it (no code check). A refusal — including a self-reference, which
+      this caller detects because it is the only one that knows which activity is
+      reporting — collects a `{ url, reason }` entry and moves to the next
+      target, creating nothing;
    2. `progress[target] = LEAST(1.0, GREATEST(0, progress[target] + Δself × factor))`
       (upsert), which also reports whether the high-water mark actually advanced;
    3. **only if it advanced**, record a contribution `progress_events` row
       (`source_activity_id = source`) and nudge line items — a clamped no-op writes
       nothing.
-3. Return `{ progress: self, others: [{ url, progress }] }`.
+3. Return `{ progress: self, others: [{ url, progress }], rejected_targets: [{ url, reason }] }`,
+   with `others` and `rejected_targets` omitted when empty.
 
 ### Read path (`get-progress`)
 
@@ -340,21 +370,85 @@ events; the `source_activity_id` says which source triggered a target snapshot.
 A target URL may or may not yet be a recorded activity. The contract carries the
 raw URL precisely so this policy lives entirely in the backend. **As built:**
 
-- **Lazy-create, unconditional (this cut).** When a target URL isn't yet an
-  activity, its row is created inside the same transaction (a bare `activities`
-  row — `id` + `url`, **no** activity-code association) before the contribution is
-  applied. There is no scope check, so a child can report into a cumulative page
-  that has never been visited or created. `findActivityByUrl()` resolves an
-  existing row; a `uuidv7()` insert with `ON CONFLICT (url) DO NOTHING` handles the
-  create (and a cross-user create race — the loser re-resolves the winning row).
-- **Future — URL allow/deny policy.** The only planned restriction is a
-  site-wide URL allowlist, applied identically here and on the OAuth self path,
-  discussed in [Dynamic Activities](./DYNAMIC-ACTIVITIES.md). Note that doc's
-  earlier "coded vs un-coded" authorization model is **superseded**: with the
-  `sharesActivityCode` gate removed there is no coded/un-coded distinction to make
-  — every activity (created or pre-existing) is treated the same for umbrella
-  reporting, and activity-code membership matters only for the separate concern of
-  code-scoped analytics.
+- **Create on demand, gated by the sitewide allowlist.** When a target URL isn't
+  yet an activity, its row is created inside the same transaction (a bare
+  `activities` row — `id` + `url`, **no** activity-code association) before the
+  contribution is applied, **provided an enabled allowlist rule admits the URL**.
+  There is no scope check, so a child can report into a cumulative page that has
+  never been visited — but only within an admitted origin and path. Resolution,
+  the policy evaluation, the insert and the create race all live in one shared
+  service, `ActivityRegistrationService`
+  (`packages/core/src/modules/activity-registration/services/activity-registration.ts`),
+  which is the only writer of `activities` rows outside seeds and fixtures. It
+  resolves an existing row first, inserts with `ON CONFLICT (url) DO NOTHING`, and
+  re-reads the winning row when its insert returns nothing, so two concurrent
+  registrations of the same URL both succeed and land on one row.
+- **Resolve before evaluate, which is what grandfathering means here.** The
+  lookup happens *before* the policy is consulted, so a target that is already a
+  recorded activity is honored whether or not any current rule matches it.
+  Editing, disabling or deleting a rule therefore cannot stop an existing
+  cumulative page from being reported into. The allowlist governs admission, never
+  use.
+- **Deny-by-default.** With no enabled rules, no previously unseen target is
+  created. A freshly seeded database is in exactly that state — seeds create no
+  rules — so cumulative targets naming new URLs come back in `rejected_targets`
+  until an administrator adds the first rule at `/admin/activities`.
+
+### Refused Targets
+
+A refused target is reported, not thrown. `set-progress` answers `200` with the
+accepted work done and lists what it would not take:
+
+```ts
+// packages/core/src/modules/agent/activity-state/schemas.ts
+export const rejectedTargetReasonSchema = z.enum([
+  // No enabled allowlist rule matches this previously unseen URL.
+  'activity_url_not_allowed',
+  // Not parseable as an admissible absolute URL.
+  'malformed_url',
+  // Longer than the 255-character `activities.url` column.
+  'url_too_long',
+  // The target is the reporting activity itself.
+  'self_reference',
+])
+```
+
+The first three are the shared registration service's own denial vocabulary,
+named here rather than redefined, so the two cannot drift. Only `self_reference`
+is added by this path, because deciding it needs the reporting activity's id and
+is therefore this caller's check rather than the service's.
+
+**A rejected target never fails the submission carrying it.** The target list
+comes from the page's authored markup, so the same bad URL recurs in every
+submission that page makes: failing the request would not cost one update, it
+would permanently stop all progress from that page — including the learner's own
+valid self high-water mark, which has already committed. This is a repair, not
+only an addition: a self-referencing target and an over-long target URL each used
+to roll the whole transaction back, and both are now per-target outcomes.
+
+A refused target creates nothing: no activity row, no progress row, no
+`progress_events` entry, and no line-item update. Self progress and every allowed
+target in the same submission commit normally.
+
+On the client, `ModulusAgent` logs the list and does nothing else — it does not
+mark the progress unsubmitted, retry, or raise:
+
+```ts
+// apps/agent/src/core/agent.ts (excerpt)
+#logRejectedTargets(rejected: RejectedTarget[] | undefined): void {
+  if (rejected == null || rejected.length === 0) {
+    return
+  }
+  void this.#logger?.log('Cumulative contribution targets rejected by the server', rejected)
+}
+```
+
+Be clear about what that diagnostic is worth: the agent's default logger is
+`createSilentLogger()`, deliberately, because it runs in learners' browsers on
+third-party pages. The message reaches an author who passed `createConsoleLogger()`
+or `createDebugLogger()` and nobody else. The server log is the reliable record of
+a refused target, and it carries the normalized origin and path only — never a
+learner identity, token, or the URL's query string.
 
 ## Names as built
 
@@ -368,3 +462,18 @@ Settled during Phase 1 implementation (open to revision in review):
 - Agent API: `ModulusAgent.addContributionTarget(target): () => void`, with the
   `ContributionTarget = { url, factor }` type.
 - Demo hook: `useContributesTo({ url, factor })`.
+
+---
+
+## Where to go next
+
+- [AGENT](./AGENT.md) — the client library that expands one `setProgress` call
+  into this submission, and the server-side ingestion that receives it.
+- [DATA-MODEL](./DATA-MODEL.md) — the `progress`, `progress_events` and
+  `activity_url_allowlist_rules` tables this design writes and reads.
+- [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) — how the token-bound
+  `(user, activity, scope)` tuple that identifies the reporting activity is
+  issued, and how the same allowlist gates the OAuth path.
+- [Dynamic Activities](./DYNAMIC-ACTIVITIES.md) — why a created activity carries
+  no activity-code association, and what the earlier allowlist proposal got
+  wrong.

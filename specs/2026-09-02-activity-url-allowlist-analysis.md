@@ -1,7 +1,7 @@
 # Sitewide activity URL allowlist — analysis
 
 Date: 2026-09-02
-Status: approved; ready for implementation planning
+Status: implemented on feat/activity-url-allowlist
 Related:
 
 - `docs/ARCHITECTURE.md` — actor separation and the Tier 2 ↔ Tier 3 boundary

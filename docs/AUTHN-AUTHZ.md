@@ -1,7 +1,7 @@
 ---
 title: "Authentication & Authorization"
 path: "authn-authz"
-summary: "How Modulus answers 'who are you?' and 'what may you do?' for its three actor types — learners, administrators, and instrumentation agents — covering the RS256 JWT layer, per-actor sessions and token refresh, ability-based authorization, and the agent's OAuth 2.0 + PKCE flow."
+summary: "How Modulus answers 'who are you?' and 'what may you do?' for its three actor types — learners, administrators, and instrumentation agents — covering the RS256 JWT layer, per-actor sessions and token refresh, ability-based authorization, and the agent's OAuth 2.0 + PKCE flow, including the fixed branch ordering of the authorization endpoint, the syntactic `redirect_uri` gate, and the sitewide allowlist check that admits an activity URL."
 ---
 
 # Authentication & Authorization
@@ -171,6 +171,29 @@ abilities; what a command checks is an ability.
   in its token, not an ability set. Agent-mode services derive that tuple from
   the verified token; the scope label is not itself a capability.
 
+### The Activity URL Allowlist Abilities
+
+Two admin abilities govern the sitewide activity URL allowlist — the policy that
+decides which previously unseen activity URLs Modulus will register. Both are
+granted to the seeded Manager role in
+`packages/core/src/database/seeds/03_admin_permissions.ts`:
+
+| Ability | What it permits |
+| --- | --- |
+| `activity-url-allowlist:list` | Reading the rules, and previewing how many existing activities a prospective policy would not have admitted. |
+| `activity-url-allowlist:manage` | Creating, editing, enabling/disabling and deleting rules. |
+
+Two, rather than the per-verb set used elsewhere (`lti-platforms:list` /
+`:create`, `admin-roles:create|edit|delete`), for a reason specific to this
+resource: a submitted base URL that normalizes onto an existing *disabled* rule
+resolves into an edit, so an administrator holding `create` without `edit` would
+hit a dead end on an ordinary submission with no way to express what they asked
+for. Mutating the allowlist is one capability, so it is one ability.
+
+Instructors and learners never see these rules. The rules table references
+`admin_users` for provenance and holds no learner or instructor data — see
+[DATA-MODEL → Activities & Grouping](./DATA-MODEL.md#3-activities--grouping).
+
 ## The Agent Flow (OAuth 2.0 + PKCE)
 
 The agent is how instrumented Ximera content authenticates to Modulus
@@ -183,12 +206,16 @@ backed by `agent_auth_codes` and `agent_refresh_tokens`:
 operation via the host's `routes/agent/authorize`). The learner is already
 signed in; the agent supplies a `client_id`, a `redirect_uri` (the activity URL),
 a structurally valid `scope_id`, and a PKCE `code_challenge`. An omitted scope
-label becomes the default sentinel. Modulus verifies the activity and scope both
-exist, then stores a random, 5-minute code bound to the full context and the
-challenge:
+label becomes the default sentinel. Modulus **registers** the activity URL — the
+step described in [Admitting the activity URL](#admitting-the-activity-url) —
+verifies the scope exists, then stores a random, 5-minute code bound to the full
+context and the challenge:
 
 ```ts
-const activity = await this.queries.findActivityByUrl(redirect_uri) // must exist
+// packages/core/src/modules/agent/auth/services/agent-auth.ts (excerpt)
+const policy = await this.registration.loadPolicy()
+const outcome = await this.registration.register(redirect_uri, policy)
+// a denial is thrown as ERR_ACTIVITY_URL_NOT_ALLOWED; otherwise outcome.activity exists
 const code = randomBytes(60).toString('base64url')
 await this.mutations.createAuthCode({ code, user_id: userAuth.id,
   client_id, redirect_uri, scope_id, code_challenge, expires_at: now + 5min })
@@ -200,8 +227,10 @@ agent presents the code plus the PKCE `code_verifier`. Modulus claims the code
 matches, `sha256(code_verifier)` equals the stored `code_challenge`, the user
 exists and is enabled, the activity exists, and the stored scope still exists.
 The token request schema has no `scope_id`, so exchange cannot substitute a
-different label. Only then does Modulus issue an **activity-and-scope-bound
-access token**:
+different label. **`claimAuthCode` re-checks no allowlist policy** — it looks the
+activity up and requires it to exist, nothing more. Admission was decided at step
+1; re-deciding it here would let a rule change revoke a code already issued. Only
+then does Modulus issue an **activity-and-scope-bound access token**:
 
 ```ts
 const code_challenge = createHash('sha256').update(code_verifier).digest().toString('base64url')
@@ -230,6 +259,112 @@ if (result.status === 'valid') {
   return { requestId, agentAuth: new AgentAuth(user.id, activity_id, scope_id, renew_after) }
 }
 ```
+
+### Admitting the Activity URL
+
+Step 1 is also where Modulus decides whether it will record this activity at all.
+The `redirect_uri` *is* the activity URL, so authorization is one of four paths
+that can create an `activities` row, and all four go through one service —
+`ActivityRegistrationService`
+(`packages/core/src/modules/activity-registration/services/activity-registration.ts`).
+It resolves the URL, and only if Modulus has never seen it before does it measure
+the URL against the **sitewide activity URL allowlist**: a set of rules managed
+by administrators, each a normalized origin plus a path prefix, stored in
+`activity_url_allowlist_rules` and edited at `/admin/activities`.
+
+Three properties of that check matter here:
+
+- **Resolve before evaluate.** An activity that already exists is returned
+  without the policy being consulted. A rule change therefore cannot revoke an
+  activity Modulus has already accepted — learners keep launching it, and it may
+  still be added to activity codes and used in new deep links. The allowlist
+  governs *admission*, never use.
+- **Deny by default.** With no enabled rules, no previously unseen URL is
+  admitted, on any path. Seeds create no rules, so a freshly seeded database
+  refuses every new registration until an administrator adds the first rule.
+- **The denial is returned, then thrown at this caller.** The service returns a
+  refusal rather than raising one, because its four callers need different
+  outcomes from the same decision. `createAuthCode` converts it into
+  `ERR_ACTIVITY_URL_NOT_ALLOWED`, which the authorization route maps to an OAuth
+  error below.
+
+### The Authorization Endpoint's Branch Ordering
+
+`apps/gradebook/src/app/routes/agent/authorize/route.ts` runs four branches in a
+fixed order, and the order is load-bearing:
+
+| # | Condition | Outcome |
+| --- | --- | --- |
+| 1 | `redirect_uri` missing or not syntactically usable | Redirect to `/agent/error`. **Never** bounces. |
+| 2 | Request otherwise malformed (`response_type`, `client_id`, `state`, `code_challenge`, `code_challenge_method`, `scope_id`) | Bounce back with `state` and `error=invalid_request` |
+| 3 | No Modulus session | Bounce back with `state` and `error=access_denied` |
+| 4 | `createAuthCode()` | Bounce back with `state` and `code`, or with an error |
+
+Branches 2 and 3 consult no policy and call no core command, so there is at most
+one core call per request, on the authenticated branch only.
+
+**Branch 1 is a syntactic gate, and it is core's own.** The route imports
+`isUsableRedirectUri` from `@modulus-learning/core` rather than reimplementing the
+rule, because a second definition in the host would drift from core's exactly as
+the gradebook's form validator already had. It is deliberately stricter than
+`new URL()`:
+
+```ts
+// packages/core/src/modules/activity-registration/url-policy.ts (excerpt)
+const HTTP_LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1'])
+
+export const parseAdmissibleUrl = (value: string): URL | null => {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return null
+  }
+  // A credentialed URL displays one host and resolves to another.
+  if (url.username !== '' || url.password !== '') return null
+  if (url.protocol === 'https:') return url
+  if (url.protocol === 'http:' && HTTP_LOOPBACK_HOSTS.has(url.hostname)) return url
+  return null
+}
+
+export const isUsableRedirectUri = (value: string): boolean => parseAdmissibleUrl(value) !== null
+```
+
+`new URL()` and Zod's `z.url()` both accept `javascript:alert(1)` and
+`data:text/html,x`, so a validator built on either alone admits them. Rejecting
+userinfo removes the `https://modulus.example@evil.example/` disguise, in which
+the apparent host is only a username. HTTP is permitted for exactly `localhost`
+and `127.0.0.1`, for local development.
+
+**`/agent/error` is the one branch with no destination to return to.** It is a
+chromeless page outside the `[lng]` segment — the same shape as `/lti/error` —
+that answers `200`, picks its copy from a closed slug union
+(`invalid_request` | `server_error`, defaulting to `server_error` for an unknown
+or absent slug so an outage never blames the learner's course link), and
+**reflects no caller-supplied value into the DOM**. The value that brought a
+learner there is by definition one that failed validation. Not rendering it is
+necessary but not sufficient: Next serializes the request URL, query string
+included, into the RSC flight payload of the served HTML, so the route redirects
+with a fixed slug and never with the rejected URI. The diagnosis stays in the
+route's server log.
+
+**A denied registration returns `unauthorized_client`, never `access_denied`.**
+The agent maps `access_denied` to `status: 'expired'` and prompts the learner to
+re-launch from their LMS, which for an activity the allowlist does not admit
+sends them round the same loop indefinitely. `unauthorized_client` is in the
+agent's accepted `OAUTH_ERRORS` set, terminates at `status: 'failed'`, and is the
+correct RFC 6749 code here given that `client_id` is the activity URL.
+
+:::warning[This endpoint is still an open redirect]
+Branches 2, 3 and 4 all bounce the browser to a syntactically valid
+`redirect_uri` without consulting the allowlist, so the endpoint can still be
+pointed at any `https` origin an attacker chooses. Branch 1 **narrows** that: it
+removes the credentialed-host disguise, `javascript:` and `data:` destinations,
+and an unhandled `500` on a value `new URL()` could not parse. It does not close
+it. Closing the bounce means replacing it with a Modulus page and a return link,
+a learner-visible change needing stakeholder input, because session expiry is the
+common path here and today it resolves with no learner action at all.
+:::
 
 Server-identity (registry) validation — the agent confirming it is talking to a
 genuine Modulus install before starting this flow — happens on the *agent* side;
@@ -276,6 +411,18 @@ Flagged in the code, worth knowing before relying on these paths:
   the agent matures.
 - **`permissions.ability` nullability.** `getUserAbilities` filters nulls with a
   `TODO` questioning why the column is nullable at all.
+- **The agent authorization endpoint remains an open redirect.** The syntactic
+  gate on `redirect_uri` narrows it; it does not close it. Closing it is
+  deliberately deferred — see the warning in
+  [The Authorization Endpoint's Branch Ordering](#the-authorization-endpoints-branch-ordering).
+- **`client_id` has no registry.** The route requires `client_id === redirect_uri`
+  and carries a `TODO` asking whether it should instead be the redirect URI's
+  domain, or come from a registry.
+- **Withdrawing an admitted activity is not implemented.** The allowlist admits;
+  nothing revokes. An emergency block — stopping launches, tokens, or passback
+  for an activity already accepted — is a separate deferred feature with its own
+  decision surface, recorded in
+  [SECURITY-AND-PRIVACY → Open Questions](./SECURITY-AND-PRIVACY.md#open-questions--needs-institutional-policy).
 
 ---
 

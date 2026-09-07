@@ -1,39 +1,64 @@
 ---
 title: "Dynamic Activities (Lazy Create)"
 path: "dynamic-activities"
-summary: "How new activities are materialized on demand ('lazy-created') from agent traffic, and the site-wide admin allowlist (domain / domain+path rules) that governs it. Relaxes the strict 'unknown activity' rejection on both the OAuth self path and the cumulative umbrella-target path. Records the decision to lazy-create activities WITHOUT an activity-code association, the analytics consequence for instructors, and the alternatives considered."
+summary: "Why Modulus materializes an activity row on demand ('lazy create') from agent traffic, and why a lazy-created activity carries no activity-code association — the decision, its analytics consequence for instructors, and the alternatives considered. The site-wide allowlist proposed here was superseded by the shipped sitewide activity URL allowlist; this document records the earlier proposal as history and points at the documents that describe what was built."
 ---
 
 # Dynamic Activities (Lazy Create)
 
-> **Status: PARTIALLY SUPERSEDED.** Both agent entry points now **accept every
-> activity URL unconditionally and lazy-create** a bare `activities` row on
-> miss (`id` + `url`, no code association). This applies to an activity's own URL
-> during authorization and to cumulative targets during `set-progress`.
-> Critically, the
-> **activity-code scope gate (`sharesActivityCode`) has been removed entirely**,
-> which means the **"coded vs un-coded" authorization model this document builds
-> its central decision around no longer exists** — there is nothing to bifurcate,
-> because *no* activity (created or pre-existing) is scope-checked for umbrella
-> reporting. Activity codes matter only for the separate concern of code-scoped
-> analytics. What **survives** as future work is the **site-wide URL allow/deny
-> policy** (the allowlist below): the *only* planned restriction on lazy-create,
-> applied identically to the OAuth self path and the umbrella-target path. It is
-> **not yet implemented** — the current cut is allow-all. Read the "authorization
-> model (coded vs un-coded)" and Option A/B/C discussion below as **historical
-> rationale**; the allowlist/policy-table and admin-surface sections remain the
-> plan of record for the future gate.
+> **Status: PARTIALLY SUPERSEDED.** Two things in this document have been
+> overtaken by shipped work, and one has not.
+>
+> **Still current:** the reason lazy creation exists, and the decision that a
+> lazy-created activity gets **no activity-code association** (Option C below).
+> Both agent entry points still materialize an `activities` row on first
+> contact — an activity's own URL during authorization, and a cumulative target
+> during `set-progress` — and neither writes an `activity_activity_code` link.
+> The **activity-code scope gate (`sharesActivityCode`) has been removed
+> entirely**, so the "coded vs un-coded" authorization model this document once
+> built its central decision around no longer exists: no activity is
+> scope-checked for umbrella reporting, and activity codes matter only for
+> code-scoped analytics.
+>
+> **Superseded:** the site-wide policy sketched here — the
+> `activity_create_policy` table, the `isLazyCreateAllowed` matcher, the
+> allow-all default, the single `site-config:manage` ability, and the
+> implementation map and verification plan built on them. A sitewide activity
+> URL allowlist has since shipped, and it differs from this proposal on every
+> one of those points. The sections below are retained as history; read them
+> only for the reasoning, never as a description of the system. What was built
+> is described in
+> [DATA-MODEL → Activities & Grouping](./DATA-MODEL.md#3-activities--grouping)
+> (the `activity_url_allowlist_rules` table),
+> [AUTHN-AUTHZ → The Agent Flow](./AUTHN-AUTHZ.md#the-agent-flow-oauth-20--pkce)
+> (admission on the OAuth path),
+> [Cumulative Progress](./CUMMULATIVE-PROGRESS.md) (admission on the umbrella-target
+> path), and
+> [SECURITY-AND-PRIVACY → Agent / activity trust](./SECURITY-AND-PRIVACY.md#agent--activity-trust-tier-2--tier-3)
+> (what admission does and does not control).
 
 This document describes **lazy activity creation** — letting Modulus materialize
 an `activities` row on demand when an agent reports against a URL that is not yet
-recorded — and the **site-wide admin policy** that governs when that is allowed.
+recorded — and the **site-wide admin policy** originally proposed to govern when
+that is allowed. Lazy creation is current; the policy proposal is not.
 
 It builds directly on [The Modulus Agent](./AGENT.md) (OAuth + activity-state
 ingestion), [Cumulative Progress](./CUMMULATIVE-PROGRESS.md) (the umbrella-target
 path this relaxes — its deferred "Phase 2b"), and the
 [Data Model](./DATA-MODEL.md) (`activities`, `activity_codes`,
 `activity_activity_code`). It also touches [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) for the
-new admin ability.
+admin abilities.
+
+## How the Shipped Allowlist Differs
+
+Four differences, because each one reverses something this document asserts.
+
+| This proposal | What shipped |
+| --- | --- |
+| Zero rules means **allow-all** | Zero enabled rules means **deny-all**. A seeded database admits nothing until an administrator adds the first rule. |
+| Match on `host` plus `pathname.startsWith(path_prefix)` | Match on an exact normalized **origin** plus a **path-segment-bounded** subtree, so `https://example.edu` cannot admit `https://example.edu.attacker.example` and `/course/calculus` cannot admit `/course/calculus-2`. HTTPS is required, except for exactly `localhost` and `127.0.0.1` over HTTP. |
+| `created_by` references `users` | `created_by` and `updated_by` reference `admin_users`, so the rules table holds no learner or instructor data. |
+| Governs agent lazy creation only | Governs **every** path that can add an `activities` row: instructor activity-code creation and editing, LTI deep linking, agent authorization, and cumulative targets. |
 
 ## Why This Exists
 
@@ -52,13 +77,23 @@ enforcement sites and blocked real authoring workflows:
    formerly skipped an unknown target. It now creates the bare row and applies
    the contribution without an activity-code scope check.
 
-New activities now come into being on first contact from authored content. The
-current pre-release behaviour is intentionally unconditional. A later phase may
-let an institution constrain which URLs may auto-create activity rows through a
-site-wide allow-list, deny-list, or both; the policy design below records the
-earlier allow-list proposal and is not implemented.
+New activities come into being on first contact from authored content. That much
+still holds. What has changed since this was written is the gate: creation is no
+longer unconditional. Every path that can add an `activities` row — including
+these two — now goes through one registration service that consults the sitewide
+allowlist first, and a URL no enabled rule admits creates nothing. The two agent
+paths differ only in how the refusal surfaces: authorization returns the learner
+to their page with `error=unauthorized_client`, while a refused cumulative target
+is reported in the response's `rejected_targets` and does not fail the submission.
 
 ## The policy model
+
+> **Superseded.** The table, the matcher and the default below are the earlier
+> proposal, not the shipped design. What shipped is
+> `activity_url_allowlist_rules` — a normalized `origin` plus `path_prefix`,
+> `is_enabled`, `admin_users` provenance, and a `unique (origin, path_prefix)`
+> constraint — evaluated deny-by-default with segment-bounded path matching. See
+> [DATA-MODEL → Activities & Grouping](./DATA-MODEL.md#3-activities--grouping).
 
 A single table of allowlist rules drives the decision.
 
@@ -86,6 +121,11 @@ Activity URLs are stored **absolute** (e.g.
   (`!rule.path_prefix` **or** `pathname.startsWith(rule.path_prefix)`).
 
 ### Default = allow-all
+
+> **Superseded — this is the point the shipped design reverses.** Zero enabled
+> rules now deny every new registration, on every path. A newly seeded database
+> starts in that state deliberately: seeds create no rules. The reasoning below
+> is retained because it names the cost that was accepted in exchange.
 
 With **zero rules configured, every URL may be lazy-created.** Adding the first
 rule flips the policy into a strict allowlist (allow only what matches). This was
@@ -208,6 +248,16 @@ independently — a bad umbrella target never costs a learner their own progress
 
 ## Admin surface and permission
 
+> **Superseded.** One coarse `site-config:manage` ability was not what shipped.
+> The allowlist is gated by two abilities — `activity-url-allowlist:list` and
+> `activity-url-allowlist:manage` — both granted to the seeded Manager role, and
+> `/admin/activities` is now the built rules surface rather than a placeholder.
+> Why two rather than five per-verb abilities is explained in
+> `packages/core/src/modules/admin/activity-url-allowlist/schemas.ts`: a base URL
+> that normalizes onto an existing disabled rule resolves into an *edit*, so an
+> administrator holding `create` without `edit` would hit a dead end on an
+> ordinary submission.
+
 - **Permission.** A single coarse ability **`site-config:manage`** gates all
   policy CRUD, granted to the Manager admin role in
   `seeds/03_admin_permissions.ts`. It is declared on each policy command
@@ -221,6 +271,14 @@ independently — a bad umbrella target never costs a learner their own progress
   nav entry already exists (`ui/components/admin/menu-drawer.tsx`).
 
 ## Implementation map
+
+> **Superseded.** This map describes a single `modules/admin/activity-policy/`
+> module carrying both the admin CRUD and an internal `isAllowed(url)`. What
+> shipped splits those: `packages/core/src/modules/activity-registration/` holds
+> the pure URL parser and matcher, the policy service, the rule repository and
+> the one registration service every admitting path calls, while
+> `packages/core/src/modules/admin/activity-url-allowlist/` holds the
+> administrator-facing commands. Read the file paths below as history.
 
 Mirrors the existing `lti-platforms` admin module end to end.
 
@@ -253,6 +311,12 @@ Mirrors the existing `lti-platforms` admin module end to end.
 
 ## Verification
 
+> **Superseded.** This plan verifies allow-all behaviour that no longer exists —
+> step 3 in particular asserts that a new URL is admitted when no rules are
+> configured, which is now the case that is denied. The shipped feature's own
+> tests live beside the code in `packages/core/src/modules/activity-registration/`
+> and `packages/core/src/modules/admin/activity-url-allowlist/`.
+
 1. **Unit** — `isLazyCreateAllowed`: zero-rules allow-all; host match; host+path
    match/mismatch; disabled rules ignored; non-matching host denied.
 2. **Migration/seed** — run migration + reseed; confirm table exists and
@@ -276,12 +340,28 @@ Mirrors the existing `lti-platforms` admin module end to end.
 
 - An admin/instructor affordance to list **un-coded** activities and link them to
   an `activity_code` in one click — turning the "manual follow-up" cost of
-  Option C into a guided action.
-- Optional **deny-all** default toggle for institutions that want lazy creation
-  off until explicitly enabled.
+  Option C into a guided action. **Still open.**
+- ~~Optional **deny-all** default toggle for institutions that want lazy creation
+  off until explicitly enabled.~~ **Shipped, and not as a toggle:** deny-all is
+  the only behaviour when no enabled rule matches.
 - Possible `host` **wildcard / subdomain** matching if rule volume grows.
+  **Still open**, and deliberately so: the shipped matcher compares origins for
+  equality, which is what stops `https://example.edu` admitting
+  `https://example.edu.attacker.example`. Any wildcard scheme has to answer that
+  first.
+- **Emergency blocking** — withdrawing access to an activity Modulus has already
+  accepted — is a separate, deferred feature. The allowlist governs admission
+  only; see
+  [SECURITY-AND-PRIVACY → Open Questions](./SECURITY-AND-PRIVACY.md#open-questions--needs-institutional-policy).
 
 ## Appendix — code reference map (session hand-off)
+
+> **Historical.** These touchpoints were gathered before the allowlist was built
+> and several no longer exist — there is no `activity_create_policy` table, no
+> `modules/admin/activity-policy/`, and no `hasActivityCode` query. The
+> composition root the last item asks the next session to find is
+> `packages/core/src/core.ts`, which now composes the registration module ahead
+> of `app`, `admin` and `agent` so its context flows down to all three.
 
 Concrete touchpoints gathered during exploration, so the next session can resume
 without re-deriving them. Line numbers are as-of this writing — confirm before
