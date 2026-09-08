@@ -13,9 +13,9 @@ export interface AllowlistRule {
   updated_at: string
 }
 
-export interface AllowlistRulesResponse {
-  rules: AllowlistRule[]
-}
+export type AllowlistRulesResponse =
+  | { status: 'success'; rules: AllowlistRule[] }
+  | { status: 'failed'; message: string }
 
 export interface AllowlistRuleResponse {
   rule: AllowlistRule | null
@@ -108,9 +108,6 @@ export const allowlistRuleDeleteSchema = z.object({
 })
 
 export const allowlistImpactSchema = z.object({
-  /**
-   * Omitted entirely to preview the policy in force. Present, possibly empty,
-   * to preview a prospective one.
-   */
-  base_urls: z.array(z.string()).optional(),
+  /** Disabling and deleting both remove this rule from the enabled policy. */
+  excluded_rule_id: z.uuid(),
 })

@@ -41,7 +41,7 @@ export function DeleteRuleForm({ rule }: { rule: AllowlistRule }): React.JSX.Ele
       {confirming ? (
         <>
           <GrandfatheringNotice />
-          <ImpactPreview />
+          <ImpactPreview ruleId={rule.id} />
           <div className="flex gap-2">
             <Button type="button" intent="noeffect" onClick={() => setConfirming(false)}>
               Cancel

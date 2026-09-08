@@ -48,7 +48,7 @@ export function GrandfatheringNotice({ impact }: { impact?: AllowlistImpact }): 
         <p className="!my-0 text-sm">
           {impact.grandfathered_count} of {impact.total_activities} existing{' '}
           {impact.total_activities === 1 ? 'activity is' : 'activities are'}{' '}
-          {ALLOWLIST_COPY.grandfatheredLabel} under the current policy. They keep working.
+          {ALLOWLIST_COPY.grandfatheredLabel} under the proposed policy. They keep working.
         </p>
       )}
     </div>

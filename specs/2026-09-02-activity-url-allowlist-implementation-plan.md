@@ -1,7 +1,7 @@
 # Sitewide activity URL allowlist — implementation plan
 
 Date: 2026-09-02
-Status: proposed; not started
+Status: implemented on `feat/activity-url-allowlist`; final-review fixes validated
 Related:
 
 - `specs/2026-09-02-activity-url-allowlist-analysis.md` — the approved analysis and the source of every contract below
@@ -33,6 +33,38 @@ agent release, and finally documentation. It authorises nothing else. In
 particular it does not authorise blocking, revoking, deleting, or re-validating
 any existing activity, and it does not authorise closing the authorization
 route's remaining open redirect.
+
+## Final Review — 2026-09-08
+
+The final review found three implementation gaps in the agreed behaviour.
+The analysis and the original task sequence below remain unchanged; activity URL
+canonicalization remains separate, planned work.
+
+- [x] Preview the policy after disabling or deleting the selected rule, including
+  an explicitly empty prospective policy when removing the last enabled rule.
+  The host preview action reads the current rules and excludes the selected ID
+  and disabled rules. `actions.test.node.ts` and `components/review-flows.test.tsx`
+  in `apps/gradebook/src/modules/admin/activity-url-allowlist/` cover both
+  confirmation flows, overlapping rules, empty policies and read failures.
+- [x] Keep self-only progress writes and contributions to known activities free
+  of policy reads. Load one snapshot lazily when a submission first needs to
+  evaluate an unseen target, and reuse it for subsequent targets. The shared
+  registration service accepts a lazy loader; the progress caller memoizes it
+  per submission. Registration unit tests and `progress.itest.ts` verify no
+  reads for known targets, one read for unseen targets, and a fresh policy on
+  the next submission.
+- [x] Distinguish rule-list failures from a successfully loaded empty list.
+  Permission and database failures must display an error without claiming the
+  site has no rules or denies all new registrations. The host list response now
+  distinguishes success and failure; the action and rendering tests above cover
+  permission errors, database errors and a successfully loaded empty list.
+
+Validation on 2026-09-08: `pnpm run ci` passed — read-only lint, typechecking,
+487 unit tests passed with one existing skip, and 117 database integration tests
+passed. Biome formatted the changed code; `git diff --check` passed. The two
+affected passages in `docs/CUMMULATIVE-PROGRESS.md` and
+`docs/SECURITY-AND-PRIVACY.md` now describe lazy policy loading and the prospective
+preview respectively.
 
 ## Outcome
 

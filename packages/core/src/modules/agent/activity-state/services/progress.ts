@@ -121,12 +121,13 @@ export class ActivityProgressService extends BaseService {
       const rejected: RejectedTarget[] = []
 
       if (self.increase > 0) {
-        // One snapshot for every target in the submission, read once outside
-        // the loop so the whole list is decided coherently.
-        const policy = await this.registration.loadPolicy()
+        // Read only when registration encounters an unseen target. Keep the
+        // promise local to this submission so every target shares one snapshot.
+        let policy: Promise<PolicySnapshot> | undefined
+        const loadPolicy = () => (policy ??= this.registration.loadPolicy())
 
         for (const { url, factor } of request.increments_for_other_pages) {
-          const target = await this.resolveTarget(auth, url, policy)
+          const target = await this.resolveTarget(auth, url, loadPolicy)
 
           if (!target.ok) {
             rejected.push({ url, reason: target.reason })
@@ -217,7 +218,7 @@ export class ActivityProgressService extends BaseService {
   private async resolveTarget(
     auth: AgentAuth,
     url: string,
-    policy: PolicySnapshot
+    policy: () => Promise<PolicySnapshot>
   ): Promise<
     { ok: true; activity: ActivityRecord } | { ok: false; reason: RejectedTarget['reason'] }
   > {

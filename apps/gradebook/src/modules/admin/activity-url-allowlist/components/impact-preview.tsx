@@ -9,21 +9,23 @@ import { GrandfatheringNotice } from './copy'
 import type { AllowlistImpactState } from '../@types'
 
 /**
- * Counts, on request, how many existing activities the policy in force does
- * not admit.
+ * Counts, on request, how many existing activities would be grandfathered
+ * after the selected rule is disabled or deleted.
  *
  * Behind an explicit action deliberately. The count reads every activity row
  * and matches each one in memory, so it must not become a cost paid on every
  * view of the rules list -- an administrator asks for it when the answer is
  * about to matter.
  */
-export function ImpactPreview(): React.JSX.Element {
+export function ImpactPreview({ ruleId }: { ruleId: string }): React.JSX.Element {
   const initialState: AllowlistImpactState = { status: 'idle' }
   const [state, formAction, isPending] = useActionState(previewAllowlistImpact, initialState)
 
   const handleOnClick = (): void => {
+    const formData = new FormData()
+    formData.set('excluded_rule_id', ruleId)
     startTransition(() => {
-      formAction(new FormData())
+      formAction(formData)
     })
   }
 
@@ -37,7 +39,7 @@ export function ImpactPreview(): React.JSX.Element {
         {isPending ? (
           <LoaderEllipsis size={42} />
         ) : (
-          'Count the activities this policy leaves grandfathered'
+          'Count the activities the proposed policy leaves grandfathered'
         )}
       </Button>
       {state.status === 'failed' && <p className="!mb-0 mt-2 text-sm">{state.message}</p>}

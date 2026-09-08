@@ -77,7 +77,10 @@ export class ActivityRegistrationService extends BaseService {
    * form as unsettled rather than intended.
    */
   @method
-  async register(url: string, policy: PolicySnapshot): Promise<RegistrationOutcome> {
+  async register(
+    url: string,
+    policy: PolicySnapshot | (() => Promise<PolicySnapshot>)
+  ): Promise<RegistrationOutcome> {
     // 1. A known activity is admitted already. No policy evaluation happens
     //    here, and that absence is the grandfathering contract.
     const existing = await this.queries.findActivityByUrl(url)
@@ -92,7 +95,10 @@ export class ActivityRegistrationService extends BaseService {
     }
 
     // 3. Only a genuinely unseen URL is measured against the policy.
-    const evaluation = this.policy.evaluate(url, policy)
+    // Progress callers supply a request-local, memoized loader so known targets
+    // never read policy, while all unseen targets share the same snapshot.
+    const snapshot = typeof policy === 'function' ? await policy() : policy
+    const evaluation = this.policy.evaluate(url, snapshot)
     if (!evaluation.ok) {
       // The denial diagnostic carries the normalized origin and path and
       // nothing else. No learner identity, LMS context, token, auth code or

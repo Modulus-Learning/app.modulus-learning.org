@@ -145,10 +145,11 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
   policy being consulted, so **removing or disabling a rule is not revocation**:
   existing activities keep working, keep accepting progress, and may still be
   added to activity codes and used in new deep links. Administrators are shown
-  that consequence in the admin surface, where activities outside the current
-  policy are counted and called **grandfathered** — not blocked, disabled,
-  invalid, or noncompliant. Withdrawing access to an activity already accepted is
-  a separate capability that does not exist (see Open Questions).
+  that consequence in the admin surface, where a disable or delete preview
+  counts activities outside the proposed policy and calls them **grandfathered** —
+  not blocked, disabled, invalid, or noncompliant. Withdrawing access to an
+  activity already accepted is a separate capability that does not exist (see
+  Open Questions).
 
   One qualification, because it bounds the guarantee: the lookup that
   grandfathers a URL is an **exact string match** on `activities.url`, which

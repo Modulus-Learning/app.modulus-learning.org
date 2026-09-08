@@ -1,6 +1,14 @@
 'use client'
 
-import { Badge, Container, IconButton, PlusIcon, Section, Table } from '@infonomic/uikit/react'
+import {
+  Alert,
+  Badge,
+  Container,
+  IconButton,
+  PlusIcon,
+  Section,
+  Table,
+} from '@infonomic/uikit/react'
 
 import { LangLink } from '@/i18n/components/lang-link'
 import { formatDateTime } from '@/utils/utils.general'
@@ -15,7 +23,18 @@ export function AllowlistRulesListView({
   data: AllowlistRulesResponse
   lng: Locale
 }): React.JSX.Element {
-  const rules = data?.rules ?? []
+  if (data.status === 'failed') {
+    return (
+      <Section>
+        <Container>
+          <h1>Activity URL Allowlist</h1>
+          <Alert intent="danger">{data.message}</Alert>
+        </Container>
+      </Section>
+    )
+  }
+
+  const { rules } = data
 
   return (
     <Section>

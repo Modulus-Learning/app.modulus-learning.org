@@ -121,6 +121,27 @@ const makeService = ({
 }
 
 describe('ActivityRegistrationService.register', () => {
+  it('does not invoke a lazy policy loader for a known activity', async () => {
+    const url = 'https://grandfathered.example/course'
+    const { service } = makeService({ known: [url] })
+    const outcome = await service.register(url, async () => {
+      assert.fail('known activities must not load policy')
+    })
+    assert.equal(outcome.ok, true)
+  })
+
+  it('uses a lazy policy loader to decide an unseen activity', async () => {
+    const { service } = makeService()
+    let loads = 0
+    const url = 'https://elsewhere.example/course'
+    const outcome = await service.register(url, async () => {
+      loads += 1
+      return snapshot('https://content.example')
+    })
+    assert.equal(loads, 1)
+    assert.deepEqual(outcome, { ok: false, url, reason: 'activity_url_not_allowed' })
+  })
+
   it('returns a known activity without consulting the policy at all', async () => {
     // Grandfathering. Asserting the *absence* of the evaluation is the only way
     // to prove it: a rule that no longer matches this URL, or no rules at all,

@@ -113,7 +113,7 @@ export function AllowlistRuleEditForm({
         {disabling && (
           <>
             <GrandfatheringNotice />
-            <ImpactPreview />
+            <ImpactPreview ruleId={rule.id} />
           </>
         )}
 

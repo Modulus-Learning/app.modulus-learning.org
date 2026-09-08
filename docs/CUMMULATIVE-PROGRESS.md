@@ -252,8 +252,9 @@ system compiles and round-trips end-to-end.
   activity is honored outright. A target Modulus has **not** seen before is
   admitted only if the sitewide activity URL allowlist has an enabled rule
   matching it, and its row is then created in the same transaction. Every target
-  in one submission is decided against a **single policy snapshot**, read once
-  before the loop.
+  requiring admission in one submission is decided against a **single policy
+  snapshot**, loaded when the first unseen target needs evaluation. Self-only
+  writes and contributions to known activities do not read policy.
 - **Refuse authoring errors per target; clamp value glitches.** The learner's own
   (self) progress is **always** persisted. A *structural* authoring error in a
   target — a self-reference, a URL over the 255-character column limit, a URL
@@ -320,8 +321,9 @@ reconstructability for a far smaller surface; see the trade-offs below.
    returns `Δself`, the real advance) + a self `progress_events` row
    (`source_activity_id = null`), as Phase 1.
 2. **Per target** — only when `Δself > 0` (a retry/no-op skips this entirely).
-   The allowlist snapshot is read once, before the loop, so every target in the
-   submission is decided against the same policy. Then, for each target:
+   The registration service loads the allowlist snapshot only when an unseen
+   target needs evaluation, and reuses it for the rest of the submission. No
+   policy is read when all targets already exist. For each target:
    1. resolve the activity by URL through the shared registration service, which
       **creates the row** when the URL is unseen *and* an enabled allowlist rule
       admits it (no code check). A refusal — including a self-reference, which

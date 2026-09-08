@@ -70,6 +70,71 @@ const eventsFor = (userId: string, activityId: string, scopeId: string = DEFAULT
       )
     )
 
+describe('ActivityProgressService.setProgress — policy reads', () => {
+  it('does not read policy for a self-only progress advance', async (t) => {
+    const s = await seedScenario(h.db)
+    const reads = t.mock.method(h.repos.allowlistQueries, 'listEnabledRules')
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.4,
+      increments_for_other_pages: [],
+    })
+    approx(result.progress, 0.4)
+    assert.equal(reads.mock.callCount(), 0)
+  })
+
+  it('does not read policy for grandfathered or self-referencing targets', async (t) => {
+    const s = await seedScenario(h.db)
+    const targetUrl = 'https://grandfathered.test/umbrella'
+    await seedActivity(h.db, targetUrl)
+    const reads = t.mock.method(h.repos.allowlistQueries, 'listEnabledRules')
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.4,
+      increments_for_other_pages: [
+        { url: targetUrl, factor: 0.5 },
+        { url: s.activityUrl, factor: 0.5 },
+      ],
+    })
+    approx(result.others?.[0]?.progress, 0.2)
+    assert.deepEqual(result.rejected_targets, [{ url: s.activityUrl, reason: 'self_reference' }])
+    assert.equal(reads.mock.callCount(), 0)
+  })
+
+  it('loads one snapshot for unseen targets and reads a fresh policy on the next submission', async (t) => {
+    const s = await seedScenario(h.db)
+    const ruleId = uuidv7()
+    await h.repos.allowlistMutations.createRule({
+      id: ruleId,
+      origin: 'https://content.test',
+      path_prefix: '/',
+    })
+    const auth = authFor(s.userId, s.activityId)
+    const reads = t.mock.method(h.repos.allowlistQueries, 'listEnabledRules')
+    const result = await h.services.activityProgress.setProgress(auth, {
+      progress_for_current_page: 0.4,
+      increments_for_other_pages: [
+        { url: 'https://content.test/first', factor: 0.5 },
+        { url: 'https://content.test/second', factor: 0.5 },
+        { url: 'https://denied.test/third', factor: 0.5 },
+      ],
+    })
+    assert.equal(reads.mock.callCount(), 1)
+    assert.equal(result.others?.length, 2)
+    assert.deepEqual(result.rejected_targets, [
+      { url: 'https://denied.test/third', reason: 'activity_url_not_allowed' },
+    ])
+
+    await h.repos.allowlistMutations.updateRule(ruleId, { is_enabled: false })
+    const next = await h.services.activityProgress.setProgress(auth, {
+      progress_for_current_page: 0.6,
+      increments_for_other_pages: [{ url: 'https://content.test/fourth', factor: 0.5 }],
+    })
+    assert.equal(reads.mock.callCount(), 2)
+    assert.deepEqual(next.rejected_targets, [
+      { url: 'https://content.test/fourth', reason: 'activity_url_not_allowed' },
+    ])
+  })
+})
+
 describe('ActivityProgressService.setProgress — self write fan-out', () => {
   it('advances self, records exactly one event, and schedules the self line item', async () => {
     const s = await seedScenario(h.db)
