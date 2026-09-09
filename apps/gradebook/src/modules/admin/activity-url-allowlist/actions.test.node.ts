@@ -98,7 +98,7 @@ describe('allowlist impact action', () => {
     expect(mocks.preview).not.toHaveBeenCalled()
   })
 
-  test('does not turn a failed policy read into a deny-all preview', async () => {
+  test('does not turn a failed policy read into an allow-all preview', async () => {
     mocks.list.mockResolvedValue({ ok: false, error: { code: 'ERR_DATABASE' } })
     expect(await previewAllowlistImpact({ status: 'idle' }, formData())).toMatchObject({
       status: 'failed',

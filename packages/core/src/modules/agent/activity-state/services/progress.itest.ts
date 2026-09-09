@@ -101,6 +101,7 @@ describe('ActivityProgressService.setProgress — policy reads', () => {
 
   it('loads one snapshot for unseen targets and reads a fresh policy on the next submission', async (t) => {
     const s = await seedScenario(h.db)
+    await seedRule('https://other.test')
     const ruleId = uuidv7()
     await h.repos.allowlistMutations.createRule({
       id: ruleId,

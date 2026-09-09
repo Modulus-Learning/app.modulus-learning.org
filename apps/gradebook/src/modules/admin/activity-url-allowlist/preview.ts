@@ -30,7 +30,7 @@ export async function previewAllowlistImpact(
 
   const core = await getCoreCommands()
   // Resolve the policy when the administrator requests the preview. Passing
-  // base_urls explicitly preserves deny-all when the last enabled rule goes.
+  // base_urls explicitly previews allow-all when the last enabled rule goes.
   const listed = await core.admin.activityUrlAllowlist.listAllowlistRules(adminAuth)
   if (!listed.ok) {
     return { message: 'Unable to preview the effect of this policy.', status: 'failed' }

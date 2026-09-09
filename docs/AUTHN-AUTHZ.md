@@ -289,9 +289,10 @@ Three properties of that check matter here:
   activity Modulus has already accepted — learners keep launching it, and it may
   still be added to activity codes and used in new deep links. The allowlist
   governs *admission*, never use.
-- **Deny by default.** With no enabled rules, no previously unseen URL is
-  admitted, on any path. Seeds create no rules, so a freshly seeded database
-  refuses every new registration until an administrator adds the first rule.
+- **Allow-all with no enabled rules.** A previously unseen URL is admitted if
+  it passes URL validation. This applies both to an empty table and to a table
+  containing only disabled rules. Seeds create no rules. Adding or enabling the
+  first rule restricts new registrations to URLs matching an enabled rule.
 - **The denial is returned, then thrown at this caller.** The service returns a
   refusal rather than raising one, because its four callers need different
   outcomes from the same decision. `createAuthCode` converts it into

@@ -29,8 +29,8 @@ summary: "Design for activities that report a calculation of their own progress 
 >
 > **Update — the sitewide activity URL allowlist has shipped.** Creating a
 > target on demand is no longer unconditional. A target URL Modulus has not seen
-> before is admitted only if an enabled allowlist rule matches it, and with no
-> enabled rules nothing new is admitted at all. A refused target is reported
+> before must match an enabled rule when any are enabled. With no enabled
+> rules, every valid new target URL is admitted. A refused target is reported
 > per-target in `rejected_targets` and **never fails the submission carrying
 > it** — see [Refused targets](#refused-targets). The allowlist is an
 > **admission** policy: a target that already exists as an `activities` row is
@@ -250,8 +250,8 @@ system compiles and round-trips end-to-end.
   source.~~ **(Superseded.)** There is **no** activity-code scope check — codes
   are orthogonal to umbrella reporting. A target that is already a recorded
   activity is honored outright. A target Modulus has **not** seen before is
-  admitted only if the sitewide activity URL allowlist has an enabled rule
-  matching it, and its row is then created in the same transaction. Every target
+  admitted if no allowlist rules are enabled or an enabled rule matches it,
+  subject to URL validation. Its row is created in the same transaction. Every target
   requiring admission in one submission is decided against a **single policy
   snapshot**, loaded when the first unseen target needs evaluation. Self-only
   writes and contributions to known activities do not read policy.
@@ -325,8 +325,8 @@ reconstructability for a far smaller surface; see the trade-offs below.
    target needs evaluation, and reuses it for the rest of the submission. No
    policy is read when all targets already exist. For each target:
    1. resolve the activity by URL through the shared registration service, which
-      **creates the row** when the URL is unseen *and* an enabled allowlist rule
-      admits it (no code check). A refusal — including a self-reference, which
+      **creates the row** when the URL is unseen and valid, and either no rules
+      are enabled or an enabled rule matches it (no code check). A refusal — including a self-reference, which
       this caller detects because it is the only one that knows which activity is
       reporting — collects a `{ url, reason }` entry and moves to the next
       target, creating nothing;
@@ -375,9 +375,9 @@ raw URL precisely so this policy lives entirely in the backend. **As built:**
 - **Create on demand, gated by the sitewide allowlist.** When a target URL isn't
   yet an activity, its row is created inside the same transaction (a bare
   `activities` row — `id` + `url`, **no** activity-code association) before the
-  contribution is applied, **provided an enabled allowlist rule admits the URL**.
-  There is no scope check, so a child can report into a cumulative page that has
-  never been visited — but only within an admitted origin and path. Resolution,
+  contribution is applied, **provided the URL is valid and either no rules are
+  enabled or an enabled rule matches it**. There is no scope check, so a child
+  can report into a cumulative page that has never been visited. Resolution,
   the policy evaluation, the insert and the create race all live in one shared
   service, `ActivityRegistrationService`
   (`packages/core/src/modules/activity-registration/services/activity-registration.ts`),
@@ -391,10 +391,10 @@ raw URL precisely so this policy lives entirely in the backend. **As built:**
   Editing, disabling or deleting a rule therefore cannot stop an existing
   cumulative page from being reported into. The allowlist governs admission, never
   use.
-- **Deny-by-default.** With no enabled rules, no previously unseen target is
-  created. A freshly seeded database is in exactly that state — seeds create no
-  rules — so cumulative targets naming new URLs come back in `rejected_targets`
-  until an administrator adds the first rule at `/admin/activities`.
+- **Allow-all with no enabled rules.** Every valid previously unseen target can
+  be created. Seeds create no rules, so a freshly seeded database starts in this
+  state. Adding or enabling the first rule at `/admin/activities` restricts
+  admission; disabling or deleting the last enabled rule restores allow-all.
 
 ### Refused Targets
 

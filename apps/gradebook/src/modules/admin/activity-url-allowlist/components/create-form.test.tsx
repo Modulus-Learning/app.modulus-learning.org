@@ -17,7 +17,7 @@ import {
   allowlistRuleDeleteSchema,
   allowlistRuleEditSchema,
 } from '../@types'
-import { ALLOWLIST_COPY, CollisionNotice, DenyAllEmptyState, GrandfatheringNotice } from './copy'
+import { ALLOWLIST_COPY, AllowAllEmptyState, CollisionNotice, GrandfatheringNotice } from './copy'
 import type { AllowlistRule } from '../@types'
 
 const rule = (overrides: Partial<AllowlistRule> = {}): AllowlistRule => ({
@@ -44,24 +44,14 @@ const text = (element: React.JSX.Element): string =>
     .replace(/\s+/g, ' ')
     .trim()
 
-describe('deny-all empty state', () => {
-  // The mitigation for "deny-all surprises a new operator". Its absence is a
-  // defect, not a cosmetic gap: a seeded database starts in this state, and an
-  // operator who does not understand why nothing registers has no way to find
-  // out from the UI.
-  test('says no rules exist and that no new URL can be registered', () => {
-    const rendered = text(<DenyAllEmptyState />)
+describe('allow-all empty state', () => {
+  test('explains unrestricted registration and how to enable restrictions', () => {
+    const rendered = text(<AllowAllEmptyState />)
 
     expect(rendered).toContain('No allowlist rules exist')
-    expect(rendered).toContain('no new activity URLs can be registered')
-    expect(rendered).toContain('refusing to register')
-  })
-
-  test('says where the first rule comes from, and that seeds create none', () => {
-    const rendered = text(<DenyAllEmptyState />)
-
-    expect(rendered).toContain('A developer or operator adds the first rule here')
-    expect(rendered).toContain('seeds create no rules')
+    expect(rendered).toContain('all valid activity URLs can be registered')
+    expect(rendered).toContain('Add an enabled rule to restrict new registrations')
+    expect(rendered).toContain('If all rules are disabled')
   })
 })
 
@@ -70,7 +60,7 @@ describe('grandfathering notice', () => {
     const rendered = text(<GrandfatheringNotice />)
 
     expect(rendered).toContain(
-      'This change stops previously unseen URLs under this base URL from being registered.'
+      'With enabled rules remaining, new URLs must match one of them. Disabling or deleting the last enabled rule allows all valid activity URLs.'
     )
     expect(rendered).toContain(
       'Existing activities will continue to work and may still be added to activity codes or used in new deep links.'
@@ -106,7 +96,7 @@ describe('grandfathering notice', () => {
   })
 
   test('keeps that vocabulary out of the empty state too', () => {
-    const rendered = text(<DenyAllEmptyState />).toLowerCase()
+    const rendered = text(<AllowAllEmptyState />).toLowerCase()
 
     expect(rendered).not.toContain('block')
     expect(rendered).not.toContain('disabled activity')
@@ -161,7 +151,7 @@ describe('collision outcomes', () => {
 describe('copy constants', () => {
   test('are the single source for the required wording', () => {
     expect(ALLOWLIST_COPY.changeWarning).toBe(
-      'This change stops previously unseen URLs under this base URL from being registered. Existing activities will continue to work and may still be added to activity codes or used in new deep links.'
+      'With enabled rules remaining, new URLs must match one of them. Disabling or deleting the last enabled rule allows all valid activity URLs. Existing activities will continue to work and may still be added to activity codes or used in new deep links.'
     )
     expect(ALLOWLIST_COPY.grandfatheredLabel).toBe('grandfathered')
   })

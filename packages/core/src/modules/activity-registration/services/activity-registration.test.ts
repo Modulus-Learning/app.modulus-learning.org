@@ -82,7 +82,8 @@ const makeService = ({
       if (candidate.protocol !== 'https:') {
         return { ok: false as const, reason: 'malformed_url' as const }
       }
-      return policySnapshot.rules.some(({ origin }) => origin === candidate.origin)
+      return policySnapshot.rules.length === 0 ||
+        policySnapshot.rules.some(({ origin }) => origin === candidate.origin)
         ? { ok: true as const, url: candidate }
         : { ok: false as const, reason: 'activity_url_not_allowed' as const }
     },
@@ -178,15 +179,14 @@ describe('ActivityRegistrationService.register', () => {
     assert.equal(counts().inserts, 0)
   })
 
-  it('denies an unseen url when the snapshot is empty', async () => {
-    // Deny-by-default, reached through the service rather than the policy.
+  it('admits an unseen url when the snapshot is empty', async () => {
     const url = 'https://content.example/course/calculus'
     const { service, counts } = makeService()
 
     const outcome = await service.register(url, { rules: [] })
 
-    assert.deepEqual(outcome, { ok: false, url, reason: 'activity_url_not_allowed' })
-    assert.equal(counts().inserts, 0)
+    assert.equal(outcome.ok, true)
+    assert.equal(counts().inserts, 1)
   })
 
   it('reports url_too_long before evaluating the policy or inserting', async () => {

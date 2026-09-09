@@ -50,8 +50,8 @@ export class ActivityUrlAllowlistQueries extends BaseService {
   }
 
   /**
-   * The policy snapshot: only enabled rules admit anything, so an empty result
-   * here denies every new registration.
+   * The policy snapshot: disabled rules are ignored. An empty result means
+   * every syntactically admissible URL is allowed.
    */
   @method
   async listEnabledRules(): Promise<AllowlistRuleRecord[]> {

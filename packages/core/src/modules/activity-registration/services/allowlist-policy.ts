@@ -48,10 +48,8 @@ export class AllowlistPolicyService extends BaseService {
    * has already paid for the snapshot and may reuse it for every URL in the
    * operation.
    *
-   * An empty `policy.rules` denies everything, and does so as the ordinary
-   * consequence of no rule having matched — there is no branch here that treats
-   * the empty set as permissive, which is what makes the policy
-   * deny-by-default rather than deny-by-default-until-someone-adds-a-shortcut.
+   * With no enabled rules, every syntactically admissible URL is allowed.
+   * Once an enabled rule exists, a candidate must match one of those rules.
    */
   @method
   evaluate(url: string, policy: PolicySnapshot): PolicyEvaluation {
@@ -60,7 +58,7 @@ export class AllowlistPolicyService extends BaseService {
       return { ok: false, reason: 'malformed_url' }
     }
 
-    if (!policy.rules.some((rule) => matchesRule(candidate, rule))) {
+    if (policy.rules.length > 0 && !policy.rules.some((rule) => matchesRule(candidate, rule))) {
       return { ok: false, reason: 'activity_url_not_allowed' }
     }
 

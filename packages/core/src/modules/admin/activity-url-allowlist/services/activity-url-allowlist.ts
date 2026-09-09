@@ -130,7 +130,7 @@ export class AdminActivityUrlAllowlistService extends BaseService {
       if (candidate === null) {
         return true
       }
-      return !prospective.some((rule) => matchesRule(candidate, rule))
+      return prospective.length > 0 && !prospective.some((rule) => matchesRule(candidate, rule))
     })
 
     return {

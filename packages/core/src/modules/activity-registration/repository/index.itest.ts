@@ -128,7 +128,7 @@ describe('ActivityUrlAllowlistQueries', () => {
       [enabled.id, disabled.id]
     )
 
-    // Deny-by-default rests on this read: a disabled rule admits nothing.
+    // Only enabled rules participate in the policy snapshot.
     const enabledOnly = await h.repos.allowlistQueries.listEnabledRules()
     assert.deepEqual(
       enabledOnly.map(({ id }) => id),

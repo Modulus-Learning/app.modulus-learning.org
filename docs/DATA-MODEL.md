@@ -166,9 +166,10 @@ This is the graph that connects learners to Ximera content.
   `admin_users`, never `users`, and `on delete set null` keeps a rule alive when
   the administrator who wrote it is removed.
 
-  Two things this table does *not* do. It is **deny-by-default**: with no enabled
-  rows nothing new is admitted, which is why there is deliberately no seed for it.
-  And it governs **admission only** — no query joins `activities` to it, and no
+  With **no enabled rows**, every URL that passes admission syntax and length
+  validation is allowed. An empty table and a table containing only disabled
+  rules have the same behaviour. Once a rule is enabled, new URLs must match an
+  enabled rule. The table governs **admission only** — no query joins `activities` to it, and no
   operation re-checks a URL that already has an `activities` row, so editing,
   disabling or deleting a rule never withdraws access to existing content. The
   rules are read by `ActivityRegistrationService`
@@ -324,11 +325,10 @@ see [AGENT](./AGENT.md) and [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md).
   associations are seeded alongside the activities at step `10`, because the
   reporting intersection is empty without them.
 - **Seeds deliberately create no `activity_url_allowlist_rules` rows.** A seeded
-  database therefore starts deny-all and refuses every runtime registration —
-  activity codes, deep links, agent authorization and cumulative targets alike —
-  until an administrator adds the first rule at `/admin/activities`. The seeded
-  Manager role holds both allowlist abilities, so it can. This is the intended
-  starting state, not a gap in the seeds.
+  database therefore allows all valid new activity URLs — activity codes, deep
+  links, agent authorization and cumulative targets alike. An administrator can
+  restrict new registrations by adding an enabled rule at `/admin/activities`.
+  The seeded Manager role holds both allowlist abilities.
 
 ## Open Questions
 

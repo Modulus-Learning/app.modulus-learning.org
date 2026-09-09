@@ -109,8 +109,8 @@ export type DeleteAllowlistRuleRequest = z.infer<typeof deleteAllowlistRuleReque
 
 export const previewAllowlistImpactRequestSchema = z.strictObject({
   /**
-   * The prospective policy, as base URLs. An empty list means "no rules", and
-   * so previews the deny-all state. Omit the field entirely to preview the
+   * The prospective policy, as base URLs. An empty list means "no enabled rules", and
+   * so previews the allow-all state. Omit the field entirely to preview the
    * policy currently in force.
    */
   base_urls: z.array(z.string().min(1)).optional(),

@@ -334,12 +334,12 @@ describe('AdminActivityUrlAllowlistService.previewAllowlistImpact', () => {
     )
   })
 
-  it('counts every activity when the prospective policy is empty', async () => {
+  it('counts no admissible activities when the prospective policy is empty', async () => {
     const { service } = makeService({ activities })
 
     const preview = await service.previewAllowlistImpact(auth, { base_urls: [] })
 
-    assert.equal(preview.grandfathered_count, 3)
+    assert.equal(preview.grandfathered_count, 0)
   })
 
   it('previews the policy currently in force when no base urls are given', async () => {
@@ -355,6 +355,17 @@ describe('AdminActivityUrlAllowlistService.previewAllowlistImpact', () => {
       preview.grandfathered_sample.map(({ url }) => url),
       ['https://elsewhere.example/page']
     )
+  })
+
+  it('previews an empty current policy as allow-all while retaining syntax checks', async () => {
+    const malformed = { id: uuidv7(), url: 'javascript:alert(1)' }
+    const { service } = makeService({ activities: [...activities, malformed] })
+    for (const request of [{}, { base_urls: [] }]) {
+      const preview = await service.previewAllowlistImpact(auth, request)
+      assert.equal(preview.total_activities, 4)
+      assert.equal(preview.grandfathered_count, 1)
+      assert.deepEqual(preview.grandfathered_sample, [malformed])
+    }
   })
 
   it('rejects a malformed prospective base url', async () => {

@@ -70,9 +70,7 @@ describe('AllowlistPolicyService.loadPolicy', () => {
 })
 
 describe('AllowlistPolicyService.evaluate', () => {
-  it('denies every candidate when the snapshot is empty', async () => {
-    // Deny-by-default: a fresh install, having no rules, admits nothing. This
-    // deliberately supersedes the allow-all proposal in DYNAMIC-ACTIVITIES.md.
+  it('allows admissible candidates when the snapshot is empty', async () => {
     const { service } = makeService()
     const policy = await service.loadPolicy()
 
@@ -83,13 +81,13 @@ describe('AllowlistPolicyService.evaluate', () => {
     ]) {
       assert.deepEqual(
         service.evaluate(candidate, policy),
-        { ok: false, reason: 'activity_url_not_allowed' },
+        { ok: true, url: new URL(candidate) },
         candidate
       )
     }
   })
 
-  it('denies when rules exist but every one of them is disabled', async () => {
+  it('allows when rules exist but every one of them is disabled', async () => {
     const { service } = makeService([
       ruleRecord('https://content.example', '/', false),
       ruleRecord('https://other.example', '/', false),
@@ -97,9 +95,9 @@ describe('AllowlistPolicyService.evaluate', () => {
     const policy = await service.loadPolicy()
 
     assert.deepEqual(policy.rules, [])
-    assert.deepEqual(service.evaluate('https://content.example/x', policy), {
-      ok: false,
-      reason: 'activity_url_not_allowed',
+    assert.deepEqual(service.evaluate('https://elsewhere.example/x', policy), {
+      ok: true,
+      url: new URL('https://elsewhere.example/x'),
     })
   })
 
@@ -151,6 +149,19 @@ describe('AllowlistPolicyService.evaluate', () => {
     }
   })
 
+  it('still rejects malformed URLs with no enabled rules', async () => {
+    const { service } = makeService()
+    const policy = await service.loadPolicy()
+    for (const url of [
+      'not-a-url',
+      'javascript:alert(1)',
+      'http://content.example/x',
+      'https://user:pass@content.example/x',
+    ]) {
+      assert.deepEqual(service.evaluate(url, policy), { ok: false, reason: 'malformed_url' })
+    }
+  })
+
   it('never reports url_too_long, which belongs to the writer', async () => {
     // The 255-character bound is a property of the `activities.url` column, so
     // it is checked by the registration service, not here.
@@ -183,7 +194,7 @@ describe('AllowlistPolicyService snapshot discipline', () => {
 
   it('takes a fresh snapshot on the next operation, with no cache in between', async () => {
     const rule = ruleRecord('https://content.example', '/')
-    const { service, reads } = makeService([rule])
+    const { service, reads } = makeService([rule, ruleRecord('https://other.example')])
 
     const before = await service.loadPolicy()
     assert.equal(service.evaluate('https://content.example/x', before).ok, true)
@@ -197,5 +208,37 @@ describe('AllowlistPolicyService snapshot discipline', () => {
       ok: false,
       reason: 'activity_url_not_allowed',
     })
+  })
+  it('restricts on the first enabled rule and restores allow-all when it is disabled or deleted', async () => {
+    const stored: AllowlistRuleRecord[] = []
+    const { service } = makeService(stored)
+    const url = 'https://elsewhere.example/x'
+    const empty = await service.loadPolicy()
+    assert.equal(service.evaluate(url, empty).ok, true)
+
+    const rule = ruleRecord('https://content.example')
+    stored.push(rule)
+    assert.equal(service.evaluate(url, await service.loadPolicy()).ok, false)
+    assert.equal(service.evaluate(url, empty).ok, true)
+
+    rule.is_enabled = false
+    assert.equal(service.evaluate(url, await service.loadPolicy()).ok, true)
+    rule.is_enabled = true
+    assert.equal(service.evaluate(url, await service.loadPolicy()).ok, false)
+    stored.pop()
+    assert.equal(service.evaluate(url, await service.loadPolicy()).ok, true)
+  })
+
+  it('propagates policy read failures instead of treating them as an empty policy', async () => {
+    const error = new Error('policy read failed')
+    const service = new AllowlistPolicyService({
+      logger,
+      queries: {
+        listEnabledRules: async () => {
+          throw error
+        },
+      } as unknown as ActivityUrlAllowlistQueries,
+    })
+    await assert.rejects(service.loadPolicy(), error)
   })
 })

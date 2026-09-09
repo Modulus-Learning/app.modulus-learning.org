@@ -154,14 +154,27 @@ describe('allowlist list state rendering', () => {
     expect(markup).toContain(message)
     expect(markup).toContain('role="alert"')
     expect(markup).not.toContain('No allowlist rules exist')
-    expect(markup).not.toContain('no new activity URLs can be registered')
+    expect(markup).not.toContain('all valid activity URLs can be registered')
   })
 
-  test('shows deny-all only after successfully loading an empty list', () => {
+  test('shows allow-all only after successfully loading an empty list', () => {
     const markup = renderToStaticMarkup(
       <AllowlistRulesListView lng="en" data={{ status: 'success', rules: [] }} />
     )
     expect(markup).toContain('No allowlist rules exist')
+  })
+
+  test('shows allow-all with disabled rules and keeps their table visible', () => {
+    const markup = renderToStaticMarkup(
+      <AllowlistRulesListView
+        lng="en"
+        data={{ status: 'success', rules: [{ ...rule, is_enabled: false }] }}
+      />
+    )
+    expect(markup).toContain('All allowlist rules are disabled')
+    expect(markup).toContain('all valid activity URLs can be registered')
+    expect(markup).toContain(rule.base_url)
+    expect(markup).not.toContain('No allowlist rules exist')
   })
 
   test('renders successfully loaded rules', () => {
@@ -170,6 +183,7 @@ describe('allowlist list state rendering', () => {
     )
     expect(markup).toContain(rule.base_url)
     expect(markup).toContain('Enabled')
+    expect(markup).not.toContain('all valid activity URLs can be registered')
     expect(markup).not.toContain('No allowlist rules exist')
   })
 })

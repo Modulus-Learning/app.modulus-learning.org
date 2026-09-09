@@ -17,6 +17,7 @@ export type RejectedRegistration = {
 
 /**
  * The set of enabled rules, read once and then evaluated against repeatedly.
+ * An empty set allows every syntactically admissible URL.
  *
  * This is a value, not a service handle, and that is the point: it is what lets
  * one admission operation hold a single snapshot across every URL it is

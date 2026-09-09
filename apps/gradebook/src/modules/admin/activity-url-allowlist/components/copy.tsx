@@ -14,20 +14,28 @@ import type { AllowlistImpact, AllowlistRule } from '../@types'
  * be added to activity codes and used in new deep links.
  */
 export const ALLOWLIST_COPY = {
-  emptyStateHeading: 'No allowlist rules exist, so no new activity URLs can be registered.',
+  emptyStateHeading: 'No allowlist rules exist, so all valid activity URLs can be registered.',
+  allDisabledHeading:
+    'All allowlist rules are disabled, so all valid activity URLs can be registered.',
   emptyStateBody:
-    'Modulus is refusing to register every previously unseen activity URL, on every path — activity codes, deep links, and agent authorization alike. A developer or operator adds the first rule here. A newly seeded database starts in this state deliberately: seeds create no rules.',
+    'Add an enabled rule to restrict new registrations to matching URLs. If all rules are disabled, all valid activity URLs can be registered again.',
   changeWarning:
-    'This change stops previously unseen URLs under this base URL from being registered. Existing activities will continue to work and may still be added to activity codes or used in new deep links.',
+    'With enabled rules remaining, new URLs must match one of them. Disabling or deleting the last enabled rule allows all valid activity URLs. Existing activities will continue to work and may still be added to activity codes or used in new deep links.',
   grandfatheredLabel: 'grandfathered',
 } as const
 
-/** Shown in place of the rules table when the policy is empty. */
-export function DenyAllEmptyState(): React.JSX.Element {
+/** Shown whenever the policy has no enabled rules. */
+export function AllowAllEmptyState({
+  allDisabled = false,
+}: {
+  allDisabled?: boolean
+}): React.JSX.Element {
   return (
-    <Alert intent="warning" className="mt-4">
+    <Alert intent="info" className="mt-4 max-w-[70ch]">
       <div>
-        <p className="!mt-0 !mb-1 font-semibold">{ALLOWLIST_COPY.emptyStateHeading}</p>
+        <p className="!mt-0 !mb-1 font-semibold">
+          {allDisabled ? ALLOWLIST_COPY.allDisabledHeading : ALLOWLIST_COPY.emptyStateHeading}
+        </p>
         <p className="!my-0">{ALLOWLIST_COPY.emptyStateBody}</p>
       </div>
     </Alert>

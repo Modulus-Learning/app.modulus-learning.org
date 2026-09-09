@@ -12,7 +12,7 @@ import {
 
 import { LangLink } from '@/i18n/components/lang-link'
 import { formatDateTime } from '@/utils/utils.general'
-import { DenyAllEmptyState } from './copy'
+import { AllowAllEmptyState } from './copy'
 import type { Locale } from '@/i18n/i18n-config'
 import type { AllowlistRulesResponse } from '../@types'
 
@@ -55,9 +55,11 @@ export function AllowlistRulesListView({
           first time. They never affect an activity Modulus has already accepted.
         </p>
 
-        {rules.length === 0 ? (
-          <DenyAllEmptyState />
-        ) : (
+        {!rules.some((rule) => rule.is_enabled) && (
+          <AllowAllEmptyState allDisabled={rules.length > 0} />
+        )}
+
+        {rules.length > 0 && (
           <Table.Container className="mt-2 mb-3">
             <Table>
               <Table.Header>

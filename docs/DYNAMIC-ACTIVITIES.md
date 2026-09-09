@@ -22,7 +22,7 @@ summary: "Why Modulus materializes an activity row on demand ('lazy create') fro
 >
 > **Superseded:** the site-wide policy sketched here — the
 > `activity_create_policy` table, the `isLazyCreateAllowed` matcher, the
-> allow-all default, the single `site-config:manage` ability, and the
+> single `site-config:manage` ability, and the
 > implementation map and verification plan built on them. A sitewide activity
 > URL allowlist has since shipped, and it differs from this proposal on every
 > one of those points. The sections below are retained as history; read them
@@ -51,11 +51,11 @@ admin abilities.
 
 ## How the Shipped Allowlist Differs
 
-Four differences, because each one reverses something this document asserts.
+The shipped policy retains an allow-all default, with these differences:
 
 | This proposal | What shipped |
 | --- | --- |
-| Zero rules means **allow-all** | Zero enabled rules means **deny-all**. A seeded database admits nothing until an administrator adds the first rule. |
+| Zero rules means **allow-all** | Zero **enabled** rules means **allow-all**, including when all stored rules are disabled. URL validation still applies. |
 | Match on `host` plus `pathname.startsWith(path_prefix)` | Match on an exact normalized **origin** plus a **path-segment-bounded** subtree, so `https://example.edu` cannot admit `https://example.edu.attacker.example` and `/course/calculus` cannot admit `/course/calculus-2`. HTTPS is required, except for exactly `localhost` and `127.0.0.1` over HTTP. |
 | `created_by` references `users` | `created_by` and `updated_by` reference `admin_users`, so the rules table holds no learner or instructor data. |
 | Governs agent lazy creation only | Governs **every** path that can add an `activities` row: instructor activity-code creation and editing, LTI deep linking, agent authorization, and cumulative targets. |
@@ -81,7 +81,8 @@ New activities come into being on first contact from authored content. That much
 still holds. What has changed since this was written is the gate: creation is no
 longer unconditional. Every path that can add an `activities` row — including
 these two — now goes through one registration service that consults the sitewide
-allowlist first, and a URL no enabled rule admits creates nothing. The two agent
+allowlist first. With enabled rules, a URL matching none of them creates nothing;
+with no enabled rules, every valid URL is admitted. The two agent
 paths differ only in how the refusal surfaces: authorization returns the learner
 to their page with `error=unauthorized_client`, while a refused cumulative target
 is reported in the response's `rejected_targets` and does not fail the submission.
@@ -92,7 +93,8 @@ is reported in the response's `rejected_targets` and does not fail the submissio
 > proposal, not the shipped design. What shipped is
 > `activity_url_allowlist_rules` — a normalized `origin` plus `path_prefix`,
 > `is_enabled`, `admin_users` provenance, and a `unique (origin, path_prefix)`
-> constraint — evaluated deny-by-default with segment-bounded path matching. See
+> constraint — with segment-bounded path matching and allow-all when no rules
+> are enabled. See
 > [DATA-MODEL → Activities & Grouping](./DATA-MODEL.md#3-activities--grouping).
 
 A single table of allowlist rules drives the decision.
@@ -122,10 +124,10 @@ Activity URLs are stored **absolute** (e.g.
 
 ### Default = allow-all
 
-> **Superseded — this is the point the shipped design reverses.** Zero enabled
-> rules now deny every new registration, on every path. A newly seeded database
-> starts in that state deliberately: seeds create no rules. The reasoning below
-> is retained because it names the cost that was accepted in exchange.
+> **Current default.** Zero enabled rules allow every valid new activity URL
+> on every admission path, including when all stored rules are disabled. Seeds
+> create no rules. Adding or enabling the first rule restricts new registrations;
+> disabling or deleting the last enabled rule restores allow-all.
 
 With **zero rules configured, every URL may be lazy-created.** Adding the first
 rule flips the policy into a strict allowlist (allow only what matches). This was
@@ -311,9 +313,8 @@ Mirrors the existing `lti-platforms` admin module end to end.
 
 ## Verification
 
-> **Superseded.** This plan verifies allow-all behaviour that no longer exists —
-> step 3 in particular asserts that a new URL is admitted when no rules are
-> configured, which is now the case that is denied. The shipped feature's own
+> **Historical verification plan.** The allow-all default is current, but the
+> helper and table names below belong to the earlier proposal. The shipped feature's own
 > tests live beside the code in `packages/core/src/modules/activity-registration/`
 > and `packages/core/src/modules/admin/activity-url-allowlist/`.
 
@@ -341,9 +342,9 @@ Mirrors the existing `lti-platforms` admin module end to end.
 - An admin/instructor affordance to list **un-coded** activities and link them to
   an `activity_code` in one click — turning the "manual follow-up" cost of
   Option C into a guided action. **Still open.**
-- ~~Optional **deny-all** default toggle for institutions that want lazy creation
-  off until explicitly enabled.~~ **Shipped, and not as a toggle:** deny-all is
-  the only behaviour when no enabled rule matches.
+- Optional **deny-all** default toggle for institutions that want lazy creation
+  off until explicitly enabled. **Not implemented:** zero enabled rules allow
+  every valid new activity URL.
 - Possible `host` **wildcard / subdomain** matching if rule volume grows.
   **Still open**, and deliberately so: the shipped matcher compares origins for
   equality, which is what stops `https://example.edu` admitting

@@ -134,8 +134,11 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
   allowlist** — administrator-managed rules, each an exact normalized origin plus
   a path-segment-bounded subtree, held in `activity_url_allowlist_rules`
   ([DATA-MODEL → Activities](./DATA-MODEL.md#3-activities--grouping)) and managed
-  at `/admin/activities`. The policy is **deny-by-default**: with no enabled
-  rules, nothing new is admitted. It applies to every path that can add an
+  at `/admin/activities`. With **no enabled rules**, every valid new activity URL
+  is admitted, including when all stored rules are disabled. With one or more
+  enabled rules, a new URL must match one of them. Disabling or deleting the last
+  enabled rule restores allow-all. URL syntax and length checks always apply.
+  The policy applies to every path that can add an
   activity — instructor activity-code creation and editing, LTI deep linking,
   agent authorization, and cumulative progress targets — through a single
   registration service that is the only writer of `activities` rows outside seeds

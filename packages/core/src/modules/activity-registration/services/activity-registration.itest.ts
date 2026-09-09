@@ -40,6 +40,44 @@ const countActivities = async (url: string): Promise<number> => {
 }
 
 describe('ActivityRegistrationService.register over PostgreSQL', () => {
+  it('allows new URLs with no rules and after deleting the last enabled rule', async () => {
+    const url = `${ORIGIN}/first`
+    assert.equal(
+      (
+        await h.services.activityRegistration.register(
+          url,
+          await h.services.activityRegistration.loadPolicy()
+        )
+      ).ok,
+      true
+    )
+    assert.equal(await countActivities(url), 1)
+
+    const ruleId = await seedRule('https://other.test')
+    const nextUrl = `${ORIGIN}/next`
+    assert.equal(
+      (
+        await h.services.activityRegistration.register(
+          nextUrl,
+          await h.services.activityRegistration.loadPolicy()
+        )
+      ).ok,
+      false
+    )
+    assert.equal(await countActivities(nextUrl), 0)
+    await h.repos.allowlistMutations.deleteRule(ruleId)
+    assert.equal(
+      (
+        await h.services.activityRegistration.register(
+          nextUrl,
+          await h.services.activityRegistration.loadPolicy()
+        )
+      ).ok,
+      true
+    )
+    assert.equal(await countActivities(nextUrl), 1)
+  })
+
   it('admits an unseen url under an enabled rule and stores exactly one row', async () => {
     await seedRule()
     const url = `${ORIGIN}/course/calculus`
@@ -51,7 +89,7 @@ describe('ActivityRegistrationService.register over PostgreSQL', () => {
     assert.equal(await countActivities(url), 1)
   })
 
-  it('denies an unseen url when no rule is enabled, and writes nothing', async () => {
+  it('admits an unseen url when every rule is disabled', async () => {
     await h.repos.allowlistMutations.createRule({
       id: uuidv7(),
       origin: ORIGIN,
@@ -63,8 +101,8 @@ describe('ActivityRegistrationService.register over PostgreSQL', () => {
     const policy = await h.services.activityRegistration.loadPolicy()
     const outcome = await h.services.activityRegistration.register(url, policy)
 
-    assert.deepEqual(outcome, { ok: false, url, reason: 'activity_url_not_allowed' })
-    assert.equal(await countActivities(url), 0)
+    assert.equal(outcome.ok, true)
+    assert.equal(await countActivities(url), 1)
   })
 
   it('resolves two concurrent registrations of the same url to one winning row', async () => {
@@ -110,6 +148,7 @@ describe('ActivityRegistrationService.register over PostgreSQL', () => {
     // the accepted race is the design, and locking the policy table on every
     // registration is the cost this avoids.
     const ruleId = await seedRule()
+    await seedRule('https://other.test')
     const url = `${ORIGIN}/course/calculus`
 
     const policy = await h.services.activityRegistration.loadPolicy()

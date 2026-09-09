@@ -34,6 +34,25 @@ particular it does not authorise blocking, revoking, deleting, or re-validating
 any existing activity, and it does not authorise closing the authorization
 route's remaining open redirect.
 
+## Default Policy Amendment — 2026-09-08
+
+This amendment supersedes the deny-all default in the original plan and analysis
+below. With **zero enabled rules**, allow every activity URL that passes the
+existing syntax and length checks. This applies both when no rules are stored
+and when all stored rules are disabled. With one or more enabled rules, a new URL
+must match one of them. Adding or enabling the first rule restricts admission;
+disabling or deleting the last enabled rule restores allow-all.
+
+The shared policy evaluator applies this behaviour on every admission path.
+The admin impact preview uses the same empty-policy semantics, and its empty
+state and change notice explain the default and the transition. A failed policy
+read remains an error. Existing activities retain their grandfathering behaviour.
+Seeds still create no rules, so a freshly seeded database permits valid new URLs.
+The original task sequence below is retained as implementation history.
+
+Validation on 2026-09-09: lint and typechecking passed; 491 unit tests passed
+with one existing skip, and all 118 database integration tests passed.
+
 ## Final Review — 2026-09-08
 
 The final review found three implementation gaps in the agreed behaviour.

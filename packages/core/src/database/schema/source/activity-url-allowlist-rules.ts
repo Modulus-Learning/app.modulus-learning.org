@@ -11,8 +11,8 @@ import { adminUsers } from './admin-users.js'
  * has already accepted, so editing, disabling or deleting a rule cannot
  * withdraw access to existing content.
  *
- * The policy is deny-by-default — with no enabled rules, nothing new is
- * admitted. There is deliberately no seed for this table.
+ * With no enabled rules, every valid new activity URL is admitted. Adding or
+ * enabling the first rule restricts admission. There is no seed for this table.
  *
  * Provenance references `admin_users`, never `users`, so the table holds no
  * learner or instructor data. `on delete set null` keeps a rule alive when the
