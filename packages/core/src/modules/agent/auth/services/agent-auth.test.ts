@@ -9,12 +9,19 @@ import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
 import { UserAuth } from '@/lib/auth.js'
 import { ErrorCodes } from '@/lib/errors.js'
 import { createCoreLogger } from '@/lib/logger.js'
+import { parseAdmissibleUrl } from '@/modules/activity-registration/url-policy.js'
 import { claimAuthCodeSchemas, createAuthCodeSchemas } from '../schemas.js'
 import { accessTokenPayloadSchema } from '../types.js'
 import { AgentAuthService } from './agent-auth.js'
 import { AgentTokenIssuer } from './token-issuer.js'
 import type { Config } from '@/config.js'
+import type { CoreError } from '@/lib/errors.js'
 import type { JWTSigner } from '@/lib/jwt/services.js'
+import type { PolicySnapshot } from '@/modules/activity-registration/schemas.js'
+import type {
+  ActivityRegistrationService,
+  RegistrationOutcome,
+} from '@/modules/activity-registration/services/activity-registration.js'
 import type {
   ActivityRecord,
   AgentAuthMutations,
@@ -52,17 +59,50 @@ const makeService = ({
   claimedCode,
   scopeExists = true,
   activityExists = true,
-  activityCreateReturnsRecord = true,
+  allowedOrigins = ['https://content.test'],
 }: {
   claimedCode?: AuthCodeRecord
   scopeExists?: boolean
   activityExists?: boolean
-  activityCreateReturnsRecord?: boolean
+  /** The enabled policy. Empty denies every unseen redirect URI. */
+  allowedOrigins?: string[]
 } = {}) => {
   const records = makeRecords()
   const inserted: AuthCodeInsert[] = []
   const createdActivityUrls: string[] = []
   let issued: SignInResult | undefined
+
+  /**
+   * Mirrors `ActivityRegistrationService`, including its order: a known
+   * activity resolves with no policy evaluation, and the column bound is
+   * checked before the policy.  The insert conflict is absorbed by the real
+   * service and never reaches this caller, so it is not modelled here.
+   */
+  const registration = {
+    loadPolicy: async (): Promise<PolicySnapshot> => ({
+      rules: allowedOrigins.map((origin) => ({ origin, path_prefix: '/' })),
+    }),
+    register: async (url: string, policy: PolicySnapshot): Promise<RegistrationOutcome> => {
+      if (activityExists) {
+        return { ok: true, activity: records.activity }
+      }
+
+      if (url.length > 255) {
+        return { ok: false, url, reason: 'url_too_long' }
+      }
+
+      const candidate = parseAdmissibleUrl(url)
+      if (candidate === null) {
+        return { ok: false, url, reason: 'malformed_url' }
+      }
+      if (!policy.rules.some((rule) => rule.origin === candidate.origin)) {
+        return { ok: false, url, reason: 'activity_url_not_allowed' }
+      }
+
+      createdActivityUrls.push(url)
+      return { ok: true, activity: records.activity }
+    },
+  } as unknown as ActivityRegistrationService
 
   const service = new AgentAuthService({
     logger,
@@ -74,10 +114,6 @@ const makeService = ({
       getUser: async () => records.user,
     } as unknown as AgentAuthQueries,
     mutations: {
-      createActivity: async (url: string) => {
-        createdActivityUrls.push(url)
-        return activityCreateReturnsRecord ? records.activity : undefined
-      },
       createAuthCode: async (data: AuthCodeInsert) => {
         inserted.push(data)
       },
@@ -89,6 +125,7 @@ const makeService = ({
         return 'signed-agent-token'
       },
     } as AgentTokenIssuer,
+    activityRegistration: { service: registration },
   })
 
   return { service, inserted, createdActivityUrls, getIssued: () => issued, ...records }
@@ -159,22 +196,6 @@ describe('AgentAuthService scope binding', () => {
     assert.equal(inserted.length, 1)
   })
 
-  it('issues an authorization code when another request wins the activity create race', async () => {
-    const { service, inserted, user, activity, scope } = makeService({
-      activityExists: false,
-      activityCreateReturnsRecord: false,
-    })
-
-    await service.createAuthCode(new UserAuth(user.id, []), {
-      client_id: activity.url,
-      redirect_uri: activity.url,
-      code_challenge: 'challenge',
-      scope_id: scope.id,
-    })
-
-    assert.equal(inserted.length, 1)
-  })
-
   it('uses only the claimed code scope for token identity and canonical display metadata', async () => {
     const records = makeRecords()
     const codeVerifier = 'verifier'
@@ -211,6 +232,18 @@ describe('AgentAuthService scope binding', () => {
           return 'signed-agent-token'
         },
       } as AgentTokenIssuer,
+      // `claimAuthCode` consults no policy, so this would fail loudly if it
+      // ever started to.
+      activityRegistration: {
+        service: {
+          loadPolicy: async () => {
+            throw new Error('claimAuthCode must not load the allowlist policy')
+          },
+          register: async () => {
+            throw new Error('claimAuthCode must not register an activity')
+          },
+        } as unknown as ActivityRegistrationService,
+      },
     })
 
     const request = claimAuthCodeSchemas.input.parse({
@@ -260,5 +293,169 @@ describe('AgentAuthService scope binding', () => {
     })
 
     assert.equal(parsed.success, true)
+  })
+})
+
+describe('AgentAuthService activity url allowlist', () => {
+  it('refuses a disallowed unseen redirect uri, creating no activity and no auth code', async () => {
+    // Two separate obligations: no activity *and* no authorization code. A
+    // learner's page can name any redirect URI it likes, and without this gate
+    // every one of them became a registered activity.
+    const { service, inserted, createdActivityUrls, user, scope } = makeService({
+      activityExists: false,
+      allowedOrigins: ['https://content.test'],
+    })
+    const redirect_uri = 'https://elsewhere.test/activity'
+
+    await assert.rejects(
+      service.createAuthCode(new UserAuth(user.id, []), {
+        client_id: redirect_uri,
+        redirect_uri,
+        code_challenge: 'challenge',
+        scope_id: scope.id,
+      }),
+      (error: CoreError) => {
+        assert.equal(error.code, 'ERR_ACTIVITY_URL_NOT_ALLOWED')
+        assert.deepEqual(error.details, {
+          rejected: [{ url: redirect_uri, reason: 'activity_url_not_allowed' }],
+        })
+        return true
+      }
+    )
+
+    assert.deepEqual(createdActivityUrls, [])
+    assert.deepEqual(inserted, [])
+  })
+
+  it('issues a code for a known grandfathered redirect uri under an empty policy', async () => {
+    // Ordinary use of an already-admitted activity is never re-checked, so a
+    // learner mid-course is unaffected by an administrator editing the policy.
+    const { service, inserted, createdActivityUrls, user, activity, scope } = makeService({
+      activityExists: true,
+      allowedOrigins: [],
+    })
+
+    await service.createAuthCode(new UserAuth(user.id, []), {
+      client_id: activity.url,
+      redirect_uri: activity.url,
+      code_challenge: 'challenge',
+      scope_id: scope.id,
+    })
+
+    assert.equal(inserted.length, 1)
+    assert.deepEqual(createdActivityUrls, [])
+  })
+
+  it('rejects an over-long redirect uri rather than letting the database fail', async () => {
+    // `redirect_uri` is an unbounded `z.string()` at the command boundary;
+    // `register` bounds it at the `activities.url` column width and reports it
+    // as a denial reason instead of surfacing a database error.
+    const { service, inserted, createdActivityUrls, user, scope } = makeService({
+      activityExists: false,
+      allowedOrigins: ['https://content.test'],
+    })
+    const redirect_uri = `https://content.test/${'a'.repeat(256)}`
+
+    await assert.rejects(
+      service.createAuthCode(new UserAuth(user.id, []), {
+        client_id: redirect_uri,
+        redirect_uri,
+        code_challenge: 'challenge',
+        scope_id: scope.id,
+      }),
+      (error: CoreError) => {
+        assert.equal(error.code, 'ERR_ACTIVITY_URL_NOT_ALLOWED')
+        assert.deepEqual(error.details, {
+          rejected: [{ url: redirect_uri, reason: 'url_too_long' }],
+        })
+        return true
+      }
+    )
+
+    assert.deepEqual(createdActivityUrls, [])
+    assert.deepEqual(inserted, [])
+  })
+
+  it('does not re-check the policy at token exchange (characterization guard)', async () => {
+    // This proves nothing about today: `claimAuthCode` consults no policy, and
+    // the assertion exists to fail loudly if someone later adds a call there.
+    // A rule removed between authorization and token exchange must not revoke
+    // an admission the learner already holds -- they would be stranded
+    // mid-activity with a code they cannot exchange.
+    const records = makeRecords()
+    const codeVerifier = 'verifier'
+    const codeChallenge = createHash('sha256')
+      .update(codeVerifier, 'utf8')
+      .digest()
+      .toString('base64url')
+    const claimedCode = {
+      code: 'one-time-code',
+      user_id: records.user.id,
+      scope_id: records.scope.id,
+      client_id: records.activity.url,
+      redirect_uri: records.activity.url,
+      code_challenge: codeChallenge,
+      expires_at: new Date(Date.now() + 60_000),
+    } satisfies AuthCodeRecord
+
+    const service = new AgentAuthService({
+      logger,
+      config: { server: { baseUrl: 'https://gradebook.test' } } as Config,
+      queries: {
+        findActivityByUrl: async () => records.activity,
+        findScopeById: async () => records.scope,
+        getUser: async () => records.user,
+      } as unknown as AgentAuthQueries,
+      mutations: {
+        createAuthCode: async () => undefined,
+        claimAuthCode: async () => claimedCode,
+      } as unknown as AgentAuthMutations,
+      tokenIssuer: {
+        createAccessToken: async () => 'signed-agent-token',
+      } as unknown as AgentTokenIssuer,
+      activityRegistration: {
+        service: {
+          loadPolicy: async () => {
+            throw new Error('claimAuthCode must not load the allowlist policy')
+          },
+          register: async () => {
+            throw new Error('claimAuthCode must not register an activity')
+          },
+        } as unknown as ActivityRegistrationService,
+      },
+    })
+
+    const result = await service.claimAuthCode({
+      code: claimedCode.code,
+      client_id: claimedCode.client_id,
+      redirect_uri: claimedCode.redirect_uri,
+      code_verifier: codeVerifier,
+    })
+
+    assert.equal(result.access_token, 'signed-agent-token')
+  })
+
+  it('checks the scope before the allowlist, so an unknown scope still reports itself', async () => {
+    const { service, createdActivityUrls, inserted, user } = makeService({
+      scopeExists: false,
+      activityExists: false,
+      allowedOrigins: [],
+    })
+
+    await assert.rejects(
+      service.createAuthCode(new UserAuth(user.id, []), {
+        client_id: 'https://elsewhere.test/activity',
+        redirect_uri: 'https://elsewhere.test/activity',
+        code_challenge: 'challenge',
+        scope_id: uuidv7(),
+      }),
+      (error: CoreError) => {
+        assert.equal(error.code, ErrorCodes.VALIDATION)
+        return true
+      }
+    )
+
+    assert.deepEqual(createdActivityUrls, [])
+    assert.deepEqual(inserted, [])
   })
 })

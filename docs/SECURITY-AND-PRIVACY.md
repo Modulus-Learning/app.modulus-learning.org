@@ -129,9 +129,42 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
 - **Activity-and-scope-bound, PII-free tokens.** The issued token is bound to one
   activity and one opaque scope label and carries no learner PII; it renews
   transparently on the back of normal traffic via a `new_token` roll-forward.
-- **Activity allow-listing.** Institutions control which activities are reachable
-  through **activity codes** ([DATA-MODEL → Activities](./DATA-MODEL.md#3-activities--grouping)),
-  and deep linking enforces a code's `url_prefix`.
+- **Activity URL admission is an administrator decision.** Whether Modulus will
+  record a *new* activity URL at all is governed by the **sitewide activity URL
+  allowlist** — administrator-managed rules, each an exact normalized origin plus
+  a path-segment-bounded subtree, held in `activity_url_allowlist_rules`
+  ([DATA-MODEL → Activities](./DATA-MODEL.md#3-activities--grouping)) and managed
+  at `/admin/activities`. With **no enabled rules**, every valid new activity URL
+  is admitted, including when all stored rules are disabled. With one or more
+  enabled rules, a new URL must match one of them. Disabling or deleting the last
+  enabled rule restores allow-all. URL syntax and length checks always apply.
+  The policy applies to every path that can add an
+  activity — instructor activity-code creation and editing, LTI deep linking,
+  agent authorization, and cumulative progress targets — through a single
+  registration service that is the only writer of `activities` rows outside seeds
+  and fixtures.
+- **Admission is recorded by the `activities` row itself, and admission is not
+  use.** A URL that already has an `activities` row is resolved without the
+  policy being consulted, so **removing or disabling a rule is not revocation**:
+  existing activities keep working, keep accepting progress, and may still be
+  added to activity codes and used in new deep links. Administrators are shown
+  that consequence in the admin surface, where a disable or delete preview
+  counts activities outside the proposed policy and calls them **grandfathered** —
+  not blocked, disabled, invalid, or noncompliant. Withdrawing access to an
+  activity already accepted is a separate capability that does not exist (see
+  Open Questions).
+
+  One qualification, because it bounds the guarantee: the lookup that
+  grandfathers a URL is an **exact string match** on `activities.url`, which
+  stores the raw URL as it was submitted. Activity URLs are not canonicalized on
+  storage — the registration service's own docstring calls that storage form
+  unsettled and names canonicalization as deferred work — so grandfathering is
+  spelling-sensitive. The same page reached by an equivalent but differently
+  spelled URL misses the lookup and is evaluated as a new registration.
+- **Activity codes remain a second, independent constraint.** Institutions also
+  control which activities a given course grouping covers through **activity
+  codes**, and deep linking enforces a code's `url_prefix`. A code's `url_prefix`
+  cannot broaden the sitewide policy, and the sitewide policy does not replace it.
 
 ### Score integrity
 
@@ -178,6 +211,31 @@ flagged directly in the code:
   is a noted `TODO` ([LTI → Keys & Trust](./LTI.md#keys--trust)).
 - **Nonce / token housekeeping.** Used LTI nonces are marked but not yet pruned;
   agent refresh-token rotation (`used_at`) should be confirmed end-to-end.
+- **Emergency blocking is deferred.** The activity URL allowlist admits; nothing
+  revokes. Withdrawing access to an activity Modulus has already accepted has a
+  much larger decision surface than deleting a rule — whether an LTI launch stops
+  before or after sign-in and enrolment, whether live agent access and refresh
+  tokens are rejected immediately, whether reads as well as writes stop, whether
+  queued AGS submissions proceed, what a learner is told, and how an
+  administrator undoes it. That needs an explicit activity/origin status model,
+  an audit trail, and a recovery workflow. Overloading allowlist deletion with it
+  would hide all of that behind an ordinary configuration edit, so it is
+  deliberately **not** built.
+- **The agent authorization endpoint is a knowingly retained open redirect.**
+  `/routes/agent/authorize` returns the browser to the `redirect_uri` it was
+  given on three of its four branches without consulting the allowlist, so it can
+  be pointed at any `https` origin. A syntactic gate **narrows** this — it rejects
+  the credentialed-host disguise (`https://modulus.example@evil.example/`),
+  `javascript:` and `data:` destinations, and a value `new URL()` cannot parse,
+  sending those to a Modulus error page instead. The rejected value does not reach
+  that page, and the safety there is structural rather than a matter of what the
+  page renders: Next serializes the request URL and its query string into the
+  served HTML's RSC flight payload, so the route redirects with a fixed slug and
+  never with the rejected URI. None of that closes the redirect. Leaving it open
+  is an accepted risk, not an oversight: closing the bounce means replacing it
+  with a Modulus page and a return link, and session expiry is the common path
+  through this endpoint and today resolves with no learner action at all. See
+  [AUTHN-AUTHZ → The Authorization Endpoint's Branch Ordering](./AUTHN-AUTHZ.md#the-authorization-endpoints-branch-ordering).
 - **Formal threat model & pen-test.** A written threat model and an independent
   review are not yet part of the repository.
 - **Transport & secrets.** TLS termination, secret management, and key

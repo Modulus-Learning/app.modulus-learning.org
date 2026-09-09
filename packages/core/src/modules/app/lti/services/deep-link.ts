@@ -1,9 +1,8 @@
 import * as crypto from 'node:crypto'
 
-import { v7 as uuidv7 } from 'uuid'
-
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_FORBIDDEN } from '@/lib/errors.js'
+import { activityUrlNotAllowed } from '@/modules/activity-registration/errors.js'
 import {
   CLAIM_DEEP_LINKING_CONTENT,
   CLAIM_DEEP_LINKING_DATA,
@@ -17,6 +16,7 @@ import type { UrlBuilder } from '@/config.js'
 import type { UserAuth } from '@/lib/auth.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
+import type { ActivityRegistrationService } from '@/modules/activity-registration/services/activity-registration.js'
 import type {
   ActivityMutations,
   ActivityQueries,
@@ -34,6 +34,7 @@ export class LtiDeepLinkingService extends BaseService {
   private activityQueries: ActivityQueries
   private activityMutations: ActivityMutations
   private ltiKeyStore: LtiKeyStore
+  private registration: ActivityRegistrationService
 
   constructor(deps: {
     logger: CoreLogger
@@ -41,6 +42,7 @@ export class LtiDeepLinkingService extends BaseService {
     queries: LtiQueries
     activities: { queries: ActivityQueries; mutations: ActivityMutations }
     ltiKeyStore: LtiKeyStore
+    activityRegistration: { service: ActivityRegistrationService }
   }) {
     super(deps.logger, 'app', 'lti')
     this.urlBuilder = deps.urlBuilder
@@ -48,6 +50,7 @@ export class LtiDeepLinkingService extends BaseService {
     this.activityQueries = deps.activities.queries
     this.activityMutations = deps.activities.mutations
     this.ltiKeyStore = deps.ltiKeyStore
+    this.registration = deps.activityRegistration.service
   }
 
   @method
@@ -123,14 +126,37 @@ export class LtiDeepLinkingService extends BaseService {
       }).log(this.logger)
     }
 
-    let activity = await this.activityQueries.findActivityByURL(activity_url)
-    if (activity == null) {
-      activity = await this.activityMutations.createActivity({
-        id: uuidv7(),
-        url: activity_url,
-      })
+    // Deep linking is the same admission as the activity-code edit page and
+    // must use the same policy -- otherwise an instructor bypasses the
+    // creation gate by typing an unseen disallowed URL into Canvas. Routing it
+    // through the registration service also fixes its create race: two
+    // instructors deep linking the same new URL at the same moment currently
+    // surface a unique-constraint error.
+    //
+    // This runs *after* the per-code prefix check above, and that order is not
+    // arbitrary: a known grandfathered activity skips the sitewide check but
+    // still has to satisfy the prefix, which is an independent,
+    // instructor-managed curriculum constraint.
+    const policy = await this.registration.loadPolicy()
+    const outcome = await this.registration.register(activity_url, policy)
+
+    if (!outcome.ok) {
+      // Raised before the content item is built, so no signed content item
+      // reaches Canvas for a URL Modulus will not accept.
+      //
+      // Not `.log()`ed: `details.rejected` carries the whole URL, query and
+      // fragment included, and `CoreError.log()` spreads `details` into the
+      // record. `register()` has already logged the denial with its normalized
+      // origin and path alone.
+      this.logger.warn({ reason: outcome.reason }, 'deep link denied by the activity url allowlist')
+      throw activityUrlNotAllowed([{ url: outcome.url, reason: outcome.reason }])
     }
 
+    const activity = outcome.activity
+
+    // Deliberately unguarded. Linking a grandfathered activity into a new
+    // Canvas context is a consequence of admission being activity-level, not
+    // an oversight: association is categorization, never a trust decision.
     await this.activityMutations.assignActivitiesToActivityCode(activityCodeRecord, [activity])
 
     const nonce = crypto.randomBytes(30).toString('base64url')

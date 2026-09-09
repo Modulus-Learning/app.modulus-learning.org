@@ -2,9 +2,11 @@ import { createHash, randomBytes } from 'node:crypto'
 
 import { BaseService } from '@/lib/base-service.js'
 import { ERR_UNAUTHORIZED, ERR_VALIDATION } from '@/lib/errors.js'
+import { activityUrlNotAllowed } from '@/modules/activity-registration/errors.js'
 import type { Config } from '@/config.js'
 import type { UserAuth } from '@/lib/auth.js'
 import type { CoreLogger } from '@/lib/logger.js'
+import type { ActivityRegistrationService } from '@/modules/activity-registration/services/activity-registration.js'
 import type { AgentAuthMutations, AgentAuthQueries } from '../repository/index.js'
 import type {
   ClaimAuthCodeRequest,
@@ -19,6 +21,7 @@ export class AgentAuthService extends BaseService {
   private queries: AgentAuthQueries
   private mutations: AgentAuthMutations
   private tokenIssuer: AgentTokenIssuer
+  private registration: ActivityRegistrationService
 
   constructor(deps: {
     logger: CoreLogger
@@ -26,12 +29,14 @@ export class AgentAuthService extends BaseService {
     queries: AgentAuthQueries
     mutations: AgentAuthMutations
     tokenIssuer: AgentTokenIssuer
+    activityRegistration: { service: ActivityRegistrationService }
   }) {
     super(deps.logger, 'agent', 'auth')
     this.config = deps.config
     this.queries = deps.queries
     this.mutations = deps.mutations
     this.tokenIssuer = deps.tokenIssuer
+    this.registration = deps.activityRegistration.service
   }
 
   async createAuthCode(
@@ -46,10 +51,34 @@ export class AgentAuthService extends BaseService {
       }).log(this.logger)
     }
 
-    const activity = await this.queries.findActivityByUrl(redirect_uri)
-    if (!activity) {
-      await this.mutations.createActivity(redirect_uri)
+    // Without this gate, any `redirect_uri` a learner's page supplies becomes a
+    // registered activity. The order here is load-bearing: evaluate, create the
+    // activity, then create the auth code that names it. No transaction is
+    // needed -- the activity is committed before the code, so no interleaving
+    // yields a code the agent cannot exchange, and a failure after the insert
+    // leaves only a bare activity row, which this design already tolerates.
+    //
+    // A concurrent create of the same allowed URL resolves to the winning row
+    // inside `register` and stays successful.
+    const policy = await this.registration.loadPolicy()
+    const outcome = await this.registration.register(redirect_uri, policy)
+
+    if (!outcome.ok) {
+      // Neither an activity nor an authorization code is created.
+      //
+      // Not `.log()`ed: `details.rejected` carries the whole redirect URI --
+      // and this one is a learner's, reached during an authenticated flow.
+      // `register()` has already recorded the denial with its normalized
+      // origin and path alone, which is the sanctioned diagnostic.
+      this.logger.warn(
+        { reason: outcome.reason },
+        'agent authorization denied by the activity url allowlist'
+      )
+      throw activityUrlNotAllowed([{ url: outcome.url, reason: outcome.reason }])
     }
+
+    // Deliberately not associated with any activity code. The allowlist
+    // expresses site trust, not curriculum ownership.
 
     const code = randomBytes(60).toString('base64url')
     const expires_at = new Date(Date.now() + 1000 * 60 * 5)

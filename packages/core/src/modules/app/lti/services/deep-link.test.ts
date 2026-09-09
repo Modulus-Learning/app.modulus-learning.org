@@ -6,10 +6,18 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { UserAuth } from '@/lib/auth.js'
 import { createCoreLogger } from '@/lib/logger.js'
+import { parseAdmissibleUrl } from '@/modules/activity-registration/url-policy.js'
 import { CLAIM_DEEP_LINKING_CONTENT, CLAIM_DEPLOYMENT_ID } from '../constants.js'
 import { LtiDeepLinkingService } from './deep-link.js'
 import type { UrlBuilder } from '@/config.js'
+import type { CoreError } from '@/lib/errors.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
+import type { ActivityRecord } from '@/modules/activity-registration/repository/index.js'
+import type { PolicySnapshot } from '@/modules/activity-registration/schemas.js'
+import type {
+  ActivityRegistrationService,
+  RegistrationOutcome,
+} from '@/modules/activity-registration/services/activity-registration.js'
 import type {
   ActivityMutations,
   ActivityQueries,
@@ -24,12 +32,64 @@ const ACTIVITY_URL = 'https://content.test/activity?existing=one#authored'
 const ACTIVITY_CODE = 'course-code'
 const DEPLOYMENT_ID = 'deployment-17'
 
-const createService = () => {
+/**
+ * @param urlPrefix       the activity code's own `url_prefix`, checked ahead of
+ *                        the sitewide policy and independent of it.
+ * @param known           URLs that already have an activity row. A known URL is
+ *                        admitted with no policy evaluation -- grandfathering.
+ * @param allowedOrigins  the enabled policy. Empty denies every unseen URL.
+ */
+const createService = ({
+  urlPrefix = null,
+  known = [ACTIVITY_URL],
+  allowedOrigins = [],
+}: {
+  urlPrefix?: string | null
+  known?: string[]
+  allowedOrigins?: string[]
+} = {}) => {
   const userId = uuidv7()
   const activityCodeId = uuidv7()
   const activityId = uuidv7()
   /** The payload handed to the key store, so the signed response can be read. */
   const signed: Record<string, unknown>[] = []
+  const rows = new Map<string, ActivityRecord>(
+    known.map((url) => [url, { id: activityId, url } as ActivityRecord])
+  )
+  const created: string[] = []
+  const assigned: string[] = []
+
+  const registration = {
+    loadPolicy: async (): Promise<PolicySnapshot> => ({
+      rules: allowedOrigins.map((origin) => ({ origin, path_prefix: '/' })),
+    }),
+    register: async (url: string, policy: PolicySnapshot): Promise<RegistrationOutcome> => {
+      // Known first, with no policy consulted -- the grandfathering order.
+      const existing = rows.get(url)
+      if (existing !== undefined) {
+        return { ok: true, activity: existing }
+      }
+
+      if (url.length > 255) {
+        return { ok: false, url, reason: 'url_too_long' }
+      }
+
+      // The real parser, so the fake cannot disagree with production about
+      // what `malformed_url` means.
+      const candidate = parseAdmissibleUrl(url)
+      if (candidate === null) {
+        return { ok: false, url, reason: 'malformed_url' }
+      }
+      if (!policy.rules.some((rule) => rule.origin === candidate.origin)) {
+        return { ok: false, url, reason: 'activity_url_not_allowed' }
+      }
+
+      const activity = { id: uuidv7(), url } as ActivityRecord
+      rows.set(url, activity)
+      created.push(url)
+      return { ok: true, activity }
+    },
+  } as unknown as ActivityRegistrationService
 
   const service = new LtiDeepLinkingService({
     logger,
@@ -63,14 +123,17 @@ const createService = () => {
         findActivityCodeById: async () => ({
           id: activityCodeId,
           code: ACTIVITY_CODE,
-          url_prefix: null,
+          url_prefix: urlPrefix,
         }),
         isMember: async () => true,
-        findActivityByURL: async () => ({ id: activityId, url: ACTIVITY_URL }),
+        findActivityByURL: async () => {
+          throw new Error('findActivityByURL must not be used: registration resolves the row')
+        },
       } as unknown as ActivityQueries,
       mutations: {
-        createActivity: async () => ({ id: activityId, url: ACTIVITY_URL }),
-        assignActivitiesToActivityCode: async () => undefined,
+        assignActivitiesToActivityCode: async (_code: unknown, activities: ActivityRecord[]) => {
+          assigned.push(...activities.map(({ url }) => url))
+        },
       } as unknown as ActivityMutations,
     },
     ltiKeyStore: {
@@ -79,13 +142,14 @@ const createService = () => {
         return 'signed-jwt'
       },
     } as unknown as LtiKeyStore,
+    activityRegistration: { service: registration },
   })
 
-  return { service, userId, activityCodeId, signed }
+  return { service, userId, activityCodeId, signed, created, assigned }
 }
 
-const handle = async () => {
-  const { service, userId, activityCodeId, signed } = createService()
+const handle = async (options: Parameters<typeof createService>[0] = {}) => {
+  const { service, userId, activityCodeId, signed, created, assigned } = createService(options)
 
   const result = await service.handleDeepLink(new UserAuth(userId, []), {
     launch_id: 'launch-1',
@@ -103,7 +167,28 @@ const handle = async () => {
   assert.ok(typeof item.url === 'string', 'expected the content item to carry a url')
   const url = item.url
 
-  return { result, payload, items, item, url }
+  return { result, payload, items, item, url, created, assigned }
+}
+
+/** Runs a deep link expected to fail, and reports what was attempted. */
+const handleExpectingFailure = async (
+  activityUrl: string,
+  options: Parameters<typeof createService>[0] = {}
+) => {
+  const { service, userId, activityCodeId, signed, created, assigned } = createService(options)
+
+  const error = await service
+    .handleDeepLink(new UserAuth(userId, []), {
+      launch_id: 'launch-1',
+      activity_code_id: activityCodeId,
+      activity_url: activityUrl,
+    })
+    .then(
+      () => undefined,
+      (thrown: CoreError) => thrown
+    )
+
+  return { error, signed, created, assigned }
 }
 
 describe('LtiDeepLinkingService.handleDeepLink', () => {
@@ -150,5 +235,102 @@ describe('LtiDeepLinkingService.handleDeepLink', () => {
     assert.equal(items.length, 1)
     assert.equal(result.jwt, 'signed-jwt')
     assert.equal(result.return_url, 'https://canvas.test/deep_link_return')
+  })
+})
+
+describe('LtiDeepLinkingService activity url allowlist', () => {
+  const UNSEEN_URL = 'https://content.test/newly-typed'
+
+  it('registers an unseen allowed url, associates it and returns a content item', async () => {
+    const { service, userId, activityCodeId, signed, created, assigned } = createService({
+      known: [],
+      allowedOrigins: ['https://content.test'],
+    })
+
+    const result = await service.handleDeepLink(new UserAuth(userId, []), {
+      launch_id: 'launch-1',
+      activity_code_id: activityCodeId,
+      activity_url: UNSEEN_URL,
+    })
+
+    assert.deepEqual(created, [UNSEEN_URL])
+    assert.deepEqual(assigned, [UNSEEN_URL])
+    assert.equal(result.jwt, 'signed-jwt')
+    assert.equal(signed.length, 1)
+  })
+
+  it('refuses an unseen disallowed url and signs nothing', async () => {
+    // "Returned no content item" is otherwise indistinguishable from a thrown
+    // error, so the assertion that matters is that the key store was never
+    // asked to sign: no signed content item reaches Canvas for a URL Modulus
+    // will not accept.
+    const { error, signed, created, assigned } = await handleExpectingFailure(
+      'https://elsewhere.test/newly-typed',
+      { known: [], allowedOrigins: ['https://content.test'] }
+    )
+
+    assert.equal(error?.code, 'ERR_ACTIVITY_URL_NOT_ALLOWED')
+    assert.deepEqual(error?.details, {
+      rejected: [{ url: 'https://elsewhere.test/newly-typed', reason: 'activity_url_not_allowed' }],
+    })
+    assert.deepEqual(signed, [])
+    assert.deepEqual(created, [])
+    assert.deepEqual(assigned, [])
+  })
+
+  it('links a known grandfathered url under an empty policy', async () => {
+    // No rule matches it and no rule exists at all, yet the activity is known,
+    // so deep linking it is unaffected. Editing site policy must never
+    // withdraw an instructor's existing content.
+    const { result, created, assigned } = await handle({
+      known: [ACTIVITY_URL],
+      allowedOrigins: [],
+    })
+
+    assert.deepEqual(created, [])
+    assert.deepEqual(assigned, [ACTIVITY_URL])
+    assert.equal(result.jwt, 'signed-jwt')
+  })
+
+  it('still enforces the code url_prefix against a known grandfathered url', async () => {
+    // The prefix survives grandfathering: it is an independent,
+    // instructor-managed curriculum constraint, not part of the sitewide
+    // policy, and it cannot be satisfied by an activity merely being known.
+    const { error, signed, assigned } = await handleExpectingFailure(ACTIVITY_URL, {
+      known: [ACTIVITY_URL],
+      allowedOrigins: [],
+      urlPrefix: 'https://other.test/',
+    })
+
+    assert.equal(error?.code, 'ERR_DEEP_LINKING')
+    assert.match(error?.message ?? '', /activity url must start with/i)
+    assert.deepEqual(assigned, [])
+    assert.deepEqual(signed, [])
+  })
+
+  it('enforces the code url_prefix before the allowlist, creating no activity', async () => {
+    // The two rules are ANDed and the prefix runs first: a URL the sitewide
+    // policy would admit is still refused by the code's own prefix, and no
+    // activity row is created on the way to that refusal.
+    const { error, created, signed } = await handleExpectingFailure(UNSEEN_URL, {
+      known: [],
+      allowedOrigins: ['https://content.test'],
+      urlPrefix: 'https://other.test/',
+    })
+
+    assert.equal(error?.code, 'ERR_DEEP_LINKING')
+    assert.deepEqual(created, [])
+    assert.deepEqual(signed, [])
+  })
+
+  it('applies both rules when the url satisfies the prefix but not the policy', async () => {
+    const { error, created } = await handleExpectingFailure(UNSEEN_URL, {
+      known: [],
+      allowedOrigins: [],
+      urlPrefix: 'https://content.test/',
+    })
+
+    assert.equal(error?.code, 'ERR_ACTIVITY_URL_NOT_ALLOWED')
+    assert.deepEqual(created, [])
   })
 })

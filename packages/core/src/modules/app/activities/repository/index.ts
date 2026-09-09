@@ -5,14 +5,12 @@ import {
   exists,
   getTableColumns,
   ilike,
-  inArray,
   max,
   min,
   notExists,
   or,
   sql,
 } from 'drizzle-orm'
-import { v7 as uuidv7 } from 'uuid'
 
 import {
   activities,
@@ -36,7 +34,6 @@ const INSTRUCTOR_ROLE_MACHINE_NAME = 'instructor'
 
 // TODO: Add Update types?
 export type ActivityRecord = typeof activities.$inferSelect
-export type ActivityInsert = typeof activities.$inferInsert
 // export type ActivityUpdate = Partial<Omit<ActivityRecord, 'id' | 'created_at'>>
 
 export type ActivityCodeRecord = typeof activityCodes.$inferSelect
@@ -251,18 +248,6 @@ export class ActivityQueries extends BaseService {
       .catch(this.utils.wrapDbErrorNew())
   }
 
-  @method
-  async findActivitiesByURL(urls: string[]): Promise<ActivityRecord[]> {
-    if (urls.length === 0) {
-      return []
-    }
-
-    return await this.db
-      .get()
-      .query.activities.findMany({ where: inArray(activities.url, urls) })
-      .catch(this.utils.wrapDbErrorNew())
-  }
-
   /**
    * Answers, from core's own records alone, whether an activity is currently
    * associated with an activity code. Enrollment eligibility is decided from
@@ -422,32 +407,6 @@ export class ActivityMutations extends BaseService {
     this.utils.assertExists(activityCode, { message: 'updated activity code is null' })
 
     return activityCode
-  }
-
-  @method
-  async createActivity(data: ActivityInsert): Promise<ActivityRecord> {
-    const [activity] = await this.db
-      .get()
-      .insert(activities)
-      .values(data)
-      .returning()
-      .catch(this.utils.wrapDbErrorNew())
-
-    this.utils.assertExists(activity, { message: 'newly created activity is null' })
-
-    return activity
-  }
-
-  @method
-  async ensureActivitiesExist(urls: string[]): Promise<void> {
-    if (urls.length > 0) {
-      await this.db
-        .get()
-        .insert(activities)
-        .values(urls.map((url) => ({ id: uuidv7(), url })))
-        .onConflictDoNothing()
-        .catch(this.utils.wrapDbErrorNew())
-    }
   }
 
   @method

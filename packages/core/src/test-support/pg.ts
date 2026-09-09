@@ -12,6 +12,12 @@ import { DBManagerImpl, TXManagerImpl } from '@/lib/db-manager.js'
 import { createCoreLogger } from '@/lib/logger.js'
 import { CoreUtils } from '@/lib/utils.js'
 import {
+  ActivityUrlAllowlistMutations,
+  ActivityUrlAllowlistQueries,
+} from '@/modules/activity-registration/repository/index.js'
+import { ActivityRegistrationService } from '@/modules/activity-registration/services/activity-registration.js'
+import { AllowlistPolicyService } from '@/modules/activity-registration/services/allowlist-policy.js'
+import {
   ActivityStateMutations,
   ActivityStateQueries,
 } from '@/modules/agent/activity-state/repository/index.js'
@@ -21,14 +27,18 @@ import {
   ActivityMutations as AppActivityMutations,
   ActivityQueries as AppActivityQueries,
 } from '@/modules/app/activities/repository/index.js'
+import { ActivityService as AppActivityService } from '@/modules/app/activities/services/activity.js'
 import { LtiMutations, LtiQueries } from '@/modules/app/lti/repository/index.js'
 import {
   LtiScoreSubmissionMutations,
   LtiScoreSubmissionQueries,
 } from '@/modules/app/lti/score-submission/repository.js'
 import { LtiScoreSubmitter } from '@/modules/app/lti/score-submission/submitter.js'
+import { LtiDeepLinkingService } from '@/modules/app/lti/services/deep-link.js'
 import { testConfig } from '@/test-support/config.js'
+import type { UrlBuilder } from '@/config.js'
 import type { DB } from '@/database/index.js'
+import type { LtiKeyStore } from '@/lib/lti-keystore.js'
 import type { LtiAgsClient } from '@/modules/app/lti/score-submission/ags-client.js'
 
 const MIGRATIONS_FOLDER = path.resolve(
@@ -74,6 +84,8 @@ export type TestRepos = {
   activityMutations: ActivityStateMutations
   appActivityQueries: AppActivityQueries
   appActivityMutations: AppActivityMutations
+  allowlistQueries: ActivityUrlAllowlistQueries
+  allowlistMutations: ActivityUrlAllowlistMutations
 }
 
 // Service-layer seam for the 7.1b composition tests: the real service over the
@@ -82,6 +94,14 @@ export type TestRepos = {
 export type TestServices = {
   activityProgress: ActivityProgressService
   activityPageState: ActivityPageStateService
+  allowlistPolicy: AllowlistPolicyService
+  activityRegistration: ActivityRegistrationService
+  appActivity: AppActivityService
+  /** Built per test, so a fake key store and url builder can be injected. */
+  makeDeepLinking: (deps: {
+    urlBuilder: UrlBuilder
+    ltiKeyStore: LtiKeyStore
+  }) => LtiDeepLinkingService
   makeSubmitter: (agsClient: LtiAgsClient) => LtiScoreSubmitter
 }
 
@@ -136,7 +156,21 @@ export async function setupTestHarness(): Promise<TestHarness> {
     activityMutations: new ActivityStateMutations(deps),
     appActivityQueries: new AppActivityQueries(deps),
     appActivityMutations: new AppActivityMutations(deps),
+    allowlistQueries: new ActivityUrlAllowlistQueries(deps),
+    allowlistMutations: new ActivityUrlAllowlistMutations(deps),
   }
+
+  const allowlistPolicy = new AllowlistPolicyService({
+    logger,
+    queries: repos.allowlistQueries,
+  })
+
+  const activityRegistration = new ActivityRegistrationService({
+    logger,
+    queries: repos.allowlistQueries,
+    mutations: repos.allowlistMutations,
+    policy: allowlistPolicy,
+  })
 
   const services: TestServices = {
     activityProgress: new ActivityProgressService({
@@ -144,12 +178,31 @@ export async function setupTestHarness(): Promise<TestHarness> {
       tx,
       queries: repos.activityQueries,
       mutations: repos.activityMutations,
+      activityRegistration: { service: activityRegistration },
     }),
     activityPageState: new ActivityPageStateService({
       logger,
       queries: repos.activityQueries,
       mutations: repos.activityMutations,
     }),
+    allowlistPolicy,
+    activityRegistration,
+    appActivity: new AppActivityService({
+      logger,
+      tx,
+      queries: repos.appActivityQueries,
+      mutations: repos.appActivityMutations,
+      activityRegistration: { service: activityRegistration },
+    }),
+    makeDeepLinking: ({ urlBuilder, ltiKeyStore }) =>
+      new LtiDeepLinkingService({
+        logger,
+        urlBuilder,
+        queries: repos.ltiQueries,
+        activities: { queries: repos.appActivityQueries, mutations: repos.appActivityMutations },
+        ltiKeyStore,
+        activityRegistration: { service: activityRegistration },
+      }),
     makeSubmitter: (agsClient) =>
       new LtiScoreSubmitter({
         logger,

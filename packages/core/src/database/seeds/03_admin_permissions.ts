@@ -47,6 +47,8 @@ export const seedAdminPermissions = async (
     'admin-roles:delete',
     'lti-platforms:list',
     'lti-platforms:create',
+    'activity-url-allowlist:list',
+    'activity-url-allowlist:manage',
     'reports:list',
     'reports:read',
     'access_admin',

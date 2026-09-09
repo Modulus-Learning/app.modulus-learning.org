@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
+import { readRejectedUrls, rejectedUrlsMessage } from '@/modules/app/activities/rejected-urls'
 import type { DeepLinkingFormState } from '../@types'
 
 export const deepLinking = async (
@@ -37,6 +38,28 @@ export const deepLinking = async (
 
   const result = await core.app.lti.handleDeepLink(ctx, validationResult.data)
   if (!result.ok) {
+    // The sitewide allowlist refused the URL. This is a *second* code mapped
+    // onto `activity_url`; without it a policy denial renders as the generic
+    // "An error occurred." and the instructor is told nothing actionable.
+    //
+    // It returns ahead of the error log below deliberately, as the
+    // activity-code actions do. `result.error.details` carries the whole URL,
+    // query and fragment included, and an instructor typo is not an error
+    // anyway -- core has already recorded the denial at warn, with the
+    // normalized origin and path alone.
+    if (result.error.code === 'ERR_ACTIVITY_URL_NOT_ALLOWED') {
+      const rejected = readRejectedUrls(result.error.details)
+      if (rejected.length > 0) {
+        return {
+          errors: {
+            activity_url: [rejectedUrlsMessage(rejected)],
+          },
+          message: 'Invalid activity URL.',
+          status: 'failed',
+        }
+      }
+    }
+
     log.error({
       deep_link: {
         status: 'failed',
@@ -51,6 +74,9 @@ export const deepLinking = async (
         ? String(result.error.message)
         : 'An error occurred.'
 
+    // The per-code `url_prefix` violation, matched on the message rather than
+    // the code. Left exactly as it is: converting it to a code check is a
+    // reasonable cleanup but is not part of this change.
     if (/activity url must start with/i.test(errorMessage)) {
       return {
         errors: {

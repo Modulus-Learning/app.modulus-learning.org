@@ -43,6 +43,12 @@ export function UpdateActivityCodeForm({
   const descriptionId = useId()
   const errorTextId = useId()
 
+  // A denial from the sitewide allowlist belongs beside the URL field, not
+  // only in the banner: it names the exact lines the instructor has to change.
+  // The client-side `validateUrls` feedback stays -- it still enforces this
+  // code's own `url_prefix`, and neither check is the enforcement boundary.
+  const serverUrlError = formState.errors?.urls?.[0]
+
   const validateFormFields = (nextUrls: string, nextUrlPrefix: string): boolean => {
     const prefixResult = validateUrlPrefix(nextUrlPrefix)
     if (!prefixResult.valid) {
@@ -157,8 +163,8 @@ export function UpdateActivityCodeForm({
             placeholder="Enter one or more destination activity URLs for this activity code (line separated)."
             className="w-full"
             helpText="Optional. Enter destination activity URLs (line separated) for this activity code. Activities can be added or removed at any time. If a URL prefix is set above, every URL must begin with the URL prefix."
-            error={urlError}
-            errorText={urlErrorText}
+            error={urlError || serverUrlError != null}
+            errorText={urlErrorText || serverUrlError || ''}
           />
         </div>
         <div className="form-actions flex items-center justify-end mt-4 gap-4">
