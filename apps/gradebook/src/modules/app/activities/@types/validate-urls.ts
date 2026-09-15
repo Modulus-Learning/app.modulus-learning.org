@@ -7,8 +7,10 @@ import {
  * Instructor activity URL and URL prefix feedback, shared by the activity-code
  * forms, their server actions, and the deep-link form.
  *
- * This is parse and component validation plus the per-code prefix comparison,
- * all through core's pure helpers so the host and core agree on what a URL is.
+ * This is literal-space, parse, and component validation plus the per-code
+ * prefix comparison, all through core's pure helpers so the host and core agree
+ * on what a URL is. An inner literal space is rejected, never encoded; an
+ * explicit `%20` is accepted.
  * It is deliberately **not** an admission check: scheme, credentials, and the
  * sitewide allowlist only apply to activities Modulus has not seen, and only
  * core can tell whether an activity is already registered. A parseable
@@ -22,15 +24,16 @@ import {
 const MAX_URL_PREFIX_LENGTH = 255
 
 export const ACTIVITY_URL_MESSAGES = {
+  literal_space: 'Activity URLs cannot contain literal spaces.',
   malformed_url: 'Supply a valid absolute activity URL.',
   unsupported_url_components:
     'Activity URLs cannot include query strings or fragments. Supply the activity URL without these components; Modulus does not currently support custom launch parameters.',
-  multiple_urls: 'Enter one activity URL per line.',
   prefix_mismatch: 'Activity URLs must start with the URL prefix.',
   required: 'Select or enter an activity URL.',
 } as const
 
 export const URL_PREFIX_MESSAGES = {
+  literal_space: 'URL prefixes cannot contain literal spaces.',
   malformed_url: 'Supply a valid absolute URL prefix.',
   unsupported_url_components:
     'URL prefixes cannot include query strings or fragments. Supply the URL prefix without these components; Modulus does not currently support custom launch parameters.',
@@ -166,12 +169,9 @@ export function validateUrls(
 function lineMessage(line: string, prefix: string | null): string | null {
   if (line === '') return null // Allow empty lines
 
-  // The parser would percent-encode an inner space into the path and accept
-  // two URLs pasted onto one line as a single activity.
-  if (/\s/.test(line)) {
-    return ACTIVITY_URL_MESSAGES.multiple_urls
-  }
-
+  // Core's helper rejects an inner literal space before parsing, so two URLs
+  // pasted onto one line get the literal-space warning rather than being
+  // encoded into a single activity.
   const result = validateInstructorActivityUrl(line)
   if (!result.ok) {
     return ACTIVITY_URL_MESSAGES[result.reason]

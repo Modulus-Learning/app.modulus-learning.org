@@ -243,12 +243,14 @@ export type ProgressRequest = z.infer<typeof progressRequestSchema>
 const MAX_URL_PREFIX_LENGTH = 255
 
 export const INSTRUCTOR_ACTIVITY_URL_MESSAGES = {
+  literal_space: 'Activity URLs cannot contain literal spaces.',
   malformed_url: 'Supply a valid absolute activity URL.',
   unsupported_url_components:
     'Activity URLs cannot include query strings or fragments. Supply the activity URL without these components; Modulus does not currently support custom launch parameters.',
 } as const
 
 export const URL_PREFIX_MESSAGES = {
+  literal_space: 'URL prefixes cannot contain literal spaces.',
   malformed_url: 'Supply a valid absolute URL prefix.',
   unsupported_url_components:
     'URL prefixes cannot include query strings or fragments. Supply the URL prefix without these components; Modulus does not currently support custom launch parameters.',
@@ -263,7 +265,9 @@ export const URL_PREFIX_MESSAGES = {
  * spelling unchanged, so a registration denial can be correlated back to the
  * line the instructor typed; canonicalizing is registration's job.
  *
- * This is parse and component validation only. Scheme, credentials, length,
+ * This is literal-space, parse, and component validation only. The space rule
+ * applies even when the encoded spelling names a known activity: it governs
+ * what an instructor may type, not identity. Scheme, credentials, length,
  * and the allowlist are admission rules for unseen activities, decided by
  * registration, so a grandfathered activity that would fail today's admission
  * syntax stays usable. The messages never echo the submitted value, because
@@ -281,9 +285,11 @@ export const instructorActivityUrlSchema = z.string().superRefine((value, ctx) =
  *
  * Unlike an activity URL, a prefix is transformed: the handler receives and
  * stores its canonical form, so the deep-link prefix comparison works on the
- * same spelling rules as activity identity. `''` means no constraint and
- * becomes `null` before any parsing; `null` and an omitted value pass through
- * without reaching the string branch at all.
+ * same spelling rules as activity identity. A prefix that is empty once
+ * trimmed means no constraint and becomes `null` before any parsing; `null`
+ * and an omitted value pass through without reaching the string branch at all.
+ * A non-empty prefix is validated trimmed, so an inner literal space is
+ * rejected rather than encoded.
  *
  * The 255-character bound is measured on the canonical output, not the input:
  * a default port or dot segment can shrink a prefix into range, and punycode
@@ -292,7 +298,7 @@ export const instructorActivityUrlSchema = z.string().superRefine((value, ctx) =
 export const urlPrefixSchema = z
   .string()
   .transform((value, ctx): string | null => {
-    if (value === '') {
+    if (value.trim() === '') {
       return null
     }
 

@@ -133,6 +133,69 @@ describe('CreateActivityCodeForm', () => {
     expect(mocks.createActivityCode).not.toHaveBeenCalled()
   })
 
+  test('warns about literal spaces on their physical lines, keeps the text, and accepts %20', async () => {
+    mocks.createActivityCode.mockResolvedValue({ errors: {}, status: 'idle' })
+    await render()
+    const typed = [
+      'https://content.test/lesson one',
+      '',
+      'https://content.test/ok',
+      'https://content.test/one https://content.test/two',
+      'https://content.test/lesson one',
+    ].join('\n')
+    await type(urls(), typed)
+
+    expect(errorFor('urls')).toBe(`Lines 1, 4, 5: ${ACTIVITY_URL_MESSAGES.literal_space}`)
+    expect(errorFor('urls')).not.toMatch(/administrator|request access/i)
+    expect(urls().value).toBe(typed)
+    expect(submitButton().disabled).toBe(true)
+    await submit()
+    expect(mocks.createActivityCode).not.toHaveBeenCalled()
+
+    const corrected = typed.replaceAll('lesson one', 'lesson%20one').replace(' https', '\nhttps')
+    await type(urls(), corrected)
+    expect(errorFor('urls')).toBeNull()
+    expect(submitButton().disabled).toBe(false)
+
+    await submit()
+    expect(mocks.createActivityCode).toHaveBeenCalledTimes(1)
+    const submitted = mocks.createActivityCode.mock.calls[0]?.[1] as FormData
+    expect(submitted.get('urls')).toBe(corrected)
+  })
+
+  test('warns about a literal space in the prefix without replacing it', async () => {
+    await render()
+    await type(prefix(), ' https://content.test/my course/ ')
+
+    expect(errorFor('url_prefix')).toBe(URL_PREFIX_MESSAGES.literal_space)
+    expect(prefix().value).toBe(' https://content.test/my course/ ')
+
+    await type(prefix(), 'https://content.test/my%20course/')
+    expect(errorFor('url_prefix')).toBeNull()
+  })
+
+  test('shows a server literal-space warning until the field is corrected', async () => {
+    const warning = `Line 1: ${ACTIVITY_URL_MESSAGES.literal_space}`
+    mocks.createActivityCode.mockResolvedValueOnce({
+      errors: { urls: [warning] },
+      message: 'Invalid URLs.',
+      status: 'failed',
+    })
+    mocks.createActivityCode.mockResolvedValueOnce({ errors: {}, status: 'idle' })
+
+    await render()
+    await type(urls(), 'https://content.test/lesson')
+    await submit()
+    expect(errorFor('urls')).toBe(warning)
+    expect(urls().value).toBe('https://content.test/lesson')
+
+    await type(urls(), 'https://content.test/lesson%20one')
+    expect(errorFor('urls')).toBeNull()
+    expect(submitButton().disabled).toBe(false)
+    await submit()
+    expect(mocks.createActivityCode).toHaveBeenCalledTimes(2)
+  })
+
   test('warns about a prefix with components without replacing it', async () => {
     await render()
     await type(prefix(), 'https://content.test/course/?term=')

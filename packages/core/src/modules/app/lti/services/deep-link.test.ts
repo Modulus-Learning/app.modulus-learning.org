@@ -6,9 +6,11 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { UserAuth } from '@/lib/auth.js'
 import { createCoreLogger } from '@/lib/logger.js'
+import { CoreUtils } from '@/lib/utils.js'
 import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
 import { parseAdmissibleUrl } from '@/modules/activity-registration/url-policy.js'
 import { INSTRUCTOR_ACTIVITY_URL_MESSAGES } from '@/modules/app/activities/schemas.js'
+import { LtiCommands } from '../commands.js'
 import { CLAIM_DEEP_LINKING_CONTENT, CLAIM_DEPLOYMENT_ID } from '../constants.js'
 import { LtiDeepLinkingService } from './deep-link.js'
 import type { UrlBuilder } from '@/config.js'
@@ -26,6 +28,8 @@ import type {
 } from '@/modules/app/activities/repository/index.js'
 import type { LtiQueries } from '../repository/index.js'
 import type { DeepLinkingContentItem } from '../types/messages/tool-originating/deep-linking-response.js'
+import type { LtiLaunchService } from './launch.js'
+import type { LtiLoginService } from './login.js'
 
 const LTI_LAUNCH_URL = 'https://modulus.test/routes/lti/launch'
 const ACTIVITY_URL = 'https://content.test/activity'
@@ -663,6 +667,31 @@ describe('LtiDeepLinkingService code url_prefix', () => {
     }
   })
 
+  it('refuses a stored prefix containing a literal space, attributing it to the code', async () => {
+    // The candidate would match the prefix's parser-encoded form, so treating
+    // the space as encodable would silently accept it.
+    const encoded = 'https://content.test/course%20one/activity'
+    for (const urlPrefix of [
+      'https://content.test/course one/',
+      ' https://content.test/course one/ ',
+      'https://content.test/course one/?term=1',
+    ]) {
+      const attempt = await handleExpectingFailure(encoded, { known: [encoded], urlPrefix })
+      assert.equal(attempt.error?.code, 'ERR_DEEP_LINK_PREFIX_INVALID', urlPrefix)
+      assertNoEffects(attempt)
+    }
+  })
+
+  it('matches an explicitly encoded space in the stored prefix', async () => {
+    const encoded = 'https://content.test/course%20one/activity'
+    const { custom } = await handle(encoded, {
+      known: [encoded],
+      urlPrefix: 'https://content.test/course%20one/',
+    })
+
+    assert.equal(custom.modulus_activity_url, encoded)
+  })
+
   it('refuses a stored prefix that does not parse', async () => {
     const attempt = await handleExpectingFailure(ACTIVITY_URL, { urlPrefix: 'content.test/course' })
 
@@ -746,6 +775,33 @@ describe('LtiDeepLinkingService code url_prefix', () => {
       assert.ok(!output.includes(fragment), `log output must not contain ${fragment}`)
     }
   })
+  it('logs a literal-space prefix at warn with its reason and none of its text', async () => {
+    const logLines: string[] = []
+    const submitted = 'https://submitted-host.test/typed-lesson'
+
+    const attempt = await handleExpectingFailure(submitted, {
+      known: [submitted],
+      urlPrefix: 'https://stored-prefix-host.test/stored course/',
+      logLines,
+    })
+
+    assert.equal(attempt.error?.code, 'ERR_DEEP_LINK_PREFIX_INVALID')
+    assert.equal(attempt.error?.message, 'activity code url prefix is invalid')
+    assert.equal(logLines.length, 1)
+    const record = JSON.parse(logLines[0] ?? '{}') as { level: number; extra?: { reason?: string } }
+    assert.equal(record.level, 40)
+    assert.equal(record.extra?.reason, 'literal_space')
+    const output = logLines.join('')
+    for (const fragment of [
+      'submitted-host',
+      'typed-lesson',
+      'stored-prefix-host',
+      'stored course',
+    ]) {
+      assert.ok(!output.includes(fragment), `log output must not contain ${fragment}`)
+    }
+    assert.doesNotMatch(output, /administrator|request access/i)
+  })
 })
 
 describe('LtiDeepLinkingService defensive activity url validation', () => {
@@ -759,12 +815,18 @@ describe('LtiDeepLinkingService defensive activity url validation', () => {
     { activityUrl: 'https://content.test/activity#authored', reason: 'unsupported_url_components' },
     { activityUrl: 'https://content.test/activity?', reason: 'unsupported_url_components' },
     { activityUrl: 'https://content.test/activity#', reason: 'unsupported_url_components' },
-    { activityUrl: 'not a url', reason: 'malformed_url' },
+    { activityUrl: 'not-a-url', reason: 'malformed_url' },
+    // Its parser-encoded spelling is known below, so this is not about lookup.
+    { activityUrl: 'https://content.test/activity one', reason: 'literal_space' },
+    { activityUrl: ' https://content.test/activity one ', reason: 'literal_space' },
+    { activityUrl: 'https://content.test/activity one?x=1', reason: 'literal_space' },
   ]
 
-  it('rejects an unsupported or malformed url even when the query-free activity is known', async () => {
+  it('rejects an unsupported, spaced or malformed url even when the normalized activity is known', async () => {
     for (const { activityUrl, reason } of cases) {
-      const attempt = await handleExpectingFailure(activityUrl, { known: [ACTIVITY_URL] })
+      const attempt = await handleExpectingFailure(activityUrl, {
+        known: [ACTIVITY_URL, 'https://content.test/activity%20one'],
+      })
 
       assert.equal(attempt.error?.code, 'ERR_VALIDATION', activityUrl)
       assert.deepEqual(attempt.error?.details, {
@@ -789,6 +851,22 @@ describe('LtiDeepLinkingService defensive activity url validation', () => {
     assert.equal(attempt.error?.code, 'ERR_VALIDATION')
   })
 
+  it('validates a literal space in the url before an invalid prefix', async () => {
+    const attempt = await handleExpectingFailure('https://content.test/activity one', {
+      urlPrefix: 'https://content.test/?x=1',
+    })
+
+    assert.equal(attempt.error?.code, 'ERR_VALIDATION')
+    assertNoEffects(attempt)
+  })
+
+  it('accepts an explicitly encoded space', async () => {
+    const encoded = 'https://content.test/activity%20one'
+    const { custom } = await handle(encoded, { known: [encoded] })
+
+    assert.equal(custom.modulus_activity_url, encoded)
+  })
+
   it('accepts encoded delimiters as ordinary path characters', async () => {
     const encoded = 'https://content.test/activity%3Fx%23y'
     const { custom } = await handle(encoded, { known: [encoded] })
@@ -811,5 +889,95 @@ describe('LtiDeepLinkingService defensive activity url validation', () => {
     for (const fragment of ['submitted-host', 'query-value', 'fragment-value']) {
       assert.ok(!output.includes(fragment), `log output must not contain ${fragment}`)
     }
+  })
+
+  it('logs a literal-space rejection without the submitted url', async () => {
+    const logLines: string[] = []
+
+    await handleExpectingFailure('https://submitted-host.test/typed lesson', { logLines })
+
+    const output = logLines.join('')
+    assert.match(output, /ERR_VALIDATION/)
+    for (const fragment of ['submitted-host', 'typed lesson']) {
+      assert.ok(!output.includes(fragment), `log output must not contain ${fragment}`)
+    }
+  })
+})
+
+describe('LtiCommands.handleDeepLink through the real service', () => {
+  /** The real command wrapper, schema included, over the real deep-link service. */
+  const runCommand = async (
+    activityUrl: string,
+    options: Parameters<typeof createService>[0] = {}
+  ) => {
+    const fixture = createService(options)
+    const commands = new LtiCommands({
+      utils: new CoreUtils({
+        logger: createCoreLogger({ pinoLogger: pino({ level: 'silent' }) }),
+      }),
+      ltiKeyStore: {} as LtiKeyStore,
+      loginService: {} as LtiLoginService,
+      launchService: {} as LtiLaunchService,
+      deepLinkingService: fixture.service,
+    })
+
+    const result = await commands.handleDeepLink(
+      {
+        requestId: 'request-1',
+        userAuth: new UserAuth(fixture.userId, ['activity_codes:update_own']),
+      },
+      { launch_id: 'launch-1', activity_code_id: fixture.activityCodeId, activity_url: activityUrl }
+    )
+    return { ...fixture, result }
+  }
+
+  const signedCustomUrl = (signed: Record<string, unknown>[]) =>
+    (
+      (signed[0]?.[CLAIM_DEEP_LINKING_CONTENT] as DeepLinkingContentItem[] | undefined)?.[0]
+        ?.custom as Record<string, string> | undefined
+    )?.modulus_activity_url
+
+  it('resolves a known activity from a spelling with surrounding no-break spaces', async () => {
+    const attempt = await runCommand(`\u00a0${ACTIVITY_URL}\u00a0`, {
+      urlPrefix: '\u00a0https://content.test/\u00a0',
+    })
+
+    assert.equal(attempt.result.ok, true)
+    assert.deepEqual(attempt.registered, [ACTIVITY_URL])
+    assert.deepEqual(attempt.created, [])
+    assert.deepEqual(attempt.assigned, [ACTIVITY_URL])
+    assert.equal(signedCustomUrl(attempt.signed), ACTIVITY_URL)
+  })
+
+  it('registers the trimmed identity of an unseen url, not one with an encoded no-break space', async () => {
+    const unseen = 'https://content.test/lesson'
+
+    const attempt = await runCommand(`${unseen}\u00a0`, { known: [] })
+
+    assert.equal(attempt.result.ok, true)
+    assert.deepEqual(attempt.registered, [unseen])
+    assert.deepEqual(attempt.created, [unseen])
+    assert.deepEqual([...attempt.rows.keys()], [unseen])
+    assert.equal(signedCustomUrl(attempt.signed), unseen)
+  })
+
+  it('names the submitted untrimmed spelling in a denial', async () => {
+    const submitted = '\u00a0https://content.test/unseen\u00a0'
+
+    const attempt = await runCommand(submitted, {
+      known: [],
+      allowedOrigins: ['https://approved.test'],
+    })
+
+    assert.equal(attempt.result.ok, false)
+    assert.equal(
+      attempt.result.ok === false && attempt.result.error.code,
+      'ERR_ACTIVITY_URL_NOT_ALLOWED'
+    )
+    assert.deepEqual(attempt.result.ok === false && attempt.result.error.details, {
+      rejected: [{ url: submitted, reason: 'activity_url_not_allowed' }],
+    })
+    assert.deepEqual(attempt.registered, ['https://content.test/unseen'])
+    assert.deepEqual(attempt.signed, [])
   })
 })

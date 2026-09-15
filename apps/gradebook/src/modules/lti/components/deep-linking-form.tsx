@@ -12,7 +12,10 @@ import {
   LoaderEllipsis,
   Select,
 } from '@infonomic/uikit/react'
-import { normalizeActivityUrl } from '@modulus-learning/core/activity-url'
+import {
+  normalizeActivityUrl,
+  validateInstructorActivityUrl,
+} from '@modulus-learning/core/activity-url'
 
 import { getPublicConfig } from '@/config'
 import logoBlack from '@/images/logo/modulus-logo-symbol-black.svg'
@@ -88,10 +91,12 @@ export function DeepLinkingForm({
 
   // Exact canonical identity against the loaded list: `HTTPS://Content.test/a`
   // is the stored `https://content.test/a`, not a new activity. This is not a
-  // search or a near-match suggestion.
+  // search or a near-match suggestion. Only valid instructor input can be
+  // registered, so a spaced or query-bearing value is never announced as new.
   const isNewUrl = useMemo(() => {
-    const key = normalizeActivityUrl(inputValue.trim())
-    if (key == null) return false
+    const result = validateInstructorActivityUrl(inputValue)
+    if (!result.ok) return false
+    const key = result.url
     return !activities.some((a) => normalizeActivityUrl(a.url) === key)
   }, [inputValue, activities])
 

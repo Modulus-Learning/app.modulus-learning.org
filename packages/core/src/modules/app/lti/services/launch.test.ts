@@ -697,6 +697,25 @@ describe('LtiLaunchService.handleLaunch', () => {
       })
     }
 
+    it('resolves a raw-space claim to the stored encoded activity', async () => {
+      // The instructor literal-space rule does not apply to launch readers.
+      const storedActivityUrl = 'https://content.launch.test/lesson%20one'
+      const { service, recorders, activityId } = createService({ storedActivityUrl })
+
+      const response = await service.handleLaunch({
+        id_token: await signLaunch({ activityUrl: 'https://content.launch.test/lesson one' }),
+        issuer,
+      })
+
+      assert.equal(response.type, 'start-activity')
+      if (response.type !== 'start-activity') {
+        assert.fail('expected a start-activity launch response')
+      }
+      assert.deepEqual(recorders.lookups, [storedActivityUrl])
+      assert.equal(response.activity_id, activityId)
+      assert.equal(response.activity_url, storedActivityUrl)
+    })
+
     it('completes the root path of an origin-only claim', async () => {
       const storedActivityUrl = 'https://content.launch.test/'
       const { service, recorders, activityId } = createService({ storedActivityUrl })

@@ -82,8 +82,35 @@ for (const { name, schema, base } of requestSchemas) {
       })
     }
 
+    for (const url of [
+      `${ORIGIN}/lesson one`,
+      `  ${ORIGIN}/lesson one  `,
+      `${ORIGIN}/one ${ORIGIN}/two`,
+      // The space warning takes precedence over the component warning.
+      `${ORIGIN}/lesson one?x=1`,
+      `${ORIGIN}/lesson one#top`,
+    ]) {
+      it(`rejects ${JSON.stringify(url)} at its index with the literal-space warning`, () => {
+        const result = schema.safeParse({ ...base, urls: [`${ORIGIN}/fine`, url] })
+
+        assert.deepEqual(onlyIssue(result), {
+          path: ['urls', 1],
+          message: INSTRUCTOR_ACTIVITY_URL_MESSAGES.literal_space,
+        })
+      })
+    }
+
+    it('accepts an encoded space and surrounding whitespace, retaining the spelling', () => {
+      const urls = [`${ORIGIN}/lesson%20one`, ` ${ORIGIN}/lesson `]
+
+      const result = schema.safeParse({ ...base, urls })
+
+      assert.equal(result.success, true)
+      assert.deepEqual(result.data?.urls, urls)
+    })
+
     it('rejects an unparseable url at its index', () => {
-      const result = schema.safeParse({ ...base, urls: ['not a url'] })
+      const result = schema.safeParse({ ...base, urls: ['not-a-url'] })
 
       assert.deepEqual(onlyIssue(result), {
         path: ['urls', 0],
@@ -132,6 +159,15 @@ for (const { name, schema, base } of requestSchemas) {
       assert.equal(result.data?.url_prefix, null)
     })
 
+    it('treats a whitespace-only prefix as no constraint', () => {
+      for (const url_prefix of [' ', '   ', '\t\n']) {
+        const result = schema.safeParse({ ...base, url_prefix, urls: [] })
+
+        assert.equal(result.success, true, JSON.stringify(url_prefix))
+        assert.equal(result.data?.url_prefix, null, JSON.stringify(url_prefix))
+      }
+    })
+
     it('accepts an explicit null prefix', () => {
       const result = schema.safeParse({ ...base, url_prefix: null, urls: [] })
 
@@ -151,6 +187,8 @@ for (const { name, schema, base } of requestSchemas) {
       ['https://Content.Test/course/', `${ORIGIN}/course/`],
       [`${ORIGIN}/unit/../course`, `${ORIGIN}/course`],
       [`${ORIGIN}/course%3F`, `${ORIGIN}/course%3F`],
+      [`${ORIGIN}/course%20one/`, `${ORIGIN}/course%20one/`],
+      [`  ${ORIGIN}/course/  `, `${ORIGIN}/course/`],
     ] as const) {
       it(`outputs ${expected} for ${input}`, () => {
         const result = schema.safeParse({ ...base, url_prefix: input, urls: [] })
@@ -185,6 +223,22 @@ for (const { name, schema, base } of requestSchemas) {
         assert.deepEqual(onlyIssue(result), {
           path: ['url_prefix'],
           message: URL_PREFIX_MESSAGES.unsupported_url_components,
+        })
+      })
+    }
+
+    for (const prefix of [
+      `${ORIGIN}/course one/`,
+      ` ${ORIGIN}/course one/ `,
+      `${ORIGIN}/course one?x=1`,
+      `${ORIGIN}/course one#`,
+    ]) {
+      it(`rejects ${JSON.stringify(prefix)} with the prefix literal-space warning`, () => {
+        const result = schema.safeParse({ ...base, url_prefix: prefix, urls: [] })
+
+        assert.deepEqual(onlyIssue(result), {
+          path: ['url_prefix'],
+          message: URL_PREFIX_MESSAGES.literal_space,
         })
       })
     }

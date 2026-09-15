@@ -29,8 +29,10 @@ describe('deepLinkRequestSchema activity_url', () => {
     `${ORIGIN}/unit/../lesson`,
     `${ORIGIN}/what%3F`,
     `${ORIGIN}/%23top`,
+    `${ORIGIN}/lesson%20one`,
+    ` ${ORIGIN}/lesson `,
   ]) {
-    it(`accepts ${activity_url} and retains its spelling`, () => {
+    it(`accepts ${JSON.stringify(activity_url)} and retains its spelling`, () => {
       const result = deepLinkRequestSchema.safeParse(request(activity_url))
 
       assert.equal(result.success, true)
@@ -56,6 +58,24 @@ describe('deepLinkRequestSchema activity_url', () => {
             message: INSTRUCTOR_ACTIVITY_URL_MESSAGES.unsupported_url_components,
           },
         ]
+      )
+    })
+  }
+
+  for (const activity_url of [
+    `${ORIGIN}/lesson one`,
+    `  ${ORIGIN}/lesson one  `,
+    `${ORIGIN}/one ${ORIGIN}/two`,
+    // The space warning takes precedence over the component warning.
+    `${ORIGIN}/lesson one?x=1`,
+  ]) {
+    it(`rejects ${JSON.stringify(activity_url)} with the literal-space warning`, () => {
+      const result = deepLinkRequestSchema.safeParse(request(activity_url))
+
+      assert.equal(result.success, false)
+      assert.deepEqual(
+        result.error?.issues.map(({ path, message }) => ({ path, message })),
+        [{ path: ['activity_url'], message: INSTRUCTOR_ACTIVITY_URL_MESSAGES.literal_space }]
       )
     })
   }
@@ -107,6 +127,23 @@ describe('LtiCommands.handleDeepLink validation', () => {
       assert.deepEqual(handlerInputs, [])
     })
   }
+
+  it('returns ERR_VALIDATION for a literal space before the handler runs', async () => {
+    const { commands, ctx, handlerInputs } = makeCommands()
+
+    const result = await commands.handleDeepLink(ctx, request(`${ORIGIN}/lesson one`))
+
+    assert.equal(result.ok, false)
+    assert.equal(result.ok === false && result.error.code, 'ERR_VALIDATION')
+    assert.deepEqual(
+      result.ok === false &&
+        (result.error.details as { issues: { path: unknown; message: string }[] }).issues.map(
+          ({ path, message }) => ({ path, message })
+        ),
+      [{ path: ['activity_url'], message: INSTRUCTOR_ACTIVITY_URL_MESSAGES.literal_space }]
+    )
+    assert.deepEqual(handlerInputs, [])
+  })
 
   it('hands the handler the submitted spelling', async () => {
     const { commands, ctx, handlerInputs } = makeCommands()

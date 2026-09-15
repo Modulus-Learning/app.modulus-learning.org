@@ -179,8 +179,67 @@ describe('validateInstructorActivityUrl', () => {
     }
   })
 
+  it('rejects an internal literal space before the parser can encode it', () => {
+    for (const value of [
+      'https://content.test/lesson one',
+      '  https://content.test/lesson one  ',
+      'https://exa mple.test/',
+      // Two URLs pasted onto one line.
+      'https://content.test/one https://content.test/two',
+      // The space takes precedence over the component and parse checks.
+      'https://content.test/lesson one?x=1',
+      'https://content.test/lesson one#top',
+      'not a url',
+    ]) {
+      assert.deepEqual(
+        validateInstructorActivityUrl(value),
+        { ok: false, reason: 'literal_space' },
+        JSON.stringify(value)
+      )
+    }
+  })
+
+  it('leaves identity lookup of a raw-space spelling to normalizeActivityUrl', () => {
+    const raw = 'https://content.test/lesson one'
+
+    assert.deepEqual(validateInstructorActivityUrl(raw), { ok: false, reason: 'literal_space' })
+    assert.equal(normalizeActivityUrl(raw), 'https://content.test/lesson%20one')
+  })
+
+  it('accepts an explicitly encoded space without decoding it', () => {
+    const encoded = 'https://content.test/lesson%20one'
+
+    assert.deepEqual(validateInstructorActivityUrl(encoded), { ok: true, url: encoded })
+  })
+
+  it('trims surrounding whitespace before validating', () => {
+    for (const value of [
+      ' https://content.test/lesson ',
+      '\thttps://content.test/lesson\n',
+      ' https://content.test/lesson ',
+    ]) {
+      assert.deepEqual(
+        validateInstructorActivityUrl(value),
+        { ok: true, url: 'https://content.test/lesson' },
+        JSON.stringify(value)
+      )
+    }
+
+    assert.deepEqual(validateInstructorActivityUrl(' https://content.test/lesson? '), {
+      ok: false,
+      reason: 'unsupported_url_components',
+    })
+  })
+
+  it('rejects only U+0020, not other inner whitespace', () => {
+    // The parser removes an inner tab or newline and keeps a no-break space
+    // as a path character. Broadening the rule is out of scope.
+    assert.equal(validateInstructorActivityUrl('https://content.test/a\tb').ok, true)
+    assert.equal(validateInstructorActivityUrl('https://content.test/a b').ok, true)
+  })
+
   it('reports malformed_url when the platform parser fails', () => {
-    for (const value of ['', 'not-a-url', '/relative/path', 'https://', 'https://exa mple.test/']) {
+    for (const value of ['', '   ', 'not-a-url', '/relative/path', 'https://']) {
       assert.deepEqual(
         validateInstructorActivityUrl(value),
         { ok: false, reason: 'malformed_url' },
@@ -227,6 +286,9 @@ describe('matchesActivityUrlPrefix', () => {
       // A preserved trailing slash matches its descendants.
       ['https://content.test/course/lesson', 'https://content.test/course/'],
       ['https://content.test/course/', 'https://content.test/course/'],
+      // An explicitly encoded space on both sides, and surrounding whitespace.
+      ['https://content.test/course%20one/lesson', 'https://content.test/course%20one/'],
+      [' https://content.test/course/lesson ', ' https://content.test/course/ '],
     ]
 
     for (const [value, prefix] of cases) {
@@ -275,6 +337,9 @@ describe('matchesActivityUrlPrefix', () => {
       ['https://content.test/course#', 'https://content.test/course'],
       ['https://content.test/course/lesson', 'https://content.test/course?'],
       ['https://content.test/course/lesson', 'https://content.test/course#top'],
+      ['https://content.test/course one/lesson', 'https://content.test/course one'],
+      ['https://content.test/course/lesson one', 'https://content.test/course/'],
+      ['https://content.test/course%20one/lesson', 'https://content.test/course one'],
     ]
 
     for (const [value, prefix] of cases) {

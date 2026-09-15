@@ -82,6 +82,43 @@ describe('updateActivityCode', () => {
     expect(mocks.updateActivityCode).not.toHaveBeenCalled()
   })
 
+  test('rejects literal spaces on physical lines and the prefix without calling core', async () => {
+    const lines = [
+      'https://content.test/course/a b',
+      '',
+      'https://content.test/course/ok',
+      'https://content.test/course/a https://content.test/course/b',
+      'https://content.test/course/a b',
+    ].join('\n')
+
+    const urlState = await updateActivityCode(IDLE, makeFormData(lines))
+    expect(urlState.errors.urls).toEqual([`Lines 1, 4, 5: ${ACTIVITY_URL_MESSAGES.literal_space}`])
+    expect(urlState.errors.urls?.[0]).not.toMatch(ACCESS_REQUEST)
+
+    const prefixState = await updateActivityCode(
+      IDLE,
+      makeFormData('https://content.test/course/ok', 'https://content.test/my course/')
+    )
+    expect(prefixState.errors.url_prefix).toEqual([URL_PREFIX_MESSAGES.literal_space])
+
+    expect(mocks.updateActivityCode).not.toHaveBeenCalled()
+    expect(mocks.loggerError).not.toHaveBeenCalled()
+  })
+
+  test('accepts corrected %20 input', async () => {
+    await updateActivityCode(
+      IDLE,
+      makeFormData('https://content.test/my%20course/a%20b', 'https://content.test/my%20course/')
+    )
+
+    expect(mocks.updateActivityCode).toHaveBeenCalledWith(expect.anything(), {
+      id: ID,
+      url_prefix: 'https://content.test/my%20course/',
+      description: null,
+      urls: ['https://content.test/my%20course/a%20b'],
+    })
+  })
+
   test('accepts canonical prefix variants and sends submitted spellings to core', async () => {
     await updateActivityCode(
       IDLE,
@@ -183,6 +220,28 @@ describe('updateActivityCode', () => {
       urls: [`Lines 2, 5: ${ACTIVITY_URL_MESSAGES.unsupported_url_components}`],
       url_prefix: [URL_PREFIX_MESSAGES.malformed_url],
     })
+    expect(state.errors.urls?.[0]).not.toMatch(ACCESS_REQUEST)
+    expect(mocks.loggerError).not.toHaveBeenCalled()
+  })
+
+  test('maps a core literal-space issue to its physical line', async () => {
+    mocks.updateActivityCode.mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'ERR_VALIDATION',
+        message: 'validation failed',
+        details: {
+          issues: [{ path: ['urls', 1], message: ACTIVITY_URL_MESSAGES.literal_space }],
+        },
+      },
+    })
+
+    const state = await updateActivityCode(
+      IDLE,
+      makeFormData('https://content.test/a\n\n\nhttps://content.test/b')
+    )
+
+    expect(state.errors).toEqual({ urls: [`Line 4: ${ACTIVITY_URL_MESSAGES.literal_space}`] })
     expect(state.errors.urls?.[0]).not.toMatch(ACCESS_REQUEST)
     expect(mocks.loggerError).not.toHaveBeenCalled()
   })

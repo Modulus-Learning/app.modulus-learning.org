@@ -12,6 +12,7 @@ import {
 } from './validate-urls'
 
 const COMPONENTS = ACTIVITY_URL_MESSAGES.unsupported_url_components
+const SPACE = ACTIVITY_URL_MESSAGES.literal_space
 
 describe('readUrlLines', () => {
   test('keeps the physical line of every submitted url, counting blank lines', () => {
@@ -59,6 +60,8 @@ describe('validateUrlPrefix', () => {
     ['https://content.test/course/', true],
     ['HTTPS://Content.test:443/course', true],
     ['https://content.test/%3Fnot-a-query/%23not-a-fragment', true],
+    ['https://content.test/course%20one/', true],
+    ['  https://content.test/course/  ', true],
     // Parseable prefixes pass: scheme and credentials are admission rules for
     // unseen activities, not prefix syntax.
     ['http://content.test/course', true],
@@ -71,6 +74,10 @@ describe('validateUrlPrefix', () => {
     ['https://content.test/course#top', URL_PREFIX_MESSAGES.unsupported_url_components],
     ['https://content.test/course?', URL_PREFIX_MESSAGES.unsupported_url_components],
     ['https://content.test/course#', URL_PREFIX_MESSAGES.unsupported_url_components],
+    ['https://content.test/course one/', URL_PREFIX_MESSAGES.literal_space],
+    [' https://content.test/course one/ ', URL_PREFIX_MESSAGES.literal_space],
+    // The space warning takes precedence over the component warning.
+    ['https://content.test/course one?term=fall', URL_PREFIX_MESSAGES.literal_space],
     ['content.test/course', URL_PREFIX_MESSAGES.malformed_url],
     ['https://', URL_PREFIX_MESSAGES.malformed_url],
   ])('rejects %j', (value, message) => {
@@ -136,7 +143,7 @@ describe('validateUrls', () => {
 
     expect(result.valid).toBe(false)
     expect(result.message).toBe(
-      `Lines 3, 5: ${COMPONENTS} Line 4: ${ACTIVITY_URL_MESSAGES.multiple_urls} Line 6: ${ACTIVITY_URL_MESSAGES.malformed_url}`
+      `Lines 3, 5: ${COMPONENTS} Line 4: ${SPACE} Line 6: ${ACTIVITY_URL_MESSAGES.malformed_url}`
     )
   })
 
@@ -146,10 +153,38 @@ describe('validateUrls', () => {
     expect(validateUrls(['https://content.test/lesson%3Fx%23y']).valid).toBe(true)
   })
 
-  test('rejects two urls pasted onto one line', () => {
-    expect(validateUrls(['https://a.test/one https://b.test/two']).message).toBe(
-      `Line 1: ${ACTIVITY_URL_MESSAGES.multiple_urls}`
-    )
+  test('rejects two urls pasted onto one line with the literal-space warning', () => {
+    expect(validateUrls(['https://a.test/one https://b.test/two']).message).toBe(`Line 1: ${SPACE}`)
+  })
+
+  test('rejects an inner literal space on every physical line, but accepts %20', () => {
+    const result = validateUrls([
+      '',
+      'https://content.test/lesson one',
+      '  https://content.test/ok  ',
+      'https://content.test/lesson%20one',
+      'https://content.test/lesson one',
+      // The space warning takes precedence over the component warning.
+      'https://content.test/lesson two?x=1',
+    ])
+
+    expect(result).toEqual({ valid: false, message: `Lines 2, 5, 6: ${SPACE}` })
+    expect(result.message).not.toMatch(/administrator|request access/i)
+    expect(validateUrls(['https://content.test/lesson%20one']).valid).toBe(true)
+  })
+
+  test('applies an encoded-space prefix canonically', () => {
+    expect(
+      validateUrls(['https://content.test/course%20one/a'], 'https://content.test/course%20one/')
+        .valid
+    ).toBe(true)
+  })
+
+  test('leaves a spaced prefix to its own field', () => {
+    expect(
+      validateUrls(['https://content.test/course%20one/a'], 'https://content.test/course one/')
+        .valid
+    ).toBe(true)
   })
 
   test('applies the prefix canonically, with string-prefix semantics', () => {
@@ -204,6 +239,18 @@ describe('validateDeepLinkActivityUrl', () => {
     })
   })
 
+  test('rejects a literal space in the url, with or without a prefix, but accepts %20', () => {
+    for (const prefix of [null, '', 'https://content.test/']) {
+      expect(validateDeepLinkActivityUrl('https://content.test/lesson one', prefix)).toEqual({
+        activity_url: SPACE,
+      })
+      expect(validateDeepLinkActivityUrl(' https://content.test/lesson one? ', prefix)).toEqual({
+        activity_url: SPACE,
+      })
+      expect(validateDeepLinkActivityUrl('https://content.test/lesson%20one', prefix)).toEqual({})
+    }
+  })
+
   test('accepts canonical prefix equivalents', () => {
     expect(
       validateDeepLinkActivityUrl(
@@ -232,6 +279,19 @@ describe('validateDeepLinkActivityUrl', () => {
         'https://content.test/course?x=1'
       )
     ).toEqual({ activity_code_id: DEEP_LINK_PREFIX_MESSAGES.invalid })
+
+    // A stored prefix with an inner literal space is invalid, not encoded.
+    expect(
+      validateDeepLinkActivityUrl(
+        'https://content.test/course%20one/a',
+        'https://content.test/course one/'
+      )
+    ).toEqual({ activity_code_id: DEEP_LINK_PREFIX_MESSAGES.invalid })
+
+    // Both problems are reported on their own fields.
+    expect(
+      validateDeepLinkActivityUrl('https://content.test/course one/a', 'https://content.test/a b/')
+    ).toEqual({ activity_url: SPACE, activity_code_id: DEEP_LINK_PREFIX_MESSAGES.invalid })
 
     // A whitespace-only prefix is not "no constraint", as in core.
     expect(validateDeepLinkActivityUrl('https://content.test/a', ' ')).toEqual({

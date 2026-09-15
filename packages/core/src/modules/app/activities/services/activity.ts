@@ -88,9 +88,15 @@ export class ActivityService extends BaseService {
     // The public commands reject unparseable URLs before this handler runs;
     // a direct caller's malformed URL is still denied here, and never enters
     // the map under a `null` key where distinct malformed inputs would merge.
+    //
+    // The key comes from the trimmed spelling, exactly as the command schema
+    // validated it. The parser strips only surrounding C0 controls and spaces,
+    // so an untrimmed `https://content.test/lesson ` would otherwise pass
+    // validation as `/lesson` and register as `/lesson%C2%A0`. The submitted
+    // spelling itself is kept for denial correlation.
     const spellingsByKey = new Map<string, string[]>()
     for (const url of urls) {
-      const key = normalizeActivityUrl(url)
+      const key = normalizeActivityUrl(url.trim())
       if (key === null) {
         if (!rejected.some((entry) => entry.url === url)) {
           rejected.push({ url, reason: 'malformed_url' })

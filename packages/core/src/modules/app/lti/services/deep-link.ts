@@ -148,9 +148,10 @@ export class LtiDeepLinkingService extends BaseService {
     // it is compared, because `matchesActivityUrlPrefix()` returns `false` for
     // an invalid prefix and that must not read as a mismatch with the entered
     // URL -- nor may an invalid prefix be silently dropped as no constraint.
-    // Rows written before prefixes were canonicalized can still hold a query or
-    // fragment, so this is reachable even though the command schemas now
-    // reject both.
+    // Rows written before prefixes were canonicalized can still hold a query,
+    // fragment, or literal space, so this is reachable even though the command
+    // schemas now reject all three. A spaced prefix is invalid, not encoded:
+    // its parser-encoded form is not what the instructor configured.
     //
     // Neither error carries the stored prefix or the submitted URL, in its
     // message, details, or log extras: `.log()` records all three.
@@ -183,8 +184,13 @@ export class LtiDeepLinkingService extends BaseService {
     // arbitrary: a known grandfathered activity skips the sitewide check but
     // still has to satisfy the prefix, which is an independent,
     // instructor-managed curriculum constraint.
+    //
+    // Registration receives the canonical key validation derived from the
+    // trimmed input, not the raw submission: the parser does not strip every
+    // character `trim()` does, so the raw string could validate as one activity
+    // and register as another. A denial still names the submitted spelling.
     const policy = await this.registration.loadPolicy()
-    const outcome = await this.registration.register(activity_url, policy)
+    const outcome = await this.registration.register(submitted.url, policy)
 
     if (!outcome.ok) {
       // Raised before the content item is built, so no signed content item
@@ -195,7 +201,7 @@ export class LtiDeepLinkingService extends BaseService {
       // record. `register()` has already logged the denial with its normalized
       // origin and path alone.
       this.logger.warn({ reason: outcome.reason }, 'deep link denied by the activity url allowlist')
-      throw activityUrlNotAllowed([{ url: outcome.url, reason: outcome.reason }])
+      throw activityUrlNotAllowed([{ url: activity_url, reason: outcome.reason }])
     }
 
     const activity = outcome.activity

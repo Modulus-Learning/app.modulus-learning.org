@@ -253,6 +253,36 @@ describe('StartActivityService', () => {
       })
     }
 
+    it('resolves a raw-space spelling to the stored encoded activity', async () => {
+      // The instructor literal-space rule does not apply to launch readers.
+      const scopeId = uuidv7()
+      const storedActivityUrl = 'https://content.test/lesson%20one'
+      const { service, userId, activityId, lookups } = createService({
+        scopeId,
+        storedActivityUrl,
+      })
+
+      const activity_url = 'https://content.test/lesson one'
+      assert.equal(
+        startActivityRequestSchema.safeParse({
+          activity_code: 'course-code',
+          activity_url,
+          scope_id: scopeId,
+        }).success,
+        true
+      )
+
+      const result = await service.startActivity(new UserAuth(userId, []), {
+        activity_code: 'course-code',
+        activity_url,
+        scope_id: scopeId,
+      })
+
+      assert.deepEqual(lookups, [storedActivityUrl])
+      assert.equal(result.activity.id, activityId)
+      assert.equal(result.activity.url, storedActivityUrl)
+    })
+
     it('completes the root path of an origin-only url', async () => {
       const scopeId = uuidv7()
       const storedActivityUrl = 'https://content.test/'

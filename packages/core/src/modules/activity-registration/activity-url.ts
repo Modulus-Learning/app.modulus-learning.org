@@ -23,7 +23,7 @@
 /** The outcome of validating one instructor-supplied activity URL or prefix. */
 export type InstructorActivityUrlResult =
   | { ok: true; url: string }
-  | { ok: false; reason: 'malformed_url' | 'unsupported_url_components' }
+  | { ok: false; reason: 'literal_space' | 'malformed_url' | 'unsupported_url_components' }
 
 /** Parses without a base, returning `null` rather than throwing. */
 const parseUrl = (value: string): URL | null => {
@@ -59,9 +59,18 @@ export const normalizeActivityUrl = (value: string): string | null => {
 }
 
 /**
- * Validates an instructor-supplied activity URL: it must parse, and it must
- * carry no query or fragment — not even an empty one from a trailing `?` or
- * `#`. On success, returns the canonical string.
+ * Validates an instructor-supplied activity URL: once surrounding whitespace is
+ * trimmed, it must contain no literal space, it must parse, and it must carry
+ * no query or fragment — not even an empty one from a trailing `?` or `#`. On
+ * success, returns the canonical string.
+ *
+ * The space check runs before parsing, because the parser would otherwise
+ * percent-encode `lesson one` into `lesson%20one` and accept it. An inner space
+ * in typed input is far more likely a typing or paste error — two URLs on one
+ * line, say — than an intended path character, so it is rejected rather than
+ * silently encoded. Only `U+0020` is checked; an explicit `%20` is accepted and
+ * never decoded. This is instructor input policy alone: `normalizeActivityUrl()`
+ * still resolves the raw-space spelling to its encoded identity.
  *
  * Presence is detected in the serialization **before** the components are
  * cleared. Checking `url.search` or `url.hash` would miss an empty component,
@@ -71,7 +80,12 @@ export const normalizeActivityUrl = (value: string): string | null => {
  * path is therefore an ordinary path character and is accepted.
  */
 export const validateInstructorActivityUrl = (value: string): InstructorActivityUrlResult => {
-  const url = parseUrl(value)
+  const trimmed = value.trim()
+  if (trimmed.includes(' ')) {
+    return { ok: false, reason: 'literal_space' }
+  }
+
+  const url = parseUrl(trimmed)
   if (url === null) {
     return { ok: false, reason: 'malformed_url' }
   }

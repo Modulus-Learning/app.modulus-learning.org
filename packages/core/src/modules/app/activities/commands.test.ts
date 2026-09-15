@@ -23,6 +23,10 @@ import type { StartActivityService } from './services/start-activity.js'
 const ORIGIN = 'https://content.test'
 /** Already registered, so a rejection below cannot be about a missing activity. */
 const KNOWN_URL = `${ORIGIN}/lesson`
+/** Refused by the fake registration, so a denial can be correlated. */
+const DENIED_URL = `${ORIGIN}/denied`
+/** Also registered: the identity a raw-space spelling would normalize to. */
+const KNOWN_ENCODED_SPACE_URL = `${ORIGIN}/lesson%20one`
 
 const activityRecord = (url: string): ActivityRecord => ({
   id: uuidv7(),
@@ -62,7 +66,9 @@ const makeCommands = () => {
 
   const calls: string[] = []
   const stored: { url_prefix?: string | null } = {}
-  const known = new Map([[KNOWN_URL, activityRecord(KNOWN_URL)]])
+  const known = new Map(
+    [KNOWN_URL, KNOWN_ENCODED_SPACE_URL].map((url) => [url, activityRecord(url)] as const)
+  )
 
   const registration = {
     loadPolicy: async () => {
@@ -71,6 +77,9 @@ const makeCommands = () => {
     },
     register: async (url: string): Promise<RegistrationOutcome> => {
       calls.push(`register ${url}`)
+      if (url === DENIED_URL) {
+        return { ok: false, url, reason: 'activity_url_not_allowed' }
+      }
       const existing = known.get(normalizeActivityUrl(url) ?? '')
       assert.ok(existing, 'only known urls are registered in these tests')
       return { ok: true, activity: existing }
@@ -215,6 +224,85 @@ for (const { name, run } of operations) {
       })
     }
 
+    it('rejects a literal space in a url whose encoded spelling is known, before the handler runs', async () => {
+      const m = makeCommands()
+
+      const result = await run(m, {
+        urls: [KNOWN_URL, `${ORIGIN}/lesson one`, `${ORIGIN}/lesson one?x=1`],
+      })
+
+      assert.deepEqual(
+        validationIssues(result).map(({ path, message }) => ({ path, message })),
+        [
+          { path: ['urls', 1], message: INSTRUCTOR_ACTIVITY_URL_MESSAGES.literal_space },
+          { path: ['urls', 2], message: INSTRUCTOR_ACTIVITY_URL_MESSAGES.literal_space },
+        ]
+      )
+      assert.deepEqual(m.calls, [])
+      assert.deepEqual(m.handlerInputs, [])
+    })
+
+    it('rejects a literal space in the prefix before the handler runs', async () => {
+      const m = makeCommands()
+
+      const result = await run(m, { url_prefix: `${ORIGIN}/course one/`, urls: [KNOWN_URL] })
+
+      assert.deepEqual(
+        validationIssues(result).map(({ path, message }) => ({ path, message })),
+        [{ path: ['url_prefix'], message: URL_PREFIX_MESSAGES.literal_space }]
+      )
+      assert.deepEqual(m.calls, [])
+      assert.deepEqual(m.handlerInputs, [])
+    })
+
+    it('accepts an encoded space in a url and the prefix', async () => {
+      const m = makeCommands()
+
+      const result = await run(m, {
+        url_prefix: ` ${ORIGIN}/lesson%20 `,
+        urls: [KNOWN_ENCODED_SPACE_URL],
+      })
+
+      assert.equal(result.ok, true)
+      assert.deepEqual(m.handlerInputs[0]?.urls, [KNOWN_ENCODED_SPACE_URL])
+      assert.ok(m.calls.includes(`register ${KNOWN_ENCODED_SPACE_URL}`))
+      assert.equal(m.stored.url_prefix, `${ORIGIN}/lesson%20`)
+    })
+
+    it('registers the key of the trimmed spelling, keeping the submitted urls', async () => {
+      // `trim()` strips a no-break space; the URL parser does not, and would
+      // otherwise register `/lesson` as a different `/lesson%C2%A0` activity.
+      const m = makeCommands()
+      const urls = [`\u00a0${KNOWN_URL}\u00a0`, `${KNOWN_URL}\u00a0`, ` ${KNOWN_URL}\t`]
+
+      const result = await run(m, { urls })
+
+      assert.equal(result.ok, true)
+      assert.deepEqual(m.handlerInputs[0]?.urls, urls)
+      assert.deepEqual(
+        m.calls.filter((call) => call.startsWith('register ')),
+        [`register ${KNOWN_URL}`]
+      )
+    })
+
+    it('names the submitted untrimmed spellings in a denial', async () => {
+      const m = makeCommands()
+      const urls = [KNOWN_URL, `\u00a0${DENIED_URL}\u00a0`, `${DENIED_URL}\u00a0`]
+
+      const result = await run(m, { urls })
+
+      assert.equal(result.ok, false)
+      assert.equal(result.ok === false && result.error.code, 'ERR_ACTIVITY_URL_NOT_ALLOWED')
+      assert.deepEqual(result.ok === false && result.error.details, {
+        rejected: [
+          { url: `\u00a0${DENIED_URL}\u00a0`, reason: 'activity_url_not_allowed' },
+          { url: `${DENIED_URL}\u00a0`, reason: 'activity_url_not_allowed' },
+        ],
+      })
+      assert.ok(m.calls.includes(`register ${DENIED_URL}`))
+      assert.ok(!m.calls.some((call) => call.includes('%C2%A0')))
+    })
+
     it('rejects an oversized canonical prefix before the handler runs', async () => {
       const m = makeCommands()
       // 65 characters as typed, but percent-encoding each `é` as six
@@ -249,13 +337,31 @@ for (const { name, run } of operations) {
       assert.equal(m.stored.url_prefix, `${ORIGIN}/`)
     })
 
-    it('stores no prefix for an empty prefix', async () => {
+    it('stores no prefix for an empty or whitespace-only prefix', async () => {
+      for (const url_prefix of ['', '   ']) {
+        const m = makeCommands()
+
+        const result = await run(m, { url_prefix, urls: [KNOWN_URL] })
+
+        assert.equal(result.ok, true, JSON.stringify(url_prefix))
+        assert.equal(m.stored.url_prefix, null, JSON.stringify(url_prefix))
+      }
+    })
+
+    it('logs a literal-space warning without submitted url values', async () => {
       const m = makeCommands()
 
-      const result = await run(m, { url_prefix: '', urls: [KNOWN_URL] })
+      await run(m, {
+        url_prefix: `${ORIGIN}/course prefix-secret/`,
+        urls: [`${ORIGIN}/lesson secret-path-value`],
+      })
 
-      assert.equal(result.ok, true)
-      assert.equal(m.stored.url_prefix, null)
+      const joined = m.logLines.join('\n')
+      assert.match(joined, /ERR_VALIDATION/)
+      assert.doesNotMatch(joined, /secret-path-value/)
+      assert.doesNotMatch(joined, /prefix-secret/)
+      assert.doesNotMatch(joined, /content\.test/)
+      assert.doesNotMatch(joined, /administrator|request access/i)
     })
 
     it('logs the validation warning without submitted url values', async () => {

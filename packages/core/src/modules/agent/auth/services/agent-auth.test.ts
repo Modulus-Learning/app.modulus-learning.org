@@ -649,6 +649,7 @@ describe('AgentAuthService oauth binding and canonical activity lookup', () => {
   const spellings = [
     ['an explicit default port', 'https://content.test:443/activity', CANONICAL],
     ['a callback query', `${CANONICAL}?section=2`, CANONICAL],
+    ['a literal space', 'https://content.test/act ivity', 'https://content.test/act%20ivity'],
   ] as const
 
   for (const [label, original, equivalent] of spellings) {
@@ -690,6 +691,22 @@ describe('AgentAuthService oauth binding and canonical activity lookup', () => {
 
     assert.deepEqual(harness.calls.authLookups, [CANONICAL])
     assert.equal(harness.getIssued()?.activity.id, existingId)
+  })
+
+  it('exchanges an exact replay of a raw-space redirect uri on its encoded row', async () => {
+    // The instructor literal-space rule does not apply to agent callbacks:
+    // binding stays exact, and only the lookup key is canonical.
+    const encoded = 'https://content.test/act%20ivity'
+    const harness = makeBindingHarness({ known: [encoded] })
+    const original = 'https://content.test/act ivity'
+
+    const code = await harness.authorize(original)
+
+    assert.equal(harness.codes.get(code)?.redirect_uri, original)
+    await harness.exchange(code, { client_id: original, redirect_uri: original })
+
+    assert.deepEqual(harness.calls.authLookups, [encoded])
+    assert.equal(harness.getIssued()?.activity.id, harness.rows.get(encoded)?.id)
   })
 
   it('neither registers nor consults the allowlist at exchange, even after the rules change', async () => {

@@ -89,6 +89,71 @@ describe('createActivityCode', () => {
       expect(mocks.createActivityCode).not.toHaveBeenCalled()
     })
 
+    test('rejects literal spaces on every physical line without calling core', async () => {
+      const state = await createActivityCode(
+        IDLE,
+        makeFormData(
+          [
+            'https://content.test/ok',
+            '',
+            'https://content.test/lesson one',
+            'https://content.test/one https://content.test/two',
+            'https://content.test/lesson one',
+            'https://content.test/lesson two#top',
+          ].join('\r\n')
+        )
+      )
+
+      expect(state).toEqual({
+        errors: { urls: [`Lines 3, 4, 5, 6: ${ACTIVITY_URL_MESSAGES.literal_space}`] },
+        message: 'Invalid URLs.',
+        status: 'failed',
+      })
+      expect(state.errors.urls?.[0]).not.toMatch(ACCESS_REQUEST)
+      expect(mocks.createActivityCode).not.toHaveBeenCalled()
+      expect(mocks.loggerError).not.toHaveBeenCalled()
+    })
+
+    test('rejects a literal space in the prefix on the prefix field', async () => {
+      const state = await createActivityCode(
+        IDLE,
+        makeFormData('https://content.test/course%20one/a', ' https://content.test/course one/ ')
+      )
+
+      expect(state.errors.url_prefix).toEqual([URL_PREFIX_MESSAGES.literal_space])
+      expect(state.errors.url_prefix?.[0]).not.toMatch(ACCESS_REQUEST)
+      expect(mocks.createActivityCode).not.toHaveBeenCalled()
+    })
+
+    test('accepts corrected %20 input and sends it unchanged', async () => {
+      await createActivityCode(
+        IDLE,
+        makeFormData(
+          'https://content.test/course%20one/lesson%20one\n\nhttps://content.test/course%20one/lesson%20one',
+          'https://content.test/course%20one/'
+        )
+      )
+
+      expect(mocks.createActivityCode).toHaveBeenCalledWith(expect.anything(), {
+        code: 'brave-otter',
+        url_prefix: 'https://content.test/course%20one/',
+        description: null,
+        urls: [
+          'https://content.test/course%20one/lesson%20one',
+          'https://content.test/course%20one/lesson%20one',
+        ],
+      })
+    })
+
+    test('treats a whitespace-only prefix as no constraint', async () => {
+      await createActivityCode(IDLE, makeFormData('https://anywhere.test/a', '   '))
+
+      expect(mocks.createActivityCode).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ url_prefix: null })
+      )
+    })
+
     test('reports prefix mismatches on every affected line', async () => {
       const state = await createActivityCode(
         IDLE,
@@ -325,6 +390,38 @@ describe('createActivityCode', () => {
       })
       expect(mocks.loggerError).not.toHaveBeenCalled()
     })
+  })
+
+  test('maps core literal-space issues to physical lines without access guidance', async () => {
+    mocks.createActivityCode.mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'ERR_VALIDATION',
+        message: 'validation failed',
+        details: {
+          issues: [
+            { path: ['urls', 0], message: ACTIVITY_URL_MESSAGES.literal_space },
+            { path: ['urls', 2], message: ACTIVITY_URL_MESSAGES.literal_space },
+            { path: ['url_prefix'], message: URL_PREFIX_MESSAGES.literal_space },
+          ],
+        },
+      },
+    })
+
+    const state = await createActivityCode(
+      IDLE,
+      makeFormData(
+        '\nhttps://content.test/a\nhttps://content.test/b\n\nhttps://content.test/a',
+        'https://content.test/'
+      )
+    )
+
+    expect(state.errors).toEqual({
+      urls: [`Lines 2, 5: ${ACTIVITY_URL_MESSAGES.literal_space}`],
+      url_prefix: [URL_PREFIX_MESSAGES.literal_space],
+    })
+    expect(JSON.stringify(state.errors)).not.toMatch(ACCESS_REQUEST)
+    expect(mocks.loggerError).not.toHaveBeenCalled()
   })
 
   test('falls back to the generic, logged failure for any other error code', async () => {

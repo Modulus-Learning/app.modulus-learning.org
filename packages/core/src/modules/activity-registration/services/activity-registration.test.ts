@@ -296,6 +296,20 @@ describe('ActivityRegistrationService canonical keys', () => {
     assert.equal(counts().inserts, 0)
   })
 
+  it('resolves a raw-space spelling to its encoded key, with no instructor space rule', async () => {
+    // Literal-space rejection is instructor input policy, applied by the
+    // command schemas. Shared registration still accepts the parser's encoding.
+    const encoded = 'https://content.example/course/lesson%20one'
+    const { service, keys } = makeService({ known: [encoded] })
+
+    const outcome = await service.register('https://content.example/course/lesson one', {
+      rules: [],
+    })
+
+    assert.equal(outcome.ok && outcome.activity.url, encoded)
+    assert.deepEqual(keys().lookups, [encoded])
+  })
+
   it('does not treat a known row as a match for a distinct canonical path', async () => {
     // The fake only resolves the keys it holds, so a trailing slash is looked
     // up as its own activity and faces the policy.

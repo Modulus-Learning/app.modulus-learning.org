@@ -28,16 +28,21 @@ const ACTIVITY_CODE_ID = '019c2d8e-842a-7715-a323-a7e31427db2e'
 
 const COMPONENTS =
   'Activity URLs cannot include query strings or fragments. Supply the activity URL without these components; Modulus does not currently support custom launch parameters.'
+const SPACE = 'Activity URLs cannot contain literal spaces.'
 
 /**
  * A stand-in for the command's own input schema, as the action reaches for it,
- * with core's instructor component refinement.
+ * with core's instructor literal-space and component refinements.
  */
 const inputSchema = z.object({
-  activity_url: z.string().refine((value) => {
+  activity_url: z.string().superRefine((value, ctx) => {
     const result = validateInstructorActivityUrl(value)
-    return result.ok || result.reason !== 'unsupported_url_components'
-  }, COMPONENTS),
+    if (result.ok) return
+    if (result.reason === 'literal_space') ctx.addIssue({ code: 'custom', message: SPACE })
+    if (result.reason === 'unsupported_url_components') {
+      ctx.addIssue({ code: 'custom', message: COMPONENTS })
+    }
+  }),
   activity_code_id: z.string(),
   launch_id: z.string(),
 })
@@ -211,6 +216,59 @@ describe('deepLinking error mapping', () => {
       expect(state.errors?.activity_url).toEqual([COMPONENTS])
       expect(mocks.handleDeepLink).not.toHaveBeenCalled()
     }
+  })
+
+  test('rejects a literal space in the action before calling the command, without logging', async () => {
+    for (const url of [
+      'https://elsewhere.test/newly typed',
+      ' https://elsewhere.test/newly typed ',
+      'https://elsewhere.test/one https://elsewhere.test/two',
+      'https://elsewhere.test/newly typed?x=1',
+    ]) {
+      mocks.handleDeepLink.mockClear()
+      const state = await deepLinking(IDLE, makeFormData(url))
+
+      expect(state.errors?.activity_url).toEqual([SPACE])
+      expect(JSON.stringify(state)).not.toContain('elsewhere.test')
+      expect(JSON.stringify(state)).not.toMatch(/administrator|request access/i)
+      expect(mocks.handleDeepLink).not.toHaveBeenCalled()
+    }
+    expect(mocks.loggerError).not.toHaveBeenCalled()
+  })
+
+  test('passes a corrected %20 url to the command', async () => {
+    mocks.handleDeepLink.mockResolvedValue({
+      ok: true,
+      data: { jwt: 'signed-jwt', return_url: 'https://canvas.test/deep_link_return' },
+    })
+
+    const state = await deepLinking(IDLE, makeFormData('https://elsewhere.test/newly%20typed'))
+
+    expect(state.status).toBe('success')
+    expect(mocks.handleDeepLink).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ activity_url: 'https://elsewhere.test/newly%20typed' })
+    )
+  })
+
+  test('maps a core literal-space issue on activity_url before logging', async () => {
+    mocks.handleDeepLink.mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'ERR_VALIDATION',
+        message: 'validation failed',
+        details: { issues: [{ path: ['activity_url'], message: SPACE }] },
+      },
+    })
+
+    const state = await deepLinking(IDLE, makeFormData())
+
+    expect(state).toEqual({
+      errors: { activity_url: [SPACE] },
+      message: 'Invalid activity URL.',
+      status: 'failed',
+    })
+    expect(mocks.loggerError).not.toHaveBeenCalled()
   })
 
   test('keeps an unrelated ERR_DEEP_LINKING failure on the generic fallback', async () => {

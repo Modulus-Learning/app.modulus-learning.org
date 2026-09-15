@@ -60,6 +60,7 @@ import { DeepLinkingForm } from './deep-linking-form'
 const MISMATCH = 'Supply an activity URL matching the configured prefix.'
 const INVALID_PREFIX = "Correct this activity code's URL prefix before creating the link."
 const COMPONENTS = ACTIVITY_URL_MESSAGES.unsupported_url_components
+const SPACE = ACTIVITY_URL_MESSAGES.literal_space
 const LAUNCH_ID = 'launch-1'
 const TIMESTAMP = '2026-09-04T00:00:00.000Z'
 
@@ -85,6 +86,8 @@ const CODES = [
     'bad-prefix',
     'https://content.test/course/?term=fall'
   ),
+  // Also written before prefixes were validated: a space the parser would encode.
+  code('019c2d8e-842a-7715-a323-000000000004', 'spaced-prefix', 'https://content.test/my course/'),
 ]
 
 const activity = (id: string, url: string): Activity => ({
@@ -98,6 +101,8 @@ const ACTIVITIES: Activity[] = [
   activity('a1', 'https://content.test/course/known'),
   // A grandfathered association that does not satisfy the prefix.
   activity('a2', 'https://content.test/coursework'),
+  // A legacy row stored with a raw space before URLs were canonicalized.
+  activity('a3', 'https://content.test/course/legacy lesson'),
 ]
 
 let container: HTMLDivElement
@@ -239,6 +244,7 @@ describe('DeepLinkingForm', () => {
         'https://',
         'https://elsewhere',
         'https://content.test/course/a?',
+        'https://content.test/course/a b',
         '',
       ]) {
         await type(partial)
@@ -277,6 +283,11 @@ describe('DeepLinkingForm', () => {
 
       await type('https://content.test/course/unseen')
       expect(text()).toContain('This URL is new')
+
+      // Invalid instructor input is never announced as a registrable new URL.
+      await type('https://content.test/course/un seen')
+      expect(text()).not.toContain('This URL is new')
+      expect(urlError()).toBeNull()
     })
   })
 
@@ -315,6 +326,37 @@ describe('DeepLinkingForm', () => {
       expect(urlError()).toBeNull()
     })
 
+    test.each([
+      ['pointer', pointerSelect],
+      ['keyboard', keyboardSelect],
+    ] as const)(
+      'reports a literal space for a %s selection, then accepts a corrected value',
+      async (_, select) => {
+        mocks.deepLinking.mockResolvedValue({ errors: {}, status: 'idle' })
+        await selectCode('no-prefix')
+        await select('https://content.test/course/legacy lesson')
+
+        expect(input().value).toBe('https://content.test/course/legacy lesson')
+        expect(urlError()).toBe(SPACE)
+        expect(urlError()).not.toMatch(/administrator|request access/i)
+        expect(submitButton().disabled).toBe(true)
+
+        await type('https://content.test/course/legacy%20lesson')
+        expect(urlError()).toBeNull()
+        await clickSubmit()
+        expect(mocks.deepLinking).toHaveBeenCalledTimes(1)
+        expect(submittedUrl()).toBe('https://content.test/course/legacy%20lesson')
+      }
+    )
+
+    test('attributes a loaded prefix with a literal space to the activity code', async () => {
+      await selectCode('spaced-prefix')
+      await pointerSelect('https://content.test/course/known')
+
+      expect(codeError()).toBe(INVALID_PREFIX)
+      expect(urlError()).toBeNull()
+    })
+
     test('attributes an invalid loaded prefix to the activity code', async () => {
       await selectCode('bad-prefix')
       await pointerSelect('https://content.test/course/known')
@@ -346,7 +388,11 @@ describe('DeepLinkingForm', () => {
       ['with-prefix', 'https://content.test/course/lesson#', COMPONENTS],
       ['with-prefix', 'https://elsewhere.test/lesson', MISMATCH],
       ['no-prefix', 'https://content.test/lesson?', COMPONENTS],
-      ['no-prefix', 'not a url', ACTIVITY_URL_MESSAGES.malformed_url],
+      ['no-prefix', 'not-a-url', ACTIVITY_URL_MESSAGES.malformed_url],
+      ['no-prefix', 'https://content.test/lesson one', SPACE],
+      ['no-prefix', '  https://content.test/lesson one  ', SPACE],
+      ['no-prefix', 'https://content.test/one https://content.test/two', SPACE],
+      ['with-prefix', 'https://content.test/course/lesson one?x=1', SPACE],
       ['no-prefix', '', ACTIVITY_URL_MESSAGES.required],
     ])('with %s, blocks %j and never invokes the action', async (codeName, value, message) => {
       await selectCode(codeName)
@@ -356,6 +402,26 @@ describe('DeepLinkingForm', () => {
       expect(urlError()).toBe(message)
       expect(urlError()).not.toMatch(/administrator|request access/i)
       expect(input().value).toBe(value)
+      expect(mocks.deepLinking).not.toHaveBeenCalled()
+    })
+
+    test('submits a manually typed %20 url via Enter', async () => {
+      mocks.deepLinking.mockResolvedValue({ errors: {}, status: 'idle' })
+      await selectCode('with-prefix')
+      await type('https://content.test/course/lesson%20one')
+      await pressEnterToSubmit()
+
+      expect(urlError()).toBeNull()
+      expect(submittedUrl()).toBe('https://content.test/course/lesson%20one')
+    })
+
+    test('blocks submission for a loaded prefix with a literal space, even for a %20 url', async () => {
+      await selectCode('spaced-prefix')
+      await type('https://content.test/my%20course/lesson')
+      await pressEnterToSubmit()
+
+      expect(codeError()).toBe(INVALID_PREFIX)
+      expect(urlError()).toBeNull()
       expect(mocks.deepLinking).not.toHaveBeenCalled()
     })
 
@@ -426,6 +492,28 @@ describe('DeepLinkingForm', () => {
       await clickSubmit()
       expect(submittedUrl(1)).toBe('https://content.test/course/fixed')
       expect(find('[data-testid="return-form"]').textContent).toBe('signed-jwt')
+    })
+
+    test('shows a server literal-space warning, preserves input, and resubmits once corrected', async () => {
+      mocks.deepLinking.mockResolvedValueOnce(
+        failure({ activity_url: [SPACE] }, 'Invalid activity URL.')
+      )
+      mocks.deepLinking.mockResolvedValueOnce({ errors: {}, status: 'idle' })
+
+      await selectCode('no-prefix')
+      await type('https://content.test/lesson')
+      await clickSubmit()
+
+      expect(urlError()).toBe(SPACE)
+      expect(input().value).toBe('https://content.test/lesson')
+      expect(codeSelect().value).toBe('no-prefix')
+      expect(submitButton().disabled).toBe(true)
+
+      await type('https://content.test/lesson%20one')
+      expect(urlError()).toBeNull()
+      expect(submitButton().disabled).toBe(false)
+      await clickSubmit()
+      expect(submittedUrl(1)).toBe('https://content.test/lesson%20one')
     })
 
     test('shows a server invalid-prefix error on the code, not the url', async () => {

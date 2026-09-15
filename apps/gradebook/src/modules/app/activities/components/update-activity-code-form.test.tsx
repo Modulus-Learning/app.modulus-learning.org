@@ -147,6 +147,22 @@ describe('UpdateActivityCodeForm url errors', () => {
     expect(field).toContain('Contact a Modulus administrator')
   })
 
+  test('renders a server literal-space warning against its field', () => {
+    const markup = renderForm({
+      errors: {
+        urls: [`Line 1: ${ACTIVITY_URL_MESSAGES.literal_space}`],
+        url_prefix: [URL_PREFIX_MESSAGES.literal_space],
+      },
+      message: 'Invalid URLs.',
+      status: 'failed',
+    })
+
+    expect(urlsField(markup)).toContain('data-error="true"')
+    expect(urlsField(markup)).toContain('Activity URLs cannot contain literal spaces.')
+    expect(urlsField(markup)).not.toMatch(/administrator|request access/i)
+    expect(prefixField(markup)).toContain('URL prefixes cannot contain literal spaces.')
+  })
+
   test('renders a server prefix warning against the prefix field', () => {
     const markup = renderForm({
       errors: { url_prefix: [URL_PREFIX_MESSAGES.unsupported_url_components] },
@@ -267,6 +283,32 @@ describe('UpdateActivityCodeForm interaction', () => {
 
     await act(async () => element<HTMLFormElement>('form').requestSubmit())
     expect(mocks.updateActivityCode).not.toHaveBeenCalled()
+  })
+
+  test('reports literal spaces on physical lines and the prefix, keeps them, and accepts %20', async () => {
+    mocks.updateActivityCode.mockResolvedValue({ errors: {}, status: 'idle' })
+    const typedUrls =
+      'https://content.test/course/a b\n\nhttps://content.test/course/a https://content.test/course/b\nhttps://content.test/course/a b'
+    await type(urls(), typedUrls)
+    await type(prefix(), 'https://content.test/my course/')
+
+    expect(urls().getAttribute('data-error-text')).toBe(
+      `Lines 1, 3, 4: ${ACTIVITY_URL_MESSAGES.literal_space}`
+    )
+    expect(prefix().getAttribute('data-error-text')).toBe(URL_PREFIX_MESSAGES.literal_space)
+    expect(urls().value).toBe(typedUrls)
+    expect(prefix().value).toBe('https://content.test/my course/')
+
+    await act(async () => element<HTMLFormElement>('form').requestSubmit())
+    expect(mocks.updateActivityCode).not.toHaveBeenCalled()
+
+    await type(prefix(), 'https://content.test/course/')
+    await type(urls(), 'https://content.test/course/a%20b\n\nhttps://content.test/course/b')
+    expect(urls().getAttribute('data-error')).toBe('false')
+    expect(prefix().getAttribute('data-error')).toBe('false')
+
+    await act(async () => element<HTMLFormElement>('form').requestSubmit())
+    expect(mocks.updateActivityCode).toHaveBeenCalledTimes(1)
   })
 
   test('accepts a spelling variant of a known activity under a canonical prefix variant', async () => {
