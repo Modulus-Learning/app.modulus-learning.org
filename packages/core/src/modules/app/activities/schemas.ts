@@ -1,6 +1,7 @@
 import { booleanSchema } from '@infonomic/schemas'
 import { z } from 'zod'
 
+import { validateInstructorActivityUrl } from '@/modules/activity-registration/activity-url.js'
 import type { ActivityCodeRecord, ActivityRecord } from './repository/index.js'
 
 // ==============================================
@@ -232,6 +233,83 @@ export const progressRequestSchema = z.strictObject({
 export type ProgressRequest = z.infer<typeof progressRequestSchema>
 
 // ----------------------------------------------
+//  Instructor activity URLs and URL prefixes
+// ----------------------------------------------
+
+/** The `activities.url` and `activity_codes.url_prefix` column width. */
+const MAX_URL_PREFIX_LENGTH = 255
+
+export const INSTRUCTOR_ACTIVITY_URL_MESSAGES = {
+  malformed_url: 'Supply a valid absolute activity URL.',
+  unsupported_url_components:
+    'Activity URLs cannot include query strings or fragments. Supply the activity URL without these components; Modulus does not currently support custom launch parameters.',
+} as const
+
+export const URL_PREFIX_MESSAGES = {
+  malformed_url: 'Supply a valid absolute URL prefix.',
+  unsupported_url_components:
+    'URL prefixes cannot include query strings or fragments. Supply the URL prefix without these components; Modulus does not currently support custom launch parameters.',
+  url_too_long: 'The canonical URL prefix must be 255 characters or fewer.',
+} as const
+
+/**
+ * An activity URL typed by an instructor: an activity-code line or a deep-link
+ * selection.
+ *
+ * A refinement, not a transform. The command handler receives the submitted
+ * spelling unchanged, so a registration denial can be correlated back to the
+ * line the instructor typed; canonicalizing is registration's job.
+ *
+ * This is parse and component validation only. Scheme, credentials, length,
+ * and the allowlist are admission rules for unseen activities, decided by
+ * registration, so a grandfathered activity that would fail today's admission
+ * syntax stays usable. The messages never echo the submitted value, because
+ * `CoreUtils.zodParse()` logs every issue.
+ */
+export const instructorActivityUrlSchema = z.string().superRefine((value, ctx) => {
+  const result = validateInstructorActivityUrl(value)
+  if (!result.ok) {
+    ctx.addIssue({ code: 'custom', message: INSTRUCTOR_ACTIVITY_URL_MESSAGES[result.reason] })
+  }
+})
+
+/**
+ * An activity code's optional URL prefix, shared by create and update.
+ *
+ * Unlike an activity URL, a prefix is transformed: the handler receives and
+ * stores its canonical form, so the deep-link prefix comparison works on the
+ * same spelling rules as activity identity. `''` means no constraint and
+ * becomes `null` before any parsing; `null` and an omitted value pass through
+ * without reaching the string branch at all.
+ *
+ * The 255-character bound is measured on the canonical output, not the input:
+ * a default port or dot segment can shrink a prefix into range, and punycode
+ * or percent-encoding can grow one out of it.
+ */
+export const urlPrefixSchema = z
+  .string()
+  .transform((value, ctx): string | null => {
+    if (value === '') {
+      return null
+    }
+
+    const result = validateInstructorActivityUrl(value)
+    if (!result.ok) {
+      ctx.addIssue({ code: 'custom', message: URL_PREFIX_MESSAGES[result.reason] })
+      return z.NEVER
+    }
+
+    if (result.url.length > MAX_URL_PREFIX_LENGTH) {
+      ctx.addIssue({ code: 'custom', message: URL_PREFIX_MESSAGES.url_too_long })
+      return z.NEVER
+    }
+
+    return result.url
+  })
+  .nullable()
+  .optional()
+
+// ----------------------------------------------
 //  CreateActivityCodeRequest
 // ----------------------------------------------
 
@@ -241,11 +319,9 @@ export const createActivityCodeRequestSchema = z.strictObject({
     .min(5, 'activity_code must be a string with a minimum of 5 characters')
     .max(60, 'activity_code must be a string with a maximum of 200 characters')
     .regex(/^[a-zA-Z0-9-]+$/, 'activity_code must be alphanumeric with dashes'),
-  url_prefix: z.string().max(255).nullable().optional(),
+  url_prefix: urlPrefixSchema,
   description: z.string().max(1024).nullable().optional(),
-
-  // TODO: enforce more rules here, like starting with https?
-  urls: z.url().array(),
+  urls: instructorActivityUrlSchema.array(),
 })
 
 export type CreateActivityCodeRequest = z.infer<typeof createActivityCodeRequestSchema>
@@ -256,11 +332,9 @@ export type CreateActivityCodeRequest = z.infer<typeof createActivityCodeRequest
 
 export const updateActivityCodeRequestSchema = z.strictObject({
   id: z.uuid(),
-  url_prefix: z.string().max(255).nullable().optional(),
+  url_prefix: urlPrefixSchema,
   description: z.string().max(1024).nullable().optional(),
-
-  // TODO: enforce more rules here, like starting with https?
-  urls: z.url().array(),
+  urls: instructorActivityUrlSchema.array(),
 })
 
 export type UpdateActivityCodeRequest = z.infer<typeof updateActivityCodeRequestSchema>
