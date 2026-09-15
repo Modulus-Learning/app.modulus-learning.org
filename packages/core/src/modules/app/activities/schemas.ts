@@ -1,7 +1,10 @@
 import { booleanSchema } from '@infonomic/schemas'
 import { z } from 'zod'
 
-import { validateInstructorActivityUrl } from '@/modules/activity-registration/activity-url.js'
+import {
+  normalizeActivityUrl,
+  validateInstructorActivityUrl,
+} from '@/modules/activity-registration/activity-url.js'
 import type { ActivityCodeRecord, ActivityRecord } from './repository/index.js'
 
 // ==============================================
@@ -344,6 +347,15 @@ export type UpdateActivityCodeRequest = z.infer<typeof updateActivityCodeRequest
 // ----------------------------------------------
 
 // TODO: Revisit this schema
+//
+// `activity_url` is a lookup input, not a registration: it only has to parse
+// under the activity URL contract, and it reaches the handler unchanged so the
+// service can derive the canonical key.  There is deliberately no raw length
+// cap -- a query, fragment, default port, or dot segment can make a spelling
+// longer than 255 characters while its canonical key still fits
+// `activities.url`.  The 255-character bound is a storage rule enforced by
+// registration.  Query and fragment are accepted here, unlike instructor input:
+// they are dropped from the lookup key, not rejected.
 export const startActivityRequestSchema = z.object({
   activity_code: z
     .string({
@@ -369,12 +381,9 @@ export const startActivityRequestSchema = z.object({
     .min(4, {
       error: 'Valid activity URL is required',
     })
-    // TODO: check!!!
-    .max(256, {
-      error: 'Activity URL is too long.',
-    })
-    .transform((s) => s.trim())
-    .pipe(z.url({ error: 'Valid activity URL is required.' })),
+    .refine((s) => normalizeActivityUrl(s) !== null, {
+      error: 'Valid activity URL is required.',
+    }),
   scope_id: z.uuid(),
 })
 
