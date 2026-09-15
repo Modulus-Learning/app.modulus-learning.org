@@ -1,8 +1,13 @@
 import * as crypto from 'node:crypto'
 
 import { BaseService, method } from '@/lib/base-service.js'
-import { ERR_FORBIDDEN } from '@/lib/errors.js'
+import { ERR_FORBIDDEN, ERR_VALIDATION } from '@/lib/errors.js'
+import {
+  matchesActivityUrlPrefix,
+  validateInstructorActivityUrl,
+} from '@/modules/activity-registration/activity-url.js'
 import { activityUrlNotAllowed } from '@/modules/activity-registration/errors.js'
+import { INSTRUCTOR_ACTIVITY_URL_MESSAGES } from '@/modules/app/activities/schemas.js'
 import {
   CLAIM_DEEP_LINKING_CONTENT,
   CLAIM_DEEP_LINKING_DATA,
@@ -11,7 +16,11 @@ import {
   CLAIM_MESSAGE_TYPE,
   CLAIM_VERSION,
 } from '../constants.js'
-import { ERR_DEEP_LINKING } from '../errors.js'
+import {
+  ERR_DEEP_LINK_PREFIX_INVALID,
+  ERR_DEEP_LINK_PREFIX_MISMATCH,
+  ERR_DEEP_LINKING,
+} from '../errors.js'
 import type { UrlBuilder } from '@/config.js'
 import type { UserAuth } from '@/lib/auth.js'
 import type { CoreLogger } from '@/lib/logger.js'
@@ -68,6 +77,25 @@ export class LtiDeepLinkingService extends BaseService {
     // with the code that is never used.  This is preferable to losing the
     // association entirely, and the join is idempotent on re-submission.
 
+    // The command schema already rejects these, so this only matters when the
+    // service is called directly. It uses the same helper, message and issue
+    // path, so a direct caller sees the same `ERR_VALIDATION` as the command.
+    const submitted = validateInstructorActivityUrl(activity_url)
+    if (!submitted.ok) {
+      throw ERR_VALIDATION({
+        message: 'input validation failed',
+        details: {
+          issues: [
+            {
+              code: 'custom',
+              path: ['activity_url'],
+              message: INSTRUCTOR_ACTIVITY_URL_MESSAGES[submitted.reason],
+            },
+          ],
+        },
+      }).log(this.logger)
+    }
+
     const pending = await this.ltiQueries.findPendingDeepLink(launch_id)
     if (pending == null) {
       throw ERR_DEEP_LINKING({
@@ -116,14 +144,32 @@ export class LtiDeepLinkingService extends BaseService {
     // than a client-supplied string.
     const activity_code = activityCodeRecord.code
 
-    if (
-      activityCodeRecord.url_prefix != null &&
-      activityCodeRecord.url_prefix.length > 0 &&
-      !activity_url.startsWith(activityCodeRecord.url_prefix)
-    ) {
-      throw ERR_DEEP_LINKING({
-        message: `activity url must start with ${activityCodeRecord.url_prefix}`,
-      }).log(this.logger)
+    // An empty prefix means no constraint. A non-empty one is validated before
+    // it is compared, because `matchesActivityUrlPrefix()` returns `false` for
+    // an invalid prefix and that must not read as a mismatch with the entered
+    // URL -- nor may an invalid prefix be silently dropped as no constraint.
+    // Rows written before prefixes were canonicalized can still hold a query or
+    // fragment, so this is reachable even though the command schemas now
+    // reject both.
+    //
+    // Neither error carries the stored prefix or the submitted URL, in its
+    // message, details, or log extras: `.log()` records all three.
+    const urlPrefix = activityCodeRecord.url_prefix
+    if (urlPrefix != null && urlPrefix.length > 0) {
+      const prefix = validateInstructorActivityUrl(urlPrefix)
+      if (!prefix.ok) {
+        throw ERR_DEEP_LINK_PREFIX_INVALID({
+          message: 'activity code url prefix is invalid',
+          logExtra: { activity_code_id, reason: prefix.reason },
+        }).log(this.logger)
+      }
+
+      if (!matchesActivityUrlPrefix(activity_url, urlPrefix)) {
+        throw ERR_DEEP_LINK_PREFIX_MISMATCH({
+          message: 'activity url does not match the activity code url prefix',
+          logExtra: { activity_code_id },
+        }).log(this.logger)
+      }
     }
 
     // Deep linking is the same admission as the activity-code edit page and
@@ -161,10 +207,14 @@ export class LtiDeepLinkingService extends BaseService {
 
     const nonce = crypto.randomBytes(30).toString('base64url')
 
+    // The durable fields name the resolved activity, never the submitted
+    // spelling: `activity.url` is its canonical URL, so equivalent spellings
+    // of one activity produce identical content items, and the launch reader
+    // resolves exactly the row registered here.
     const customFields = {
       modulus_launch_type: 'start-activity',
       modulus_activity_code: activity_code,
-      modulus_activity_url: activity_url,
+      modulus_activity_url: activity.url,
       ...CANVAS_CUSTOM_LAUNCH_FIELDS,
     }
 
@@ -185,7 +235,9 @@ export class LtiDeepLinkingService extends BaseService {
       url: this.urlBuilder.ltiLaunchUrl,
       // title: undefined,
       // text: undefined,
-      window: { targetName: `modulus-${activity_code}-${activity_url}` },
+      // The public code and activity ID: stable across spellings, distinct per
+      // code and activity, and free of URL characters.
+      window: { targetName: `modulus-${activity_code}-${activity.id}` },
       custom: customFields,
     }
 
