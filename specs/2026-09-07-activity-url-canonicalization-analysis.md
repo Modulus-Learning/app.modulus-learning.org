@@ -7,7 +7,7 @@ summary: "The agreed design for canonical activity URL identity across registrat
 # Activity URL Canonicalization Analysis
 
 Date: 2026-09-07
-Updated: 2026-09-10
+Updated: 2026-09-15
 Status: canonicalisation design approved; direct-launch URL transport decision deferred pending stakeholder discussion, with known unsupported paths; implementation remains separate work
 
 This analysis records the agreed design for canonicalising activity URLs so
@@ -22,6 +22,11 @@ especially those with a non-root trailing slash, cannot launch correctly through
 the current direct-link format. The replacement format is deferred pending
 stakeholder discussion, as described under
 [Deferred Direct-Launch URL Transport](#deferred-direct-launch-url-transport).
+
+On 2026-09-15, the maintainer amended instructor-input acceptance to reject
+literal spaces inside activity URLs and URL prefixes, while accepting explicitly
+encoded `%20`. The [literal-space policy](#instructor-literal-space-policy)
+records that decision; implementation is a separate follow-up before Task 9.
 
 The [activity URL allowlist analysis](./2026-09-02-activity-url-allowlist-analysis.md) deliberately
 left activity identity normalisation unresolved. Its admission-only policy
@@ -137,7 +142,9 @@ and [WHATWG URL equivalence](https://url.spec.whatwg.org/#url-equivalence).
 
 Instructor input requires a separate check before clearing those components:
 their presence is a validation failure, not an invitation to silently correct
-the supplied URL. Identity resolution and input acceptance have different jobs.
+the supplied URL. Instructor input also rejects internal literal spaces before
+parsing, as specified below. Identity resolution and input acceptance have
+different jobs.
 
 The profile must be deterministic, idempotent, and independent of network
 access, the current user, the academic scope, and the allowlist snapshot.
@@ -229,8 +236,52 @@ For example, local checks serialised `https:content.test/lesson` as
 It can preserve malformed percent escapes such as `%zz`. These behaviours
 already affect `parseAdmissibleUrl()`; normalisation must not be presented as a
 new strict URL validator. The [WHATWG parsing rules](https://url.spec.whatwg.org/#url-parsing)
-distinguish validation errors from parser failure. Tightening that accepted
-syntax is a separate decision.
+distinguish validation errors from parser failure. The instructor-only
+literal-space restriction below is an explicit exception to input acceptance;
+it does not tighten the canonical identity parser.
+
+## Instructor Literal-Space Policy
+
+The maintainer agreed this amendment on 2026-09-15: a literal space inside an
+instructor-entered URL is more likely to be a typing or paste error than an
+intentional path character. Reject it explicitly rather than silently encoding
+it. This applies to activity-code creation, activity-code editing, deep-link
+selection/submission, and their activity URL and URL prefix fields.
+
+For validation, trim surrounding whitespace using the existing `trim()`
+behaviour, then reject any remaining literal space (`U+0020`) **before** calling
+the URL parser. Do not decode percent escapes for this check. `%20` is an
+explicitly encoded space and remains accepted subject to the other input and
+admission checks. This amendment does not introduce a broader prohibition on
+other internal whitespace characters or change textarea line splitting.
+
+| Instructor Input | Required Outcome |
+| --- | --- |
+| `https://content.test/lesson one` | Reject with a literal-space field warning |
+| `https://content.test/lesson%20one` | Accept input syntax; core still determines admission |
+| ` https://content.test/lesson ` | Validate the trimmed URL; retain the entered field value on failure |
+| Two URLs separated by a literal space on one textarea line | Reject that physical line with the literal-space warning |
+
+Use “Activity URLs cannot contain literal spaces.” for activity URL fields and
+“URL prefixes cannot contain literal spaces.” for prefix fields. Preserve the
+entered value for correction; do not replace spaces with `%20` on blur or failed
+submission. Report batch errors against physical textarea lines, including blank
+lines and repeated spellings. These are `ERR_VALIDATION` failures, separate from
+registration denials, and must not suggest requesting allowlist access or expose
+submitted values in logs.
+
+Enforce the same rule in core's instructor-input helper and command schemas,
+as well as host forms and server actions. Reject before a command handler can
+register, associate, save code changes, or sign a deep-link item, even when the
+canonical activity already exists. An invalid stored deep-link prefix remains
+an activity-code field error under the existing prefix-error contract.
+
+Canonical identity lookup, shared registration, agent inputs, launch readers,
+and exact OAuth protocol binding retain their existing contracts. For example,
+`normalizeActivityUrl('https://content.test/lesson one')` still resolves to
+`https://content.test/lesson%20one`; instructor validation rejects the raw-space
+spelling. This amendment changes authoring acceptance, not stored identity or
+grandfathering through runtime lookup.
 
 ## Query And Fragment Policy
 
@@ -472,8 +523,8 @@ conflicting factors and response reasons.
 
 ### Instructor Activity-Code Creation And Editing
 
-Reject any submitted activity URL containing a query or fragment before
-registration, even if the canonical activity is known. Identify the affected
+Reject any submitted activity URL containing an internal literal space, query,
+or fragment before registration, even if the canonical activity is known. Identify the affected
 lines and leave the submitted values available for correction. Once that
 validation passes, normalise before deduplicating and sorting the set. Sorting
 raw variants and then normalising during insertion no longer guarantees a common
@@ -491,9 +542,9 @@ must use the agreed parsing contract if those variants are to work through the
 instructor forms.
 
 The optional per-code `url_prefix` remains an independent curriculum constraint.
-Require prefixes to contain no query or fragment too, then normalise the prefix
-and candidate before applying the
-existing string-prefix comparison. A query-bearing prefix cannot constrain
+Require prefixes to contain no internal literal space, query, or fragment too,
+then normalise the prefix and candidate before applying the existing
+string-prefix comparison. A query-bearing prefix cannot constrain
 canonical activity URLs under the agreed identity rule. Reject such a prefix
 with a field-level warning before stripping components, so that its constraint
 is not silently broadened. Preserve authored non-root trailing slashes; an
@@ -504,8 +555,9 @@ enforcement into core is not required by this analysis.
 
 ### Deep Linking And Subsequent Launches
 
-Reject an instructor's deep-link input containing query or fragment before
-registration or association and before building a signed content item. The
+Reject an instructor's deep-link input containing an internal literal space,
+query, or fragment before registration or association and before building a
+signed content item. The
 warning must remain distinct from a sitewide-policy denial and preserve the
 input for correction.
 
@@ -631,6 +683,14 @@ run by this documentation change.
   unknown activities are allowed subject to the existing admission syntax and
   canonical length checks. With one or more enabled rules, unknown activities
   must match an enabled rule.
+- After trimming surrounding whitespace, core instructor commands and all three
+  host forms reject internal literal spaces in activity URLs and prefixes,
+  including when the canonical activity already exists. `%20` remains accepted.
+  Field warnings identify literal spaces, preserve entered values and physical
+  line positions, and do not suggest administrator approval. Invalid operations
+  invoke no handler and commit no changes. Canonical lookup still resolves
+  parser-encoded spaces; the instructor rule does not change agent, launch, or
+  OAuth protocol behaviour.
 - Concurrent registrations using different equivalent strings both succeed
   with the same ID. Instructor batches deduplicate and sort canonical keys.
 - Canonical length controls storage eligibility, including shrinking inputs,
@@ -680,7 +740,8 @@ run by this documentation change.
 
 Review on 2026-09-08 settled the canonicalisation decisions below. Review on
 2026-09-10 clarified schema validation in decision 4 and added the direct-launch
-transport deferral and the read-duplicate and window-target decisions in 8–10:
+transport deferral and the read-duplicate and window-target decisions in 8–10.
+Review on 2026-09-15 added the instructor literal-space policy in decision 11:
 
 1. **Equivalence profile.** Exclude query and fragment, then use WHATWG
    serialization alone. Retain and document the residual distinctions; do not
@@ -716,6 +777,12 @@ transport deferral and the read-duplicate and window-target decisions in 8–10:
 10. **Deep-link window target.** Use the resolved public activity code and
     activity ID in `window.targetName`, replacing the submitted activity URL.
     This decision is independent of the deferred direct-launch URL format.
+11. **Literal spaces in instructor input.** Trim surrounding whitespace, reject
+    internal literal spaces in activity URLs and prefixes, and accept `%20`.
+    Enforce this through core instructor validation and all three host forms,
+    with specific field warnings and preserved input. Keep canonical lookup and
+    exact OAuth binding unchanged. Implement and independently review this
+    amendment before Task 9 of the implementation plan.
 
 ## Honest Notes & Open Questions
 

@@ -7,6 +7,7 @@ summary: "Ordered implementation tasks for canonical activity URL registration a
 # Activity URL Canonicalization Implementation Plan
 
 Date: 2026-09-10
+Updated: 2026-09-15
 Status: planned; implementation and data changes have not been performed
 
 This plan turns the [approved analysis](./2026-09-07-activity-url-canonicalization-analysis.md)
@@ -19,6 +20,13 @@ all new activities subject to admission syntax and canonical storage length**.
 The stale acceptance criterion in the analysis has been corrected. With one or
 more enabled rules, an unseen activity must match an enabled rule; existing
 activities remain grandfathered. A failed policy read is still an error.
+
+The 2026-09-15 amendment adds **Task 8a**, to be implemented and independently
+reviewed after Task 8 and before Task 9 in the same pull request. It applies the
+analysis's [literal-space policy](./2026-09-07-activity-url-canonicalization-analysis.md#instructor-literal-space-policy)
+to instructor input. This amendment records required follow-up work; it does
+not certify completion or review of earlier tasks. The original status and
+checkboxes are planning metadata, not a current implementation progress log.
 
 ## Scope And Terms
 
@@ -63,7 +71,7 @@ The following work is explicitly outside this plan:
 | --- | --- |
 | Identity | One pure normaliser; exclude query and fragment, then use WHATWG serialization without additional path rewriting. |
 | Admission | Resolve the canonical key first. Only unseen activities face canonical length, syntactic admission, and enabled-rule matching. Never strip credentials to admit a URL. |
-| Instructor input | Reject query or fragment presence before clearing components, including empty `?` and `#`; retain entered text and show a field warning. |
+| Instructor input | Trim surrounding whitespace for validation; reject internal literal spaces before parsing, and query or fragment presence before clearing components, including empty `?` and `#`. Accept `%20`; retain entered text and show a specific field warning. |
 | OAuth binding | Save and compare the original `client_id` and `redirect_uri` values exactly. Canonicalise only the separate activity lookup key. |
 | Cumulative writes | Canonical duplicates invalidate the entire request in the existing schema refinement before the command handler runs. Self-reference remains a per-target, resolved-ID check. |
 | Additional reads | Parse and look up without registration or policy access. Preserve each resolved input occurrence, its spelling, and its order. |
@@ -86,8 +94,9 @@ for the existing flows that these tasks preserve.
   `<type>/<short-slug>` convention. Keep the coordinated implementation in one
   pull request against `develop`, opened or updated at Task 12. Do not merge,
   deploy, or publish as part of this plan.
-- Complete tasks in numbered order. After each task, present its diff, actual
-  verification results, and any outstanding evidence, then **pause for
+- Complete tasks in numbered order, including Task 8a between Tasks 8 and 9.
+  After each task, present its diff, actual verification results, and any
+  outstanding evidence, then **pause for
   independent review before starting the next task**. Address review findings
   and wait for the independent reviewer to accept the task before continuing.
   The implementer's own checks do not replace this review. Task 12 also ends
@@ -121,7 +130,8 @@ All task checkboxes begin unchecked because this document plans future work.
 | 6 | Canonical cumulative reads, writes, and duplicate validation | 1, 2 |
 | 7 | Canonical LTI and direct-start readers | 1, 2 |
 | 8 | Instructor form feedback and input preservation | 1, 3, 4 |
-| 9 | Canonical stored fixtures and cross-flow integration coverage | 2–8 |
+| 8a | Reject literal spaces consistently in instructor input | 1, 3, 4, 8 |
+| 9 | Canonical stored fixtures and cross-flow integration coverage | 2–8, 8a |
 | 10 | Browser authentication and launch verification | 5–9 |
 | 11 | Published documentation and final source audit | 1–10 |
 | 12 | Complete validation and review handoff | 1–11 |
@@ -134,8 +144,9 @@ All task checkboxes begin unchecked because this document plans future work.
   the existing `isUsableRedirectUri` export. Keep this module free of logger,
   database, service, registry, and framework imports.
 
-Use the following proposed API. These declarations describe new implementation
-work; they are not existing exports:
+The following API describes Task 1's original scope. Task 8a extends the
+instructor result with `literal_space` and adds the pre-parse space check;
+`normalizeActivityUrl()` retains the identity contract below:
 
 ```ts
 // Proposed: packages/core/src/modules/activity-registration/activity-url.ts
@@ -499,6 +510,9 @@ direct links.
   activities that fail today's admission syntax. Scheme and credential denials
   for unseen activities receive accurate field feedback after submission to
   core. Keep the existing OAuth redirect safety gate unchanged.
+- [ ] Apply the later literal-space amendment in Task 8a before proceeding to
+  Task 9. Parser acceptance alone is insufficient for instructor input with an
+  internal literal space; this does not add a scheme or credential gate.
 - [ ] Validate the original textarea lines before filtering blank lines. Keep a
   mapping from the command array's indexes and submitted spellings back to
   physical line numbers; server-side errors must identify the same lines the
@@ -573,6 +587,7 @@ direct links.
 | `malformed_url` | Ask the instructor to correct the URL; explain that new activities require HTTPS, or HTTP for `localhost`/`127.0.0.1`, and cannot contain credentials. |
 | `url_too_long` | Explain that the canonical activity URL exceeds the 255-character storage limit and ask for a shorter activity URL. |
 | Unsupported query/fragment (`ERR_VALIDATION`) | Use the component-specific warning from Task 3 and preserve the entered value for correction. |
+| Internal literal space (`ERR_VALIDATION`, Task 8a) | Use the literal-space warning for the affected activity URL or prefix field and preserve entered values; do not suggest requesting access. |
 | Missing/unrecognised reason or unusable denial payload | Give a neutral failure message without claiming that administrator approval will resolve it. |
 
 **Completion evidence:** extend `create-activity-code.test.node.ts`,
@@ -609,6 +624,79 @@ neither prefix failure can register or associate an activity or sign a content
 item, and neither diagnostic exposes the submitted URL or stored prefix.
 Rendering tests must assert the field warning and preserved value, not just a
 disabled submit button. Build core before testing consumers of its new exports.
+
+## Task 8a — Reject Literal Spaces In Instructor Input
+
+**Dependencies:** Tasks 1, 3, 4, and 8. Complete this amendment in the current
+implementation pull request, then pause for independent review before Task 9.
+It supersedes parser-only instructor acceptance in the earlier tasks.
+
+**Files:** `packages/core/src/modules/activity-registration/activity-url.ts`
+and its tests; `packages/core/src/modules/app/activities/schemas.ts`;
+`packages/core/src/modules/app/lti/schemas.ts`; the deep-link service's prefix
+validation and tests; and the Task 8 host validators, actions, forms, and tests.
+
+- [ ] Extend `InstructorActivityUrlResult` with the validation reason
+  `literal_space`. In `validateInstructorActivityUrl()`, trim surrounding
+  whitespace for validation, then check for `U+0020` before URL parsing can
+  encode it. Reject internal literal spaces; do not decode `%20` or replace
+  spaces automatically. Preserve the original string for caller correlation
+  and display. This amendment does not broaden the rule to other internal
+  whitespace characters.
+- [ ] Keep `normalizeActivityUrl()` and the shared registration/admission
+  contract unchanged. The new reason belongs only to instructor validation;
+  do not add it to `RegistrationOutcome` or registration denial decoding.
+- [ ] Map `literal_space` to fixed messages in core's activity URL and prefix
+  schemas: “Activity URLs cannot contain literal spaces.” and “URL prefixes
+  cannot contain literal spaces.” Create, update, and deep-link command calls
+  must return `ERR_VALIDATION` at `urls[index]`, `url_prefix`, or `activity_url`
+  before their handlers run. Retain submitted activity URL spellings; transform
+  successful prefixes to their canonical form. A prefix empty after trimming
+  means no constraint and becomes `null`; retain explicit `null` and omitted
+  prefix handling and canonical length validation.
+- [ ] Use the same helper and messages in create/update forms, server actions,
+  and deep-link selection/submit validation. Replace the blanket whitespace
+  “multiple URLs” heuristic with this explicit literal-space rule. Keep one
+  URL per physical textarea line, blank-line handling, duplicate correlation,
+  and existing empty-list behaviour.
+- [ ] Preserve textarea, prefix, autocomplete, and code-selection values on
+  rejection. Keep the existing deep-link timing: validate committed selection
+  and submit, not partial typing, highlighting, or blur. Clear stale errors
+  when the affected input changes and allow correction and resubmission.
+- [ ] Treat a stored deep-link prefix containing an internal literal space as
+  `ERR_DEEP_LINK_PREFIX_INVALID`, attributed to `activity_code_id`, using the
+  existing fixed correction message. Validate before registration, association,
+  or signing; keep local selection/submit attribution consistent with core.
+- [ ] Keep space warnings distinct from query/fragment and admission warnings.
+  A space failure must not suggest requesting administrator access or add
+  submitted URLs, prefixes, or credentials to logs.
+
+**Completion evidence:** build core before testing its host consumers. Extend
+the pure-helper, core schema/command, prefix-service, host validator/action, and
+form suites with these cases:
+
+- `https://content.test/lesson one` fails instructor validation; the same input
+  still normalises to `https://content.test/lesson%20one` for identity lookup.
+  `%20` passes instructor syntax validation, including canonical prefix checks.
+  Cover activity URLs and prefixes, surrounding whitespace, whitespace-only
+  optional prefixes, and a literal space combined with a query or fragment
+  (the pre-parse space warning takes precedence).
+- Calls bypassing the host reject internal spaces through all three core
+  instructor commands, even for an existing canonical activity. Assert issue
+  paths and that handlers are not invoked. Verify an invalid stored prefix
+  cannot register, associate, or sign, and maps to the code field.
+- All three server actions and forms show the appropriate warning, preserve
+  values, and accept corrected `%20` input. Cover blank lines, repeated URLs,
+  and two URLs separated by a space on one line. Verify deep-link pointer and
+  keyboard selection and manually typed submission use the same rule, and that
+  stale local/server errors do not block correction.
+- Regression coverage retains canonical lookup of parser-encoded spaces and
+  exact OAuth binding. No instructor-only validation is added to agent inputs,
+  launch readers, or shared registration. Logs contain no submitted values and
+  warnings contain no allowlist-access guidance.
+
+Present the diff and actual verification results, then pause for independent
+review. Task 9 depends on acceptance of this follow-up.
 
 ## Task 9 — Align Stored Fixtures And Prove Cross-Flow Identity
 
@@ -710,6 +798,10 @@ new browser-test framework.
 - [ ] Update `docs/LTI.md` for instructor validation, canonical custom fields,
   stable window targets, and stored launch destinations. Document the known
   direct-link limitation alongside any generated-link instructions.
+- [ ] Document Task 8a's instructor-input rule in the authoring guidance: trim
+  surrounding whitespace, reject internal literal spaces, accept `%20`, and
+  preserve failed input for correction. Distinguish it from canonical identity
+  lookup and the unchanged agent/OAuth contracts.
 - [ ] Update `docs/SECURITY-AND-PRIVACY.md` for lookup-before-admission,
   instructor validation versus grandfathering, no network equivalence checks,
   and restricted diagnostics. Preserve the current zero-rule allow-all policy.
@@ -794,7 +886,8 @@ completing this planning document.
 | Shared equivalence profile, idempotence, and preserved distinctions | 1, 2, 7, 9 | Utility tables and exact-key assertions across runtime callers |
 | Same activity/progress/page state across query/fragment variants | 5, 6, 9, 10 | Database identity/state assertions and browser round trip |
 | Explicit instructor component rejection with no committed partial work | 3, 4, 8 | Command validation, rollback, field-warning and input-retention tests |
-| Grandfathering and confirmed zero-rule allow-all behaviour | 2, 3, 5, 6, 8 | Known-row evaluation bypass, empty/non-empty policy cases, and no new blocking instructor syntax gate |
+| Instructor literal-space rejection with unchanged identity lookup | 8a, 9, 11 | Pre-parse helper check, `%20` acceptance, core command enforcement, physical-line warnings, prefix attribution, retained values, correction/resubmission, and safe logs |
+| Grandfathering and confirmed zero-rule allow-all behaviour | 2, 3, 5, 6, 8, 8a | Known-row evaluation bypass, empty/non-empty policy cases, and no new instructor scheme/credential admission gate; component/space input validation still applies |
 | Concurrent equivalent registration; canonical batch lock order | 2, 3, 4 | PostgreSQL race tests and canonical registration-order assertions |
 | Canonical 255-character storage bound | 2, 3, 7, 8 | Activity/prefix shrink/expand and 255/256 cases; prefix schema transformation before length checking with field feedback; removal of raw reader gate |
 | Denial reasons and submitted-input correlation | 3, 8 | Reason-specific guidance across all three actions, neutral fallbacks, and mixed-denial errors in physical line order |
