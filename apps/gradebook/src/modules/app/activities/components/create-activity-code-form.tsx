@@ -8,14 +8,25 @@ import { Button, ErrorText, Input, TextArea } from '@infonomic/uikit/react'
 import { LangLink } from '@/i18n/components/lang-link'
 import { validateUrlPrefix, validateUrls } from '../@types/validate-urls'
 import { createActivityCode } from '../create-activity-code'
+import { withSubmittedValues } from '../with-submitted-values'
 import { RequestActivityCodeForm } from './request-activity-code-form'
 import type { Locale } from '@/i18n/i18n-config'
 import type { ActivityCodeFormState } from '../@types'
+import type { WithSubmittedValues } from '../with-submitted-values'
 
-const initialState: ActivityCodeFormState = { errors: {}, status: 'idle' }
+type SubmittedValues = { urls: string; url_prefix: string }
+
+const submitActivityCode = withSubmittedValues<ActivityCodeFormState, SubmittedValues>(
+  createActivityCode
+)
+
+const initialState: WithSubmittedValues<ActivityCodeFormState, SubmittedValues> = {
+  errors: {},
+  status: 'idle',
+}
 
 export function CreateActivityCodeForm({ lng }: { lng: Locale }): React.JSX.Element {
-  const [formState, formAction, isPending] = useActionState(createActivityCode, initialState)
+  const [formState, formAction, isPending] = useActionState(submitActivityCode, initialState)
   const [urlPrefix, setUrlPrefix] = useState('')
   const [description, setDescription] = useState('')
   const [urlsValue, setUrlsValue] = useState('')
@@ -30,11 +41,22 @@ export function CreateActivityCodeForm({ lng }: { lng: Locale }): React.JSX.Elem
   const descriptionId = useId()
   const errorTextId = useId()
 
-  // A denial from the sitewide allowlist belongs beside the URL field, not
-  // only in the banner: it names the exact lines the instructor has to change.
-  // The client-side `validateUrls` feedback stays -- it still enforces this
-  // code's own `url_prefix`, and neither check is the enforcement boundary.
-  const serverUrlError = formState.errors?.urls?.[0]
+  // Server failures belong beside their fields, not only in the banner: a
+  // denial names the exact lines to change, and a prefix warning the prefix.
+  // Local `validateUrls` feedback stays -- it still enforces this code's own
+  // `url_prefix` -- but neither check is the enforcement boundary.
+  //
+  // A server error describes the value that was submitted, so it is shown
+  // only while its field still holds that value -- including when the
+  // response arrives after the instructor has already edited the field. The
+  // entered values themselves are never replaced: they stay exactly as typed
+  // through a failed submission.
+  const serverUrlError =
+    formState.submitted?.urls === urlsValue ? formState.errors?.urls?.join(' ') : undefined
+  const serverUrlPrefixError =
+    formState.submitted?.url_prefix === urlPrefix
+      ? formState.errors?.url_prefix?.join(' ')
+      : undefined
 
   const validateFormFields = (nextUrls: string, nextUrlPrefix: string): boolean => {
     const prefixResult = validateUrlPrefix(nextUrlPrefix)
@@ -103,7 +125,10 @@ export function CreateActivityCodeForm({ lng }: { lng: Locale }): React.JSX.Elem
       }
 
       startTransition(() => {
-        formAction(formData)
+        formAction({
+          formData,
+          submitted: { urls: urlsValue, url_prefix: urlPrefix },
+        })
       })
     } catch (error) {
       console.error('Error occurred in handleOnSubmit:', error)
@@ -149,9 +174,9 @@ export function CreateActivityCodeForm({ lng }: { lng: Locale }): React.JSX.Elem
             onChange={handleUrlPrefixChange}
             label="URL Prefix"
             placeholder="https://example.edu/course/"
-            helpText="Optional. When set, every activity URL must start with this exact prefix. Use this to restrict activity URLs to domain, path, or base URL."
-            error={urlPrefixError}
-            errorText={urlPrefixErrorText}
+            helpText="Optional. When set, every activity URL must start with this prefix. Use this to restrict activity URLs to domain, path, or base URL."
+            error={urlPrefixError || serverUrlPrefixError != null}
+            errorText={urlPrefixErrorText || serverUrlPrefixError || ''}
           />
         </div>
         <div className="mt-2">

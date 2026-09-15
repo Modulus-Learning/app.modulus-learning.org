@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 
 import {
@@ -12,18 +12,30 @@ import {
   LoaderEllipsis,
   Select,
 } from '@infonomic/uikit/react'
+import { normalizeActivityUrl } from '@modulus-learning/core/activity-url'
 
 import { getPublicConfig } from '@/config'
 import logoBlack from '@/images/logo/modulus-logo-symbol-black.svg'
-import { validateUrls } from '@/modules/app/activities/@types/validate-urls'
+import { validateDeepLinkActivityUrl } from '@/modules/app/activities/@types/validate-urls'
+import { withSubmittedValues } from '@/modules/app/activities/with-submitted-values'
 import { deepLinking } from '../actions/deep-linking-action'
 import { DeepLinkingReturnForm } from './deep-linking-return-form'
 import type { Activity, ActivityCode } from '@/modules/app/activities/@types'
+import type { WithSubmittedValues } from '@/modules/app/activities/with-submitted-values'
 import type { DeepLinkingFormState } from '../@types'
 
-const initialState: DeepLinkingFormState = { errors: {}, status: 'idle' }
+type SubmittedValues = { activity_code: string; activity_url: string }
+
+const submitDeepLink = withSubmittedValues<DeepLinkingFormState, SubmittedValues>(deepLinking)
+
+const initialState: WithSubmittedValues<DeepLinkingFormState, SubmittedValues> = {
+  errors: {},
+  status: 'idle',
+}
 
 type ActivityAutocompleteItem = Activity & { isPrefixSuggestion?: boolean }
+
+type FieldErrors = { activity_url?: string; activity_code_id?: string }
 
 async function fetchActivities(activityCodeId: string): Promise<Activity[]> {
   const res = await fetch(
@@ -43,13 +55,12 @@ export function DeepLinkingForm({
 }): React.JSX.Element {
   const config = getPublicConfig()
 
-  const [formState, formAction, isPending] = useActionState(deepLinking, initialState)
+  const [formState, formAction, isPending] = useActionState(submitDeepLink, initialState)
   const [activityCode, setActivityCode] = useState('')
-  const [activityUrl, setActivityUrl] = useState('')
   const [activities, setActivities] = useState<Activity[]>([])
   const [isLoadingActivities, setIsLoadingActivities] = useState(false)
   const [inputValue, setInputValue] = useState('')
-  const [activityUrlErrorText, setActivityUrlErrorText] = useState('')
+  const [localErrors, setLocalErrors] = useState<FieldErrors>({})
   const fetchRef = useRef(0)
 
   const selectedActivityCode = useMemo(
@@ -60,7 +71,6 @@ export function DeepLinkingForm({
   useEffect(() => {
     if (!selectedActivityCode) {
       setActivities([])
-      setActivityUrlErrorText('')
       return
     }
 
@@ -76,9 +86,13 @@ export function DeepLinkingForm({
     })
   }, [selectedActivityCode])
 
+  // Exact canonical identity against the loaded list: `HTTPS://Content.test/a`
+  // is the stored `https://content.test/a`, not a new activity. This is not a
+  // search or a near-match suggestion.
   const isNewUrl = useMemo(() => {
-    if (!inputValue.trim()) return false
-    return !activities.some((a) => a.url === inputValue.trim())
+    const key = normalizeActivityUrl(inputValue.trim())
+    if (key == null) return false
+    return !activities.some((a) => normalizeActivityUrl(a.url) === key)
   }, [inputValue, activities])
 
   const autocompleteItems = useMemo<ActivityAutocompleteItem[]>(() => {
@@ -87,6 +101,7 @@ export function DeepLinkingForm({
       return activities
     }
 
+    const prefixKey = normalizeActivityUrl(urlPrefix)
     return [
       {
         id: `url-prefix-${selectedActivityCode?.id ?? 'activity-code'}`,
@@ -96,63 +111,74 @@ export function DeepLinkingForm({
         updated_at: '',
         isPrefixSuggestion: true,
       },
-      ...activities.filter((activity) => activity.url !== urlPrefix),
+      ...activities.filter(
+        (activity) =>
+          activity.url !== urlPrefix &&
+          (prefixKey == null || normalizeActivityUrl(activity.url) !== prefixKey)
+      ),
     ]
   }, [activities, selectedActivityCode])
 
-  const getUrlPrefixError = useCallback((value: string, urlPrefix: string | null | undefined) => {
-    const trimmedValue = value.trim()
-    const normalizedPrefix = urlPrefix?.trim() ?? ''
-
-    if (trimmedValue === '' || normalizedPrefix === '') {
-      return ''
-    }
-
-    if (trimmedValue.startsWith(normalizedPrefix) || normalizedPrefix.startsWith(trimmedValue)) {
-      return ''
-    }
-
-    return `Activity URL must start with ${normalizedPrefix}`
-  }, [])
-
   const handleActivityCodeChange = (value: string | null) => {
     setActivityCode(value ?? '')
-    setActivityUrl('')
     setInputValue('')
-    setActivityUrlErrorText('')
+    setLocalErrors({})
   }
 
-  const handleAutocompleteValueChange = useCallback(
-    (value: string, details: { reason: string }) => {
-      const trimmedValue = value.trim()
-      setInputValue(value)
-      setActivityUrlErrorText(getUrlPrefixError(trimmedValue, selectedActivityCode?.url_prefix))
-      if (details.reason === 'item-press') {
-        setActivityUrl(trimmedValue)
-      } else if (details.reason === 'input-change') {
-        setActivityUrl(trimmedValue)
-      }
-    },
-    [getUrlPrefixError, selectedActivityCode]
-  )
+  // Validation runs on a committed selection and on submit only. Typing,
+  // deleting, highlighting a suggestion, or moving focus away never reports
+  // an error for a partial value; it only clears the field's local error.
+  const handleAutocompleteValueChange = (value: string, details: { reason: string }) => {
+    setInputValue(value)
+
+    if (details.reason === 'item-press') {
+      // The selected `value`, not `inputValue`: state set above is not
+      // readable until the next render.
+      setLocalErrors(validateDeepLinkActivityUrl(value, selectedActivityCode?.url_prefix))
+    } else {
+      setLocalErrors(({ activity_code_id }) => ({ activity_code_id }))
+    }
+  }
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    const submittedUrl = activityUrl.trim()
-    const urlPrefix = selectedActivityCode?.url_prefix?.trim() ?? ''
+    event.preventDefault()
 
-    if (submittedUrl === '' || urlPrefix === '') {
-      setActivityUrlErrorText('')
+    // Always validate before the action runs -- including a value typed and
+    // submitted with Enter without selecting an item, and with no prefix.
+    // Without a code the URL field is not rendered, so say what is missing on
+    // the field that is.
+    const errors: FieldErrors =
+      selectedActivityCode == null
+        ? { activity_code_id: 'Select an activity code.' }
+        : validateDeepLinkActivityUrl(inputValue, selectedActivityCode.url_prefix)
+    setLocalErrors(errors)
+    if (errors.activity_url != null || errors.activity_code_id != null) {
       return
     }
 
-    const validationResult = validateUrls([submittedUrl], urlPrefix)
-    if (!validationResult.valid) {
-      event.preventDefault()
-      setActivityUrlErrorText(validationResult.message)
-    }
+    // Dispatched by hand rather than through `<form action>`: React resets a
+    // form after an action submitted that way, which would clear the chosen
+    // code on a failed submission.
+    const formData = new FormData(event.currentTarget)
+    startTransition(() => {
+      formAction({
+        formData,
+        submitted: { activity_code: activityCode, activity_url: inputValue.trim() },
+      })
+    })
   }
 
-  const activityUrlError = activityUrlErrorText || formState.errors?.activity_url?.[0]
+  // A server error describes the values that were submitted, so it is shown
+  // only while the form still holds them. A response that arrives after the
+  // instructor changed the URL or the code can neither attach its error to
+  // the new value nor disable Submit for it.
+  const submittedCode = formState.submitted?.activity_code === activityCode
+  const submittedUrl = submittedCode && formState.submitted?.activity_url === inputValue.trim()
+  const activityUrlError =
+    localErrors.activity_url ?? (submittedUrl ? formState.errors?.activity_url?.[0] : undefined)
+  const activityCodeError =
+    localErrors.activity_code_id ??
+    (submittedCode ? formState.errors?.activity_code_id?.[0] : undefined)
   const activityUrlHelpText =
     selectedActivityCode?.url_prefix != null && selectedActivityCode.url_prefix.length > 0
       ? `Required URL prefix: ${selectedActivityCode.url_prefix}`
@@ -168,10 +194,10 @@ export function DeepLinkingForm({
             <Image src={logoBlack} width={70} alt="Modulus" />{' '}
             <span>Create Modulus Activity Link</span>
           </h2>
-          <form action={formAction} noValidate onSubmit={handleSubmit}>
+          <form noValidate onSubmit={handleSubmit}>
             <input type="hidden" id="launch_id" name="launch_id" value={launchId} />
             <input type="hidden" name="activity_code_id" value={selectedActivityCode?.id ?? ''} />
-            <input type="hidden" name="activity_url" value={activityUrl} />
+            <input type="hidden" name="activity_url" value={inputValue.trim()} />
             {activityCodes.length > 0 ? (
               <>
                 <div className="mb-4">
@@ -179,6 +205,7 @@ export function DeepLinkingForm({
                     id="activity_code_select"
                     placeholder="Select an activity code"
                     size="sm"
+                    value={activityCode === '' ? null : activityCode}
                     onValueChange={handleActivityCodeChange}
                     helpText="Select an activity code, and then select or enter an activity URL below."
                     items={activityCodes.map((ac) => ({
@@ -186,11 +213,8 @@ export function DeepLinkingForm({
                       label: ac.code,
                     }))}
                   />
-                  {formState.errors?.activity_code_id && (
-                    <ErrorText
-                      id="activity_code_id_error"
-                      text={formState.errors.activity_code_id[0]}
-                    />
+                  {activityCodeError != null && (
+                    <ErrorText id="activity_code_id_error" text={activityCodeError} />
                   )}
                 </div>
                 {activityCode && (

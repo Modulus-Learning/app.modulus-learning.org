@@ -1,3 +1,4 @@
+import { validateInstructorActivityUrl } from '@modulus-learning/core/activity-url'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { z } from 'zod'
 
@@ -25,16 +26,25 @@ const ACTIVITY_URL = 'https://elsewhere.test/newly-typed'
 const LAUNCH_ID = '019c2d8e-842a-7715-a323-a7e31427db2d'
 const ACTIVITY_CODE_ID = '019c2d8e-842a-7715-a323-a7e31427db2e'
 
-/** The command's own input schema, as the action reaches for it. */
+const COMPONENTS =
+  'Activity URLs cannot include query strings or fragments. Supply the activity URL without these components; Modulus does not currently support custom launch parameters.'
+
+/**
+ * A stand-in for the command's own input schema, as the action reaches for it,
+ * with core's instructor component refinement.
+ */
 const inputSchema = z.object({
-  activity_url: z.string(),
+  activity_url: z.string().refine((value) => {
+    const result = validateInstructorActivityUrl(value)
+    return result.ok || result.reason !== 'unsupported_url_components'
+  }, COMPONENTS),
   activity_code_id: z.string(),
   launch_id: z.string(),
 })
 
-const makeFormData = (): FormData => {
+const makeFormData = (activityUrl = ACTIVITY_URL): FormData => {
   const formData = new FormData()
-  formData.append('activity_url', ACTIVITY_URL)
+  formData.append('activity_url', activityUrl)
   formData.append('activity_code_id', ACTIVITY_CODE_ID)
   formData.append('launch_id', LAUNCH_ID)
   return formData
@@ -97,9 +107,36 @@ describe('deepLinking error mapping', () => {
     expect(rendered).not.toMatch(/allowlist|allowed base url|rule for|administrator [a-z]+@/i)
   })
 
-  test('still maps the per-code prefix violation by its message', async () => {
-    // The existing branch, untouched: the form maps two codes onto
-    // `activity_url`, and this one is matched on the message rather than a code.
+  test.each([
+    [
+      'ERR_DEEP_LINK_PREFIX_MISMATCH',
+      'activity_url',
+      'Supply an activity URL matching the configured prefix.',
+      'Invalid activity URL.',
+    ],
+    [
+      'ERR_DEEP_LINK_PREFIX_INVALID',
+      'activity_code_id',
+      "Correct this activity code's URL prefix before creating the link.",
+      'Invalid activity code.',
+    ],
+  ] as const)('maps %s onto %s without the generic log', async (code, field, text, message) => {
+    mocks.handleDeepLink.mockResolvedValue({
+      ok: false,
+      error: { code, message: 'activity code url prefix failure' },
+    })
+
+    const state = await deepLinking(IDLE, makeFormData())
+
+    expect(state).toEqual({ errors: { [field]: [text] }, message, status: 'failed' })
+    // Fixed copy: neither the entered URL nor any stored prefix.
+    expect(JSON.stringify(state)).not.toContain('elsewhere.test')
+    expect(JSON.stringify(state)).not.toContain('content.test')
+    expect(mocks.loggerError).not.toHaveBeenCalled()
+  })
+
+  test('no longer maps an ERR_DEEP_LINKING message onto the activity url', async () => {
+    // The old regex branch is gone: a message is not a contract.
     mocks.handleDeepLink.mockResolvedValue({
       ok: false,
       error: {
@@ -110,15 +147,73 @@ describe('deepLinking error mapping', () => {
 
     const state = await deepLinking(IDLE, makeFormData())
 
-    expect(state.message).toBe('Invalid activity URL.')
-    expect(state.errors?.activity_url?.[0]).toBe(
-      'activity url must start with https://content.test/'
-    )
-    // Everything below the new branch is unchanged, including this log.
+    expect(state).toEqual({ status: 'failed', message: 'An error occurred.' })
     expect(mocks.loggerError).toHaveBeenCalledTimes(1)
   })
 
-  test('falls back to the generic failure for any other error', async () => {
+  test.each([
+    ['activity_url_not_allowed', 'does not admit this new activity URL', true],
+    ['malformed_url', 'new activities require HTTPS', false],
+    ['url_too_long', '255-character storage limit', false],
+    [undefined, 'Modulus could not register this activity URL', false],
+    ['future_reason', 'Modulus could not register this activity URL', false],
+  ])('maps a %s denial to its own guidance', async (reason, guidance, asksForAccess) => {
+    mocks.handleDeepLink.mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'ERR_ACTIVITY_URL_NOT_ALLOWED',
+        message: 'This activity URL is not allowed by the sitewide allowlist.',
+        details: { rejected: [{ url: ACTIVITY_URL, reason }] },
+      },
+    })
+
+    const state = await deepLinking(IDLE, makeFormData())
+    const text = state.errors?.activity_url?.[0] ?? ''
+
+    expect(text.startsWith(`${ACTIVITY_URL}. `)).toBe(true)
+    expect(text).toContain(guidance)
+    if (asksForAccess) {
+      expect(text).toContain('Contact a Modulus administrator to request access.')
+    } else {
+      expect(text).not.toMatch(/administrator|request access/i)
+    }
+    expect(mocks.loggerError).not.toHaveBeenCalled()
+  })
+
+  test('maps core validation issues on activity_url before logging', async () => {
+    mocks.handleDeepLink.mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'ERR_VALIDATION',
+        message: 'validation failed',
+        details: { issues: [{ path: ['activity_url'], message: COMPONENTS }] },
+      },
+    })
+
+    const state = await deepLinking(IDLE, makeFormData())
+
+    expect(state).toEqual({
+      errors: { activity_url: [COMPONENTS] },
+      message: 'Invalid activity URL.',
+      status: 'failed',
+    })
+    expect(state.errors?.activity_url?.[0]).not.toMatch(/administrator|request access/i)
+    expect(mocks.loggerError).not.toHaveBeenCalled()
+  })
+
+  test('rejects query and fragment input in the action before calling the command', async () => {
+    // The action parses with the command's own schema first; this stand-in
+    // mirrors core's component refinement.
+    for (const url of [`${ACTIVITY_URL}?x=1`, `${ACTIVITY_URL}?`, `${ACTIVITY_URL}#`]) {
+      mocks.handleDeepLink.mockClear()
+      const state = await deepLinking(IDLE, makeFormData(url))
+
+      expect(state.errors?.activity_url).toEqual([COMPONENTS])
+      expect(mocks.handleDeepLink).not.toHaveBeenCalled()
+    }
+  })
+
+  test('keeps an unrelated ERR_DEEP_LINKING failure on the generic fallback', async () => {
     mocks.handleDeepLink.mockResolvedValue({
       ok: false,
       error: { code: 'ERR_DEEP_LINKING', message: 'deep-link launch not found' },
@@ -140,9 +235,25 @@ describe('deepLinking error mapping', () => {
 
     const state = await deepLinking(IDLE, makeFormData())
 
-    expect(state.message).toBe('An error occurred.')
-    // The branch declined, so the original path still records the failure.
+    expect(state).toEqual({ status: 'failed', message: 'An error occurred.' })
+    // A contract mismatch is still recorded -- by code, never by URL.
     expect(mocks.loggerError).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(mocks.loggerError.mock.calls)).toContain('ERR_ACTIVITY_URL_NOT_ALLOWED')
+  })
+
+  test('logs no url from an unusable denial payload', async () => {
+    mocks.handleDeepLink.mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'ERR_ACTIVITY_URL_NOT_ALLOWED',
+        message: 'denied',
+        details: { rejected: [{ href: `${ACTIVITY_URL}?token=synthetic` }] },
+      },
+    })
+
+    await deepLinking(IDLE, makeFormData())
+
+    expect(JSON.stringify(mocks.loggerError.mock.calls)).not.toContain('elsewhere.test')
   })
 
   test('returns the signed content item on success', async () => {

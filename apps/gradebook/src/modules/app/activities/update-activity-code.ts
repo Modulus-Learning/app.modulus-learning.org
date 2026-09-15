@@ -4,8 +4,8 @@ import { redirect } from 'next/navigation'
 
 import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
-import { validateUrlPrefix, validateUrls } from './@types/validate-urls'
-import { readRejectedUrls, rejectedUrlsMessage } from './rejected-urls'
+import { readUrlLines, validateUrlPrefix, validateUrls } from './@types/validate-urls'
+import { mapActivityCodeFailure } from './rejected-urls'
 import type { ActivityCodeFormState } from './@types'
 
 export const updateActivityCode = async (
@@ -80,13 +80,12 @@ export const updateActivityCode = async (
     }
   }
 
-  const urlsArray = (urls ?? '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line !== '')
-
-  if (urlsArray.length > 0) {
-    const urlValidationResult = validateUrls(urlsArray, normalizedUrlPrefix)
+  // Validated line by line before blank lines are dropped, so each message
+  // names the line the instructor sees. The same mapping translates core's
+  // command-array indexes and submitted spellings back to those lines.
+  const submitted = readUrlLines(urls)
+  if (submitted.urls.length > 0) {
+    const urlValidationResult = validateUrls((urls ?? '').split('\n'), normalizedUrlPrefix)
     if (urlValidationResult.valid === false) {
       return {
         errors: { urls: [urlValidationResult.message] },
@@ -101,20 +100,30 @@ export const updateActivityCode = async (
     id,
     url_prefix: normalizedUrlPrefix === '' ? null : normalizedUrlPrefix,
     description: normalizedDescription === '' ? null : normalizedDescription,
-    urls: urlsArray,
+    urls: submitted.urls,
   })
 
   if (!result.ok) {
-    // The sitewide allowlist refused one or more URLs. Name them, so the
-    // instructor knows which lines to change, and say who can approve them.
-    if (result.error.code === 'ERR_ACTIVITY_URL_NOT_ALLOWED') {
-      const rejected = readRejectedUrls(result.error.details)
-      if (rejected.length > 0) {
-        return {
-          errors: { urls: [rejectedUrlsMessage(rejected)] },
-          message: 'Some activity URLs are not allowed.',
+    const failure = mapActivityCodeFailure(result.error, submitted)
+    if (failure?.type === 'fields') {
+      return { errors: failure.errors, message: failure.message, status: 'failed' }
+    }
+
+    if (failure?.type === 'unreadable-denial') {
+      // A contract mismatch with core, so it is logged -- but by code alone:
+      // `details` may still carry submitted URLs.
+      logger.error({
+        activities: {
           status: 'failed',
-        }
+          message: 'unreadable activity url denial in updateActivityCode',
+          method: 'updateActivityCode',
+          code: result.error.code,
+        },
+      })
+      return {
+        errors: {},
+        message: 'There was an error updating your activity code.',
+        status: 'failed',
       }
     }
 
