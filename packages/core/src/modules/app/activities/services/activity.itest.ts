@@ -13,6 +13,7 @@ import {
 import { UserAuth } from '@/lib/auth.js'
 import { ErrorCodes } from '@/modules/activity-registration/errors.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
+import { createActivityCodeRequestSchema, updateActivityCodeRequestSchema } from '../schemas.js'
 import type { CoreError } from '@/lib/errors.js'
 
 let h: TestHarness
@@ -40,6 +41,9 @@ const seedInstructor = async (): Promise<UserAuth> => {
 const seedRule = async (origin = ORIGIN): Promise<void> => {
   await h.repos.allowlistMutations.createRule({ id: uuidv7(), origin, path_prefix: '/' })
 }
+
+const storedUrls = async (): Promise<string[]> =>
+  (await h.db.select().from(activities)).map(({ url }) => url).sort()
 
 const countAll = async (): Promise<{
   codes: number
@@ -124,15 +128,20 @@ describe('ActivityService.updateActivityCode over PostgreSQL', () => {
     const created = await h.services.appActivity.createActivityCode(userAuth, {
       code: 'brave-otter',
       description: 'the original description',
+      url_prefix: `${ORIGIN}/`,
       urls: [`${ORIGIN}/one`],
     })
 
     await assert.rejects(
-      h.services.appActivity.updateActivityCode(userAuth, {
-        id: created.id,
-        description: 'an edited description',
-        urls: [`${ORIGIN}/one`, 'https://elsewhere.test/denied'],
-      }),
+      h.services.appActivity.updateActivityCode(
+        userAuth,
+        updateActivityCodeRequestSchema.parse({
+          id: created.id,
+          description: 'an edited description',
+          url_prefix: 'HTTPS://ELSEWHERE.TEST:443/',
+          urls: [`${ORIGIN}/one`, 'https://elsewhere.test/denied', 'HTTPS://ELSEWHERE.TEST/denied'],
+        })
+      ),
       (error: CoreError) => {
         assert.equal(error.code, ErrorCodes.ACTIVITY_URL_NOT_ALLOWED)
         return true
@@ -143,9 +152,11 @@ describe('ActivityService.updateActivityCode over PostgreSQL', () => {
     // association survived the remove-and-recreate.
     const [code] = await h.db.select().from(activityCodes)
     assert.equal(code?.description, 'the original description')
+    assert.equal(code?.url_prefix, `${ORIGIN}/`)
     const counts = await countAll()
     assert.equal(counts.activities, 1)
     assert.equal(counts.associations, 1)
+    assert.deepEqual(await storedUrls(), [`${ORIGIN}/one`])
   })
 
   it('saves a description edit on a code whose url no longer matches any rule', async () => {
@@ -178,5 +189,124 @@ describe('ActivityService.updateActivityCode over PostgreSQL', () => {
     assert.equal(code?.description, 'an edited description')
     const counts = await countAll()
     assert.equal(counts.associations, 1)
+  })
+})
+
+describe('ActivityService canonical activity urls over PostgreSQL', () => {
+  it('stores canonical activities and prefix on create, one row per page', async () => {
+    const userAuth = await seedInstructor()
+    await seedRule()
+
+    await h.services.appActivity.createActivityCode(
+      userAuth,
+      createActivityCodeRequestSchema.parse({
+        code: 'brave-otter',
+        url_prefix: 'HTTPS://CONTENT.TEST:443/course/',
+        urls: [
+          'HTTPS://CONTENT.TEST:443/course/one',
+          `${ORIGIN}/course/one`,
+          `${ORIGIN}/course/unit/../two`,
+          'https://Content.Test/course/two',
+        ],
+      })
+    )
+
+    const [code] = await h.db.select().from(activityCodes)
+    assert.equal(code?.url_prefix, `${ORIGIN}/course/`)
+    assert.deepEqual(await storedUrls(), [`${ORIGIN}/course/one`, `${ORIGIN}/course/two`])
+    assert.deepEqual(await countAll(), { codes: 1, members: 1, activities: 2, associations: 2 })
+  })
+
+  it('stores canonical activities and prefix on edit, reusing an existing row', async () => {
+    const userAuth = await seedInstructor()
+    await seedRule()
+
+    const created = await h.services.appActivity.createActivityCode(userAuth, {
+      code: 'brave-otter',
+      urls: [`${ORIGIN}/one`],
+    })
+
+    await h.services.appActivity.updateActivityCode(
+      userAuth,
+      updateActivityCodeRequestSchema.parse({
+        id: created.id,
+        url_prefix: 'HTTPS://CONTENT.TEST:443',
+        urls: ['https://CONTENT.test:443/one', `${ORIGIN}/./two`, `${ORIGIN}/two`],
+      })
+    )
+
+    const [code] = await h.db.select().from(activityCodes)
+    assert.equal(code?.url_prefix, `${ORIGIN}/`)
+    assert.deepEqual(await storedUrls(), [`${ORIGIN}/one`, `${ORIGIN}/two`])
+    const counts = await countAll()
+    assert.equal(counts.activities, 2)
+    assert.equal(counts.associations, 2)
+  })
+
+  it('writes nothing when a denied canonical url arrives in several spellings', async () => {
+    const userAuth = await seedInstructor()
+    await seedRule()
+
+    await assert.rejects(
+      h.services.appActivity.createActivityCode(userAuth, {
+        code: 'brave-otter',
+        urls: [
+          `${ORIGIN}/allowed`,
+          'https://elsewhere.test/denied',
+          'HTTPS://ELSEWHERE.TEST:443/denied',
+        ],
+      }),
+      (error: CoreError) => {
+        assert.equal(error.code, ErrorCodes.ACTIVITY_URL_NOT_ALLOWED)
+        assert.deepEqual((error.details as { rejected: unknown }).rejected, [
+          { url: 'https://elsewhere.test/denied', reason: 'activity_url_not_allowed' },
+          { url: 'HTTPS://ELSEWHERE.TEST:443/denied', reason: 'activity_url_not_allowed' },
+        ])
+        return true
+      }
+    )
+
+    assert.deepEqual(await countAll(), { codes: 0, members: 0, activities: 0, associations: 0 })
+  })
+
+  it('resolves a grandfathered activity under a new spelling with a nonmatching rule', async () => {
+    const userAuth = await seedInstructor()
+    // A rule exists, and it does not match the grandfathered activity.
+    await seedRule()
+    const legacy = 'https://legacy.test/course'
+    await h.db.insert(activities).values({ id: uuidv7(), url: legacy })
+
+    await h.services.appActivity.createActivityCode(userAuth, {
+      code: 'brave-otter',
+      urls: ['HTTPS://LEGACY.TEST:443/course', legacy],
+    })
+
+    assert.deepEqual(await storedUrls(), [legacy])
+    assert.equal((await countAll()).associations, 1)
+  })
+
+  it('removes and re-associates a grandfathered activity, and accepts an empty list', async () => {
+    const userAuth = await seedInstructor()
+    await seedRule()
+    const legacy = 'https://legacy.test/course'
+    await h.db.insert(activities).values({ id: uuidv7(), url: legacy })
+
+    const created = await h.services.appActivity.createActivityCode(userAuth, {
+      code: 'brave-otter',
+      urls: [legacy],
+    })
+
+    // Removing every activity is always allowed, and keeps the activity row.
+    await h.services.appActivity.updateActivityCode(userAuth, { id: created.id, urls: [] })
+    assert.equal((await countAll()).associations, 0)
+    assert.deepEqual(await storedUrls(), [legacy])
+
+    // Re-adding it under another spelling needs no rule to match.
+    await h.services.appActivity.updateActivityCode(userAuth, {
+      id: created.id,
+      urls: ['https://legacy.test:443/course'],
+    })
+    assert.equal((await countAll()).associations, 1)
+    assert.deepEqual(await storedUrls(), [legacy])
   })
 })

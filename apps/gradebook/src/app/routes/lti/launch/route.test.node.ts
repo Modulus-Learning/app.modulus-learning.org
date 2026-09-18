@@ -42,7 +42,8 @@ describe('LTI launch route', () => {
   const scopeId = '019c2d8e-842a-7715-a323-a7e31427db2d'
   const activityId = '019c2d8e-9f01-7a4e-9c2f-2b7c1d9a5e11'
   const modulusServerUrl = 'https://modulus.test'
-  const activityUrl = 'https://content.test/activity?existing=one#authored-fragment'
+  // Core returns the resolved record's stored canonical URL, never the claim.
+  const activityUrl = 'https://content.test/activity'
   const tokens = {
     access: { token: 'access', expiration_in_ms: 60_000 },
     refresh: { token: 'refresh', expiration_in_ms: 120_000 },
@@ -103,8 +104,8 @@ describe('LTI launch route', () => {
     expect(destination.origin + destination.pathname).toBe('https://content.test/activity')
     expect(destination.searchParams.get('modulus')).toBe(modulusServerUrl)
     expect(destination.searchParams.get('scope_id')).toBe(scopeId)
-    expect(destination.searchParams.get('existing')).toBe('one')
-    expect(destination.hash).toBe('#authored-fragment')
+    expect([...destination.searchParams.keys()].toSorted()).toEqual(['modulus', 'scope_id'])
+    expect(destination.hash).toBe('')
     expect(target).not.toContain('/lti/launch/')
   })
 
@@ -148,17 +149,13 @@ describe('LTI launch route', () => {
     }
   )
 
-  test('preserves an authored query, fragment, and percent escape in never mode', async () => {
-    // The case that fails today through the catch-all. The `always` equivalent
-    // is not assertable here -- this route emits only
-    // `/lti/launch/{id}?scope_id=...` -- and lives in the page's own test.
-    const authored = 'https://content.test/a%20b/activity?discount=50%25&existing=one#authored'
-    const destination = new URL(await launchTo('never', { activity_url: authored }))
+  test('keeps a stored trailing slash and percent escape intact in never mode', async () => {
+    const stored = 'https://content.test/a%20b/lesson/'
+    const destination = new URL(await launchTo('never', { activity_url: stored }))
 
-    expect(destination.pathname).toBe('/a%20b/activity')
-    expect(destination.searchParams.get('discount')).toBe('50%')
-    expect(destination.searchParams.get('existing')).toBe('one')
-    expect(destination.hash).toBe('#authored')
+    expect(destination.origin + destination.pathname).toBe(stored)
+    expect([...destination.searchParams.keys()].toSorted()).toEqual(['modulus', 'scope_id'])
+    expect(destination.hash).toBe('')
   })
 
   test.each(['never', 'always'] as const)(

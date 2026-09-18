@@ -33,6 +33,7 @@ vi.mock('@infonomic/uikit/react', () => ({
 }))
 
 import { buildActivityLaunchUrl } from '@/modules/app/activity/launch-url'
+import { selectLaunchDestination } from '@/modules/lti/launch-destination'
 import LtiLaunchPage from './page'
 
 const activityId = '019c2d8e-9f01-7a4e-9c2f-2b7c1d9a5e11'
@@ -141,26 +142,37 @@ describe('LTI launch interstitial page', () => {
     expect(markup).toContain('Authentication Required')
   })
 
-  test('carries an awkward canonical activity URL into the launch anchor intact', async () => {
+  test('links to the stored canonical URL with only the two transport parameters', async () => {
     // In `always` mode the URL never transits a Modulus-owned URL at all: it
-    // goes from the database row straight into the anchor. Preservation is
-    // therefore a property of construction, which is only observable here --
-    // the launch route emits only `/lti/launch/{id}?scope_id=...`.
-    const awkward = 'https://content.test/a%20b/activity?discount=50%25&existing=one#authored'
-    mocks.getActivityLaunchView.mockResolvedValue(view({ activityUrl: awkward }))
+    // goes from the database row straight into the anchor, so the page's own
+    // construction is only observable here. Stored activity URLs carry no
+    // query or fragment, and a non-root trailing slash is part of identity.
+    const stored = 'https://content.test/a%20b/lesson/'
+    mocks.getActivityLaunchView.mockResolvedValue(view({ activityUrl: stored }))
 
-    const markup = await render()
-    const href = launchHref(markup)
+    const href = launchHref(await render())
 
-    expect(href).toBe(buildActivityLaunchUrl({ activityUrl: awkward, modulusServerUrl, scopeId }))
-
+    expect(href).toBe(
+      `https://content.test/a%20b/lesson/?modulus=${encodeURIComponent(modulusServerUrl)}&scope_id=${scopeId}`
+    )
     const destination = new URL(String(href))
-    expect(destination.pathname).toBe('/a%20b/activity')
-    expect(destination.searchParams.get('discount')).toBe('50%')
-    expect(destination.searchParams.get('existing')).toBe('one')
+    expect(destination.origin + destination.pathname).toBe(stored)
+    expect([...destination.searchParams.keys()].toSorted()).toEqual(['modulus', 'scope_id'])
     expect(destination.searchParams.get('modulus')).toBe(modulusServerUrl)
     expect(destination.searchParams.get('scope_id')).toBe(scopeId)
-    expect(destination.hash).toBe('#authored')
+    expect(destination.hash).toBe('')
+
+    // An immediate launch (`never` mode) for the same resolved activity must
+    // land on exactly the page the interstitial links to.
+    expect(href).toBe(
+      selectLaunchDestination({
+        mode: 'never',
+        activityId,
+        activityUrl: stored,
+        scopeId,
+        modulusServerUrl,
+      })
+    )
   })
 
   test('discloses the undecorated activity URL, not the decorated destination', async () => {

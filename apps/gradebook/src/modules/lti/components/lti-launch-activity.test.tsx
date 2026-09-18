@@ -29,8 +29,9 @@ import { LtiLaunchActivity } from './lti-launch-activity'
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const scopeId = '019c2d8e-842a-7715-a323-a7e31427db2d'
-const activityUrl =
-  'https://content.test/activity?existing=one&modulus=old&scope_id=old#authored-fragment'
+// A stored canonical activity URL: never a query or fragment, and a non-root
+// trailing slash is part of its identity.
+const activityUrl = 'https://content.test/course/lesson/'
 const modulusServerUrl = 'https://modulus.test/base?issuer=value'
 const destination = buildActivityLaunchUrl({ activityUrl, modulusServerUrl, scopeId })
 
@@ -150,10 +151,11 @@ describe('LtiLaunchActivity', () => {
     expect(navigate).toHaveBeenCalledWith(destination)
 
     const target = new URL(destination)
+    expect(target.origin + target.pathname).toBe(activityUrl)
+    expect([...target.searchParams.keys()].toSorted()).toEqual(['modulus', 'scope_id'])
     expect(target.searchParams.getAll('modulus')).toEqual([modulusServerUrl])
     expect(target.searchParams.getAll('scope_id')).toEqual([scopeId])
-    expect(target.searchParams.get('existing')).toBe('one')
-    expect(target.hash).toBe('#authored-fragment')
+    expect(target.hash).toBe('')
 
     act(() => root.unmount())
   })

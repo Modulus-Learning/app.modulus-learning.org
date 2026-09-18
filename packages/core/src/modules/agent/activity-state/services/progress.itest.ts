@@ -12,6 +12,7 @@ import {
   progressEvents,
 } from '@/database/schema/index.js'
 import { AgentAuth } from '@/lib/auth.js'
+import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
 import { seedActivity, seedLineItem, seedScenario, seedScope } from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
 
@@ -692,5 +693,223 @@ describe('ActivityProgressService.getProgress — reads never register', () => {
       (await h.db.select().from(activities).where(eq(activities.url, unknown))).length,
       0
     )
+  })
+})
+
+describe('ActivityProgressService.getProgress — canonical reads', () => {
+  it('answers each resolved occurrence in order with its requested spelling', async (t) => {
+    const s = await seedScenario(h.db)
+    const path = `/lesson-${uuidv7()}`
+    const lessonUrl = `https://content.test${path}`
+    const otherUrl = `https://content.test/other-${uuidv7()}`
+    const lessonId = await seedActivity(h.db, lessonUrl)
+    const otherId = await seedActivity(h.db, otherUrl)
+    await seedRule('https://somewhere-else.test')
+    for (const [activity_id, amount] of [
+      [lessonId, 0.25],
+      [otherId, 0.5],
+    ] as const) {
+      await h.repos.activityMutations.incrementProgress({
+        activity_id,
+        user_id: s.userId,
+        scope_id: DEFAULT_SCOPE_ID,
+        amount,
+      })
+    }
+    const register = t.mock.method(h.services.activityRegistration, 'register')
+    const loadPolicy = t.mock.method(h.services.activityRegistration, 'loadPolicy')
+    const policyReads = t.mock.method(h.repos.allowlistQueries, 'listEnabledRules')
+    const lookups = t.mock.method(h.repos.activityQueries, 'findActivityByUrl')
+    const activitiesBefore = (await h.db.select().from(activities)).length
+
+    const variant = `HTTPS://CONTENT.TEST:443${path}?section=2`
+    const unknownUrl = `https://elsewhere.test/unknown-${uuidv7()}`
+    const result = await h.services.activityProgress.getProgress(authFor(s.userId, s.activityId), {
+      urls: [lessonUrl, variant, 'not a url', unknownUrl, `${otherUrl}#part-2`, lessonUrl],
+    })
+
+    // Identical and equivalent occurrences are each answered; the malformed
+    // and unknown inputs are omitted without disturbing the order of the rest.
+    assert.deepEqual(result.others, [
+      { url: lessonUrl, progress: 0.25 },
+      { url: variant, progress: 0.25 },
+      { url: `${otherUrl}#part-2`, progress: 0.5 },
+      { url: lessonUrl, progress: 0.25 },
+    ])
+
+    // The lookups used canonical keys, and the malformed input made none.
+    assert.deepEqual(
+      lookups.mock.calls.map((call) => call.arguments[0]),
+      [lessonUrl, lessonUrl, unknownUrl, otherUrl, lessonUrl]
+    )
+
+    assert.equal(register.mock.callCount(), 0)
+    assert.equal(loadPolicy.mock.callCount(), 0)
+    assert.equal(policyReads.mock.callCount(), 0)
+    assert.equal((await h.db.select().from(activities)).length, activitiesBefore)
+  })
+})
+
+describe('ActivityProgressService.setProgress — canonical targets', () => {
+  it('contributes to the existing activity for an equivalent target spelling', async (t) => {
+    const s = await seedScenario(h.db)
+    const path = `/target-${uuidv7()}`
+    const targetUrl = `https://content.test${path}`
+    const targetId = await seedActivity(h.db, targetUrl)
+    const policyReads = t.mock.method(h.repos.allowlistQueries, 'listEnabledRules')
+    const variant = `HTTPS://CONTENT.TEST:443/unit/..${path}?section=2#top`
+
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.5,
+      increments_for_other_pages: [{ url: variant, factor: 0.5 }],
+    })
+
+    assert.deepEqual(result.others, [{ url: variant, progress: 0.25 }])
+    assert.equal(result.rejected_targets, undefined)
+    approx((await readProgress(s.userId, targetId))?.progress, 0.25)
+    assert.equal((await eventsFor(s.userId, targetId)).length, 1)
+    assert.equal((await h.db.select().from(activities)).length, 2, 'no activity was created')
+    assert.equal(policyReads.mock.callCount(), 0, 'a known target needs no policy')
+  })
+
+  it('stores an unseen target under its canonical url and reports its submitted spelling', async () => {
+    const s = await seedScenario(h.db)
+    await seedRule()
+    const path = `/unseen-${uuidv7()}`
+    const variant = `HTTPS://CONTENT.TEST:443${path}?${'q'.repeat(300)}`
+
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.5,
+      increments_for_other_pages: [{ url: variant, factor: 1 }],
+    })
+
+    // The query is not part of the stored activity, so it does not count
+    // towards the 255-character bound.
+    assert.equal(result.rejected_targets, undefined)
+    assert.deepEqual(
+      result.others?.map(({ url }) => url),
+      [variant]
+    )
+    const created = await h.db.query.activities.findFirst({
+      where: eq(activities.url, `https://content.test${path}`),
+    })
+    assert.ok(created, 'the target was stored under its canonical url')
+    approx((await readProgress(s.userId, created.id))?.progress, 0.5)
+  })
+
+  it('rejects an equivalent self spelling while self and other targets commit', async (t) => {
+    const s = await seedScenario(h.db)
+    const otherUrl = `https://content.test/other-${uuidv7()}`
+    const otherId = await seedActivity(h.db, otherUrl)
+    const selfLineItem = await seedLineItem(h.db, s, {
+      submittable_progress: 0,
+      submission_eligible_at: null,
+    })
+    const updateLineItems = t.mock.method(h.repos.activityMutations, 'updateLineItems')
+    const selfVariant = `${s.activityUrl.replace('https://content.test', 'https://Content.Test:443')}?x=1#y`
+
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.6,
+      increments_for_other_pages: [
+        { url: selfVariant, factor: 0.5 },
+        { url: otherUrl, factor: 0.5 },
+      ],
+    })
+
+    assert.deepEqual(result.rejected_targets, [{ url: selfVariant, reason: 'self_reference' }])
+    assert.deepEqual(
+      result.others?.map(({ url }) => url),
+      [otherUrl]
+    )
+
+    // Self committed once, with no contribution added on top of its own mark.
+    approx((await readProgress(s.userId, s.activityId))?.progress, 0.6)
+    const selfEvents = await eventsFor(s.userId, s.activityId)
+    assert.equal(selfEvents.length, 1)
+    assert.equal(selfEvents[0]?.source_activity_id, null, 'no contribution event on self')
+    approx((await readLineItem(selfLineItem.id))?.submittable_progress, 0.6)
+
+    // The other target received its contribution.
+    approx((await readProgress(s.userId, otherId))?.progress, 0.3)
+    assert.equal((await eventsFor(s.userId, otherId)).length, 1)
+
+    // One line-item update for self and one for the accepted target; none for
+    // the self-reference, and no activity was created for it.
+    assert.deepEqual(
+      updateLineItems.mock.calls.map((call) => call.arguments[0].activity_id),
+      [s.activityId, otherId]
+    )
+    assert.equal((await h.db.select().from(activities)).length, 2)
+  })
+
+  it('refuses malformed, over-long, and disallowed targets per target with one policy read', async (t) => {
+    const s = await seedScenario(h.db)
+    await seedRule()
+    const knownUrl = `https://content.test/known-${uuidv7()}`
+    const knownId = await seedActivity(h.db, knownUrl)
+    const policyReads = t.mock.method(h.repos.allowlistQueries, 'listEnabledRules')
+
+    const firstUnseen = `HTTPS://CONTENT.TEST/first-${uuidv7()}?a=1`
+    const secondUnseen = `https://content.test:443/second-${uuidv7()}#b`
+    const tooLong = `https://content.test/${'x'.repeat(300)}?q=1`
+    const denied = `https://elsewhere.test/denied-${uuidv7()}?q=1`
+
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.4,
+      increments_for_other_pages: [
+        { url: firstUnseen, factor: 1 },
+        { url: 'not a url', factor: 1 },
+        { url: `${knownUrl}?c=1`, factor: 1 },
+        { url: tooLong, factor: 1 },
+        { url: secondUnseen, factor: 1 },
+        { url: denied, factor: 1 },
+      ],
+    })
+
+    assert.deepEqual(result.rejected_targets, [
+      { url: 'not a url', reason: 'malformed_url' },
+      { url: tooLong, reason: 'url_too_long' },
+      { url: denied, reason: 'activity_url_not_allowed' },
+    ])
+    assert.deepEqual(
+      result.others?.map(({ url }) => url),
+      [firstUnseen, `${knownUrl}?c=1`, secondUnseen]
+    )
+    assert.equal(policyReads.mock.callCount(), 1, 'one snapshot shared by every unseen target')
+
+    approx((await readProgress(s.userId, s.activityId))?.progress, 0.4)
+    approx((await readProgress(s.userId, knownId))?.progress, 0.4)
+    const stored = (await h.db.select().from(activities)).map(({ url }) => url).sort()
+    assert.deepEqual(
+      stored,
+      [
+        s.activityUrl,
+        knownUrl,
+        normalizeActivityUrl(firstUnseen),
+        normalizeActivityUrl(secondUnseen),
+      ].sort()
+    )
+  })
+
+  it('reads no policy when every target is a known activity in another spelling', async (t) => {
+    const s = await seedScenario(h.db)
+    await seedRule('https://somewhere-else.test')
+    const firstUrl = `https://content.test/first-${uuidv7()}`
+    const secondUrl = `https://grandfathered.test/second-${uuidv7()}`
+    await seedActivity(h.db, firstUrl)
+    await seedActivity(h.db, secondUrl)
+    const policyReads = t.mock.method(h.repos.allowlistQueries, 'listEnabledRules')
+
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.4,
+      increments_for_other_pages: [
+        { url: firstUrl.replace('https://content.test', 'HTTPS://content.test:443'), factor: 1 },
+        { url: `${secondUrl}?section=2`, factor: 1 },
+      ],
+    })
+
+    assert.equal(result.rejected_targets, undefined)
+    assert.equal(result.others?.length, 2)
+    assert.equal(policyReads.mock.callCount(), 0)
   })
 })

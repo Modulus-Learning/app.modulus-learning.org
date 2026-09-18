@@ -1,7 +1,7 @@
 ---
 title: "Cumulative ('Umbrella') Progress Reporting"
 path: "cumulative-progress"
-summary: "Design for activities that report a calculation of their own progress against other activities: the URL-based, list-shaped agent ↔ gradebook contract, the single RPC activity-state endpoint, the increment-from-high-water-mark accumulation model, and the per-target `rejected_targets` outcome that reports a refused cumulative target without failing the submission carrying it."
+summary: "Design for activities that report a calculation of their own progress against other activities: the URL-based, list-shaped agent ↔ gradebook contract, the single RPC activity-state endpoint, the increment-from-high-water-mark accumulation model, canonical target resolution with whole-request rejection of duplicate targets, and the per-target `rejected_targets` outcome that reports a refused cumulative target without failing the submission carrying it."
 ---
 
 # Cumulative ('Umbrella') Progress Reporting
@@ -149,6 +149,40 @@ so the server can derive each increment from the idempotent self change — see
 `rejected_targets` is omitted rather than empty when every target was accepted,
 matching how `others` is already handled. See [Refused targets](#refused-targets).
 
+**Duplicate targets fail the whole request, before the handler runs.** Every
+target URL resolves to an activity by its **canonical activity URL** — the `URL`
+serialization with query and fragment removed
+([DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping)) —
+so two spellings can name one activity. When they do, there is no sound way to
+choose between their `factor` values or to combine them: the page's authored
+markup is wrong, so the request is refused rather than guessed at. The check
+lives in the input schema's existing refinement, and it catches repeated raw
+strings first so that two *identical* malformed URLs are still a duplicate:
+
+```ts
+// packages/core/src/modules/agent/activity-state/schemas.ts
+const hasDuplicateTargets = (targets: { url: string }[]): boolean => {
+  const urls = targets.map((t) => t.url)
+  if (new Set(urls).size !== urls.length) {
+    return true
+  }
+
+  const keys = urls.map(normalizeActivityUrl).filter((key): key is string => key !== null)
+  return new Set(keys).size !== keys.length
+}
+```
+
+Two *different* malformed URLs are not duplicates. Both normalize to `null`, so
+the canonical pass drops them rather than collapsing them onto one another; they
+stay separate targets that registration refuses one at a time.
+
+Because this is request validation, it runs before the command handler, and the
+consequences differ from every other refusal on this path: the submission fails
+with HTTP 400 and `{ "status": "error", "code": "ERR_VALIDATION" }`, **including
+the learner's own self-progress update**, and `rejected_targets` does not appear.
+The author-facing consequence, and the correction, are in
+[AGENT → Duplicate Contribution Targets](./AGENT.md#duplicate-contribution-targets).
+
 `getProgress` takes an **optional list of URLs** rather than `void`:
 
 ```ts
@@ -157,6 +191,13 @@ matching how `others` is already handled. See [Refused targets](#refused-targets
 // output
 { progress: number, others?: [{ url: string, progress: number }], new_token?: string }
 ```
+
+Reads resolve each URL canonically too, but they answer **per requested
+occurrence, in the order requested, echoing the URL as the agent spelled it**.
+The agent correlates results by the strings it sent, so repeated or equivalent
+URLs in `urls` are not collapsed into one entry and no entry is rewritten to its
+canonical form. A URL with no canonical form is omitted without a lookup, which
+the agent renders as `0` like any other unknown activity.
 
 **Responses keep self distinct from others.** `progress` is the self
 (token-bound) activity's value — the field the agent already tracks as its
@@ -385,6 +426,15 @@ raw URL precisely so this policy lives entirely in the backend. **As built:**
   resolves an existing row first, inserts with `ON CONFLICT (url) DO NOTHING`, and
   re-reads the winning row when its insert returns nothing, so two concurrent
   registrations of the same URL both succeed and land on one row.
+
+  The target URL is passed to registration **as the agent submitted it**;
+  registration derives the canonical key and every step — lookup, length bound,
+  policy, insert, conflict re-read — uses that key. So a target named
+  `https://content.test/total?exercise=17` resolves to the activity
+  `https://content.test/total`, and two concurrent contributions naming two
+  spellings of one target contend on the same row rather than racing to create
+  two. The caller keeps the submitted spelling for its own response, which is
+  what `others` and `rejected_targets` echo back.
 - **Resolve before evaluate, which is what grandfathering means here.** The
   lookup happens *before* the policy is consulted, so a target that is already a
   recorded activity is honored whether or not any current rule matches it.
@@ -419,6 +469,19 @@ The first three are the shared registration service's own denial vocabulary,
 named here rather than redefined, so the two cannot drift. Only `self_reference`
 is added by this path, because deciding it needs the reporting activity's id and
 is therefore this caller's check rather than the service's.
+
+**`self_reference` is decided on the resolved activity id, not on a URL string.**
+Registration resolves the target's canonical key to a row first, and that row's
+id is compared with the token-bound activity's, so *any* equivalent spelling of
+the reporting activity's own URL is caught — `?exercise=17` appended to the
+page's own URL included. A self-referencing target always resolves to an
+existing row, because self's own activity was created when its token was minted,
+and nothing is created on the way to that refusal.
+
+Each refusal here is **per target**, and the submission carrying it still
+commits. That is the opposite of a duplicate target list, which the input schema
+catches before the handler runs and which fails the whole submission with
+`ERR_VALIDATION`, as the `set-progress` schema above describes.
 
 **A rejected target never fails the submission carrying it.** The target list
 comes from the page's authored markup, so the same bad URL recurs in every
@@ -462,6 +525,12 @@ identifier, which is exactly the identifier the
 [data-isolation boundary](./DATA-MODEL.md#the-data-isolation-boundary-in-schema-terms)
 is built around. What never reaches the line is a token, an auth code, a PKCE
 value, or the rejected URL's query string or fragment.
+
+The same restraint applies to the whole-request duplicate rejection. Its
+validation message names the field, not the target — `ERR_VALIDATION` issues are
+logged in full at the command boundary, and a target URL can carry authored
+query values — so the log records that a `set-progress` submission had duplicate
+targets without recording which URLs they were.
 
 ## Names as built
 

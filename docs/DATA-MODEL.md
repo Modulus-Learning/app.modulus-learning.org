@@ -1,7 +1,7 @@
 ---
 title: "Data Model"
 path: "data-model"
-summary: "The Modulus Postgres schema: identity and RBAC, the activity and unscoped cohort graph, the sitewide activity URL allowlist, academic scopes, scope-partitioned learner signals, LTI passback, agent OAuth storage, and the conventions shared across them."
+summary: "The Modulus Postgres schema: identity and RBAC, the activity and unscoped cohort graph, canonical activity URL identity and the per-code URL prefix, the sitewide activity URL allowlist, academic scopes, scope-partitioned learner signals, LTI passback, agent OAuth storage, and the conventions shared across them."
 ---
 
 # Data Model
@@ -101,12 +101,112 @@ This is the graph that connects learners to Ximera content.
 ```
 
 - **`activities`** — a Ximera activity/page, identified by a unique `url` (plus
-  optional `name`).
+  optional `name`). The column is `varchar(255) not null unique`, and what it
+  holds is a **canonical activity URL**.
+
+  A canonical activity URL is the [WHATWG `URL`](https://url.spec.whatwg.org/)
+  serialization of the submitted string with query and fragment removed. One
+  pure function produces it, and every reader and the single writer use it:
+
+  ```ts
+  // packages/core/src/modules/activity-registration/activity-url.ts
+  export const normalizeActivityUrl = (value: string): string | null => {
+    const url = parseUrl(value)
+    return url === null ? null : serializeWithoutComponents(url)
+  }
+  ```
+
+  It is idempotent — normalizing a canonical URL returns it unchanged — and it
+  returns `null` for a string the platform parser rejects. A value with no
+  canonical form cannot name an activity, so every lookup treats it as "not
+  found" without touching the database.
+
+  **The canonical form is the identity, and the identity is deliberately
+  narrow.** These spellings all resolve to one `activities` row:
+
+  | Submitted | Stored / looked up | Why |
+  | --- | --- | --- |
+  | `HTTPS://CONTENT.TEST:443/lesson` | `https://content.test/lesson` | Scheme and host are lowercased; an explicit default port is dropped |
+  | `https://content.test` | `https://content.test/` | The root path is supplied |
+  | `https://content.test/a/../lesson` | `https://content.test/lesson` | Dot segments are resolved |
+  | `https://bücher.example/` | `https://xn--bcher-kva.example/` | An internationalised domain serialises as ASCII |
+  | `https://content.test/lesson?x=1#top` | `https://content.test/lesson` | Query and fragment are excluded from identity — including an empty `?` or `#` |
+
+  **Everything else stays significant**, because merging two activities that are
+  genuinely different would combine the learner progress and page state stored
+  against them:
+
+  | These remain distinct | Why |
+  | --- | --- |
+  | `/Lesson` and `/lesson` | Path case can identify different resources |
+  | `/lesson` and `/lesson/` | A non-root trailing slash can change routing and relative-link resolution |
+  | `/a//b` and `/a/b` | Repeated path separators can carry application meaning |
+  | `/lesson` and `/lesson/index.html` | An index-document alias is a server convention |
+  | `content.test`, `www.content.test`, and `content.test.` | Host aliases are not inferred and a trailing domain dot is not stripped |
+  | `/a%2Fb` and `/a/b` | A reserved separator is never decoded into path structure |
+  | `/%7euser`, `/%7Euser`, and `/~user` | See the percent-encoding limit below |
+
+  :::note[Percent-encoding is a deliberate limit]
+  `URL` serialization is not a complete implementation of
+  [RFC 3986 §6.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2).
+  It preserves the case of an existing percent escape and does not decode
+  escapes for unreserved characters, so `/%7euser`, `/%7Euser`, and `/~user`
+  are three activities. Adding those equivalences would need component-aware
+  processing and matching changes to allowlist paths and rule collisions, and
+  was deliberately left out. Modulus resolves equivalent *spellings* of a URL;
+  it does not claim to merge every standards-equivalent URL.
+  :::
+
+  Modulus also never establishes equivalence over the network. It follows no
+  redirects, resolves no DNS aliases, and reads no HTML canonical link, because
+  those answers depend on a publisher's routing and can change under it.
+
+  **The unique key and the length bound are both measured on the canonical
+  form.** `insertActivity` inserts the canonical key with
+  `ON CONFLICT (url) DO NOTHING`, so two concurrent registrations of two
+  spellings of one page contend on the same value and resolve to one row. The
+  255-character bound is checked on the key that would be stored, not on the
+  submitted string — a default port or dot segment can shrink a URL into range,
+  and percent-encoding or punycode can grow one out of it. Only a previously
+  unseen activity is measured against it — the lookup-before-admission order is
+  described in
+  [AUTHN-AUTHZ → Admitting the Activity URL](./AUTHN-AUTHZ.md#admitting-the-activity-url).
+
 - **`activity_codes`** — the institutional grouping/whitelist mechanism described
   in the summary doc: a public `code` and a `private_code`, an optional
   `url_prefix` that scopes which activity URLs the code covers, a `description`,
   and `created_by`. Activity codes are what let an institution control which
   activities are accessible and reuse a set across courses/semesters.
+
+  `url_prefix` is `varchar(255)` and nullable, where `null` or empty means "no
+  constraint". Unlike an activity URL, a submitted prefix is **canonicalized on
+  the way in**: `urlPrefixSchema`
+  (`packages/core/src/modules/app/activities/schemas.ts`) stores the canonical
+  form, and its 255-character bound is measured on that output. Storing the
+  prefix canonically is what lets the comparison against a canonical activity
+  URL be an ordinary string `startsWith()`:
+
+  ```ts
+  // packages/core/src/modules/activity-registration/activity-url.ts
+  export const matchesActivityUrlPrefix = (value: string, prefix: string): boolean => {
+    const candidate = validateInstructorActivityUrl(value)
+    const base = validateInstructorActivityUrl(prefix)
+    return candidate.ok && base.ok && candidate.url.startsWith(base.url)
+  }
+  ```
+
+  Those `startsWith()` semantics are retained on purpose, so an authored
+  non-root trailing slash keeps narrowing the prefix. The activity URL
+  `https://content.test/coursework` matches the prefix
+  `https://content.test/course`, because the comparison does not stop at a path
+  segment boundary; it does not match the prefix
+  `https://content.test/course/`. An instructor who means the subtree alone
+  writes the trailing slash.
+  This is **not** the allowlist rule matcher, which strips trailing slashes
+  and matches at path-segment boundaries — the two comparisons are separate by
+  design. Rows written before prefixes were canonicalized may still hold a
+  query, fragment, or literal space; deep linking reports such a prefix against
+  the activity code rather than treating it as no constraint.
 - **`activity_activity_code`** — which activities belong to which code (M:N).
 - **`activity_code_member`** — which users administer a code (M:N). This is the
   instructor-facing access relation: membership is what lets a user open a code's
@@ -171,7 +271,10 @@ This is the graph that connects learners to Ximera content.
   rules have the same behaviour. Once a rule is enabled, new URLs must match an
   enabled rule. The table governs **admission only** — no query joins `activities` to it, and no
   operation re-checks a URL that already has an `activities` row, so editing,
-  disabling or deleting a rule never withdraws access to existing content. The
+  disabling or deleting a rule never withdraws access to existing content.
+  Because the lookup that decides "already seen" is on the canonical URL, that
+  grandfathering covers every spelling of an activity Modulus has accepted, not
+  only the one an instructor first typed. The
   rules are read by `ActivityRegistrationService`
   (`packages/core/src/modules/activity-registration/`), the only writer of
   `activities` rows outside seeds and fixtures, and managed through the admin

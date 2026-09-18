@@ -1,5 +1,6 @@
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_UNHANDLED } from '@/lib/errors.js'
+import { normalizeActivityUrl } from '../activity-url.js'
 import { parseAdmissibleUrl } from '../url-policy.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type {
@@ -64,41 +65,54 @@ export class ActivityRegistrationService extends BaseService {
    * Resolves a URL to its activity, admitting it first if Modulus has not seen
    * it before.
    *
-   * The order of the first two steps is the whole of grandfathering: an
+   * Every step works on the canonical activity URL from
+   * `normalizeActivityUrl()`: the WHATWG serialization without query or
+   * fragment. Lookup, the length bound, policy evaluation, the insert, and the
+   * conflict re-read all use that one key, so equivalent spellings of a page —
+   * an uppercase host, an explicit default port, a changed query — resolve to
+   * one activity, and two concurrent registrations of different spellings
+   * contend on the same unique value. The four URL repositories stay exact-key
+   * stores; canonicalizing is the calling service's job. A denial still
+   * carries the submitted `url`, so callers can correlate it with their input.
+   *
+   * The order of the lookup and the policy is the whole of grandfathering: an
    * activity that already exists is returned without the policy being consulted
    * at all, so editing, disabling or deleting a rule can never withdraw access
    * to content Modulus has already accepted.
-   *
-   * The URL is looked up, length-checked and stored in the raw form the caller
-   * supplied. Canonicalizing activity URLs -- so that variant spellings of one
-   * page resolve to one activity here, in the OAuth activity lookup, and in
-   * cumulative targets alike -- is deliberately deferred to separate work, and
-   * has to be done in all three places at once. Until then, treat the storage
-   * form as unsettled rather than intended.
    */
   @method
   async register(
     url: string,
     policy: PolicySnapshot | (() => Promise<PolicySnapshot>)
   ): Promise<RegistrationOutcome> {
-    // 1. A known activity is admitted already. No policy evaluation happens
+    // 1. A URL the platform parser rejects has no canonical key to look up.
+    const key = normalizeActivityUrl(url)
+    if (key === null) {
+      this.logger.warn({ reason: 'malformed_url' }, 'activity url registration denied')
+      return { ok: false, url, reason: 'malformed_url' }
+    }
+
+    // 2. A known activity is admitted already. No policy evaluation happens
     //    here, and that absence is the grandfathering contract.
-    const existing = await this.queries.findActivityByUrl(url)
+    const existing = await this.queries.findActivityByUrl(key)
     if (existing !== undefined) {
       return { ok: true, activity: existing }
     }
 
-    // 2. The column bound, checked before the policy so an unstorable URL is
-    //    reported as such rather than surfacing later as a database error.
-    if (url.length > MAX_ACTIVITY_URL_LENGTH) {
+    // 3. The column bound, measured on the key that would be stored -- not the
+    //    submitted string, which can shrink through default-port or dot-segment
+    //    removal, grow through Unicode encoding, or carry a query that is never
+    //    stored. Checked before the policy so an unstorable URL is reported as
+    //    such rather than surfacing later as a database error.
+    if (key.length > MAX_ACTIVITY_URL_LENGTH) {
       return { ok: false, url, reason: 'url_too_long' }
     }
 
-    // 3. Only a genuinely unseen URL is measured against the policy.
+    // 4. Only a genuinely unseen URL is measured against the policy.
     // Progress callers supply a request-local, memoized loader so known targets
     // never read policy, while all unseen targets share the same snapshot.
     const snapshot = typeof policy === 'function' ? await policy() : policy
-    const evaluation = this.policy.evaluate(url, snapshot)
+    const evaluation = this.policy.evaluate(key, snapshot)
     if (!evaluation.ok) {
       // The denial diagnostic carries the normalized origin and path and
       // nothing else. No learner identity, LMS context, token, auth code or
@@ -108,7 +122,7 @@ export class ActivityRegistrationService extends BaseService {
       // nothing can escape from inside the denial branch. Keying this off the
       // reason instead would rest on an invariant `PolicyEvaluation` does not
       // express, and breaking it would turn a returned denial into a throw.
-      const candidate = parseAdmissibleUrl(url)
+      const candidate = parseAdmissibleUrl(key)
       this.logger.warn(
         {
           reason: evaluation.reason,
@@ -121,25 +135,27 @@ export class ActivityRegistrationService extends BaseService {
       return { ok: false, url, reason: evaluation.reason }
     }
 
-    // 4. Admitted, so insert it.
-    const inserted = await this.mutations.insertActivity(url)
+    // 5. Admitted, so insert the canonical key.
+    const inserted = await this.mutations.insertActivity(key)
     if (inserted !== undefined) {
       return { ok: true, activity: inserted }
     }
 
-    // 5. The insert conflicted, so a concurrent registration of the same URL
-    //    won. Both callers should succeed and resolve to the one winning row.
-    const winner = await this.queries.findActivityByUrl(url)
+    // 6. The insert conflicted, so a concurrent registration of the same key --
+    //    possibly under a different spelling -- won. Both callers should
+    //    succeed and resolve to the one winning row.
+    const winner = await this.queries.findActivityByUrl(key)
     if (winner !== undefined) {
       return { ok: true, activity: winner }
     }
 
     // Neither inserted nor found: the row was created and removed between two
     // statements. Genuinely unhandled, and raised rather than returned because
-    // it is not a decision any caller can act on.
+    // it is not a decision any caller can act on. The message is fixed and
+    // carries no URL: this error is logged, and a submitted URL may hold query
+    // values or credentials.
     throw ERR_UNHANDLED({
       message: 'activity registration neither inserted nor resolved a row',
-      details: { url },
     }).log(this.logger)
   }
 }

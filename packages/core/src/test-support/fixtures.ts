@@ -11,7 +11,30 @@ import {
   scopes,
   users,
 } from '@/database/schema/index.js'
+import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
 import type { DB } from '@/database/index.js'
+
+/**
+ * Guards a fixture's stored `activities.url` against a noncanonical spelling.
+ *
+ * `activities.url` is the canonical key every reader looks up, so a fixture
+ * that inserts a raw spelling directly would describe a row the production
+ * writer cannot produce -- and a reader still passing the submitted spelling
+ * would pass against it. Raw spellings belong in request inputs, not here.
+ *
+ * Deliberately a throw rather than a silent normalisation: quietly rewriting
+ * the value would hide the same broken writer this rule exists to expose.
+ */
+function assertCanonicalActivityUrl(url: string): string {
+  const canonical = normalizeActivityUrl(url)
+  if (canonical !== url) {
+    throw new Error(
+      `Fixture activity url is not canonical: '${url}'. ` +
+        `Store '${canonical ?? '<unparseable>'}' and keep the raw spelling in the request input.`
+    )
+  }
+  return url
+}
 
 type LineItemRecord = typeof lineitems.$inferSelect
 
@@ -51,7 +74,9 @@ export async function seedScenario(
     .insert(platformDeployments)
     .values({ platform_issuer: issuer, deployment_id: deploymentId })
   await db.insert(users).values({ id: userId })
-  await db.insert(activities).values({ id: activityId, url: activityUrl })
+  await db
+    .insert(activities)
+    .values({ id: activityId, url: assertCanonicalActivityUrl(activityUrl) })
 
   return { platformId, issuer, deploymentId, userId, activityId, activityUrl }
 }
@@ -74,10 +99,15 @@ export async function seedUser(db: DB): Promise<string> {
   return id
 }
 
-/** Inserts a fresh activity and returns its id. */
+/**
+ * Inserts a fresh activity and returns its id. An explicit `url` must already
+ * be canonical; see `assertCanonicalActivityUrl`.
+ */
 export async function seedActivity(db: DB, url?: string): Promise<string> {
   const id = uuidv7()
-  await db.insert(activities).values({ id, url: url ?? `https://content.test/${uuidv7()}` })
+  const storedUrl =
+    url === undefined ? `https://content.test/${uuidv7()}` : assertCanonicalActivityUrl(url)
+  await db.insert(activities).values({ id, url: storedUrl })
   return id
 }
 

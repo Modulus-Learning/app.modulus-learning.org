@@ -6,6 +6,7 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { UserAuth } from '@/lib/auth.js'
 import { createCoreLogger } from '@/lib/logger.js'
+import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
 import { ErrorCodes } from '@/modules/activity-registration/errors.js'
 import { parseAdmissibleUrl } from '@/modules/activity-registration/url-policy.js'
 import { ActivityService } from './activity.js'
@@ -70,6 +71,8 @@ const makeService = ({
 } = {}) => {
   const rows = new Map(known.map((url) => [url, activityRecord(url)]))
   const assigned: string[] = []
+  // The exact strings `register()` received, in call order.
+  const registered: string[] = []
   let removedAssociations = 0
   let policyLoads = 0
 
@@ -79,20 +82,28 @@ const makeService = ({
       return { rules: allowed.map((origin) => ({ origin, path_prefix: '/' })) }
     },
     register: async (url: string, policy: PolicySnapshot): Promise<RegistrationOutcome> => {
+      registered.push(url)
+
+      // The real canonicalizer, so the fake keys rows exactly as production.
+      const key = normalizeActivityUrl(url)
+      if (key === null) {
+        return { ok: false, url, reason: 'malformed_url' }
+      }
+
       // Known first, with no policy consulted -- the grandfathering order.
-      const existing = rows.get(url)
+      const existing = rows.get(key)
       if (existing !== undefined) {
         return { ok: true, activity: existing }
       }
 
       // The column bound, checked before the policy, as the real service does.
-      if (url.length > 255) {
+      if (key.length > 255) {
         return { ok: false, url, reason: 'url_too_long' }
       }
 
       // The real parser, not an approximation of it, so the fake cannot
       // disagree with production about what `malformed_url` means.
-      const candidate = parseAdmissibleUrl(url)
+      const candidate = parseAdmissibleUrl(key)
       if (candidate === null) {
         return { ok: false, url, reason: 'malformed_url' }
       }
@@ -100,8 +111,8 @@ const makeService = ({
         return { ok: false, url, reason: 'activity_url_not_allowed' }
       }
 
-      const created = activityRecord(url)
-      rows.set(url, created)
+      const created = activityRecord(key)
+      rows.set(key, created)
       return { ok: true, activity: created }
     },
   } as unknown as ActivityRegistrationService
@@ -147,6 +158,7 @@ const makeService = ({
   return {
     service,
     assigned,
+    registered,
     counts: () => ({ policyLoads, removedAssociations }),
     isKnown: (url: string) => rows.has(url),
   }
@@ -259,6 +271,125 @@ describe('ActivityService.createActivityCode', () => {
       'https://content.test/b',
       'https://content.test/c',
     ])
+  })
+})
+
+describe('ActivityService canonical batches', () => {
+  it('registers canonical keys in the same order for oppositely ordered overlapping submissions', async () => {
+    // Lock order has to hold across spellings, not just across raw strings:
+    // two instructors typing the same unseen pages differently must still
+    // take their row locks in one order.
+    const first = makeService({ allowed: ['https://content.test'] })
+    await first.service.createActivityCode(userAuth, {
+      code: 'brave-otter',
+      urls: [
+        'HTTPS://CONTENT.TEST/b',
+        'https://content.test:443/a',
+        'https://content.test/c',
+        'https://content.test/a',
+      ],
+    })
+
+    const second = makeService({ allowed: ['https://content.test'] })
+    await second.service.createActivityCode(userAuth, {
+      code: 'brave-otter',
+      urls: [
+        'https://content.test/./c',
+        'https://content.test/a',
+        'https://Content.Test/b',
+        'https://content.test/b',
+      ],
+    })
+
+    const canonical = ['https://content.test/a', 'https://content.test/b', 'https://content.test/c']
+    assert.deepEqual(first.registered, canonical)
+    assert.deepEqual(second.registered, canonical)
+    assert.deepEqual(first.assigned, canonical)
+    assert.deepEqual(second.assigned, canonical)
+  })
+
+  it('associates one activity for several spellings of the same page', async () => {
+    const { service, assigned, isKnown } = makeService({ allowed: ['https://content.test'] })
+
+    await service.updateActivityCode(userAuth, {
+      id: uuidv7(),
+      urls: [
+        'https://content.test/lesson',
+        'HTTPS://content.test:443/lesson',
+        'https://content.test/unit/../lesson',
+        'https://content.test/lesson',
+      ],
+    })
+
+    assert.deepEqual(assigned, ['https://content.test/lesson'])
+    assert.equal(isKnown('https://content.test/lesson'), true)
+  })
+
+  it('associates a known activity once when submitted under a new spelling', async () => {
+    const { service, assigned, registered } = makeService({
+      known: ['https://legacy.test/course'],
+      allowed: [],
+    })
+
+    await service.updateActivityCode(userAuth, {
+      id: uuidv7(),
+      urls: ['https://LEGACY.test/course', 'https://legacy.test:443/course'],
+    })
+
+    assert.deepEqual(registered, ['https://legacy.test/course'])
+    assert.deepEqual(assigned, ['https://legacy.test/course'])
+  })
+
+  it('names every submitted spelling of a denied canonical url', async () => {
+    const { service, assigned } = makeService({ allowed: ['https://content.test'] })
+
+    await assert.rejects(
+      service.createActivityCode(userAuth, {
+        code: 'brave-otter',
+        urls: [
+          'https://elsewhere.test:443/page',
+          'https://content.test/fine',
+          'HTTPS://ELSEWHERE.TEST/page',
+          'https://elsewhere.test/page',
+          // An identical repeat is named once; the host maps it to its lines.
+          'HTTPS://ELSEWHERE.TEST/page',
+        ],
+      }),
+      (error: CoreError) => {
+        assert.deepEqual(rejectedFrom(error), [
+          { url: 'https://elsewhere.test:443/page', reason: 'activity_url_not_allowed' },
+          { url: 'HTTPS://ELSEWHERE.TEST/page', reason: 'activity_url_not_allowed' },
+          { url: 'https://elsewhere.test/page', reason: 'activity_url_not_allowed' },
+        ])
+        return true
+      }
+    )
+
+    assert.deepEqual(assigned, [])
+  })
+
+  it('denies unparseable urls from a direct call without registering a null key', async () => {
+    // The public commands reject these before the handler; a direct service
+    // caller still gets a denial rather than a crash or a merged null key.
+    const { service, registered, assigned } = makeService({ allowed: ['https://content.test'] })
+
+    await assert.rejects(
+      service.createActivityCode(userAuth, {
+        code: 'brave-otter',
+        urls: ['not a url', 'https://content.test/fine', 'also not a url', 'not a url'],
+      }),
+      (error: CoreError) => {
+        assert.equal(error.code, ErrorCodes.ACTIVITY_URL_NOT_ALLOWED)
+        assert.deepEqual(rejectedFrom(error), [
+          { url: 'not a url', reason: 'malformed_url' },
+          { url: 'also not a url', reason: 'malformed_url' },
+        ])
+        return true
+      }
+    )
+
+    assert.deepEqual(registered, ['https://content.test/fine'])
+    assert.deepEqual(assigned, [])
   })
 })
 

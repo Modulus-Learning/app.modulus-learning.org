@@ -265,6 +265,8 @@ type LaunchRecorders = {
   signedInAsInstructor?: boolean
   /** Every recorded step, in the order it ran, so ordering can be asserted. */
   order: string[]
+  /** Every key passed to `findActivityByURL`, in order. */
+  lookups: string[]
 }
 
 type ServiceOptions = {
@@ -275,11 +277,11 @@ type ServiceOptions = {
   /** When false, `findActivityByURL` resolves to undefined. */
   activityExists?: boolean
   /**
-   * The `url` on the resolved `activities` row. Defaults to the launched URL,
-   * which is what a real `findActivityByURL` match guarantees; a test sets it
-   * apart only to observe which of the two the response carries.
+   * The canonical `url` on the only stored `activities` row. `findActivityByURL`
+   * matches it by exact equality, as the SQL lookup does, so the service must
+   * pass the canonical key rather than the claim as launched.
    */
-  canonicalActivityUrl?: string
+  storedActivityUrl?: string
 }
 
 const ACTIVITY_URL = 'https://content.launch.test/activity'
@@ -327,7 +329,7 @@ describe('LtiLaunchService.handleLaunch', () => {
       enrollmentOutcome,
       transactionError,
       activityExists = true,
-      canonicalActivityUrl = ACTIVITY_URL,
+      storedActivityUrl = ACTIVITY_URL,
     } = options
     const activityId = uuidv7()
     const userId = uuidv7()
@@ -337,7 +339,7 @@ describe('LtiLaunchService.handleLaunch', () => {
       refresh: { token: 'refresh-token', expiration_in_ms: 120_000 },
       remember_me: false,
     }
-    const recorders: LaunchRecorders = { enrollments: [], order: [] }
+    const recorders: LaunchRecorders = { enrollments: [], order: [], lookups: [] }
 
     const service = new LtiLaunchService({
       logger: createCoreLogger({ pinoLogger: pino({ level: 'silent' }) }),
@@ -374,16 +376,18 @@ describe('LtiLaunchService.handleLaunch', () => {
       } as unknown as LtiMutations,
       activities: {
         queries: {
-          findActivityByURL: async () =>
-            activityExists
+          findActivityByURL: async (url: string) => {
+            recorders.lookups.push(url)
+            return activityExists && url === storedActivityUrl
               ? {
                   id: activityId,
-                  url: canonicalActivityUrl,
+                  url: storedActivityUrl,
                   name: null,
                   created_at: new Date(),
                   updated_at: new Date(),
                 }
-              : undefined,
+              : undefined
+          },
         } as unknown as ActivityQueries,
         enrollmentService: {
           enrollByActivityCodeId: async (): Promise<EnrollmentOutcome> => {
@@ -424,6 +428,7 @@ describe('LtiLaunchService.handleLaunch', () => {
     ags = true,
     roles = [] as string[],
     activityCode = ACTIVITY_CODE,
+    activityUrl = ACTIVITY_URL,
   } = {}) =>
     await new SignJWT({
       sub: 'canvas-user-1',
@@ -443,7 +448,7 @@ describe('LtiLaunchService.handleLaunch', () => {
       [CLAIM_CUSTOM]: {
         modulus_launch_type: 'start-activity',
         modulus_activity_code: activityCode,
-        modulus_activity_url: ACTIVITY_URL,
+        modulus_activity_url: activityUrl,
         'Canvas.term.id': RAW_TERM_ID,
         'Canvas.term.name': 'Autumn 2026',
         'Canvas.term.startAt': RAW_START,
@@ -613,12 +618,17 @@ describe('LtiLaunchService.handleLaunch', () => {
     const { service, recorders } = createService({ activityExists: false })
 
     await assert.rejects(
-      service.handleLaunch({ id_token: await signLaunch(), issuer }),
+      service.handleLaunch({
+        id_token: await signLaunch({ activityUrl: `${ACTIVITY_URL}?retry=raw` }),
+        issuer,
+      }),
       (error: unknown) => {
         assert.equal((error as { code?: string }).code, ErrorCodes.INVALID_LAUNCH)
         return true
       }
     )
+    // One lookup, by the canonical key: no raw or near-match retry.
+    assert.deepEqual(recorders.lookups, [ACTIVITY_URL])
     assert.deepEqual(recorders.enrollments, [])
   })
 
@@ -648,21 +658,121 @@ describe('LtiLaunchService.handleLaunch', () => {
     assert.equal(response.modulus_server_url, MODULUS_SERVER_URL)
   })
 
-  it('carries the activities row URL rather than the launched claim', async () => {
-    // The two agree in production -- `findActivityByURL` matched the claim on
-    // that exact value -- so they are set apart here only to observe which one
-    // the response carries. The database row is the authority.
-    const canonicalActivityUrl = 'https://content.launch.test/canonical?authored=one#section'
-    const { service } = createService({ canonicalActivityUrl })
+  describe('canonical activity claim lookup', () => {
+    const variants = [
+      { name: 'an uppercase scheme and host', claim: 'HTTPS://CONTENT.LAUNCH.TEST/activity' },
+      { name: 'an explicit default port', claim: 'https://content.launch.test:443/activity' },
+      { name: 'dot segments', claim: 'https://content.launch.test/unit/./../activity' },
+      { name: 'an encoded dot segment', claim: 'https://content.launch.test/unit/%2E%2e/activity' },
+      { name: 'a query', claim: 'https://content.launch.test/activity?page=2&token=synthetic' },
+      { name: 'a fragment', claim: 'https://content.launch.test/activity#section-3' },
+      { name: 'an empty query and fragment', claim: 'https://content.launch.test/activity?#' },
+    ]
 
-    const response = await service.handleLaunch({ id_token: await signLaunch(), issuer })
+    for (const { name, claim } of variants) {
+      it(`resolves the stored activity from a claim with ${name}`, async () => {
+        const { service, recorders, activityId, userId } = createService()
 
-    assert.equal(response.type, 'start-activity')
-    if (response.type !== 'start-activity') {
-      assert.fail('expected a start-activity launch response')
+        const response = await service.handleLaunch({
+          id_token: await signLaunch({ activityUrl: claim }),
+          issuer,
+        })
+
+        assert.equal(response.type, 'start-activity')
+        if (response.type !== 'start-activity') {
+          assert.fail('expected a start-activity launch response')
+        }
+        assert.deepEqual(recorders.lookups, [ACTIVITY_URL])
+        assert.equal(response.activity_id, activityId)
+        // The redirect is the stored row's URL, not the claim: nothing from an
+        // incoming query or fragment is forwarded as a launch option.
+        assert.equal(response.activity_url, ACTIVITY_URL)
+        assert.equal(response.activity_url.includes('?'), false)
+        assert.equal(response.activity_url.includes('#'), false)
+        // Enrollment and line-item reconciliation follow the resolved row.
+        assert.deepEqual(recorders.enrollments, [
+          { user_id: userId, activity_code: ACTIVITY_CODE, activity_id: activityId },
+        ])
+        assert.equal(recorders.reconciled?.activity_id, activityId)
+      })
     }
-    assert.equal(response.activity_url, canonicalActivityUrl)
-    assert.notEqual(response.activity_url, ACTIVITY_URL)
+
+    it('resolves a raw-space claim to the stored encoded activity', async () => {
+      // The instructor literal-space rule does not apply to launch readers.
+      const storedActivityUrl = 'https://content.launch.test/lesson%20one'
+      const { service, recorders, activityId } = createService({ storedActivityUrl })
+
+      const response = await service.handleLaunch({
+        id_token: await signLaunch({ activityUrl: 'https://content.launch.test/lesson one' }),
+        issuer,
+      })
+
+      assert.equal(response.type, 'start-activity')
+      if (response.type !== 'start-activity') {
+        assert.fail('expected a start-activity launch response')
+      }
+      assert.deepEqual(recorders.lookups, [storedActivityUrl])
+      assert.equal(response.activity_id, activityId)
+      assert.equal(response.activity_url, storedActivityUrl)
+    })
+
+    it('completes the root path of an origin-only claim', async () => {
+      const storedActivityUrl = 'https://content.launch.test/'
+      const { service, recorders, activityId } = createService({ storedActivityUrl })
+
+      const response = await service.handleLaunch({
+        id_token: await signLaunch({ activityUrl: 'https://Content.Launch.Test:443?launch=1' }),
+        issuer,
+      })
+
+      assert.equal(response.type, 'start-activity')
+      if (response.type !== 'start-activity') {
+        assert.fail('expected a start-activity launch response')
+      }
+      assert.deepEqual(recorders.lookups, [storedActivityUrl])
+      assert.equal(response.activity_id, activityId)
+      assert.equal(response.activity_url, storedActivityUrl)
+    })
+
+    it('keeps non-root trailing and repeated slashes significant', async () => {
+      const claims = [
+        'https://content.launch.test/activity/',
+        'https://content.launch.test//activity',
+      ]
+
+      for (const claim of claims) {
+        const { service, recorders } = createService()
+
+        await assert.rejects(
+          service.handleLaunch({ id_token: await signLaunch({ activityUrl: claim }), issuer }),
+          (error: unknown) => {
+            assert.equal((error as { code?: string }).code, ErrorCodes.INVALID_LAUNCH)
+            return true
+          }
+        )
+        assert.deepEqual(recorders.lookups, [claim])
+        assert.deepEqual(recorders.enrollments, [])
+      }
+    })
+
+    it('rejects an unparseable claim as an invalid launch without a lookup', async () => {
+      const { service, recorders } = createService()
+
+      await assert.rejects(
+        service.handleLaunch({
+          id_token: await signLaunch({ activityUrl: 'https://content launch.test/activity' }),
+          issuer,
+        }),
+        (error: unknown) => {
+          assert.equal((error as { code?: string }).code, ErrorCodes.INVALID_LAUNCH)
+          return true
+        }
+      )
+      assert.deepEqual(recorders.lookups, [])
+      assert.deepEqual(recorders.enrollments, [])
+      assert.equal(recorders.signedInAsInstructor, undefined)
+      assert.equal(recorders.reconciled, undefined)
+    })
   })
 
   it('carries no raw Canvas term identity into the response or the enrollment call', async () => {

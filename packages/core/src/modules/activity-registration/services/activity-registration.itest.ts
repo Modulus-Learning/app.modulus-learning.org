@@ -39,6 +39,16 @@ const countActivities = async (url: string): Promise<number> => {
   return rows.length
 }
 
+const allActivityUrls = async (): Promise<string[]> => {
+  const rows = await h.db.select({ url: activities.url }).from(activities)
+  return rows.map(({ url }) => url)
+}
+
+/** A policy loader that fails the test if registration ever reads policy. */
+const noPolicyRead = async (): Promise<never> => {
+  assert.fail('a known activity must not load or evaluate policy')
+}
+
 describe('ActivityRegistrationService.register over PostgreSQL', () => {
   it('allows new URLs with no rules and after deleting the last enabled rule', async () => {
     const url = `${ORIGIN}/first`
@@ -163,6 +173,85 @@ describe('ActivityRegistrationService.register over PostgreSQL', () => {
     const nextPolicy = await h.services.activityRegistration.loadPolicy()
     const next = await h.services.activityRegistration.register(`${ORIGIN}/other`, nextPolicy)
     assert.equal(next.ok, false)
+  })
+
+  it('resolves concurrent registrations of equivalent spellings to one canonical row', async () => {
+    // The race the canonical key exists for: different spellings of one page
+    // must contend on the same unique value, not create two activities.
+    await seedRule()
+    const canonical = `${ORIGIN}/course/calculus`
+    const spellings = [
+      'HTTPS://CONTENT.TEST:443/course/calculus?week=1',
+      'https://content.test/course/./calculus#section-2',
+      'https://Content.Test/unit/../course/calculus',
+    ]
+
+    const policy = await h.services.activityRegistration.loadPolicy()
+    const outcomes = await Promise.all(
+      spellings.map((url) => h.services.activityRegistration.register(url, policy))
+    )
+
+    const ids = outcomes.map((outcome) => {
+      assert.ok(outcome.ok)
+      assert.equal(outcome.activity.url, canonical)
+      return outcome.activity.id
+    })
+    assert.equal(new Set(ids).size, 1)
+    assert.deepEqual(await allActivityUrls(), [canonical])
+  })
+
+  it('denies an unseen url under a nonmatching enabled rule', async () => {
+    await seedRule('https://other.test')
+    const url = 'HTTPS://CONTENT.TEST:443/course/unseen?week=1'
+
+    const policy = await h.services.activityRegistration.loadPolicy()
+    const outcome = await h.services.activityRegistration.register(url, policy)
+
+    assert.deepEqual(outcome, { ok: false, url, reason: 'activity_url_not_allowed' })
+    assert.deepEqual(await allActivityUrls(), [])
+  })
+
+  it('resolves equivalent spellings of an existing activity without evaluating policy', async () => {
+    const canonical = `${ORIGIN}/legacy/page`
+    const id = uuidv7()
+    await h.db.insert(activities).values({ id, url: canonical })
+    await seedRule('https://other.test')
+
+    for (const url of [
+      canonical,
+      'HTTPS://content.test:443/legacy/page',
+      'https://content.test/legacy/./page?attempt=2#q3',
+    ]) {
+      const outcome = await h.services.activityRegistration.register(url, noPolicyRead)
+      assert.ok(outcome.ok)
+      assert.equal(outcome.activity.id, id)
+    }
+    assert.deepEqual(await allActivityUrls(), [canonical])
+  })
+
+  it('resolves a seeded parseable but inadmissible url without a new syntax gate', async () => {
+    // Synthetic fixture, not a data-compatibility mechanism: an existing row
+    // that today's admission syntax would refuse (plain HTTP to a non-loopback
+    // host) still resolves, because lookup precedes admission. Its unseen
+    // counterpart must still fail admission.
+    const canonical = 'http://content.test/legacy/page'
+    const id = uuidv7()
+    await h.db.insert(activities).values({ id, url: canonical })
+
+    const known = await h.services.activityRegistration.register(
+      'HTTP://CONTENT.TEST:80/legacy/page?x=1',
+      noPolicyRead
+    )
+    assert.ok(known.ok)
+    assert.equal(known.activity.id, id)
+
+    const unseenUrl = 'http://content.test/legacy/other'
+    const unseen = await h.services.activityRegistration.register(
+      unseenUrl,
+      await h.services.activityRegistration.loadPolicy()
+    )
+    assert.deepEqual(unseen, { ok: false, url: unseenUrl, reason: 'malformed_url' })
+    assert.deepEqual(await allActivityUrls(), [canonical])
   })
 
   it('reports url_too_long for a url the column cannot hold', async () => {
