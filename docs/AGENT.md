@@ -1,7 +1,7 @@
 ---
 title: "The Modulus Agent"
 path: "agent"
-summary: "The published browser instrumentation library and server ingestion path: authoring API, local-first resilience, OAuth with PKCE, per-tab and last-successful activity context, and activity-state isolation by the token-bound user/activity/scope tuple."
+summary: "The published browser instrumentation library and server ingestion path: authoring API, the activity URL contract that decides which pages share progress and page state, duplicate contribution targets, local-first resilience, OAuth with PKCE, per-tab and last-successful activity context, and activity-state isolation by the token-bound user/activity/scope tuple."
 ---
 
 # The Modulus Agent
@@ -90,6 +90,158 @@ Two semantic rules matter for authors:
 - **Page state is whole-value replacement.** Any JSON-serializable value is
   accepted; the agent replaces (it does not currently deep-merge or patch).
 
+## The Activity URL Contract
+
+This section is for content authors. It is the one Modulus rule you have to hold
+in mind while choosing the URLs your activities live at, and it decides which of
+your pages share a learner's progress and saved page state.
+
+**An activity is identified by its origin and path. Query and fragment are not
+part of its identity.** Modulus resolves every activity URL to a canonical form —
+the `URL` serialization with query and fragment removed — and looks the activity
+up by that, so all of these are *one* Modulus activity, with one progress value
+and one page-state record per learner and academic scope:
+
+```text
+https://content.test/lesson
+https://content.test/lesson?tab=2
+https://content.test/lesson#part-3
+HTTPS://CONTENT.TEST:443/lesson
+```
+
+The full set of spellings that merge, and the distinctions that are preserved —
+path case, non-root trailing slashes, repeated slashes, percent-escape spelling —
+is in
+[DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping).
+
+Two obligations follow for you as an author:
+
+- **Variants must be mutually compatible.** Progress must mean the same thing
+  across every query and fragment variant of one path, and any page state saved
+  under one variant has to be readable by the others. A learner who navigates
+  from `/lesson` to `/lesson?tab=2` keeps the same progress and the same saved
+  state, and the agent on the second URL will load what the first one wrote.
+- **Independently graded content needs distinct paths.** If two things must be
+  tracked or graded separately, they must differ in their path.
+  `?exercise=17` and `?exercise=18` on one path are not two activities, and
+  neither are two lessons selected by fragment routing. Give them
+  `/exercise/17` and `/exercise/18`, or any other distinct paths.
+
+Modulus cannot check either obligation for you. It has no way to inspect a URL
+and learn whether two variants of a page track the same work, so the contract is
+documented rather than enforced. This is a deliberately narrower model than
+generic URI syntax allows, where
+[a query can participate in resource identification](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.4).
+
+**Your page's own URL is left in the address bar.** Canonicalization applies to
+the identity Modulus stores and looks up, not to the learner's location. The
+agent derives `redirect_uri` and `client_id` for the OAuth handshake from
+`window.location` with query and fragment cleared, but after authentication it
+restores your authored query parameters — duplicate names and order included —
+and your fragment. A learner who launches `/lesson?tab=2#part-3` ends up with
+`/lesson?tab=2#part-3` in the address bar, and the activity resolved as
+`/lesson`.
+
+Restoration rewrites history only. It does **not** reload the page, re-render
+query-dependent content, or scroll to the fragment, so acting on a restored
+query or fragment is the activity's own responsibility. If your page renders
+from `location.search` or scrolls to `location.hash`, read them after the agent
+is ready rather than only at initial load.
+
+**Nothing about learner or scope isolation changes.** Progress and page state are
+still partitioned by the `(user, activity, scope)` tuple taken from the token, so
+merging two spellings merges nothing across learners and nothing across academic
+scopes — it only means both spellings name the same `activity_id` in that tuple.
+See [The Data-Isolation Guarantee, End to End](#the-data-isolation-guarantee-end-to-end).
+
+### Duplicate Contribution Targets
+
+Because query strings are not part of an activity's identity, two contribution
+targets can name the same activity without looking alike. These are one target:
+
+```ts
+agent.addContributionTarget({ url: 'https://content.test/total?exercise=17', factor: 0.5 })
+agent.addContributionTarget({ url: 'https://content.test/total?exercise=18', factor: 0.25 })
+```
+
+Both resolve to `https://content.test/total`, so the submission asks for one
+activity to be incremented by two different factors. There is no sound way for
+the server to choose `0.5` over `0.25`, or to add them into `0.75`: the page's
+authored markup is wrong, and guessing would silently corrupt a learner's
+progress. **The entire `set-progress` submission is refused**, with HTTP `400`
+and:
+
+```json
+{ "status": "error", "code": "ERR_VALIDATION" }
+```
+
+"Entire" is the part to plan for. The refusal happens in request validation,
+before the handler runs, so the learner's **own self-progress update in that
+submission is refused too**, and no `rejected_targets` list comes back. The
+agent surfaces it as a non-retriable `request-rejected` error:
+
+```ts
+// apps/agent/src/core/agent.ts (excerpt)
+const error: AgentError = {
+  type: 'request-rejected',
+  context,
+  message: `Request rejected while ${gerund} ${noun} (HTTP ${result.code})`,
+  retriable: false,
+}
+```
+
+The session stays authenticated and the connection is not marked lost, but the
+submission does not succeed and the local value stays ahead of the submitted one.
+Since the target list comes from your page's markup, every later submission from
+that page sends the same list and fails the same way for as long as the page is
+loaded. Progress already saved is untouched, and `setPageState` requests are
+unaffected — they carry no target list.
+
+**Your application must handle the `error` event to make this visible.** The
+agent emits `request-rejected` and stops there; it does not render anything, and
+its default logger is `createSilentLogger()`, so nothing reaches a console unless
+you pass `createConsoleLogger()` or `createDebugLogger()`. An author or learner
+sees this only if your page listens:
+
+```ts
+agent.on('error', (error) => {
+  if (error.type === 'request-rejected') {
+    // surface it to the author in development, or the learner in production
+  }
+})
+```
+
+**The correction:** submit each canonical contribution target once, and choose
+the factor you actually intend for it. The server will not combine two factors or
+pick one target over another on your behalf. If `?exercise=17` and `?exercise=18`
+are meant to contribute separately, they need distinct paths, as
+[the contract above](#the-activity-url-contract) requires.
+
+Do not confuse this with `rejected_targets`, which is a different outcome
+entirely:
+
+| | Duplicate targets | `rejected_targets` |
+| --- | --- | --- |
+| Decided by | request validation, before the handler | the handler, per target |
+| HTTP status | `400` with `code: "ERR_VALIDATION"` | `200` |
+| Self progress | refused with everything else | committed |
+| Accepted targets | none — nothing is applied | applied normally |
+| Agent event | `error` with `type: 'request-rejected'` | logged by `ModulusAgent`, no error |
+
+`rejected_targets` and its reason vocabulary are described in
+[Cumulative Progress → Refused targets](./CUMMULATIVE-PROGRESS.md#refused-targets).
+
+For diagnosis, the server-side record is the reliable one: core logs a warning
+for the failed submission and, separately, a sanitized warning for each denied
+registration carrying the refusal reason with the candidate's normalized origin
+and path. Be clear about the limits of both. Neither the HTTP response nor the
+log line names the duplicate URLs — a target URL can carry authored query values,
+so validation messages name the field, not the value — and there is no
+URL-bearing diagnostic and no author-facing warning in the response. What you get
+is the field-level `ERR_VALIDATION` code; identifying *which* of your targets
+collide is done by reading your own page's target list against the identity rule
+above.
+
 ## Local-First Resilience
 
 The agent is built to never get in the learner's way, which shapes its runtime
@@ -165,8 +317,12 @@ page from pointing instrumented content at a rogue "Modulus" server.
 **PKCE handshake.** The agent generates a `code_verifier` (48 random bytes,
 base64url) and its S256 `code_challenge`, plus a CSRF `state`, stashing them in
 `sessionStorage` as part of the same atomic OAuth record. It uses the activity's
-own URL (query/fragment stripped) as both `redirect_uri` and `client_id`, then
-redirects to
+own URL (query/fragment stripped) as both `redirect_uri` and `client_id` — the
+same canonical form Modulus stores the activity under, so both legs of the
+exchange send one spelling and the server can compare the protocol values
+byte for byte while resolving the activity canonically
+([AUTHN-AUTHZ → The Agent Flow](./AUTHN-AUTHZ.md#the-agent-flow-oauth-20--pkce)).
+It then redirects to
 `{issuer}/routes/agent/authorize`. After the server issues a code and redirects
 back, the agent POSTs to `{issuer}/routes/agent/token` with the `code_verifier`;
 on success it receives `{ api_base_url, access_token, user, scope_id,
@@ -276,6 +432,17 @@ Flagged in the code, relevant to authors and maintainers:
   Activity hosts should send `Referrer-Policy: strict-origin` or a stricter
   policy. The opaque scope UUID may still appear in the initial activity URL and
   is accepted as a non-secret residual; raw Canvas term identity never appears.
+- **A duplicate target list has no author-facing diagnostic.** The response
+  carries `ERR_VALIDATION` and no URL, and the server log deliberately records
+  no target value either, so identifying which targets collide is manual. A
+  URL-bearing diagnostic would have to be safe to log, which authored query
+  values are not; adding a response-only warning is unbuilt. See
+  [Duplicate Contribution Targets](#duplicate-contribution-targets).
+- **Identity resolves spellings, not every standards-equivalent URL.**
+  `/%7euser`, `/%7Euser`, and `/~user` remain three activities, and Modulus
+  follows no redirects and resolves no host aliases to discover that two URLs
+  serve one page. If your content is reachable at genuinely different paths,
+  pick one and link to it consistently.
 - **No local persistence yet.** Caching progress/page state in `localStorage`
   (so an offline learner doesn't lose work before the connection returns) is a
   `TODO`.
