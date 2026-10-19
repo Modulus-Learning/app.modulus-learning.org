@@ -119,6 +119,11 @@ selected via `DEPLOYMENT_MODE`: what each mode serves, how route surfaces are
 classified and gated (the proxy gate plus the LTI/admin layout guards), the
 background-jobs switch, and the rule that a frontend instance may never run jobs.
 
+### [Database Migration](./DATABASE-MIGRATION.md) — Available
+Moving the shared gradebook database between Neon projects with a rehearsed
+restore, a coordinated Fly maintenance window, private backups, data
+verification, and recovery steps that preserve the single backend worker.
+
 ### Remote Connector — Planned
 The planned HTTP proxy layer — a thin wrapper over the core service layer with
 proxy implementations of the class contracts, swappable with the in-process
