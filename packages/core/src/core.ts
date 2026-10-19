@@ -10,6 +10,7 @@ import { type CoreLogger, createCoreLogger } from './lib/logger.js'
 import { LtiKeyStore } from './lib/lti-keystore.js'
 import { AsyncRegistry } from './lib/registry.js'
 import { CoreUtils } from './lib/utils.js'
+import { createActivityRegistrationRegistry } from './modules/activity-registration/index.js'
 import { createAdminRegistry, getAdminCommands } from './modules/admin/index.js'
 import { createAgentRegistry, getAgentCommands } from './modules/agent/index.js'
 import { createAppRegistry, getAppCommands } from './modules/app/index.js'
@@ -41,6 +42,12 @@ const createMailer = (deps: {
 /**
  * Creates the core registry with all commands, services, and dependencies wired
  * up (but not yet initialized).
+ *
+ * Insertion order is load-bearing and compile-checked: `compose()` walks
+ * providers in order and each sees only what came before it.  This is why
+ * `activityRegistration` is nested ahead of the three actor domains -- all of
+ * them reach it, and a registry nested after `app` could not be injected into
+ * an app service.
  */
 const createCoreRegistry = (urlBuilder: UrlBuilder, config: Config) => {
   return new AsyncRegistry()
@@ -56,6 +63,8 @@ const createCoreRegistry = (urlBuilder: UrlBuilder, config: Config) => {
     .addClass('tx', TXManagerImpl)
     .addFactory('emailTemplates', createEmailTemplates)
     .addFactory('mailer', createMailer)
+
+    .addNested('activityRegistration', createActivityRegistrationRegistry())
 
     .addNested('app', createAppRegistry())
     .addNested('admin', createAdminRegistry())

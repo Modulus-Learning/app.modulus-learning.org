@@ -59,6 +59,35 @@ export const getProgressSchemas = {
  * a self-referencing target (a URL matching the current activity) is rejected by
  * the server.
  */
+/**
+ * Why one cumulative target was refused.
+ *
+ * The first three are `RegistrationDenialReason` verbatim: this path names the
+ * shared registration service's own denial vocabulary rather than defining a
+ * parallel one that could drift from it. Only `self_reference` is added here,
+ * because it needs the reporting activity's id and is therefore this caller's
+ * check rather than the service's.
+ */
+export const rejectedTargetReasonSchema = z.enum([
+  // No enabled allowlist rule matches this previously unseen URL.
+  'activity_url_not_allowed',
+  // Not parseable as an admissible absolute URL.
+  'malformed_url',
+  // Longer than the 255-character `activities.url` column.
+  'url_too_long',
+  // The target is the reporting activity itself.
+  'self_reference',
+])
+
+export type RejectedTargetReason = z.infer<typeof rejectedTargetReasonSchema>
+
+export const rejectedTargetSchema = z.object({
+  url: z.string(),
+  reason: rejectedTargetReasonSchema,
+})
+
+export type RejectedTarget = z.infer<typeof rejectedTargetSchema>
+
 export const setProgressSchemas = {
   input: z.object({
     progress_for_current_page: z.number(),
@@ -74,6 +103,14 @@ export const setProgressSchemas = {
     // Resulting progress for each reported-against activity.  Populated in
     // Phase 2, once transactional multi-activity writes land.
     others: z.array(progressResultSchema).optional(),
+    // Targets that were refused, each with the reason. A rejected target never
+    // fails the submission carrying it: the target list comes from the page's
+    // authored markup, so failing would stop that page reporting progress
+    // permanently -- including the learner's own valid self high-water mark.
+    //
+    // Omitted rather than empty when every target was accepted, matching how
+    // `others` is already handled.
+    rejected_targets: z.array(rejectedTargetSchema).optional(),
     new_token: z.string().optional(),
   }),
 }

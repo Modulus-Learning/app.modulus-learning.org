@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
 import { validateUrlPrefix, validateUrls } from './@types/validate-urls'
+import { readRejectedUrls, rejectedUrlsMessage } from './rejected-urls'
 import type { ActivityCodeFormState } from './@types'
 
 export const createActivityCode = async (
@@ -104,6 +105,19 @@ export const createActivityCode = async (
   })
 
   if (!result.ok) {
+    // The sitewide allowlist refused one or more URLs. Name them, so the
+    // instructor knows which lines to change, and say who can approve them.
+    if (result.error.code === 'ERR_ACTIVITY_URL_NOT_ALLOWED') {
+      const rejected = readRejectedUrls(result.error.details)
+      if (rejected.length > 0) {
+        return {
+          errors: { urls: [rejectedUrlsMessage(rejected)] },
+          message: 'Some activity URLs are not allowed.',
+          status: 'failed',
+        }
+      }
+    }
+
     logger.error({
       activities: {
         status: 'failed',

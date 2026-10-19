@@ -61,6 +61,9 @@ export const config = {
     /*
      * Match all request paths except for the ones starting with:
      * - lti (the chromeless LTI launch/deep-link pages, gated by their own layout)
+     * - agent (the chromeless /agent/error page, gated by its own layout).
+     *   The agent API handlers live under /routes/agent/* and do not start with
+     *   /agent, so they are unaffected by this exclusion.
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico and the other static assets listed below
@@ -72,7 +75,7 @@ export const config = {
      */
     {
       source:
-        '/((?!assets|fonts|images|lti|_next/static|_next/image|opengraph-image|twitter-image|robots.txt|sitemap.xml|manifest.json|android-chrome-192x192.png|android-chrome-512x512.png|apple-touch-icon.png|browserconfig.xml|mstile-150x150.png|safari-pinned-tab.svg|site.webmanifest|favicon.ico|favicon.png|favicon-.*.png|modulus-icon-.*.png|web-app-manifest-.*.png|screenshot-.*.png|sprite.svg|external-link-dark.svg|external-link-light.svg|modules/js/script.js|modules/api/event).*)',
+        '/((?!assets|fonts|images|lti|agent|_next/static|_next/image|opengraph-image|twitter-image|robots.txt|sitemap.xml|manifest.json|android-chrome-192x192.png|android-chrome-512x512.png|apple-touch-icon.png|browserconfig.xml|mstile-150x150.png|safari-pinned-tab.svg|site.webmanifest|favicon.ico|favicon.png|favicon-.*.png|modulus-icon-.*.png|web-app-manifest-.*.png|screenshot-.*.png|sprite.svg|external-link-dark.svg|external-link-light.svg|modules/js/script.js|modules/api/event).*)',
       // '/((?!assets|fonts|images|api|_next/static|_next/image|opengraph-image|twitter-image|manifest|favicon.ico|sprite.svg).*)'
       // TODO: we've disabled prefetch on most links for now - because they need
       // the locale rewrite rules above, but NOT the CSP rules.

@@ -1,5 +1,11 @@
 # @modulus-learning/agent
 
+## 0.11.0
+
+### Minor Changes
+
+- c8f44f7: Reported cumulative contribution targets the server refused. A `set-progress` response may now carry an additive `rejected_targets` member naming each target and why it was refused; the submission itself still completes, and the targets are logged through the agent's logger for authors who opted into one.
+
 ## 0.10.0
 
 ### Minor Changes

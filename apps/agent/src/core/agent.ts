@@ -1,4 +1,9 @@
-import { ApiClient, type ApiRequestResult, type ProgressContribution } from './api-client.js'
+import {
+  ApiClient,
+  type ApiRequestResult,
+  type ProgressContribution,
+  type RejectedTarget,
+} from './api-client.js'
 import { authenticate } from './auth.js'
 import { EventEmitter } from './event-emitter.js'
 import { createSilentLogger, type Logger } from './logger.js'
@@ -436,11 +441,34 @@ export class ModulusAgentImpl extends EventEmitter<ModulusAgentEvents> {
       onSuccess: (data) => {
         this.#submittedProgress = data.progress
         this.emit('progress-submitted', { progress: this.#submittedProgress })
+        this.#logRejectedTargets(data.rejected_targets)
       },
       syncAttempt: (attempt) => {
         this.#progressRetryAttempt = attempt
       },
     })
+  }
+
+  // Report cumulative contribution targets the server refused.  The submission
+  // itself completed -- the server answers 200 with the accepted work done and
+  // names the refused targets -- so this must not mark the progress unsubmitted,
+  // retry, or raise an error: a refused target is a durable authoring mistake in
+  // the page's markup, and treating it as a failure would stop the page
+  // reporting anything at all, including the learner's own valid progress.
+  //
+  // Be clear about what this diagnostic is worth: the agent's default logger is
+  // `createSilentLogger()`, deliberately, because it runs in learners' browsers
+  // on third-party pages.  So this reaches an author who passed
+  // `createConsoleLogger()` or `createDebugLogger()` and nobody else; the server
+  // log is the reliable record of a refused target.
+  #logRejectedTargets(rejected: RejectedTarget[] | undefined): void {
+    if (rejected == null || rejected.length === 0) {
+      return
+    }
+
+    // Not awaited: `onSuccess` is the retry loop's synchronous success hook, and
+    // a diagnostic log has no business holding a submission open.
+    void this.#logger?.log('Cumulative contribution targets rejected by the server', rejected)
   }
 
   async #submitPageStateInner(): Promise<boolean> {

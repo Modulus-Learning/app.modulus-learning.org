@@ -2,6 +2,8 @@ import { Container, Section } from '@infonomic/uikit/react'
 import type { Metadata } from 'next'
 
 import { getMeta } from '@/lib/meta'
+import { AllowlistRulesListView } from '@/modules/admin/activity-url-allowlist/components/list-view'
+import { listAllowlistRules } from '@/modules/admin/activity-url-allowlist/list'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
 import type { Locale } from '@/i18n/i18n-config'
 
@@ -9,11 +11,6 @@ export async function generateMetadata({
   params,
 }: {
   params: Promise<{ lng: Locale }>
-  searchParams: Promise<{
-    order?: string
-    query?: string
-    page?: string
-  }>
 }): Promise<Metadata> {
   const { lng } = await params
   return await getMeta(lng, {
@@ -30,6 +27,7 @@ export default async function ActivitiesPage({
   }>
 }): Promise<React.JSX.Element> {
   const { lng } = await params
+  const data = await listAllowlistRules(lng)
 
   return (
     <>
@@ -43,13 +41,7 @@ export default async function ActivitiesPage({
           />
         </Container>
       </Section>
-      <Section>
-        <Container>
-          <div className="flex items-center gap-3 py-[2px]">
-            <h1 className="!m-0 pb-[2px]">Activities</h1>
-          </div>
-        </Container>
-      </Section>
+      <AllowlistRulesListView data={data} lng={lng} />
     </>
   )
 }

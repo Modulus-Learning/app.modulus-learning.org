@@ -1,7 +1,7 @@
 ---
 title: "Deployment Modes"
 path: "deployment"
-summary: "How a single gradebook build is deployed in one of three runtime modes — all-in-one, frontend-only, or admin-only — via DEPLOYMENT_MODE: what each mode serves, the route surfaces and where they are gated, the background-jobs switch, and the rule that a frontend instance may never run jobs."
+summary: "How a single gradebook build is deployed in one of three runtime modes — all-in-one, frontend-only, or admin-only — via DEPLOYMENT_MODE: what each mode serves, the route surfaces and where they are gated, the background-jobs switch, the LTI launch-interstitial switch, and the rule that a frontend instance may never run jobs."
 ---
 
 # Deployment Modes
@@ -43,13 +43,14 @@ instance reveals nothing about the learner/LTI surface, and vice versa.
 
 ## Configuration
 
-Two environment variables, both read by the host config in
+Three environment variables, all read by the host config in
 `apps/gradebook/src/config/index.ts`:
 
 | Variable | Values | Default | Purpose |
 | --- | --- | --- | --- |
 | `DEPLOYMENT_MODE` | `all-in-one` \| `frontend` \| `admin` | `all-in-one` | Which surfaces this instance serves. |
 | `JOB_QUEUE_ENABLED` | `true` \| `false` | `true` | Whether this instance starts the background workers. |
+| `LTI_LAUNCH_INTERSTITIAL` | `never` \| `always` | `never` | Whether a verified LTI launch shows the interstitial before the activity. |
 
 Example deployments:
 
@@ -68,9 +69,44 @@ JOB_QUEUE_ENABLED=true
 ```
 
 Configuration is validated at boot by the Zod schema in
-`config/index.ts`; an invalid `DEPLOYMENT_MODE`, or an illegal frontend/jobs
-combination, fails fast (the process does not start) rather than misbehaving
-silently.
+`config/index.ts`; an invalid `DEPLOYMENT_MODE`, an invalid
+`LTI_LAUNCH_INTERSTITIAL`, or an illegal frontend/jobs combination, fails fast
+(the process does not start) rather than misbehaving silently.
+
+## Launch Interstitial
+
+`LTI_LAUNCH_INTERSTITIAL` decides what a learner sees between clicking an
+assignment link in the LMS and arriving at the activity. It affects only the LTI
+resource-link launch path; the direct `/start-activity` path is unaffected.
+
+| Value | What the learner gets |
+| --- | --- |
+| `never` (default) | The browser goes straight from the launch to the activity, in one redirect. |
+| `always` | The browser stops at a Modulus page naming the activity and the learning context, with a ten-second countdown and a launch link, then continues to the same activity URL. |
+
+Both values reach the same activity URL with the same query parameters, and the
+learner's session is established before either redirect. The full mechanics are in
+[LTI → Where The Learner Lands](./LTI.md#where-the-learner-lands).
+
+Choosing `never` gives up three things, all of which `always` provides:
+
+- **A visible destination.** The interstitial shows the activity URL the learner
+  is about to open, and the learning context it will be recorded under. Under
+  `never` the learner sees the activity's own page and nothing from Modulus.
+- **A place to put launch-time information.** Any future message aimed at the
+  learner at launch — a scope warning, a "you are viewing as an instructor"
+  badge — needs a Modulus-owned page to appear on.
+- **A visible seam when something is slow or wrong.** Under `never` a launch that
+  fails after the redirect fails on the activity's side, where Modulus has no
+  surface.
+
+What `never` buys is the hop itself: one redirect instead of two, and no page a
+learner has to read or wait through to reach their work.
+
+The setting is an enum rather than a boolean so that a narrower mode — showing
+the interstitial only on a learner's first launch of an activity, for example —
+can be added later without a breaking configuration change. Only `never` and
+`always` are implemented today.
 
 ## Route surfaces and where they are gated
 

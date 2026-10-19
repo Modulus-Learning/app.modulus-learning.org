@@ -17,9 +17,11 @@ import {
   type PlatformMessage,
   platformMessageSchema,
 } from '../types/messages/platform-originating/platform-message.js'
+import type { Config } from '@/config.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { ActivityQueries } from '@/modules/app/activities/repository/index.js'
+import type { EnrollmentService } from '@/modules/app/activities/services/enrollment.js'
 import type { LtiSignInService } from '@/modules/app/session/services/lti-sign-in.js'
 import type { TokenIssuer } from '@/modules/app/session/services/token-issuer.js'
 import type { LtiMutations, LtiQueries, PlatformRecord } from '../repository/index.js'
@@ -168,26 +170,31 @@ export class LtiLaunchService extends BaseService {
   // TODO: Move this to a seprate service
   private platformJWKS: Record<string, RemoteJWKSet> = {}
 
+  private config: Config
   private tx: TXManager
   private ltiQueries: LtiQueries
   private ltiMutations: LtiMutations
   private activityQueries: ActivityQueries
+  private enrollmentService: EnrollmentService
   private ltiSignInService: LtiSignInService
   private tokens: TokenIssuer
 
   constructor(deps: {
     logger: CoreLogger
+    config: Config
     tx: TXManager
     queries: LtiQueries
     mutations: LtiMutations
-    activities: { queries: ActivityQueries }
+    activities: { queries: ActivityQueries; enrollmentService: EnrollmentService }
     session: { ltiSignInService: LtiSignInService; tokenIssuer: TokenIssuer }
   }) {
     super(deps.logger, 'app', 'lti')
+    this.config = deps.config
     this.tx = deps.tx
     this.ltiQueries = deps.queries
     this.ltiMutations = deps.mutations
     this.activityQueries = deps.activities.queries
+    this.enrollmentService = deps.activities.enrollmentService
     this.ltiSignInService = deps.session.ltiSignInService
     this.tokens = deps.session.tokenIssuer
   }
@@ -248,13 +255,11 @@ export class LtiLaunchService extends BaseService {
       }).log(this.logger)
     }
 
-    // TODO: How to handle this case?  This will arise when an instructor adds
-    // (using deep linking) an LTI link to a modulus activity inside their LMS,
-    // and later removes the activity from their activity code (using the
-    // modulus dashboard).  At a minimum, this and similar errors probably ought
-    // to be reported in the LTI launch response, and perhaps pointed out to the
-    // instructor that created the lti link (so that they can remove the
-    // offending LTI link).
+    // An LTI link whose activity code no longer resolves, or whose activity has
+    // since been removed from that code, still honours the link: enrollment is
+    // skipped with a warning below and the launch response is unchanged.  An
+    // activity URL that resolves to no `activities` row at all is a different
+    // matter -- there is nothing to launch -- and remains an invalid launch.
     const activity = await this.activityQueries.findActivityByURL(activity_url)
     if (activity == null) {
       throw ERR_INVALID_LAUNCH({
@@ -272,8 +277,23 @@ export class LtiLaunchService extends BaseService {
     // Sign the user in.
     const signIn = await this.ltiSignInService.signInLti(launch, isInstructor(launch[CLAIM_ROLES]))
 
-    // TODO: double-check that activity_code exists, and that the
-    // given activity is included the activity code's list of activities.
+    // Enroll the launching user in the activity code.  This is the earliest
+    // point with a trusted learner id, and it deliberately runs before the
+    // redirect is returned, whether or not the launch carries an AGS endpoint,
+    // and outside the AGS transaction below -- a line-item reconciliation
+    // failure must not roll enrollment back.
+    //
+    // The shared service decides eligibility from core's own records: a code
+    // that does not resolve, or an activity no longer associated with it, warns
+    // and skips without changing this response.  Current policy makes no
+    // distinction by role, so an instructor performing a resource-link launch
+    // enrolls in the same cohort as a learner.
+    await this.enrollmentService.enrollByPublicActivityCode({
+      user_id: signIn.user.id,
+      activity_code,
+      activity_id: activity.id,
+    })
+
     const lineitem_url = launch[CLAIM_AGS_ENDPOINT]?.lineitem
     if (lineitem_url != null) {
       const cutoff_at = parseDateFromArray([
@@ -315,10 +335,24 @@ export class LtiLaunchService extends BaseService {
 
     const tokens = await this.tokens.createTokens(signIn)
 
+    // The resolved row is the authority for both activity fields.
+    // `activity.url` and the `activity_url` claim agree today --
+    // `findActivityByURL` matched on that exact value -- but the redirect is
+    // built from the database column, not from the claim.  `activity_code`
+    // stays in the response: enrollment above still needs it and it is
+    // informative in the logs, even though nothing downstream of the launch
+    // route consumes it.
+    //
+    // `modulus_server_url` is carried so that a launch route redirecting
+    // straight to the activity stamps the same `modulus` value the
+    // interstitial would have -- both come from this one config key rather
+    // than from two that merely happen to agree.
     return {
       type: 'start-activity',
       activity_code,
-      activity_url,
+      activity_id: activity.id,
+      activity_url: activity.url,
+      modulus_server_url: this.config.server.baseUrl,
       ...scope,
       tokens,
     }

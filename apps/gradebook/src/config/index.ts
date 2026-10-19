@@ -103,6 +103,19 @@ const serverSchema = z
     deployment: z.object({
       mode: z.enum(['all-in-one', 'frontend', 'admin']).default('all-in-one'),
     }),
+    lti: z.object({
+      /**
+       * Whether a verified LTI resource-link launch shows the interstitial
+       * before redirecting to the activity.
+       *
+       * - `never`  — redirect straight to the activity (default).
+       * - `always` — show the interstitial.
+       *
+       * An enum rather than a boolean so that a future `first-launch` mode can
+       * be added without a breaking configuration change.
+       */
+      launchInterstitial: z.enum(['never', 'always']).default('never'),
+    }),
     s3: z.object({
       accessKey: z.string(),
       secretKey: z.string(),
@@ -246,6 +259,9 @@ const initServerConfig = (): ServerConfig =>
     },
     deployment: {
       mode: process.env.DEPLOYMENT_MODE,
+    },
+    lti: {
+      launchInterstitial: process.env.LTI_LAUNCH_INTERSTITIAL,
     },
   })
 

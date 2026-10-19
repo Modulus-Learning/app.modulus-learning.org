@@ -1,7 +1,6 @@
 import { relations } from 'drizzle-orm'
-import { pgTable, primaryKey, uuid } from 'drizzle-orm/pg-core'
+import { pgTable, primaryKey, timestamp, uuid } from 'drizzle-orm/pg-core'
 
-import { activities } from './activities.js'
 import { activityCodes } from './activity-codes.js'
 import { users } from './users.js'
 
@@ -11,16 +10,16 @@ export const enrollment = pgTable(
     activity_code_id: uuid('activity_code_id')
       .notNull()
       .references(() => activityCodes.id, { onDelete: 'cascade' }),
-    activity_id: uuid('activity_id')
-      .notNull()
-      .references(() => activities.id, { onDelete: 'cascade' }),
     user_id: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    created_at: timestamp('created_at', { precision: 6, withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     primaryKey({
-      columns: [table.activity_code_id, table.activity_id, table.user_id],
+      columns: [table.activity_code_id, table.user_id],
     }),
   ]
 )
@@ -29,10 +28,6 @@ export const enrollmentRelations = relations(enrollment, ({ one }) => ({
   activityCode: one(activityCodes, {
     fields: [enrollment.activity_code_id],
     references: [activityCodes.id],
-  }),
-  activity: one(activities, {
-    fields: [enrollment.activity_id],
-    references: [activities.id],
   }),
   user: one(users, {
     fields: [enrollment.user_id],

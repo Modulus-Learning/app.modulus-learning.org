@@ -76,11 +76,15 @@ ingestion endpoints that record activity state. The natural companion to the LTI
 doc — together they are the two integration surfaces.
 
 ### [Dynamic Activities (Lazy Create)](./DYNAMIC-ACTIVITIES.md) — Available
-How new activities are materialized on demand from agent traffic, and the
-site-wide admin allowlist (domain / domain+path rules) that governs it. Records
-the decision to lazy-create activities without an activity-code association, the
-analytics consequence for instructors, and the alternatives considered. Companion
-to [Cumulative Progress](./CUMMULATIVE-PROGRESS.md).
+How new activities are materialized on demand from agent traffic. Records the
+decision to lazy-create activities without an activity-code association, the
+analytics consequence for instructors, and the alternatives considered. The
+site-wide allowlist proposed here was superseded by the shipped sitewide activity
+URL allowlist, which is documented in [Data Model](./DATA-MODEL.md),
+[Authentication & Authorization](./AUTHN-AUTHZ.md) and
+[Security & Privacy](./SECURITY-AND-PRIVACY.md); this document retains the earlier
+proposal as history. Companion to
+[Cumulative Progress](./CUMMULATIVE-PROGRESS.md).
 
 ### Activities & Progress — Planned
 The domain reference tying the data model to behaviour: what an activity is, how
@@ -117,7 +121,8 @@ environment configuration, and running the app in development.
 The three runtime deployment modes — all-in-one, frontend-only, and admin-only —
 selected via `DEPLOYMENT_MODE`: what each mode serves, how route surfaces are
 classified and gated (the proxy gate plus the LTI/admin layout guards), the
-background-jobs switch, and the rule that a frontend instance may never run jobs.
+background-jobs switch, the LTI launch-interstitial switch, and the rule that a
+frontend instance may never run jobs.
 
 ### [Database Migration](./DATABASE-MIGRATION.md) — Available
 Moving the shared gradebook database between Neon projects with a rehearsed

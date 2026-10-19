@@ -250,7 +250,17 @@ Flagged in the code, relevant to authors and maintainers:
 - **Latest state is scoped.** The server stores current progress and page state
   per `(user, activity, scope)`; progress advances also have an append-only
   event history. Activity-code reports intentionally aggregate across scopes
-  before joining the broad, unscoped enrollment cohort.
+  first, then intersect that aggregate with the reporting cohort: the learners
+  enrolled in the selected activity code, and the activities associated with it.
+  Enrollment is a learner's membership of an activity code — see
+  [DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping) —
+  and is deliberately unscoped, so a cohort survives across terms.
+
+  Activity codes never cross the Tier 2 ↔ Tier 3 boundary. No agent API, access-
+  token claim, cumulative-progress payload, or page-state shape carries one, and
+  reporting an advance never creates an enrollment. Enrollment is written only by
+  a verified LTI resource-link launch or by `startActivity`, both of which happen
+  in Modulus before the activity page runs.
 - **Storage unavailable.** Context/OAuth storage failures make authentication
   fail safely before redirect when the tab context or atomic OAuth transaction
   cannot be preserved; they do not prevent the authored activity from operating

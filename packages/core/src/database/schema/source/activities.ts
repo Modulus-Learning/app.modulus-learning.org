@@ -2,7 +2,6 @@ import { relations } from 'drizzle-orm'
 import { pgTable, uuid, varchar } from 'drizzle-orm/pg-core'
 
 import { timestamps } from '../common.js'
-import { enrollment } from './enrollment.js'
 import { progress } from './progress.js'
 
 export const activities = pgTable('activities', {
@@ -13,6 +12,5 @@ export const activities = pgTable('activities', {
 })
 
 export const activitiesRelations = relations(activities, ({ many }) => ({
-  enrollment: many(enrollment),
   progress: many(progress),
 }))

@@ -2,6 +2,8 @@ import { type RegisteredServices, Registry } from '@/lib/registry.js'
 import { AdminAccountCommands } from './account/commands.js'
 import { AdminAccountMutations, AdminAccountQueries } from './account/repository/index.js'
 import { AdminAccountService } from './account/services/admin-account.js'
+import { AdminActivityUrlAllowlistCommands } from './activity-url-allowlist/commands.js'
+import { AdminActivityUrlAllowlistService } from './activity-url-allowlist/services/activity-url-allowlist.js'
 import { AdminRoleCommands } from './admin-roles/commands.js'
 import { AdminRoleMutations, AdminRoleQueries } from './admin-roles/repository/index.js'
 import { AdminRoleService } from './admin-roles/services/admin-roles.js'
@@ -78,6 +80,14 @@ const createAdminSessionRegistry = () =>
     .addClass('passwordSignInService', AdminPasswordSignInService)
     .addClass('commands', AdminSessionCommands)
 
+// No repository of its own: it consumes the root-composed
+// `activityRegistration` context, so policy reads and writes go through the
+// same repository the admission path uses rather than a second copy of it.
+const createActivityUrlAllowlistRegistry = () =>
+  new Registry()
+    .addClass('service', AdminActivityUrlAllowlistService)
+    .addClass('commands', AdminActivityUrlAllowlistCommands)
+
 const createLtiPlatformRegistry = () =>
   new Registry()
     .addClass('queries', LtiPlatformQueries)
@@ -95,6 +105,7 @@ export const createAdminRegistry = () =>
     .addNested('users', createUserRegistry())
     .addNested('session', createAdminSessionRegistry())
     .addNested('ltiPlatforms', createLtiPlatformRegistry())
+    .addNested('activityUrlAllowlist', createActivityUrlAllowlistRegistry())
 
 type AdminRegistry = ReturnType<typeof createAdminRegistry>
 
@@ -108,5 +119,6 @@ export const getAdminCommands = (services: RegisteredServices<AdminRegistry>) =>
     users: services.users.commands,
     session: services.session.commands,
     ltiPlatforms: services.ltiPlatforms.commands,
+    activityUrlAllowlist: services.activityUrlAllowlist.commands,
   }
 }

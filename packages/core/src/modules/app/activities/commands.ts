@@ -5,6 +5,8 @@ import {
   activityCodeMemberSchema,
   activityCodeSchema,
   activityCodeWithActivitiesSchema,
+  activityLaunchViewRequestSchema,
+  activityLaunchViewResponseSchema,
   addActivityCodeMemberRequestSchema,
   createActivityCodeRequestSchema,
   instructorSearchResultSchema,
@@ -17,21 +19,25 @@ import {
   updateActivityCodeRequestSchema,
 } from './schemas.js'
 import type { ActivityService } from './services/activity.js'
+import type { ActivityLaunchViewService } from './services/activity-launch-view.js'
 import type { StartActivityService } from './services/start-activity.js'
 
 export class ActivityCommands {
   private utils: CoreUtils
   private activityService: ActivityService
   private startActivityService: StartActivityService
+  private launchViewService: ActivityLaunchViewService
 
   constructor(deps: {
     utils: CoreUtils
     service: ActivityService
     startService: StartActivityService
+    launchViewService: ActivityLaunchViewService
   }) {
     this.utils = deps.utils
     this.activityService = deps.service
     this.startActivityService = deps.startService
+    this.launchViewService = deps.launchViewService
   }
 
   @cached get startActivity() {
@@ -46,6 +52,26 @@ export class ActivityCommands {
         output: startActivityResponseSchema,
       },
       handler: this.startActivityService.startActivity.bind(this.startActivityService),
+    })
+  }
+
+  /**
+   * Read-only display data for the LTI launch interstitial. Takes no activity
+   * code and writes nothing -- see `ActivityLaunchViewService` for why the LTI
+   * path must not reuse `startActivity`.
+   */
+  @cached get getActivityLaunchView() {
+    return this.utils.createCommand({
+      method: 'getActivityLaunchView',
+      auth: {
+        mode: 'user',
+        abilities: [],
+      },
+      schemas: {
+        input: activityLaunchViewRequestSchema,
+        output: activityLaunchViewResponseSchema,
+      },
+      handler: this.launchViewService.getActivityLaunchView.bind(this.launchViewService),
     })
   }
 

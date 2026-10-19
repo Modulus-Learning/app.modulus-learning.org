@@ -29,6 +29,16 @@ beforeEach(async () => {
   await h.truncateAll()
 })
 
+/**
+ * Adds one enabled whole-origin allowlist rule.
+ *
+ * Every unseen cumulative target now goes through the sitewide policy, so a
+ * test that expects one to be admitted has to say which origin it trusts.
+ */
+const seedRule = async (origin = 'https://content.test'): Promise<void> => {
+  await h.repos.allowlistMutations.createRule({ id: uuidv7(), origin, path_prefix: '/' })
+}
+
 // renew_after is irrelevant to setProgress; 0 keeps the fixtures terse.
 const authFor = (userId: string, activityId: string, scopeId: string = DEFAULT_SCOPE_ID) =>
   new AgentAuth(userId, activityId, scopeId, 0)
@@ -59,6 +69,72 @@ const eventsFor = (userId: string, activityId: string, scopeId: string = DEFAULT
         eq(progressEvents.scope_id, scopeId)
       )
     )
+
+describe('ActivityProgressService.setProgress — policy reads', () => {
+  it('does not read policy for a self-only progress advance', async (t) => {
+    const s = await seedScenario(h.db)
+    const reads = t.mock.method(h.repos.allowlistQueries, 'listEnabledRules')
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.4,
+      increments_for_other_pages: [],
+    })
+    approx(result.progress, 0.4)
+    assert.equal(reads.mock.callCount(), 0)
+  })
+
+  it('does not read policy for grandfathered or self-referencing targets', async (t) => {
+    const s = await seedScenario(h.db)
+    const targetUrl = 'https://grandfathered.test/umbrella'
+    await seedActivity(h.db, targetUrl)
+    const reads = t.mock.method(h.repos.allowlistQueries, 'listEnabledRules')
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.4,
+      increments_for_other_pages: [
+        { url: targetUrl, factor: 0.5 },
+        { url: s.activityUrl, factor: 0.5 },
+      ],
+    })
+    approx(result.others?.[0]?.progress, 0.2)
+    assert.deepEqual(result.rejected_targets, [{ url: s.activityUrl, reason: 'self_reference' }])
+    assert.equal(reads.mock.callCount(), 0)
+  })
+
+  it('loads one snapshot for unseen targets and reads a fresh policy on the next submission', async (t) => {
+    const s = await seedScenario(h.db)
+    await seedRule('https://other.test')
+    const ruleId = uuidv7()
+    await h.repos.allowlistMutations.createRule({
+      id: ruleId,
+      origin: 'https://content.test',
+      path_prefix: '/',
+    })
+    const auth = authFor(s.userId, s.activityId)
+    const reads = t.mock.method(h.repos.allowlistQueries, 'listEnabledRules')
+    const result = await h.services.activityProgress.setProgress(auth, {
+      progress_for_current_page: 0.4,
+      increments_for_other_pages: [
+        { url: 'https://content.test/first', factor: 0.5 },
+        { url: 'https://content.test/second', factor: 0.5 },
+        { url: 'https://denied.test/third', factor: 0.5 },
+      ],
+    })
+    assert.equal(reads.mock.callCount(), 1)
+    assert.equal(result.others?.length, 2)
+    assert.deepEqual(result.rejected_targets, [
+      { url: 'https://denied.test/third', reason: 'activity_url_not_allowed' },
+    ])
+
+    await h.repos.allowlistMutations.updateRule(ruleId, { is_enabled: false })
+    const next = await h.services.activityProgress.setProgress(auth, {
+      progress_for_current_page: 0.6,
+      increments_for_other_pages: [{ url: 'https://content.test/fourth', factor: 0.5 }],
+    })
+    assert.equal(reads.mock.callCount(), 2)
+    assert.deepEqual(next.rejected_targets, [
+      { url: 'https://content.test/fourth', reason: 'activity_url_not_allowed' },
+    ])
+  })
+})
 
 describe('ActivityProgressService.setProgress — self write fan-out', () => {
   it('advances self, records exactly one event, and schedules the self line item', async () => {
@@ -167,6 +243,7 @@ describe('ActivityProgressService.setProgress — umbrella fan-out', () => {
 
   it('lazily creates a target activity on first contact with an unseen URL', async () => {
     const s = await seedScenario(h.db)
+    await seedRule()
     const targetUrl = `https://content.test/unseen-${uuidv7()}`
 
     await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
@@ -304,6 +381,7 @@ describe('ActivityProgressService.setProgress — concurrency', () => {
   it('serializes a concurrent create of the same unseen target (one row, both land)', async () => {
     const a = await seedScenario(h.db)
     const b = await seedScenario(h.db)
+    await seedRule()
     const targetUrl = `https://content.test/shared-${uuidv7()}`
 
     await Promise.all([
@@ -379,35 +457,240 @@ describe('ActivityProgressService.setProgress — concurrency', () => {
   })
 })
 
-describe('ActivityProgressService.setProgress — atomic rejection', () => {
-  it('rolls the whole transaction back when an umbrella target is self-referential', async () => {
+describe('ActivityProgressService.setProgress — per-target rejection', () => {
+  // These two cases previously asserted that a bad target rolled the whole
+  // transaction back. That was the defect being repaired, not a guard: the
+  // target list comes from the page's authored markup, so the same bad URL
+  // recurs in every submission that page makes. Failing the request would
+  // permanently stop all progress from that page, including the learner's own
+  // valid self high-water mark.
+
+  it('commits self progress and reports a self-referential target', async () => {
     const s = await seedScenario(h.db)
 
-    await assert.rejects(
-      h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
-        progress_for_current_page: 0.6,
-        // The reporting activity naming itself is a static authoring error.
-        increments_for_other_pages: [{ url: s.activityUrl, factor: 0.5 }],
-      })
-    )
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.6,
+      // The reporting activity naming itself is a static authoring error.
+      increments_for_other_pages: [{ url: s.activityUrl, factor: 0.5 }],
+    })
 
-    // The self write from step 1 must not have survived the rejection.
-    assert.equal(await readProgress(s.userId, s.activityId), undefined, 'self progress rolled back')
-    const events = await eventsFor(s.userId, s.activityId)
-    assert.equal(events.length, 0, 'no event survived the rolled-back transaction')
+    assert.deepEqual(result.rejected_targets, [{ url: s.activityUrl, reason: 'self_reference' }])
+    approx(result.progress, 0.6)
+
+    // Self committed, with its event.
+    approx((await readProgress(s.userId, s.activityId))?.progress, 0.6)
+    assert.equal((await eventsFor(s.userId, s.activityId)).length, 1)
   })
 
-  it('rolls back when an umbrella target URL exceeds the length limit', async () => {
+  it('commits self progress and reports an over-long target url', async () => {
     const s = await seedScenario(h.db)
     const tooLong = `https://content.test/${'x'.repeat(300)}`
+    await seedRule()
 
-    await assert.rejects(
-      h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
-        progress_for_current_page: 0.6,
-        increments_for_other_pages: [{ url: tooLong, factor: 0.5 }],
-      })
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.6,
+      increments_for_other_pages: [{ url: tooLong, factor: 0.5 }],
+    })
+
+    assert.deepEqual(result.rejected_targets, [{ url: tooLong, reason: 'url_too_long' }])
+    approx((await readProgress(s.userId, s.activityId))?.progress, 0.6)
+    assert.equal(
+      (await h.db.select().from(activities).where(eq(activities.url, tooLong))).length,
+      0,
+      'no activity row was created for a target that cannot be stored'
     )
+  })
+})
 
-    assert.equal(await readProgress(s.userId, s.activityId), undefined, 'self progress rolled back')
+describe('ActivityProgressService.setProgress — allowlist on cumulative targets', () => {
+  it('commits self progress and writes nothing at all for a disallowed target', async () => {
+    // "Creates no data" is the contract, and one missing check would not catch
+    // a partial write -- so all four tables are asserted.
+    const s = await seedScenario(h.db)
+    await seedRule()
+    const denied = `https://elsewhere.test/umbrella-${uuidv7()}`
+
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.6,
+      increments_for_other_pages: [{ url: denied, factor: 0.5 }],
+    })
+
+    assert.deepEqual(result.rejected_targets, [{ url: denied, reason: 'activity_url_not_allowed' }])
+    assert.equal(result.others, undefined)
+
+    // Self committed.
+    approx((await readProgress(s.userId, s.activityId))?.progress, 0.6)
+
+    // ...and the target left no trace anywhere.
+    const activityRows = await h.db.select().from(activities).where(eq(activities.url, denied))
+    assert.equal(activityRows.length, 0, 'no activities row')
+
+    const allProgress = await h.db.select().from(progress)
+    assert.equal(allProgress.length, 1, 'only self has a progress row')
+
+    const allEvents = await h.db.select().from(progressEvents)
+    assert.equal(allEvents.length, 1, 'only self has an event')
+
+    const allLineItems = await h.db.select().from(lineitems)
+    assert.equal(allLineItems.length, 0, 'no line item was created for the refused target')
+  })
+
+  it('applies an allowed target and reports only the disallowed one', async () => {
+    const s = await seedScenario(h.db)
+    await seedRule()
+    const allowed = `https://content.test/umbrella-${uuidv7()}`
+    const denied = `https://elsewhere.test/umbrella-${uuidv7()}`
+
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.5,
+      increments_for_other_pages: [
+        { url: allowed, factor: 1 },
+        { url: denied, factor: 1 },
+      ],
+    })
+
+    assert.deepEqual(
+      result.others?.map(({ url }) => url),
+      [allowed]
+    )
+    assert.deepEqual(result.rejected_targets, [{ url: denied, reason: 'activity_url_not_allowed' }])
+
+    const allowedRow = await h.db.query.activities.findFirst({
+      where: eq(activities.url, allowed),
+    })
+    assert.ok(allowedRow, 'the allowed target was created')
+    approx((await readProgress(s.userId, allowedRow.id))?.progress, 0.5)
+  })
+
+  it('contributes to a grandfathered target no current rule matches', async () => {
+    // Grandfathered targets are *use*, not registration: the activity already
+    // exists, so no policy applies to it.
+    const s = await seedScenario(h.db)
+    const grandfatheredUrl = `https://long-forgotten.test/umbrella-${uuidv7()}`
+    const grandfatheredId = await seedActivity(h.db, grandfatheredUrl)
+    // The only rule points somewhere else entirely.
+    await seedRule('https://somewhere-else.test')
+
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.5,
+      increments_for_other_pages: [{ url: grandfatheredUrl, factor: 1 }],
+    })
+
+    assert.equal(result.rejected_targets, undefined)
+    approx((await readProgress(s.userId, grandfatheredId))?.progress, 0.5)
+  })
+
+  it('omits rejected_targets entirely when every target is accepted', async () => {
+    // Absent, not an empty array -- matching how `others` is already handled.
+    const s = await seedScenario(h.db)
+    await seedRule()
+
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.5,
+      increments_for_other_pages: [{ url: `https://content.test/umbrella-${uuidv7()}`, factor: 1 }],
+    })
+
+    assert.equal(result.rejected_targets, undefined)
+    assert.ok(!('rejected_targets' in result) || result.rejected_targets === undefined)
+  })
+
+  it('reports nothing when self did not advance, even with a disallowed target', async () => {
+    // Target evaluation stays conditional on self advancing: a submission with
+    // nothing to contribute applies nothing to any target, so it has nothing to
+    // report about them. A page with a bad target learns about it on the next
+    // advance, and a no-op retry stays silent.
+    const s = await seedScenario(h.db)
+    await seedRule()
+    const denied = `https://elsewhere.test/umbrella-${uuidv7()}`
+    const request = {
+      progress_for_current_page: 0.6,
+      increments_for_other_pages: [{ url: denied, factor: 0.5 }],
+    }
+
+    const first = await h.services.activityProgress.setProgress(
+      authFor(s.userId, s.activityId),
+      request
+    )
+    assert.deepEqual(first.rejected_targets, [{ url: denied, reason: 'activity_url_not_allowed' }])
+
+    // Δself = 0 on the retry.
+    const retry = await h.services.activityProgress.setProgress(
+      authFor(s.userId, s.activityId),
+      request
+    )
+    assert.equal(retry.rejected_targets, undefined)
+  })
+
+  it('reports a malformed target url without failing the submission', async () => {
+    const s = await seedScenario(h.db)
+    await seedRule()
+
+    const result = await h.services.activityProgress.setProgress(authFor(s.userId, s.activityId), {
+      progress_for_current_page: 0.6,
+      increments_for_other_pages: [{ url: 'javascript:alert(1)', factor: 0.5 }],
+    })
+
+    assert.deepEqual(result.rejected_targets, [
+      { url: 'javascript:alert(1)', reason: 'malformed_url' },
+    ])
+    approx((await readProgress(s.userId, s.activityId))?.progress, 0.6)
+  })
+})
+
+describe('ActivityProgressService.getProgress — reads never register', () => {
+  it('returns a grandfathered target and consults no policy', async () => {
+    const s = await seedScenario(h.db)
+    const grandfatheredUrl = `https://long-forgotten.test/umbrella-${uuidv7()}`
+    const grandfatheredId = await seedActivity(h.db, grandfatheredUrl)
+    await seedRule('https://somewhere-else.test')
+
+    // Give the target some progress to read back.
+    await h.repos.activityMutations.incrementProgress({
+      activity_id: grandfatheredId,
+      user_id: s.userId,
+      scope_id: DEFAULT_SCOPE_ID,
+      amount: 0.25,
+    })
+
+    // A read must not evaluate, create, or even look at the policy.
+    let policyReads = 0
+    const originalListEnabled = h.repos.allowlistQueries.listEnabledRules.bind(
+      h.repos.allowlistQueries
+    )
+    h.repos.allowlistQueries.listEnabledRules = async () => {
+      policyReads += 1
+      return await originalListEnabled()
+    }
+
+    try {
+      const result = await h.services.activityProgress.getProgress(
+        authFor(s.userId, s.activityId),
+        { urls: [grandfatheredUrl] }
+      )
+
+      assert.deepEqual(
+        result.others?.map(({ url }) => url),
+        [grandfatheredUrl]
+      )
+      approx(result.others?.[0]?.progress, 0.25)
+      assert.equal(policyReads, 0, 'get-progress read the allowlist policy')
+    } finally {
+      h.repos.allowlistQueries.listEnabledRules = originalListEnabled
+    }
+  })
+
+  it('creates no activity for an unknown url on read', async () => {
+    const s = await seedScenario(h.db)
+    const unknown = `https://elsewhere.test/never-seen-${uuidv7()}`
+
+    const result = await h.services.activityProgress.getProgress(authFor(s.userId, s.activityId), {
+      urls: [unknown],
+    })
+
+    assert.equal(result.others, undefined)
+    assert.equal(
+      (await h.db.select().from(activities).where(eq(activities.url, unknown))).length,
+      0
+    )
   })
 })

@@ -76,6 +76,44 @@ interface StartActivityData {
   modulus_server_url: string
 }
 
+/**
+ * The LTI interstitial's view data. Deliberately carries no `activity_code`:
+ * the launch handler has already resolved the code and made the enrollment
+ * decision, and re-checking it here would fail the page for a launch whose
+ * code no longer resolves -- the case the launch handler chooses to honour.
+ */
+interface ActivityLaunchViewData {
+  user: {
+    id: string
+    full_name?: string
+  }
+  activity: {
+    id: string
+    name?: string
+    url: string
+  }
+  scope_id: string
+  scope_name: string | null
+  modulus_server_url: string
+}
+
+export type ActivityLaunchViewResult =
+  | {
+      status: 'success'
+      message: string
+      data: ActivityLaunchViewData
+    }
+  | {
+      status: 'failed'
+      message: string
+      data?: never
+    }
+  | {
+      status: 'needs_user'
+      message: string
+      data?: never
+    }
+
 export type StartActivityResult =
   | {
       status: 'success'

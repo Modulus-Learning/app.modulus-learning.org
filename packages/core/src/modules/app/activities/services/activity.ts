@@ -4,6 +4,7 @@ import { adjectives, animals, uniqueNamesGenerator } from 'unique-names-generato
 import { v7 as uuidv7 } from 'uuid'
 
 import { BaseService, method } from '@/lib/base-service.js'
+import { activityUrlNotAllowed } from '@/modules/activity-registration/errors.js'
 import {
   ERR_ACTIVITY_CODE_GENERATION,
   ERR_ACTIVITY_CODE_NOT_FOUND,
@@ -27,23 +28,90 @@ import {
 import type { UserAuth } from '@/lib/auth.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
+import type { ActivityRecord as RegisteredActivity } from '@/modules/activity-registration/repository/index.js'
+import type { RejectedRegistration } from '@/modules/activity-registration/schemas.js'
+import type { ActivityRegistrationService } from '@/modules/activity-registration/services/activity-registration.js'
 import type { ActivityMutations, ActivityQueries } from '../repository/index.js'
 
 export class ActivityService extends BaseService {
   private tx: TXManager
   private queries: ActivityQueries
   private mutations: ActivityMutations
+  private registration: ActivityRegistrationService
 
   constructor(deps: {
     logger: CoreLogger
     tx: TXManager
     queries: ActivityQueries
     mutations: ActivityMutations
+    activityRegistration: { service: ActivityRegistrationService }
   }) {
     super(deps.logger, 'app', 'activities')
     this.tx = deps.tx
     this.queries = deps.queries
     this.mutations = deps.mutations
+    this.registration = deps.activityRegistration.service
+  }
+
+  /**
+   * Resolves every submitted URL to an activity, admitting the ones Modulus has
+   * not seen before, and refuses the whole submission if any is denied.
+   *
+   * Two properties matter here and neither is incidental:
+   *
+   *   - **Resolve before evaluate.** A URL that already has an activity is
+   *     returned without the policy being consulted, so an instructor whose
+   *     code contains a grandfathered URL can still save a description edit.
+   *     Requiring the whole submitted set to match current rules would make
+   *     that fail until they deleted their own content from their own code.
+   *   - **All or nothing.** A denial names *every* offending URL and writes
+   *     none of them. A code saved with only the approved subset would differ
+   *     silently from the instructor's form.
+   */
+  private async registerActivityUrls(urls: string[]): Promise<RegisteredActivity[]> {
+    // One snapshot for the whole submission. Five unseen URLs evaluated under
+    // two different policies would produce a partial admission, or a rejection
+    // naming an arbitrary subset, that the instructor cannot act on.
+    const policy = await this.registration.loadPolicy()
+
+    // Sorted and de-duplicated so that every transaction acquires row locks in
+    // the same order. Each registration is now its own statement rather than
+    // one multi-row insert, so two instructors submitting codes that share
+    // unseen URLs in different orders could otherwise deadlock on each other's
+    // uncommitted rows and have one aborted by Postgres.
+    const ordered = [...new Set(urls)].sort()
+
+    const activities: RegisteredActivity[] = []
+    const rejected: RejectedRegistration[] = []
+
+    for (const url of ordered) {
+      const outcome = await this.registration.register(url, policy)
+      if (outcome.ok) {
+        activities.push(outcome.activity)
+      } else {
+        rejected.push({ url: outcome.url, reason: outcome.reason })
+      }
+    }
+
+    if (rejected.length > 0) {
+      // Never `.log()` this error: `details.rejected` carries the full URLs,
+      // query strings and fragments included, and `CoreError.log()` spreads
+      // `details` straight into the record. `register()` has already recorded
+      // each denial with its origin and path alone, so all that is left to say
+      // here is how many there were -- and `url_too_long`, which `register()`
+      // returns before its own warn, would otherwise go unrecorded.
+      this.logger.warn(
+        { rejected_count: rejected.length, reasons: rejected.map(({ reason }) => reason) },
+        'activity url registration denied for a submitted set'
+      )
+
+      // Raised inside the caller's transaction, which rolls back: neither the
+      // code, its first member, the unseen activities, nor any association
+      // survives a denial.
+      throw activityUrlNotAllowed(rejected)
+    }
+
+    return activities
   }
 
   @method
@@ -197,8 +265,7 @@ export class ActivityService extends BaseService {
       // Creator is automatically the first member.
       await this.mutations.addMember(activityCodeRecord.id, userAuth.id)
 
-      await this.mutations.ensureActivitiesExist(request.urls)
-      const activityRecords = await this.queries.findActivitiesByURL(request.urls)
+      const activityRecords = await this.registerActivityUrls(request.urls)
       await this.mutations.assignActivitiesToActivityCode(activityCodeRecord, activityRecords)
 
       return toActivityCode(activityCodeRecord)
@@ -211,10 +278,8 @@ export class ActivityService extends BaseService {
     { id, url_prefix, description, urls }: UpdateActivityCodeRequest
   ): Promise<ActivityCode> {
     // TODO: Validate urls, here and in createActivityCode
-    // const urlValidationResult = validateUrls(urls)
-    // if (urlValidationResult.valid === false) {
-    //   throw new ERR_INVALID_ACTIVITY_URL(urlValidationResult.message)
-    // }
+    // (the per-code `url_prefix` check stays in the host by explicit decision;
+    // the sitewide allowlist is enforced by `registerActivityUrls` below)
 
     // 1. Check that the caller is a member of the activity code.
     const { record: activityCodeRecord } = await this.loadAsMember(userAuth, id)
@@ -231,12 +296,12 @@ export class ActivityService extends BaseService {
         description: description ?? null,
       })
 
-      // Insert the activity URLs into the activities table
-      // with onConflictDoNothing - i.e. only new URLs will be inserted
-      await this.mutations.ensureActivitiesExist(urls)
+      // Resolve every submitted URL, admitting the unseen ones. A known
+      // activity needs no check, so removing and re-creating the associations
+      // below has no bearing on the policy -- and removals are always allowed.
+      const activityRecords = await this.registerActivityUrls(urls)
 
       await this.mutations.removeActivitiesFromActivityCode(activityCodeRecord)
-      const activityRecords = await this.queries.findActivitiesByURL(urls)
       await this.mutations.assignActivitiesToActivityCode(activityCodeRecord, activityRecords)
 
       return toActivityCode(updatedActivityCodeRecord)

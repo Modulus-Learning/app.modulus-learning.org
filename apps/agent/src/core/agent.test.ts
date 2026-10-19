@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { type ModulusAgentDeps, ModulusAgentImpl } from './agent.js'
-import type { ApiClient } from './api-client.js'
+import type { ApiClient, RejectedTarget } from './api-client.js'
+import type { Logger } from './logger.js'
 import type { User } from './types.js'
 
 // These tests exercise the agent's authenticated request state machine (the
@@ -23,6 +24,12 @@ type MockClient = {
 }
 
 const okProgress = (progress = 0): ClientResult => ({ status: 'ok', data: { progress } })
+// A 200 that completed the self high-water mark but refused one or more
+// cumulative contribution targets.
+const okProgressWithRejected = (progress: number, rejected: RejectedTarget[]): ClientResult => ({
+  status: 'ok',
+  data: { progress, rejected_targets: rejected },
+})
 const okPageState = (page_state: unknown = {}): ClientResult => ({
   status: 'ok',
   data: { page_state },
@@ -47,13 +54,30 @@ const AUTHENTICATED = {
 
 const makeAgent = (
   client: MockClient,
-  auth: Awaited<ReturnType<ModulusAgentDeps['authenticate']>> = AUTHENTICATED as never
+  auth: Awaited<ReturnType<ModulusAgentDeps['authenticate']>> = AUTHENTICATED as never,
+  logger?: Logger
 ): ModulusAgentImpl => {
   const deps: ModulusAgentDeps = {
     authenticate: (async () => auth) as ModulusAgentDeps['authenticate'],
     createClient: () => client as unknown as ApiClient,
+    ...(logger ? { logger } : {}),
   }
   return new ModulusAgentImpl(deps)
+}
+
+// A logger standing in for the `createConsoleLogger()` / `createDebugLogger()`
+// an author opts into.  The agent's default is `createSilentLogger()`, so
+// rejected targets are only observable to a caller who supplied one of these.
+const makeRecordingLogger = (): { logger: Logger; calls: unknown[][] } => {
+  const calls: unknown[][] = []
+  return {
+    calls,
+    logger: {
+      async log(...msgs: unknown[]) {
+        calls.push(msgs)
+      },
+    },
+  }
 }
 
 const ready = (agent: ModulusAgentImpl): Promise<void> =>
@@ -251,6 +275,102 @@ describe('ModulusAgent authenticated request state machine', () => {
     agent.setPageState({ a: 1 })
     await submitted
     expect(client.putPageState).toHaveBeenCalled()
+  })
+
+  it('completes a submission that carries rejected cumulative targets', async () => {
+    const rejected: RejectedTarget[] = [
+      { url: 'https://elsewhere.test/umbrella', reason: 'activity_url_not_allowed' },
+    ]
+    const client = makeClient({
+      putProgress: vi.fn(async () => okProgressWithRejected(0.5, rejected)),
+    })
+    const agent = makeAgent(client)
+    await ready(agent)
+
+    const submitted = nextEvent(agent, 'progress-submitted')
+    agent.setProgress(0.5)
+    await submitted
+
+    // The server answered 200 with the self high-water mark committed, so the
+    // submission is done: the progress is recorded as submitted, not held back
+    // for another attempt.
+    expect(agent.submittedProgress()).toBe(0.5)
+    expect(agent.progress()).toBe(0.5)
+    // Nothing is left outstanding, so the retry loop's `shouldRun` guard is
+    // already false and the submission is not re-attempted.
+    expect(client.putProgress).toHaveBeenCalledTimes(1)
+    expect(agent.status().progress.retryAttempt).toBe(0)
+  })
+
+  it('logs rejected cumulative targets through an injected logger', async () => {
+    const rejected: RejectedTarget[] = [
+      { url: 'https://elsewhere.test/umbrella', reason: 'activity_url_not_allowed' },
+      { url: 'not a url', reason: 'malformed_url' },
+    ]
+    const client = makeClient({
+      putProgress: vi.fn(async () => okProgressWithRejected(0.5, rejected)),
+    })
+    const { logger, calls } = makeRecordingLogger()
+    const agent = makeAgent(client, AUTHENTICATED as never, logger)
+    await ready(agent)
+
+    const submitted = nextEvent(agent, 'progress-submitted')
+    agent.setProgress(0.5)
+    await submitted
+
+    const logged = calls.find((msgs) => msgs[1] === rejected)
+    expect(logged).toBeDefined()
+    expect(logged?.[0]).toContain('rejected')
+  })
+
+  it('does not retry or lose the connection over a rejected cumulative target', async () => {
+    const client = makeClient({
+      putProgress: vi.fn(async () =>
+        okProgressWithRejected(0.5, [{ url: 'https://elsewhere.test/x', reason: 'self_reference' }])
+      ),
+    })
+    const agent = makeAgent(client)
+    await ready(agent)
+
+    const retries: number[] = []
+    agent.on('retry', ((e: { attempt: number }) => retries.push(e.attempt)) as never)
+    const errors: unknown[] = []
+    agent.on('error', ((e: unknown) => errors.push(e)) as never)
+    let lost = false
+    agent.on('connection-lost', (() => {
+      lost = true
+    }) as never)
+
+    const submitted = nextEvent(agent, 'progress-submitted')
+    agent.setProgress(0.5)
+    await submitted
+
+    // A durable authoring error is not a transient failure: one attempt, no
+    // retry, no error event, and the connection stays up.
+    expect(client.putProgress).toHaveBeenCalledTimes(1)
+    expect(retries).toEqual([])
+    expect(errors).toEqual([])
+    expect(lost).toBe(false)
+    expect(agent.isConnectionLost()).toBe(false)
+    expect(agent.isConnected()).toBe(true)
+    expect(agent.lastError()).toBeUndefined()
+  })
+
+  it('leaves a response without rejected targets behaving exactly as before', async () => {
+    const client = makeClient({ putProgress: vi.fn(async () => okProgress(0.5)) })
+    const { logger, calls } = makeRecordingLogger()
+    const agent = makeAgent(client, AUTHENTICATED as never, logger)
+    await ready(agent)
+
+    const before = calls.length
+    const submitted = nextEvent(agent, 'progress-submitted')
+    agent.setProgress(0.5)
+    await submitted
+
+    expect(agent.submittedProgress()).toBe(0.5)
+    expect(client.putProgress).toHaveBeenCalledTimes(1)
+    // Nothing is logged when every target was accepted.
+    expect(calls.slice(before)).toEqual([])
   })
 
   it('startFreshFromLocalState() overwrites the server with local page state and unblocks writes', async () => {

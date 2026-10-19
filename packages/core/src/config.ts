@@ -3,7 +3,6 @@ import { z } from 'zod'
 
 export interface UrlBuilder {
   baseUrl: string
-  startActivityUrl: (activityCode: string, activityUrl: string) => string
   ltiLaunchUrl: string
   dashboardUrl: string
 }
