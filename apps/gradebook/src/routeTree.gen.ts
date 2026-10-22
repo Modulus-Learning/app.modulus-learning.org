@@ -13,6 +13,7 @@ import { Route as LngRouteRouteImport } from './routes/$lng/route'
 import { Route as AgentRouteRouteImport } from './routes/agent/route'
 import { Route as LtiRouteRouteImport } from './routes/lti/route'
 import { Route as LngAdminRouteRouteImport } from './routes/$lng/_admin/route'
+import { Route as LngAuthRouteRouteImport } from './routes/$lng/_auth/route'
 import { Route as LngFormsRouteRouteImport } from './routes/$lng/_forms/route'
 import { Route as LngPublicRouteRouteImport } from './routes/$lng/_public/route'
 import { Route as AgentErrorRouteImport } from './routes/agent/error'
@@ -21,6 +22,7 @@ import { Route as LtiDeepLinkRouteImport } from './routes/lti/deep-link'
 import { Route as LtiErrorRouteImport } from './routes/lti/error'
 import { Route as RoutesElbStatusRouteImport } from './routes/routes/elb-status'
 import { Route as RoutesKeepAliveRouteImport } from './routes/routes/keep-alive'
+import { Route as LngAuthAccountRouteImport } from './routes/$lng/_auth/account'
 import { Route as LngFormsSignInRouteImport } from './routes/$lng/_forms/sign-in'
 import { Route as LngFormsSignUpRouteImport } from './routes/$lng/_forms/sign-up'
 import { Route as LngPublicIndexRouteImport } from './routes/$lng/_public/index'
@@ -38,10 +40,17 @@ import { Route as RoutesLtiRegisterRouteImport } from './routes/routes/lti/regis
 import { Route as RoutesOauthGithubRouteImport } from './routes/routes/oauth/github'
 import { Route as RoutesOauthGoogleRouteImport } from './routes/routes/oauth/google'
 import { Route as LngAdminAdminRenewRouteImport } from './routes/$lng/_admin/admin/renew'
+import { Route as LngAuthDashboardIndexRouteImport } from './routes/$lng/_auth/dashboard/index'
+import { Route as LngAuthDashboardCreateActivityCodeRouteImport } from './routes/$lng/_auth/dashboard/create-activity-code'
 import { Route as LngFormsStartActivitySplatRouteImport } from './routes/$lng/_forms/start-activity/$'
 import { Route as LngPublicDocsIndexRouteImport } from './routes/$lng/_public/docs/index'
 import { Route as LngPublicDocsSlugRouteImport } from './routes/$lng/_public/docs/$slug'
 import { Route as RoutesLtiDeepLinkActivitiesRouteImport } from './routes/routes/lti/deep-link/activities'
+import { Route as LngAuthDashboardActivityCodeIdIndexRouteImport } from './routes/$lng/_auth/dashboard/activity-code/$id/index'
+import { Route as LngAuthDashboardActivityCodeIdCompletionRouteImport } from './routes/$lng/_auth/dashboard/activity-code/$id/completion'
+import { Route as LngAuthDashboardActivityCodeIdLearnersRouteImport } from './routes/$lng/_auth/dashboard/activity-code/$id/learners'
+import { Route as LngAuthDashboardActivityCodeIdActivitiesIndexRouteImport } from './routes/$lng/_auth/dashboard/activity-code/$id/activities/index'
+import { Route as LngAuthDashboardActivityCodeIdActivitiesEditRouteImport } from './routes/$lng/_auth/dashboard/activity-code/$id/activities/edit'
 
 const LngRouteRoute = LngRouteRouteImport.update({
   id: '/$lng',
@@ -60,6 +69,10 @@ const LtiRouteRoute = LtiRouteRouteImport.update({
 } as any)
 const LngAdminRouteRoute = LngAdminRouteRouteImport.update({
   id: '/_admin',
+  getParentRoute: () => LngRouteRoute,
+} as any)
+const LngAuthRouteRoute = LngAuthRouteRouteImport.update({
+  id: '/_auth',
   getParentRoute: () => LngRouteRoute,
 } as any)
 const LngFormsRouteRoute = LngFormsRouteRouteImport.update({
@@ -99,6 +112,11 @@ const RoutesKeepAliveRoute = RoutesKeepAliveRouteImport.update({
   id: '/routes/keep-alive',
   path: '/routes/keep-alive',
   getParentRoute: () => rootRouteImport,
+} as any)
+const LngAuthAccountRoute = LngAuthAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => LngAuthRouteRoute,
 } as any)
 const LngFormsSignInRoute = LngFormsSignInRouteImport.update({
   id: '/sign-in',
@@ -185,6 +203,17 @@ const LngAdminAdminRenewRoute = LngAdminAdminRenewRouteImport.update({
   path: '/admin/renew',
   getParentRoute: () => LngAdminRouteRoute,
 } as any)
+const LngAuthDashboardIndexRoute = LngAuthDashboardIndexRouteImport.update({
+  id: '/dashboard/',
+  path: '/dashboard/',
+  getParentRoute: () => LngAuthRouteRoute,
+} as any)
+const LngAuthDashboardCreateActivityCodeRoute =
+  LngAuthDashboardCreateActivityCodeRouteImport.update({
+    id: '/dashboard/create-activity-code',
+    path: '/dashboard/create-activity-code',
+    getParentRoute: () => LngAuthRouteRoute,
+  } as any)
 const LngFormsStartActivitySplatRoute =
   LngFormsStartActivitySplatRouteImport.update({
     id: '/start-activity/$',
@@ -207,6 +236,36 @@ const RoutesLtiDeepLinkActivitiesRoute =
     path: '/routes/lti/deep-link/activities',
     getParentRoute: () => rootRouteImport,
   } as any)
+const LngAuthDashboardActivityCodeIdIndexRoute =
+  LngAuthDashboardActivityCodeIdIndexRouteImport.update({
+    id: '/dashboard/activity-code/$id/',
+    path: '/dashboard/activity-code/$id/',
+    getParentRoute: () => LngAuthRouteRoute,
+  } as any)
+const LngAuthDashboardActivityCodeIdCompletionRoute =
+  LngAuthDashboardActivityCodeIdCompletionRouteImport.update({
+    id: '/dashboard/activity-code/$id/completion',
+    path: '/dashboard/activity-code/$id/completion',
+    getParentRoute: () => LngAuthRouteRoute,
+  } as any)
+const LngAuthDashboardActivityCodeIdLearnersRoute =
+  LngAuthDashboardActivityCodeIdLearnersRouteImport.update({
+    id: '/dashboard/activity-code/$id/learners',
+    path: '/dashboard/activity-code/$id/learners',
+    getParentRoute: () => LngAuthRouteRoute,
+  } as any)
+const LngAuthDashboardActivityCodeIdActivitiesIndexRoute =
+  LngAuthDashboardActivityCodeIdActivitiesIndexRouteImport.update({
+    id: '/dashboard/activity-code/$id/activities/',
+    path: '/dashboard/activity-code/$id/activities/',
+    getParentRoute: () => LngAuthRouteRoute,
+  } as any)
+const LngAuthDashboardActivityCodeIdActivitiesEditRoute =
+  LngAuthDashboardActivityCodeIdActivitiesEditRouteImport.update({
+    id: '/dashboard/activity-code/$id/activities/edit',
+    path: '/dashboard/activity-code/$id/activities/edit',
+    getParentRoute: () => LngAuthRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/$lng': typeof LngRouteRouteWithChildren
@@ -218,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/lti/error': typeof LtiErrorRoute
   '/routes/elb-status': typeof RoutesElbStatusRoute
   '/routes/keep-alive': typeof RoutesKeepAliveRoute
+  '/$lng/account': typeof LngAuthAccountRoute
   '/$lng/sign-in': typeof LngFormsSignInRoute
   '/$lng/sign-up': typeof LngFormsSignUpRoute
   '/$lng/$': typeof LngPublicSplatRoute
@@ -235,10 +295,17 @@ export interface FileRoutesByFullPath {
   '/routes/oauth/google': typeof RoutesOauthGoogleRoute
   '/$lng/': typeof LngPublicIndexRoute
   '/$lng/admin/renew': typeof LngAdminAdminRenewRoute
+  '/$lng/dashboard/create-activity-code': typeof LngAuthDashboardCreateActivityCodeRoute
   '/$lng/start-activity/$': typeof LngFormsStartActivitySplatRoute
   '/$lng/docs/$slug': typeof LngPublicDocsSlugRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
+  '/$lng/dashboard/': typeof LngAuthDashboardIndexRoute
   '/$lng/docs/': typeof LngPublicDocsIndexRoute
+  '/$lng/dashboard/activity-code/$id/completion': typeof LngAuthDashboardActivityCodeIdCompletionRoute
+  '/$lng/dashboard/activity-code/$id/learners': typeof LngAuthDashboardActivityCodeIdLearnersRoute
+  '/$lng/dashboard/activity-code/$id/': typeof LngAuthDashboardActivityCodeIdIndexRoute
+  '/$lng/dashboard/activity-code/$id/activities/edit': typeof LngAuthDashboardActivityCodeIdActivitiesEditRoute
+  '/$lng/dashboard/activity-code/$id/activities/': typeof LngAuthDashboardActivityCodeIdActivitiesIndexRoute
 }
 export interface FileRoutesByTo {
   '/$lng': typeof LngPublicIndexRoute
@@ -250,6 +317,7 @@ export interface FileRoutesByTo {
   '/lti/error': typeof LtiErrorRoute
   '/routes/elb-status': typeof RoutesElbStatusRoute
   '/routes/keep-alive': typeof RoutesKeepAliveRoute
+  '/$lng/account': typeof LngAuthAccountRoute
   '/$lng/sign-in': typeof LngFormsSignInRoute
   '/$lng/sign-up': typeof LngFormsSignUpRoute
   '/$lng/$': typeof LngPublicSplatRoute
@@ -266,10 +334,17 @@ export interface FileRoutesByTo {
   '/routes/oauth/github': typeof RoutesOauthGithubRoute
   '/routes/oauth/google': typeof RoutesOauthGoogleRoute
   '/$lng/admin/renew': typeof LngAdminAdminRenewRoute
+  '/$lng/dashboard/create-activity-code': typeof LngAuthDashboardCreateActivityCodeRoute
   '/$lng/start-activity/$': typeof LngFormsStartActivitySplatRoute
   '/$lng/docs/$slug': typeof LngPublicDocsSlugRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
+  '/$lng/dashboard': typeof LngAuthDashboardIndexRoute
   '/$lng/docs': typeof LngPublicDocsIndexRoute
+  '/$lng/dashboard/activity-code/$id/completion': typeof LngAuthDashboardActivityCodeIdCompletionRoute
+  '/$lng/dashboard/activity-code/$id/learners': typeof LngAuthDashboardActivityCodeIdLearnersRoute
+  '/$lng/dashboard/activity-code/$id': typeof LngAuthDashboardActivityCodeIdIndexRoute
+  '/$lng/dashboard/activity-code/$id/activities/edit': typeof LngAuthDashboardActivityCodeIdActivitiesEditRoute
+  '/$lng/dashboard/activity-code/$id/activities': typeof LngAuthDashboardActivityCodeIdActivitiesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -277,6 +352,7 @@ export interface FileRoutesById {
   '/agent': typeof AgentRouteRouteWithChildren
   '/lti': typeof LtiRouteRouteWithChildren
   '/$lng/_admin': typeof LngAdminRouteRouteWithChildren
+  '/$lng/_auth': typeof LngAuthRouteRouteWithChildren
   '/$lng/_forms': typeof LngFormsRouteRouteWithChildren
   '/$lng/_public': typeof LngPublicRouteRouteWithChildren
   '/agent/error': typeof AgentErrorRoute
@@ -285,6 +361,7 @@ export interface FileRoutesById {
   '/lti/error': typeof LtiErrorRoute
   '/routes/elb-status': typeof RoutesElbStatusRoute
   '/routes/keep-alive': typeof RoutesKeepAliveRoute
+  '/$lng/_auth/account': typeof LngAuthAccountRoute
   '/$lng/_forms/sign-in': typeof LngFormsSignInRoute
   '/$lng/_forms/sign-up': typeof LngFormsSignUpRoute
   '/$lng/_public/$': typeof LngPublicSplatRoute
@@ -302,10 +379,17 @@ export interface FileRoutesById {
   '/routes/oauth/google': typeof RoutesOauthGoogleRoute
   '/$lng/_public/': typeof LngPublicIndexRoute
   '/$lng/_admin/admin/renew': typeof LngAdminAdminRenewRoute
+  '/$lng/_auth/dashboard/create-activity-code': typeof LngAuthDashboardCreateActivityCodeRoute
   '/$lng/_forms/start-activity/$': typeof LngFormsStartActivitySplatRoute
   '/$lng/_public/docs/$slug': typeof LngPublicDocsSlugRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
+  '/$lng/_auth/dashboard/': typeof LngAuthDashboardIndexRoute
   '/$lng/_public/docs/': typeof LngPublicDocsIndexRoute
+  '/$lng/_auth/dashboard/activity-code/$id/completion': typeof LngAuthDashboardActivityCodeIdCompletionRoute
+  '/$lng/_auth/dashboard/activity-code/$id/learners': typeof LngAuthDashboardActivityCodeIdLearnersRoute
+  '/$lng/_auth/dashboard/activity-code/$id/': typeof LngAuthDashboardActivityCodeIdIndexRoute
+  '/$lng/_auth/dashboard/activity-code/$id/activities/edit': typeof LngAuthDashboardActivityCodeIdActivitiesEditRoute
+  '/$lng/_auth/dashboard/activity-code/$id/activities/': typeof LngAuthDashboardActivityCodeIdActivitiesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -319,6 +403,7 @@ export interface FileRouteTypes {
     | '/lti/error'
     | '/routes/elb-status'
     | '/routes/keep-alive'
+    | '/$lng/account'
     | '/$lng/sign-in'
     | '/$lng/sign-up'
     | '/$lng/$'
@@ -336,10 +421,17 @@ export interface FileRouteTypes {
     | '/routes/oauth/google'
     | '/$lng/'
     | '/$lng/admin/renew'
+    | '/$lng/dashboard/create-activity-code'
     | '/$lng/start-activity/$'
     | '/$lng/docs/$slug'
     | '/routes/lti/deep-link/activities'
+    | '/$lng/dashboard/'
     | '/$lng/docs/'
+    | '/$lng/dashboard/activity-code/$id/completion'
+    | '/$lng/dashboard/activity-code/$id/learners'
+    | '/$lng/dashboard/activity-code/$id/'
+    | '/$lng/dashboard/activity-code/$id/activities/edit'
+    | '/$lng/dashboard/activity-code/$id/activities/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/$lng'
@@ -351,6 +443,7 @@ export interface FileRouteTypes {
     | '/lti/error'
     | '/routes/elb-status'
     | '/routes/keep-alive'
+    | '/$lng/account'
     | '/$lng/sign-in'
     | '/$lng/sign-up'
     | '/$lng/$'
@@ -367,16 +460,24 @@ export interface FileRouteTypes {
     | '/routes/oauth/github'
     | '/routes/oauth/google'
     | '/$lng/admin/renew'
+    | '/$lng/dashboard/create-activity-code'
     | '/$lng/start-activity/$'
     | '/$lng/docs/$slug'
     | '/routes/lti/deep-link/activities'
+    | '/$lng/dashboard'
     | '/$lng/docs'
+    | '/$lng/dashboard/activity-code/$id/completion'
+    | '/$lng/dashboard/activity-code/$id/learners'
+    | '/$lng/dashboard/activity-code/$id'
+    | '/$lng/dashboard/activity-code/$id/activities/edit'
+    | '/$lng/dashboard/activity-code/$id/activities'
   id:
     | '__root__'
     | '/$lng'
     | '/agent'
     | '/lti'
     | '/$lng/_admin'
+    | '/$lng/_auth'
     | '/$lng/_forms'
     | '/$lng/_public'
     | '/agent/error'
@@ -385,6 +486,7 @@ export interface FileRouteTypes {
     | '/lti/error'
     | '/routes/elb-status'
     | '/routes/keep-alive'
+    | '/$lng/_auth/account'
     | '/$lng/_forms/sign-in'
     | '/$lng/_forms/sign-up'
     | '/$lng/_public/$'
@@ -402,10 +504,17 @@ export interface FileRouteTypes {
     | '/routes/oauth/google'
     | '/$lng/_public/'
     | '/$lng/_admin/admin/renew'
+    | '/$lng/_auth/dashboard/create-activity-code'
     | '/$lng/_forms/start-activity/$'
     | '/$lng/_public/docs/$slug'
     | '/routes/lti/deep-link/activities'
+    | '/$lng/_auth/dashboard/'
     | '/$lng/_public/docs/'
+    | '/$lng/_auth/dashboard/activity-code/$id/completion'
+    | '/$lng/_auth/dashboard/activity-code/$id/learners'
+    | '/$lng/_auth/dashboard/activity-code/$id/'
+    | '/$lng/_auth/dashboard/activity-code/$id/activities/edit'
+    | '/$lng/_auth/dashboard/activity-code/$id/activities/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -456,6 +565,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/$lng'
       preLoaderRoute: typeof LngAdminRouteRouteImport
+      parentRoute: typeof LngRouteRoute
+    }
+    '/$lng/_auth': {
+      id: '/$lng/_auth'
+      path: ''
+      fullPath: '/$lng'
+      preLoaderRoute: typeof LngAuthRouteRouteImport
       parentRoute: typeof LngRouteRoute
     }
     '/$lng/_forms': {
@@ -513,6 +629,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/routes/keep-alive'
       preLoaderRoute: typeof RoutesKeepAliveRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/$lng/_auth/account': {
+      id: '/$lng/_auth/account'
+      path: '/account'
+      fullPath: '/$lng/account'
+      preLoaderRoute: typeof LngAuthAccountRouteImport
+      parentRoute: typeof LngAuthRouteRoute
     }
     '/$lng/_forms/sign-in': {
       id: '/$lng/_forms/sign-in'
@@ -633,6 +756,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LngAdminAdminRenewRouteImport
       parentRoute: typeof LngAdminRouteRoute
     }
+    '/$lng/_auth/dashboard/': {
+      id: '/$lng/_auth/dashboard/'
+      path: '/dashboard'
+      fullPath: '/$lng/dashboard/'
+      preLoaderRoute: typeof LngAuthDashboardIndexRouteImport
+      parentRoute: typeof LngAuthRouteRoute
+    }
+    '/$lng/_auth/dashboard/create-activity-code': {
+      id: '/$lng/_auth/dashboard/create-activity-code'
+      path: '/dashboard/create-activity-code'
+      fullPath: '/$lng/dashboard/create-activity-code'
+      preLoaderRoute: typeof LngAuthDashboardCreateActivityCodeRouteImport
+      parentRoute: typeof LngAuthRouteRoute
+    }
     '/$lng/_forms/start-activity/$': {
       id: '/$lng/_forms/start-activity/$'
       path: '/start-activity/$'
@@ -661,6 +798,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoutesLtiDeepLinkActivitiesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$lng/_auth/dashboard/activity-code/$id/': {
+      id: '/$lng/_auth/dashboard/activity-code/$id/'
+      path: '/dashboard/activity-code/$id'
+      fullPath: '/$lng/dashboard/activity-code/$id/'
+      preLoaderRoute: typeof LngAuthDashboardActivityCodeIdIndexRouteImport
+      parentRoute: typeof LngAuthRouteRoute
+    }
+    '/$lng/_auth/dashboard/activity-code/$id/completion': {
+      id: '/$lng/_auth/dashboard/activity-code/$id/completion'
+      path: '/dashboard/activity-code/$id/completion'
+      fullPath: '/$lng/dashboard/activity-code/$id/completion'
+      preLoaderRoute: typeof LngAuthDashboardActivityCodeIdCompletionRouteImport
+      parentRoute: typeof LngAuthRouteRoute
+    }
+    '/$lng/_auth/dashboard/activity-code/$id/learners': {
+      id: '/$lng/_auth/dashboard/activity-code/$id/learners'
+      path: '/dashboard/activity-code/$id/learners'
+      fullPath: '/$lng/dashboard/activity-code/$id/learners'
+      preLoaderRoute: typeof LngAuthDashboardActivityCodeIdLearnersRouteImport
+      parentRoute: typeof LngAuthRouteRoute
+    }
+    '/$lng/_auth/dashboard/activity-code/$id/activities/': {
+      id: '/$lng/_auth/dashboard/activity-code/$id/activities/'
+      path: '/dashboard/activity-code/$id/activities'
+      fullPath: '/$lng/dashboard/activity-code/$id/activities/'
+      preLoaderRoute: typeof LngAuthDashboardActivityCodeIdActivitiesIndexRouteImport
+      parentRoute: typeof LngAuthRouteRoute
+    }
+    '/$lng/_auth/dashboard/activity-code/$id/activities/edit': {
+      id: '/$lng/_auth/dashboard/activity-code/$id/activities/edit'
+      path: '/dashboard/activity-code/$id/activities/edit'
+      fullPath: '/$lng/dashboard/activity-code/$id/activities/edit'
+      preLoaderRoute: typeof LngAuthDashboardActivityCodeIdActivitiesEditRouteImport
+      parentRoute: typeof LngAuthRouteRoute
+    }
   }
 }
 
@@ -674,6 +846,38 @@ const LngAdminRouteRouteChildren: LngAdminRouteRouteChildren = {
 
 const LngAdminRouteRouteWithChildren = LngAdminRouteRoute._addFileChildren(
   LngAdminRouteRouteChildren,
+)
+
+interface LngAuthRouteRouteChildren {
+  LngAuthAccountRoute: typeof LngAuthAccountRoute
+  LngAuthDashboardCreateActivityCodeRoute: typeof LngAuthDashboardCreateActivityCodeRoute
+  LngAuthDashboardIndexRoute: typeof LngAuthDashboardIndexRoute
+  LngAuthDashboardActivityCodeIdCompletionRoute: typeof LngAuthDashboardActivityCodeIdCompletionRoute
+  LngAuthDashboardActivityCodeIdLearnersRoute: typeof LngAuthDashboardActivityCodeIdLearnersRoute
+  LngAuthDashboardActivityCodeIdIndexRoute: typeof LngAuthDashboardActivityCodeIdIndexRoute
+  LngAuthDashboardActivityCodeIdActivitiesEditRoute: typeof LngAuthDashboardActivityCodeIdActivitiesEditRoute
+  LngAuthDashboardActivityCodeIdActivitiesIndexRoute: typeof LngAuthDashboardActivityCodeIdActivitiesIndexRoute
+}
+
+const LngAuthRouteRouteChildren: LngAuthRouteRouteChildren = {
+  LngAuthAccountRoute: LngAuthAccountRoute,
+  LngAuthDashboardCreateActivityCodeRoute:
+    LngAuthDashboardCreateActivityCodeRoute,
+  LngAuthDashboardIndexRoute: LngAuthDashboardIndexRoute,
+  LngAuthDashboardActivityCodeIdCompletionRoute:
+    LngAuthDashboardActivityCodeIdCompletionRoute,
+  LngAuthDashboardActivityCodeIdLearnersRoute:
+    LngAuthDashboardActivityCodeIdLearnersRoute,
+  LngAuthDashboardActivityCodeIdIndexRoute:
+    LngAuthDashboardActivityCodeIdIndexRoute,
+  LngAuthDashboardActivityCodeIdActivitiesEditRoute:
+    LngAuthDashboardActivityCodeIdActivitiesEditRoute,
+  LngAuthDashboardActivityCodeIdActivitiesIndexRoute:
+    LngAuthDashboardActivityCodeIdActivitiesIndexRoute,
+}
+
+const LngAuthRouteRouteWithChildren = LngAuthRouteRoute._addFileChildren(
+  LngAuthRouteRouteChildren,
 )
 
 interface LngFormsRouteRouteChildren {
@@ -714,12 +918,14 @@ const LngPublicRouteRouteWithChildren = LngPublicRouteRoute._addFileChildren(
 
 interface LngRouteRouteChildren {
   LngAdminRouteRoute: typeof LngAdminRouteRouteWithChildren
+  LngAuthRouteRoute: typeof LngAuthRouteRouteWithChildren
   LngFormsRouteRoute: typeof LngFormsRouteRouteWithChildren
   LngPublicRouteRoute: typeof LngPublicRouteRouteWithChildren
 }
 
 const LngRouteRouteChildren: LngRouteRouteChildren = {
   LngAdminRouteRoute: LngAdminRouteRouteWithChildren,
+  LngAuthRouteRoute: LngAuthRouteRouteWithChildren,
   LngFormsRouteRoute: LngFormsRouteRouteWithChildren,
   LngPublicRouteRoute: LngPublicRouteRouteWithChildren,
 }

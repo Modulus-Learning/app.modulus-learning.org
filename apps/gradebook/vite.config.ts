@@ -32,7 +32,16 @@ const hostOverrides = (): Plugin => ({
   name: 'modulus:host-overrides',
   enforce: 'pre',
   async resolveId(source, importer, options) {
-    if (importer == null || source.includes('.start')) return null
+    if (importer == null || (source.includes('.start') && !source.endsWith('?original')))
+      return null
+    // `?original` imports the overridden module itself (the action bridge).
+    if (source.endsWith('?original')) {
+      const original = await this.resolve(source.slice(0, -'?original'.length), importer, {
+        ...options,
+        skipSelf: true,
+      })
+      return original?.id ?? null
+    }
     const resolved = await this.resolve(source, importer, { ...options, skipSelf: true })
     if (resolved == null || resolved.external || !resolved.id.startsWith(srcDir)) return null
     const match = resolved.id.match(/^(.*)\.(ts|tsx)(\?.*)?$/)
@@ -42,6 +51,27 @@ const hostOverrides = (): Plugin => ({
       if (override !== importer && existsSync(override)) return `${override}${match[3] ?? ''}`
     }
     return null
+  },
+})
+
+// Server-side shims for the two Next modules that bridged Next server actions
+// import (`@/lib/action-bridge`). Server environments resolve them to
+// `src/lib/next-shims/*`; reaching them from the client build is a bug, so it
+// fails the build. Removed in Task 18 with the bridge.
+const nextShimTargets: Record<string, string> = {
+  'next/headers': fileURLToPath(new URL('./src/lib/next-shims/headers.ts', import.meta.url)),
+  'next/navigation': fileURLToPath(new URL('./src/lib/next-shims/navigation.ts', import.meta.url)),
+}
+const nextShims = (): Plugin => ({
+  name: 'modulus:next-shims',
+  enforce: 'pre',
+  resolveId(source, importer) {
+    const target = nextShimTargets[source]
+    if (target == null) return null
+    if (this.environment?.name === 'client') {
+      this.error(`${source} imported into the client build from ${importer ?? 'unknown'}`)
+    }
+    return target
   },
 })
 
@@ -72,6 +102,7 @@ export default defineConfig({
   optimizeDeps: { exclude: nativeExternals },
   plugins: [
     hostOverrides(),
+    nextShims(),
     nitro({
       preset: 'node',
       // React must be external by pattern: externalising only 'react' and

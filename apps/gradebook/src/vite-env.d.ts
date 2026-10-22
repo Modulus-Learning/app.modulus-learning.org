@@ -14,3 +14,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/** `?original` imports a module that has a `.start.ts` override, bypassing it (action bridge). */
+declare module '*?original'
