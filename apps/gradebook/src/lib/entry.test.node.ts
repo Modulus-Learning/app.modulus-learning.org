@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from 'vitest'
 
 import { createEntryHandler, type EntryLogger } from '@/lib/entry'
 import { annotateRequest, getRequestScope } from '@/lib/request-scope'
+import { createInFlightTracker } from '@/lib/shutdown'
 import type { DeploymentMode } from '@/lib/deployment-mode'
 
 const BASE = 'https://modulus.test'
@@ -200,5 +201,32 @@ describe('server entry: access log coverage', () => {
     expect(seen).toBeDefined()
     expect(lines[0].line.request_id).toBe(seen)
     expect(getRequestScope()).toBeUndefined()
+  })
+})
+
+describe('server entry: in-flight tracking', () => {
+  const logger: EntryLogger = { info: () => {}, warn: () => {}, error: () => {} }
+
+  test('a request counts as in flight until its handler settles', async () => {
+    const inFlight = createInFlightTracker()
+    let release: (response: Response) => void = () => {}
+    const handle = createEntryHandler(
+      { mode: 'all-in-one', logger, inFlight },
+      () => new Promise<Response>((resolve) => (release = resolve))
+    )
+    const pending = handle(get('/about'))
+    expect(inFlight.count).toBe(1)
+    release(new Response('ok'))
+    await pending
+    expect(inFlight.count).toBe(0)
+  })
+
+  test('a handler that throws still settles', async () => {
+    const inFlight = createInFlightTracker()
+    const handle = createEntryHandler({ mode: 'all-in-one', logger, inFlight }, async () => {
+      throw new Error('boom')
+    })
+    await expect(handle(get('/about'))).rejects.toThrow('boom')
+    expect(inFlight.count).toBe(0)
   })
 })

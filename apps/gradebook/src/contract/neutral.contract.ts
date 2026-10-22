@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { request } from './client'
+import { MODE, request, TARGET } from './client'
 
 // Health endpoints stay reachable in every deployment mode.
 describe('neutral surface', () => {
@@ -8,6 +8,13 @@ describe('neutral surface', () => {
     const response = await request('/routes/elb-status')
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ status: 'okay' })
+  })
+
+  // Start adds the instance's mode and jobs flag (spec: Deployment Modes item 6).
+  test.runIf(TARGET === 'start')('GET /routes/elb-status names the mode', async () => {
+    const body = await (await request('/routes/elb-status')).json()
+    expect(body).toMatchObject({ mode: MODE, jobs: expect.any(Boolean) })
+    if (MODE === 'frontend') expect(body.jobs).toBe(false)
   })
 
   // Recorded, not asserted: /routes/keep-alive fetches

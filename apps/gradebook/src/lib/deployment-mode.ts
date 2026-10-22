@@ -96,3 +96,16 @@ export const isRouteAllowed = (mode: DeploymentMode, pathname: string): boolean 
 
   return mode === routeClass
 }
+
+/** The surfaces an instance serves, for the boot log line. */
+export const servedSurfaces = (mode: DeploymentMode): Array<'frontend' | 'admin'> =>
+  mode === 'all-in-one' ? ['frontend', 'admin'] : [mode]
+
+/**
+ * Whether this instance runs background jobs: only `admin` and `all-in-one`
+ * instances, and only with the job queue enabled.
+ */
+export const backgroundJobsEnabled = (config: {
+  jobQueue: { enabled: boolean }
+  deployment: { mode: DeploymentMode }
+}): boolean => config.jobQueue.enabled && config.deployment.mode !== 'frontend'

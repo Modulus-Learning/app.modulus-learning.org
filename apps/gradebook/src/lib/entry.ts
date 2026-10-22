@@ -2,6 +2,7 @@ import { pathWithoutLocale } from '@/i18n/utils'
 import { accessLogLevel, buildAccessLogLine, shouldLogRequest } from '@/lib/access-log'
 import { type DeploymentMode, isRouteAllowed } from '@/lib/deployment-mode'
 import { createRequestScope, runInRequestScope } from '@/lib/request-scope'
+import type { InFlightTracker } from '@/lib/shutdown'
 
 /**
  * The server-entry request pipeline for the TanStack Start host, kept free of
@@ -25,6 +26,8 @@ export interface EntryOptions {
   logger: EntryLogger
   /** Locale negotiation slot; Task 9 supplies the implementation. */
   negotiateLocale?: (request: Request) => Response | null
+  /** Counts requests still being handled, so shutdown can wait for them. */
+  inFlight?: InFlightTracker
 }
 
 // Matches http(s) with one or two slashes after the scheme; Next collapsed `//`
@@ -44,6 +47,7 @@ export const createEntryHandler =
   (options: EntryOptions, next: (request: Request) => Promise<Response>) =>
   (request: Request): Promise<Response> => {
     const scope = createRequestScope()
+    const settle = options.inFlight?.begin()
     return runInRequestScope(scope, async () => {
       const url = new URL(request.url)
       let response: Response
@@ -55,6 +59,8 @@ export const createEntryHandler =
           throw error
         }
         response = error
+      } finally {
+        settle?.()
       }
       log(options, scope, request.method, url.pathname, response.status)
       return response

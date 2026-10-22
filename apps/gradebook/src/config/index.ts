@@ -187,10 +187,21 @@ const buildServerSchema = (mode: Mode) =>
       }),
       jobQueue: z.object({
         enabled: booleanSchema(true),
+        /**
+         * Hard deadline for the shutdown drain (`SHUTDOWN_DRAIN_SECONDS`): how
+         * long a stopping instance waits for its job workers and in-flight
+         * requests before exiting. See `@/lib/shutdown`.
+         */
+        shutdownDrainSeconds: z.coerce.number().int().positive().default(70),
+        /**
+         * Mirrors core's `LTI_SCORE_SUBMISSION_REQUEST_TIMEOUT_SECONDS` (same
+         * default), read here only for the boot check against the drain deadline.
+         */
+        scoreSubmissionRequestTimeoutSeconds: z.coerce.number().int().positive().default(60),
       }),
       /**
        * Selects which surfaces of the application this instance serves. See
-       * `@/lib/deployment-mode` and `proxy.ts` for how the mode gates routes.
+       * `@/lib/deployment-mode` for how the mode gates routes.
        *
        * - `all-in-one` — frontend, admin, and (per JOB_QUEUE_ENABLED) background
        *   jobs all run in a single process. Every section is required.
@@ -320,6 +331,8 @@ const readServerEnv = (env: ServerEnv) => ({
   },
   jobQueue: {
     enabled: env.JOB_QUEUE_ENABLED,
+    shutdownDrainSeconds: env.SHUTDOWN_DRAIN_SECONDS,
+    scoreSubmissionRequestTimeoutSeconds: env.LTI_SCORE_SUBMISSION_REQUEST_TIMEOUT_SECONDS,
   },
   s3: {
     accessKey: env.S3_ACCESS_KEY_ID,
