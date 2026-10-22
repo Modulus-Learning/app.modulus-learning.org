@@ -103,7 +103,10 @@ any change to `apps/agent` (it only sees URLs, which do not move).
    `admin` instance redirects the apex to `/admin/sign-in`. A `frontend` instance
    can never start background jobs.
 5. **Locale URLs.** Default locale (`en`) is unprefixed; non-default locales are
-   prefixed; the language cookie and Accept-Language negotiation behave as today.
+   prefixed; every existing localized path resolves. Negotiation is improved
+   deliberately, in two ways. An explicit prefix is never redirected away
+   because of the cookie, and an external `/en/…` 301s to the clean form. See
+   [Internationalisation](#internationalisation).
 6. **Core is consumed only through `CoreCommands`.** The host stays thin: route
    handlers and server functions resolve a context and call a command.
 
@@ -230,6 +233,78 @@ src/routes/
 | `instrumentation.ts` | background-job start in `src/server.ts` behind a `globalThis` guard (FORRU scheduler pattern) |
 | `export const dynamic = 'force-dynamic'` | not needed — Start renders per request; no static prerender is configured |
 | `NEXT_PUBLIC_*` | `VITE_*` (`import.meta.env` on the client, `process.env` on the server); the public server URL reaches the client via the root loader — see Deployment Modes item 3 |
+
+## Internationalisation
+
+The gradebook's i18n is the Next-era ancestor of the strategy FORRU and
+bylinecms.app now run on TanStack Start: same `lng` cookie, the same
+`en`/`es` JSON-per-locale files with namespaces, `intl-messageformat` for ICU,
+and a `TranslationsProvider` + `useTranslations(namespace)` client API. The
+migration adopts the reference implementation (`www.forru.org/apps/webapp/src/i18n`)
+along with its improvements. It leaves out FORRU's **content-locale** layer
+(`contentLocales`, `toContentLocale`, `useInterfaceLocale`), which exists for
+Byline's multilingual content; Modulus has interface locales only, so
+`routableLocales` equals `i18nConfig.locales`.
+
+### What changes
+
+| Concern | Gradebook today (Next) | Target (FORRU pattern) |
+|---|---|---|
+| Locale in the route tree | `[lng]` segment, filled by a middleware `NextResponse.rewrite` for the default locale | **required `$lng` segment**, filled by an isomorphic router rewrite: `rewrite.input` prepends `en` to bare localizable paths, and `rewrite.output` strips **only** the default locale (`src/i18n/locale-rewrite.ts`) |
+| Negotiation | `withI18n` on every non-`/routes` request, any method | `negotiateLocaleRedirect` in `src/server.ts`, **GET only**, bare localizable paths only, on the un-rewritten request |
+| A prefixed URL vs the cookie | the cookie wins: `/es/dashboard` with `lng=en` **redirects to `/dashboard`** | **the URL wins**: an explicit non-default prefix is canonical and is never redirected away. A shared `/es/…` link renders in Spanish for everyone |
+| Externally typed `/en/…` | redirected only when it mismatches the cookie | always **301** to the clean form (canonicalisation) |
+| Unknown prefix (`/xx/…`) | treated as a path under the detected locale | `$lng` `params.parse` throws `notFound()` at the matcher |
+| Detection | `middleware/withI18n/get-locale.ts` (`NextRequest`-bound) | pure `detectLocale({ cookie, pathLocale, acceptLanguage })` (`src/i18n/detect-locale.ts`); negotiation errors fall back to the default instead of risking a 500 |
+| Where translations load | every Next route-group layout calls `getTranslations` | once, in the `$lng` layout route `loader`, providing `TranslationsProvider` to all descendants |
+| Loader | `import('../translations/en.json')` behind `'server-only'` | `?raw` JSON imports parsed at module init (this avoids the Nitro dev 404 on `.json?import`); each non-default locale is **merged over English per namespace**, so a missing key falls back to English text rather than the raw key; `Translations` is typed from `en.json` |
+| Server-side `t` | `useTranslations(lng, ns)` — a non-hook named like a hook, server-only | framework-agnostic `createTranslator(lng, ns)`, usable in loaders, `head()` and server functions |
+| Rich text | none; `en.json` has i18next-style `<1>…</1>` tags and `{{date}}` that ICU does not interpret | `useTranslations(ns).rich(key, { link: (chunks) => <a>{chunks}</a> })`; messages audited to ICU (`{date}`, named tags) |
+| Persisting a choice | `setLanguageAction` server action plus `react-cookie` on the client; cookie `maxAge: 1704085200` (seconds — about 54 years, silently clamped by browsers to 400 days; the comment says 365 days) | `setLanguageFn` server fn with a validator; cookie `maxAge` 365 days; `useLanguageSwitcher` + `useLocaleNavigation` on TanStack `navigate`; `react-cookie` removed |
+| Links | `LangLink` over `next/link`, adding the prefix by hand | `LangLink` over TanStack `Link`, injecting the `lng` param; the clean default-locale href comes from `rewrite.output` |
+| `<html lang>` | set per route-group `DocumentRoot` | derived in `__root.tsx` from the URL's first segment, during render, so it ships in SSR markup |
+
+### What does not change
+
+- URLs: `en` unprefixed, `es` prefixed, `/admin` localizable (`/es/admin/…`
+  keeps working; unlike FORRU's locale-less Byline admin, the Modulus admin tree
+  sits under `$lng`).
+- Non-localized segments: `lti`, `agent`, `routes`, `_serverFn`, `_build`,
+  `assets`, `fonts`, `modules`, and anything with a file extension. The
+  chromeless LTI and agent pages stay `lang="en"`.
+- The `lng` cookie's name, `SameSite=Lax`, and non-`HttpOnly` flag.
+- Translation file layout (`src/i18n/translations/{en,es}.json`, namespaced).
+  Translation *coverage* is out of scope. Today 21 files use translations, the
+  language menu is not mounted anywhere, and much UI text is literal English;
+  the migration keeps that as it is.
+
+### Behaviour changes, recorded
+
+The URL-wins rule and the `/en/…` 301 deliberately change negotiation, so
+Non-Negotiable Contract 5 is amended to match. The Task 3 contract suite
+asserts the new behaviour for three cases: an explicit `/es/…` request
+carrying a `lng=en` cookie, an external `/en/…`, and an unknown prefix. Each
+assertion carries a comment pointing here.
+
+### Coexistence until Task 18
+
+Following the execution rules:
+
+- **Shared and upgraded in place:** `i18n-config.ts`, `utils.ts`,
+  `language-map.ts`, `translations/*.json` (the ICU audit benefits both apps),
+  `client/translations-provider.tsx` (gains `rich()` and types against
+  `en.json` rather than `server/index`; its `'use client'` directive is inert
+  under Start), and the new pure `detect-locale.ts`, which the Next
+  `get-locale.ts` also delegates to.
+- **New, Start-only, no name collision:** `translations/index.ts`,
+  `locale-rewrite.ts`, `server-locale-redirect.ts`, `set-language-fn.ts`,
+  `hooks/use-locale-navigation.ts`, `hooks/use-language-switcher.ts` (which also
+  fixes the `use-languag-switcher` typo).
+- **New, Start-only, colliding with a Next file:** `components/lang-link`,
+  `language-menu` and `available-languages` are written as `*.start.tsx` and
+  renamed in Task 18, when the Next versions are deleted together with
+  `server/`, `set-language-action.ts`, `hooks/use-lang-navigation.ts`,
+  `hooks/use-languag-switcher.ts` and `middleware/withI18n/`.
 
 ## Deployment Modes — Improvements
 
@@ -724,8 +799,8 @@ existing behaviour that looks wrong rather than fixing it here.
   `lib/request-id` alongside the Next one) and the access-log wrapper around the
   entire entry `fetch`. Inside it: the deployment-mode gate using `isRouteAllowed`
   (extend `classifyRoute`'s neutral set with `/_serverFn`, the asset dir,
-  `/fonts`, `/modules`), the admin apex redirect, the `withActivity` redirect and
-  the locale negotiation redirect.
+  `/fonts`, `/modules`), the admin apex redirect, the `withActivity` redirect, and
+  an ordered slot for the locale negotiation redirect (implemented in Task 9).
 - `src/start.ts`: CSRF (`createCsrfMiddleware`, filtered to server fns), then a
   request-kind classifier (Byline's `sessionRequestMiddleware`: SSR vs server
   fn, recorded server-side so no header can claim SSR) that also annotates the
@@ -822,12 +897,36 @@ serve a full Canvas launch → agent token → progress flow with stub pages.
 
 `__root.tsx` with `head()`, `HeadContent`/`Scripts`, `staticData`-driven
 `themeContext`/chrome (public, protected, chromeless LTI), analytics script,
-`EarlyThemeDetector`, root loader delivering public config + translations.
-`router.tsx` locale rewrite (port FORRU `locale-rewrite.ts` + tests, with the
-Modulus segment list). `setLanguageAction` → server fn + `redirect`.
-`i18n/server` loses `next/headers`. `LangLink`, `useLangNavigation`,
-`language-menu` move to TanStack `Link`/`useNavigate`. `lib/meta.ts` → `head()`
-shape.
+`EarlyThemeDetector`, `<html lang>` from the URL, and a root loader delivering
+public config. `lib/meta.ts` moves to the `head()` shape (`createTranslator`
+for localized titles).
+
+i18n migration to the reference strategy, as specified in
+[Internationalisation](#internationalisation):
+- `$lng/route.tsx` with `params.parse` (`notFound()` for a non-routable
+  locale), `beforeLoad` → `context.locale`, and a loader that provides
+  `TranslationsProvider`.
+- `router.tsx` `rewrite.input`/`output` using `locale-rewrite.ts`, with the
+  Modulus `NON_LOCALIZED_SEGMENTS`. `negotiateLocaleRedirect` is wired into
+  `src/server.ts`; Task 5 left a placeholder for it.
+- `translations/index.ts` (`?raw`, English fallback merge, `createTranslator`),
+  `detect-locale.ts`, `set-language-fn.ts`, `use-locale-navigation`,
+  `use-language-switcher`, and the `*.start.tsx` `LangLink` / `LanguageMenu` /
+  `AvailableLanguages`.
+- Upgrade the shared `translations-provider.tsx` (`rich()`), and audit
+  `en.json`/`es.json` to ICU: `{{date}}` → `{date}`, and numbered tags → named
+  tags rendered with `rich()`.
+- Tests, ported from FORRU and adapted to interface-only locales:
+  `locale-rewrite.test.ts` (input prefixing, output de-defaulting only,
+  non-localized and asset paths untouched, query/hash preserved, input∘output
+  round-trip for every public path in the route tree);
+  `translations/index.test.ts` (namespace lookup, English fallback for a
+  missing `es` key, ICU interpolation, plural and date); and
+  `detect-locale.test.node.ts` (cookie > path > Accept-Language > default,
+  tampered cookie, malformed header). Add a
+  `server-locale-redirect.test.node.ts` covering: GET-only; bare path with an
+  `es` cookie → 302 `/es/…`; `/en/…` → 301 clean; `/es/…` with an `en` cookie →
+  no redirect; non-localized paths untouched.
 
 ### Task 10 — Public pages
 
@@ -898,7 +997,9 @@ Delete `next.config.ts`, `next-env.d.ts`, `proxy.ts`, `middleware/` (Next proxy
 layers), `instrumentation.ts`, `app/`, every `'use server'` action module and
 other Next-only file superseded by a Start replacement, `core-adapter.ts` (the
 Next adapter), `utils/utils.framework.ts`
-if Next-only, and the `session-old.ts` / `.bak` leftovers. Remove the `next`,
+if Next-only, the `session-old.ts` / `.bak` leftovers, and the Next i18n set listed in
+Internationalisation → Coexistence (renaming the `*.start.tsx` i18n components
+into place). Remove `react-cookie`. Remove the `next`,
 `@next/env`, `@tailwindcss/postcss`, `autoprefixer` and `cssnano` dependencies
 and `postcss.config.js`. Switch `dev`/`devlti`/`build`/`start` to Start, drop
 the `*:start` aliases, set `typecheck` to `tsc --noEmit`, and remove the `next`
@@ -952,6 +1053,7 @@ on framework dependency") in TanStack terms. Update `docs/ARCHITECTURE.md` §7,
 | Cookie attribute drift breaks the Canvas iframe session | contract suite asserts raw `Set-Cookie`; manual Canvas launch in Task 21 |
 | SSR externals (react singleton, google-gax `__dirname`, native hashes) only fail in built output | adopt FORRU externals up front; Task 1 builds `.output` early; Task 19 runs the container |
 | Locale rewrite swallows a non-localized path | explicit `NON_LOCALIZED_SEGMENTS` + rewrite unit tests (FORRU pattern) |
+| The URL-wins negotiation change surprises returning users | recorded as a deliberate contract change; the cookie still drives bare-path negotiation; Task 3 asserts the three changed cases |
 | `/assets` collision between `public/assets` and Vite output | `build.assetsDir = '_build'` |
 | Large surface (60 pages, 45 action modules) stalls mid-port | handlers first so the critical path works early; each phase leaves a bootable app |
 | A replayed mutation runs as the wrong account or runs twice | replay only on the pre-handler `renew` signal with a matching principal; never on handler, network or ambiguous outcomes (Task 7 tests) |
