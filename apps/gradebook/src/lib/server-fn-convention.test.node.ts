@@ -29,6 +29,8 @@ const ADMIN_SURFACE_ALLOWLIST = new Set([
   'modules/admin/session/sign-in.ts',
   'modules/admin/session/renew.ts',
   'modules/admin/session/sign-out.ts',
+  // Verification-only snapshot for the admin layouts (no session required to read it).
+  'modules/admin/session/session-state.ts',
 ])
 
 const sourceFiles = (dir: string): string[] =>

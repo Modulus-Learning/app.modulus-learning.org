@@ -39,16 +39,46 @@ import { Route as RoutesLtiLoginRouteImport } from './routes/routes/lti/login'
 import { Route as RoutesLtiRegisterRouteImport } from './routes/routes/lti/register'
 import { Route as RoutesOauthGithubRouteImport } from './routes/routes/oauth/github'
 import { Route as RoutesOauthGoogleRouteImport } from './routes/routes/oauth/google'
+import { Route as LngAdminAdminAuthedRouteRouteImport } from './routes/$lng/_admin/admin/_authed/route'
 import { Route as LngAdminAdminRenewRouteImport } from './routes/$lng/_admin/admin/renew'
+import { Route as LngAdminAdminSignInRouteImport } from './routes/$lng/_admin/admin/sign-in'
 import { Route as LngAuthDashboardIndexRouteImport } from './routes/$lng/_auth/dashboard/index'
 import { Route as LngAuthDashboardCreateActivityCodeRouteImport } from './routes/$lng/_auth/dashboard/create-activity-code'
 import { Route as LngFormsStartActivitySplatRouteImport } from './routes/$lng/_forms/start-activity/$'
 import { Route as LngPublicDocsIndexRouteImport } from './routes/$lng/_public/docs/index'
 import { Route as LngPublicDocsSlugRouteImport } from './routes/$lng/_public/docs/$slug'
 import { Route as RoutesLtiDeepLinkActivitiesRouteImport } from './routes/routes/lti/deep-link/activities'
+import { Route as LngAdminAdminAuthedIndexRouteImport } from './routes/$lng/_admin/admin/_authed/index'
+import { Route as LngAdminAdminAuthedAccountRouteImport } from './routes/$lng/_admin/admin/_authed/account'
+import { Route as LngAdminAdminAuthedActivitiesIndexRouteImport } from './routes/$lng/_admin/admin/_authed/activities/index'
+import { Route as LngAdminAdminAuthedActivitiesAddRouteImport } from './routes/$lng/_admin/admin/_authed/activities/add'
+import { Route as LngAdminAdminAuthedAdminRolesIndexRouteImport } from './routes/$lng/_admin/admin/_authed/admin-roles/index'
+import { Route as LngAdminAdminAuthedAdminRolesAddRouteImport } from './routes/$lng/_admin/admin/_authed/admin-roles/add'
+import { Route as LngAdminAdminAuthedAdminUsersIndexRouteImport } from './routes/$lng/_admin/admin/_authed/admin-users/index'
+import { Route as LngAdminAdminAuthedAdminUsersAddRouteImport } from './routes/$lng/_admin/admin/_authed/admin-users/add'
+import { Route as LngAdminAdminAuthedLtiPlatformsIndexRouteImport } from './routes/$lng/_admin/admin/_authed/lti-platforms/index'
+import { Route as LngAdminAdminAuthedLtiPlatformsAddRouteImport } from './routes/$lng/_admin/admin/_authed/lti-platforms/add'
+import { Route as LngAdminAdminAuthedRolesIndexRouteImport } from './routes/$lng/_admin/admin/_authed/roles/index'
+import { Route as LngAdminAdminAuthedRolesAddRouteImport } from './routes/$lng/_admin/admin/_authed/roles/add'
+import { Route as LngAdminAdminAuthedUsersIndexRouteImport } from './routes/$lng/_admin/admin/_authed/users/index'
+import { Route as LngAdminAdminAuthedUsersAddRouteImport } from './routes/$lng/_admin/admin/_authed/users/add'
 import { Route as LngAuthDashboardActivityCodeIdIndexRouteImport } from './routes/$lng/_auth/dashboard/activity-code/$id/index'
 import { Route as LngAuthDashboardActivityCodeIdCompletionRouteImport } from './routes/$lng/_auth/dashboard/activity-code/$id/completion'
 import { Route as LngAuthDashboardActivityCodeIdLearnersRouteImport } from './routes/$lng/_auth/dashboard/activity-code/$id/learners'
+import { Route as LngAdminAdminAuthedActivitiesIdEditRouteImport } from './routes/$lng/_admin/admin/_authed/activities/$id/edit'
+import { Route as LngAdminAdminAuthedAdminRolesIdIndexRouteImport } from './routes/$lng/_admin/admin/_authed/admin-roles/$id/index'
+import { Route as LngAdminAdminAuthedAdminRolesIdDeleteRouteImport } from './routes/$lng/_admin/admin/_authed/admin-roles/$id/delete'
+import { Route as LngAdminAdminAuthedAdminRolesIdEditRouteImport } from './routes/$lng/_admin/admin/_authed/admin-roles/$id/edit'
+import { Route as LngAdminAdminAuthedAdminUsersIdIndexRouteImport } from './routes/$lng/_admin/admin/_authed/admin-users/$id/index'
+import { Route as LngAdminAdminAuthedAdminUsersIdDeleteRouteImport } from './routes/$lng/_admin/admin/_authed/admin-users/$id/delete'
+import { Route as LngAdminAdminAuthedAdminUsersIdEditRouteImport } from './routes/$lng/_admin/admin/_authed/admin-users/$id/edit'
+import { Route as LngAdminAdminAuthedLtiPlatformsIdIndexRouteImport } from './routes/$lng/_admin/admin/_authed/lti-platforms/$id/index'
+import { Route as LngAdminAdminAuthedRolesIdIndexRouteImport } from './routes/$lng/_admin/admin/_authed/roles/$id/index'
+import { Route as LngAdminAdminAuthedRolesIdDeleteRouteImport } from './routes/$lng/_admin/admin/_authed/roles/$id/delete'
+import { Route as LngAdminAdminAuthedRolesIdEditRouteImport } from './routes/$lng/_admin/admin/_authed/roles/$id/edit'
+import { Route as LngAdminAdminAuthedUsersIdIndexRouteImport } from './routes/$lng/_admin/admin/_authed/users/$id/index'
+import { Route as LngAdminAdminAuthedUsersIdDeleteRouteImport } from './routes/$lng/_admin/admin/_authed/users/$id/delete'
+import { Route as LngAdminAdminAuthedUsersIdEditRouteImport } from './routes/$lng/_admin/admin/_authed/users/$id/edit'
 import { Route as LngAuthDashboardActivityCodeIdActivitiesIndexRouteImport } from './routes/$lng/_auth/dashboard/activity-code/$id/activities/index'
 import { Route as LngAuthDashboardActivityCodeIdActivitiesEditRouteImport } from './routes/$lng/_auth/dashboard/activity-code/$id/activities/edit'
 
@@ -198,9 +228,20 @@ const RoutesOauthGoogleRoute = RoutesOauthGoogleRouteImport.update({
   path: '/routes/oauth/google',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LngAdminAdminAuthedRouteRoute =
+  LngAdminAdminAuthedRouteRouteImport.update({
+    id: '/admin/_authed',
+    path: '/admin',
+    getParentRoute: () => LngAdminRouteRoute,
+  } as any)
 const LngAdminAdminRenewRoute = LngAdminAdminRenewRouteImport.update({
   id: '/admin/renew',
   path: '/admin/renew',
+  getParentRoute: () => LngAdminRouteRoute,
+} as any)
+const LngAdminAdminSignInRoute = LngAdminAdminSignInRouteImport.update({
+  id: '/admin/sign-in',
+  path: '/admin/sign-in',
   getParentRoute: () => LngAdminRouteRoute,
 } as any)
 const LngAuthDashboardIndexRoute = LngAuthDashboardIndexRouteImport.update({
@@ -236,6 +277,90 @@ const RoutesLtiDeepLinkActivitiesRoute =
     path: '/routes/lti/deep-link/activities',
     getParentRoute: () => rootRouteImport,
   } as any)
+const LngAdminAdminAuthedIndexRoute =
+  LngAdminAdminAuthedIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedAccountRoute =
+  LngAdminAdminAuthedAccountRouteImport.update({
+    id: '/account',
+    path: '/account',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedActivitiesIndexRoute =
+  LngAdminAdminAuthedActivitiesIndexRouteImport.update({
+    id: '/activities/',
+    path: '/activities/',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedActivitiesAddRoute =
+  LngAdminAdminAuthedActivitiesAddRouteImport.update({
+    id: '/activities/add',
+    path: '/activities/add',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedAdminRolesIndexRoute =
+  LngAdminAdminAuthedAdminRolesIndexRouteImport.update({
+    id: '/admin-roles/',
+    path: '/admin-roles/',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedAdminRolesAddRoute =
+  LngAdminAdminAuthedAdminRolesAddRouteImport.update({
+    id: '/admin-roles/add',
+    path: '/admin-roles/add',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedAdminUsersIndexRoute =
+  LngAdminAdminAuthedAdminUsersIndexRouteImport.update({
+    id: '/admin-users/',
+    path: '/admin-users/',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedAdminUsersAddRoute =
+  LngAdminAdminAuthedAdminUsersAddRouteImport.update({
+    id: '/admin-users/add',
+    path: '/admin-users/add',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedLtiPlatformsIndexRoute =
+  LngAdminAdminAuthedLtiPlatformsIndexRouteImport.update({
+    id: '/lti-platforms/',
+    path: '/lti-platforms/',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedLtiPlatformsAddRoute =
+  LngAdminAdminAuthedLtiPlatformsAddRouteImport.update({
+    id: '/lti-platforms/add',
+    path: '/lti-platforms/add',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedRolesIndexRoute =
+  LngAdminAdminAuthedRolesIndexRouteImport.update({
+    id: '/roles/',
+    path: '/roles/',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedRolesAddRoute =
+  LngAdminAdminAuthedRolesAddRouteImport.update({
+    id: '/roles/add',
+    path: '/roles/add',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedUsersIndexRoute =
+  LngAdminAdminAuthedUsersIndexRouteImport.update({
+    id: '/users/',
+    path: '/users/',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedUsersAddRoute =
+  LngAdminAdminAuthedUsersAddRouteImport.update({
+    id: '/users/add',
+    path: '/users/add',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
 const LngAuthDashboardActivityCodeIdIndexRoute =
   LngAuthDashboardActivityCodeIdIndexRouteImport.update({
     id: '/dashboard/activity-code/$id/',
@@ -253,6 +378,90 @@ const LngAuthDashboardActivityCodeIdLearnersRoute =
     id: '/dashboard/activity-code/$id/learners',
     path: '/dashboard/activity-code/$id/learners',
     getParentRoute: () => LngAuthRouteRoute,
+  } as any)
+const LngAdminAdminAuthedActivitiesIdEditRoute =
+  LngAdminAdminAuthedActivitiesIdEditRouteImport.update({
+    id: '/activities/$id/edit',
+    path: '/activities/$id/edit',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedAdminRolesIdIndexRoute =
+  LngAdminAdminAuthedAdminRolesIdIndexRouteImport.update({
+    id: '/admin-roles/$id/',
+    path: '/admin-roles/$id/',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedAdminRolesIdDeleteRoute =
+  LngAdminAdminAuthedAdminRolesIdDeleteRouteImport.update({
+    id: '/admin-roles/$id/delete',
+    path: '/admin-roles/$id/delete',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedAdminRolesIdEditRoute =
+  LngAdminAdminAuthedAdminRolesIdEditRouteImport.update({
+    id: '/admin-roles/$id/edit',
+    path: '/admin-roles/$id/edit',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedAdminUsersIdIndexRoute =
+  LngAdminAdminAuthedAdminUsersIdIndexRouteImport.update({
+    id: '/admin-users/$id/',
+    path: '/admin-users/$id/',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedAdminUsersIdDeleteRoute =
+  LngAdminAdminAuthedAdminUsersIdDeleteRouteImport.update({
+    id: '/admin-users/$id/delete',
+    path: '/admin-users/$id/delete',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedAdminUsersIdEditRoute =
+  LngAdminAdminAuthedAdminUsersIdEditRouteImport.update({
+    id: '/admin-users/$id/edit',
+    path: '/admin-users/$id/edit',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedLtiPlatformsIdIndexRoute =
+  LngAdminAdminAuthedLtiPlatformsIdIndexRouteImport.update({
+    id: '/lti-platforms/$id/',
+    path: '/lti-platforms/$id/',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedRolesIdIndexRoute =
+  LngAdminAdminAuthedRolesIdIndexRouteImport.update({
+    id: '/roles/$id/',
+    path: '/roles/$id/',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedRolesIdDeleteRoute =
+  LngAdminAdminAuthedRolesIdDeleteRouteImport.update({
+    id: '/roles/$id/delete',
+    path: '/roles/$id/delete',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedRolesIdEditRoute =
+  LngAdminAdminAuthedRolesIdEditRouteImport.update({
+    id: '/roles/$id/edit',
+    path: '/roles/$id/edit',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedUsersIdIndexRoute =
+  LngAdminAdminAuthedUsersIdIndexRouteImport.update({
+    id: '/users/$id/',
+    path: '/users/$id/',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedUsersIdDeleteRoute =
+  LngAdminAdminAuthedUsersIdDeleteRouteImport.update({
+    id: '/users/$id/delete',
+    path: '/users/$id/delete',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
+const LngAdminAdminAuthedUsersIdEditRoute =
+  LngAdminAdminAuthedUsersIdEditRouteImport.update({
+    id: '/users/$id/edit',
+    path: '/users/$id/edit',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
   } as any)
 const LngAuthDashboardActivityCodeIdActivitiesIndexRoute =
   LngAuthDashboardActivityCodeIdActivitiesIndexRouteImport.update({
@@ -294,17 +503,47 @@ export interface FileRoutesByFullPath {
   '/routes/oauth/github': typeof RoutesOauthGithubRoute
   '/routes/oauth/google': typeof RoutesOauthGoogleRoute
   '/$lng/': typeof LngPublicIndexRoute
+  '/$lng/admin': typeof LngAdminAdminAuthedRouteRouteWithChildren
   '/$lng/admin/renew': typeof LngAdminAdminRenewRoute
+  '/$lng/admin/sign-in': typeof LngAdminAdminSignInRoute
   '/$lng/dashboard/create-activity-code': typeof LngAuthDashboardCreateActivityCodeRoute
   '/$lng/start-activity/$': typeof LngFormsStartActivitySplatRoute
   '/$lng/docs/$slug': typeof LngPublicDocsSlugRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
   '/$lng/dashboard/': typeof LngAuthDashboardIndexRoute
   '/$lng/docs/': typeof LngPublicDocsIndexRoute
+  '/$lng/admin/account': typeof LngAdminAdminAuthedAccountRoute
+  '/$lng/admin/': typeof LngAdminAdminAuthedIndexRoute
+  '/$lng/admin/activities/add': typeof LngAdminAdminAuthedActivitiesAddRoute
+  '/$lng/admin/admin-roles/add': typeof LngAdminAdminAuthedAdminRolesAddRoute
+  '/$lng/admin/admin-users/add': typeof LngAdminAdminAuthedAdminUsersAddRoute
+  '/$lng/admin/lti-platforms/add': typeof LngAdminAdminAuthedLtiPlatformsAddRoute
+  '/$lng/admin/roles/add': typeof LngAdminAdminAuthedRolesAddRoute
+  '/$lng/admin/users/add': typeof LngAdminAdminAuthedUsersAddRoute
   '/$lng/dashboard/activity-code/$id/completion': typeof LngAuthDashboardActivityCodeIdCompletionRoute
   '/$lng/dashboard/activity-code/$id/learners': typeof LngAuthDashboardActivityCodeIdLearnersRoute
+  '/$lng/admin/activities/': typeof LngAdminAdminAuthedActivitiesIndexRoute
+  '/$lng/admin/admin-roles/': typeof LngAdminAdminAuthedAdminRolesIndexRoute
+  '/$lng/admin/admin-users/': typeof LngAdminAdminAuthedAdminUsersIndexRoute
+  '/$lng/admin/lti-platforms/': typeof LngAdminAdminAuthedLtiPlatformsIndexRoute
+  '/$lng/admin/roles/': typeof LngAdminAdminAuthedRolesIndexRoute
+  '/$lng/admin/users/': typeof LngAdminAdminAuthedUsersIndexRoute
   '/$lng/dashboard/activity-code/$id/': typeof LngAuthDashboardActivityCodeIdIndexRoute
+  '/$lng/admin/activities/$id/edit': typeof LngAdminAdminAuthedActivitiesIdEditRoute
+  '/$lng/admin/admin-roles/$id/delete': typeof LngAdminAdminAuthedAdminRolesIdDeleteRoute
+  '/$lng/admin/admin-roles/$id/edit': typeof LngAdminAdminAuthedAdminRolesIdEditRoute
+  '/$lng/admin/admin-users/$id/delete': typeof LngAdminAdminAuthedAdminUsersIdDeleteRoute
+  '/$lng/admin/admin-users/$id/edit': typeof LngAdminAdminAuthedAdminUsersIdEditRoute
+  '/$lng/admin/roles/$id/delete': typeof LngAdminAdminAuthedRolesIdDeleteRoute
+  '/$lng/admin/roles/$id/edit': typeof LngAdminAdminAuthedRolesIdEditRoute
+  '/$lng/admin/users/$id/delete': typeof LngAdminAdminAuthedUsersIdDeleteRoute
+  '/$lng/admin/users/$id/edit': typeof LngAdminAdminAuthedUsersIdEditRoute
   '/$lng/dashboard/activity-code/$id/activities/edit': typeof LngAuthDashboardActivityCodeIdActivitiesEditRoute
+  '/$lng/admin/admin-roles/$id/': typeof LngAdminAdminAuthedAdminRolesIdIndexRoute
+  '/$lng/admin/admin-users/$id/': typeof LngAdminAdminAuthedAdminUsersIdIndexRoute
+  '/$lng/admin/lti-platforms/$id/': typeof LngAdminAdminAuthedLtiPlatformsIdIndexRoute
+  '/$lng/admin/roles/$id/': typeof LngAdminAdminAuthedRolesIdIndexRoute
+  '/$lng/admin/users/$id/': typeof LngAdminAdminAuthedUsersIdIndexRoute
   '/$lng/dashboard/activity-code/$id/activities/': typeof LngAuthDashboardActivityCodeIdActivitiesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -334,16 +573,45 @@ export interface FileRoutesByTo {
   '/routes/oauth/github': typeof RoutesOauthGithubRoute
   '/routes/oauth/google': typeof RoutesOauthGoogleRoute
   '/$lng/admin/renew': typeof LngAdminAdminRenewRoute
+  '/$lng/admin/sign-in': typeof LngAdminAdminSignInRoute
   '/$lng/dashboard/create-activity-code': typeof LngAuthDashboardCreateActivityCodeRoute
   '/$lng/start-activity/$': typeof LngFormsStartActivitySplatRoute
   '/$lng/docs/$slug': typeof LngPublicDocsSlugRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
   '/$lng/dashboard': typeof LngAuthDashboardIndexRoute
   '/$lng/docs': typeof LngPublicDocsIndexRoute
+  '/$lng/admin/account': typeof LngAdminAdminAuthedAccountRoute
+  '/$lng/admin': typeof LngAdminAdminAuthedIndexRoute
+  '/$lng/admin/activities/add': typeof LngAdminAdminAuthedActivitiesAddRoute
+  '/$lng/admin/admin-roles/add': typeof LngAdminAdminAuthedAdminRolesAddRoute
+  '/$lng/admin/admin-users/add': typeof LngAdminAdminAuthedAdminUsersAddRoute
+  '/$lng/admin/lti-platforms/add': typeof LngAdminAdminAuthedLtiPlatformsAddRoute
+  '/$lng/admin/roles/add': typeof LngAdminAdminAuthedRolesAddRoute
+  '/$lng/admin/users/add': typeof LngAdminAdminAuthedUsersAddRoute
   '/$lng/dashboard/activity-code/$id/completion': typeof LngAuthDashboardActivityCodeIdCompletionRoute
   '/$lng/dashboard/activity-code/$id/learners': typeof LngAuthDashboardActivityCodeIdLearnersRoute
+  '/$lng/admin/activities': typeof LngAdminAdminAuthedActivitiesIndexRoute
+  '/$lng/admin/admin-roles': typeof LngAdminAdminAuthedAdminRolesIndexRoute
+  '/$lng/admin/admin-users': typeof LngAdminAdminAuthedAdminUsersIndexRoute
+  '/$lng/admin/lti-platforms': typeof LngAdminAdminAuthedLtiPlatformsIndexRoute
+  '/$lng/admin/roles': typeof LngAdminAdminAuthedRolesIndexRoute
+  '/$lng/admin/users': typeof LngAdminAdminAuthedUsersIndexRoute
   '/$lng/dashboard/activity-code/$id': typeof LngAuthDashboardActivityCodeIdIndexRoute
+  '/$lng/admin/activities/$id/edit': typeof LngAdminAdminAuthedActivitiesIdEditRoute
+  '/$lng/admin/admin-roles/$id/delete': typeof LngAdminAdminAuthedAdminRolesIdDeleteRoute
+  '/$lng/admin/admin-roles/$id/edit': typeof LngAdminAdminAuthedAdminRolesIdEditRoute
+  '/$lng/admin/admin-users/$id/delete': typeof LngAdminAdminAuthedAdminUsersIdDeleteRoute
+  '/$lng/admin/admin-users/$id/edit': typeof LngAdminAdminAuthedAdminUsersIdEditRoute
+  '/$lng/admin/roles/$id/delete': typeof LngAdminAdminAuthedRolesIdDeleteRoute
+  '/$lng/admin/roles/$id/edit': typeof LngAdminAdminAuthedRolesIdEditRoute
+  '/$lng/admin/users/$id/delete': typeof LngAdminAdminAuthedUsersIdDeleteRoute
+  '/$lng/admin/users/$id/edit': typeof LngAdminAdminAuthedUsersIdEditRoute
   '/$lng/dashboard/activity-code/$id/activities/edit': typeof LngAuthDashboardActivityCodeIdActivitiesEditRoute
+  '/$lng/admin/admin-roles/$id': typeof LngAdminAdminAuthedAdminRolesIdIndexRoute
+  '/$lng/admin/admin-users/$id': typeof LngAdminAdminAuthedAdminUsersIdIndexRoute
+  '/$lng/admin/lti-platforms/$id': typeof LngAdminAdminAuthedLtiPlatformsIdIndexRoute
+  '/$lng/admin/roles/$id': typeof LngAdminAdminAuthedRolesIdIndexRoute
+  '/$lng/admin/users/$id': typeof LngAdminAdminAuthedUsersIdIndexRoute
   '/$lng/dashboard/activity-code/$id/activities': typeof LngAuthDashboardActivityCodeIdActivitiesIndexRoute
 }
 export interface FileRoutesById {
@@ -378,17 +646,47 @@ export interface FileRoutesById {
   '/routes/oauth/github': typeof RoutesOauthGithubRoute
   '/routes/oauth/google': typeof RoutesOauthGoogleRoute
   '/$lng/_public/': typeof LngPublicIndexRoute
+  '/$lng/_admin/admin/_authed': typeof LngAdminAdminAuthedRouteRouteWithChildren
   '/$lng/_admin/admin/renew': typeof LngAdminAdminRenewRoute
+  '/$lng/_admin/admin/sign-in': typeof LngAdminAdminSignInRoute
   '/$lng/_auth/dashboard/create-activity-code': typeof LngAuthDashboardCreateActivityCodeRoute
   '/$lng/_forms/start-activity/$': typeof LngFormsStartActivitySplatRoute
   '/$lng/_public/docs/$slug': typeof LngPublicDocsSlugRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
   '/$lng/_auth/dashboard/': typeof LngAuthDashboardIndexRoute
   '/$lng/_public/docs/': typeof LngPublicDocsIndexRoute
+  '/$lng/_admin/admin/_authed/account': typeof LngAdminAdminAuthedAccountRoute
+  '/$lng/_admin/admin/_authed/': typeof LngAdminAdminAuthedIndexRoute
+  '/$lng/_admin/admin/_authed/activities/add': typeof LngAdminAdminAuthedActivitiesAddRoute
+  '/$lng/_admin/admin/_authed/admin-roles/add': typeof LngAdminAdminAuthedAdminRolesAddRoute
+  '/$lng/_admin/admin/_authed/admin-users/add': typeof LngAdminAdminAuthedAdminUsersAddRoute
+  '/$lng/_admin/admin/_authed/lti-platforms/add': typeof LngAdminAdminAuthedLtiPlatformsAddRoute
+  '/$lng/_admin/admin/_authed/roles/add': typeof LngAdminAdminAuthedRolesAddRoute
+  '/$lng/_admin/admin/_authed/users/add': typeof LngAdminAdminAuthedUsersAddRoute
   '/$lng/_auth/dashboard/activity-code/$id/completion': typeof LngAuthDashboardActivityCodeIdCompletionRoute
   '/$lng/_auth/dashboard/activity-code/$id/learners': typeof LngAuthDashboardActivityCodeIdLearnersRoute
+  '/$lng/_admin/admin/_authed/activities/': typeof LngAdminAdminAuthedActivitiesIndexRoute
+  '/$lng/_admin/admin/_authed/admin-roles/': typeof LngAdminAdminAuthedAdminRolesIndexRoute
+  '/$lng/_admin/admin/_authed/admin-users/': typeof LngAdminAdminAuthedAdminUsersIndexRoute
+  '/$lng/_admin/admin/_authed/lti-platforms/': typeof LngAdminAdminAuthedLtiPlatformsIndexRoute
+  '/$lng/_admin/admin/_authed/roles/': typeof LngAdminAdminAuthedRolesIndexRoute
+  '/$lng/_admin/admin/_authed/users/': typeof LngAdminAdminAuthedUsersIndexRoute
   '/$lng/_auth/dashboard/activity-code/$id/': typeof LngAuthDashboardActivityCodeIdIndexRoute
+  '/$lng/_admin/admin/_authed/activities/$id/edit': typeof LngAdminAdminAuthedActivitiesIdEditRoute
+  '/$lng/_admin/admin/_authed/admin-roles/$id/delete': typeof LngAdminAdminAuthedAdminRolesIdDeleteRoute
+  '/$lng/_admin/admin/_authed/admin-roles/$id/edit': typeof LngAdminAdminAuthedAdminRolesIdEditRoute
+  '/$lng/_admin/admin/_authed/admin-users/$id/delete': typeof LngAdminAdminAuthedAdminUsersIdDeleteRoute
+  '/$lng/_admin/admin/_authed/admin-users/$id/edit': typeof LngAdminAdminAuthedAdminUsersIdEditRoute
+  '/$lng/_admin/admin/_authed/roles/$id/delete': typeof LngAdminAdminAuthedRolesIdDeleteRoute
+  '/$lng/_admin/admin/_authed/roles/$id/edit': typeof LngAdminAdminAuthedRolesIdEditRoute
+  '/$lng/_admin/admin/_authed/users/$id/delete': typeof LngAdminAdminAuthedUsersIdDeleteRoute
+  '/$lng/_admin/admin/_authed/users/$id/edit': typeof LngAdminAdminAuthedUsersIdEditRoute
   '/$lng/_auth/dashboard/activity-code/$id/activities/edit': typeof LngAuthDashboardActivityCodeIdActivitiesEditRoute
+  '/$lng/_admin/admin/_authed/admin-roles/$id/': typeof LngAdminAdminAuthedAdminRolesIdIndexRoute
+  '/$lng/_admin/admin/_authed/admin-users/$id/': typeof LngAdminAdminAuthedAdminUsersIdIndexRoute
+  '/$lng/_admin/admin/_authed/lti-platforms/$id/': typeof LngAdminAdminAuthedLtiPlatformsIdIndexRoute
+  '/$lng/_admin/admin/_authed/roles/$id/': typeof LngAdminAdminAuthedRolesIdIndexRoute
+  '/$lng/_admin/admin/_authed/users/$id/': typeof LngAdminAdminAuthedUsersIdIndexRoute
   '/$lng/_auth/dashboard/activity-code/$id/activities/': typeof LngAuthDashboardActivityCodeIdActivitiesIndexRoute
 }
 export interface FileRouteTypes {
@@ -420,17 +718,47 @@ export interface FileRouteTypes {
     | '/routes/oauth/github'
     | '/routes/oauth/google'
     | '/$lng/'
+    | '/$lng/admin'
     | '/$lng/admin/renew'
+    | '/$lng/admin/sign-in'
     | '/$lng/dashboard/create-activity-code'
     | '/$lng/start-activity/$'
     | '/$lng/docs/$slug'
     | '/routes/lti/deep-link/activities'
     | '/$lng/dashboard/'
     | '/$lng/docs/'
+    | '/$lng/admin/account'
+    | '/$lng/admin/'
+    | '/$lng/admin/activities/add'
+    | '/$lng/admin/admin-roles/add'
+    | '/$lng/admin/admin-users/add'
+    | '/$lng/admin/lti-platforms/add'
+    | '/$lng/admin/roles/add'
+    | '/$lng/admin/users/add'
     | '/$lng/dashboard/activity-code/$id/completion'
     | '/$lng/dashboard/activity-code/$id/learners'
+    | '/$lng/admin/activities/'
+    | '/$lng/admin/admin-roles/'
+    | '/$lng/admin/admin-users/'
+    | '/$lng/admin/lti-platforms/'
+    | '/$lng/admin/roles/'
+    | '/$lng/admin/users/'
     | '/$lng/dashboard/activity-code/$id/'
+    | '/$lng/admin/activities/$id/edit'
+    | '/$lng/admin/admin-roles/$id/delete'
+    | '/$lng/admin/admin-roles/$id/edit'
+    | '/$lng/admin/admin-users/$id/delete'
+    | '/$lng/admin/admin-users/$id/edit'
+    | '/$lng/admin/roles/$id/delete'
+    | '/$lng/admin/roles/$id/edit'
+    | '/$lng/admin/users/$id/delete'
+    | '/$lng/admin/users/$id/edit'
     | '/$lng/dashboard/activity-code/$id/activities/edit'
+    | '/$lng/admin/admin-roles/$id/'
+    | '/$lng/admin/admin-users/$id/'
+    | '/$lng/admin/lti-platforms/$id/'
+    | '/$lng/admin/roles/$id/'
+    | '/$lng/admin/users/$id/'
     | '/$lng/dashboard/activity-code/$id/activities/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -460,16 +788,45 @@ export interface FileRouteTypes {
     | '/routes/oauth/github'
     | '/routes/oauth/google'
     | '/$lng/admin/renew'
+    | '/$lng/admin/sign-in'
     | '/$lng/dashboard/create-activity-code'
     | '/$lng/start-activity/$'
     | '/$lng/docs/$slug'
     | '/routes/lti/deep-link/activities'
     | '/$lng/dashboard'
     | '/$lng/docs'
+    | '/$lng/admin/account'
+    | '/$lng/admin'
+    | '/$lng/admin/activities/add'
+    | '/$lng/admin/admin-roles/add'
+    | '/$lng/admin/admin-users/add'
+    | '/$lng/admin/lti-platforms/add'
+    | '/$lng/admin/roles/add'
+    | '/$lng/admin/users/add'
     | '/$lng/dashboard/activity-code/$id/completion'
     | '/$lng/dashboard/activity-code/$id/learners'
+    | '/$lng/admin/activities'
+    | '/$lng/admin/admin-roles'
+    | '/$lng/admin/admin-users'
+    | '/$lng/admin/lti-platforms'
+    | '/$lng/admin/roles'
+    | '/$lng/admin/users'
     | '/$lng/dashboard/activity-code/$id'
+    | '/$lng/admin/activities/$id/edit'
+    | '/$lng/admin/admin-roles/$id/delete'
+    | '/$lng/admin/admin-roles/$id/edit'
+    | '/$lng/admin/admin-users/$id/delete'
+    | '/$lng/admin/admin-users/$id/edit'
+    | '/$lng/admin/roles/$id/delete'
+    | '/$lng/admin/roles/$id/edit'
+    | '/$lng/admin/users/$id/delete'
+    | '/$lng/admin/users/$id/edit'
     | '/$lng/dashboard/activity-code/$id/activities/edit'
+    | '/$lng/admin/admin-roles/$id'
+    | '/$lng/admin/admin-users/$id'
+    | '/$lng/admin/lti-platforms/$id'
+    | '/$lng/admin/roles/$id'
+    | '/$lng/admin/users/$id'
     | '/$lng/dashboard/activity-code/$id/activities'
   id:
     | '__root__'
@@ -503,17 +860,47 @@ export interface FileRouteTypes {
     | '/routes/oauth/github'
     | '/routes/oauth/google'
     | '/$lng/_public/'
+    | '/$lng/_admin/admin/_authed'
     | '/$lng/_admin/admin/renew'
+    | '/$lng/_admin/admin/sign-in'
     | '/$lng/_auth/dashboard/create-activity-code'
     | '/$lng/_forms/start-activity/$'
     | '/$lng/_public/docs/$slug'
     | '/routes/lti/deep-link/activities'
     | '/$lng/_auth/dashboard/'
     | '/$lng/_public/docs/'
+    | '/$lng/_admin/admin/_authed/account'
+    | '/$lng/_admin/admin/_authed/'
+    | '/$lng/_admin/admin/_authed/activities/add'
+    | '/$lng/_admin/admin/_authed/admin-roles/add'
+    | '/$lng/_admin/admin/_authed/admin-users/add'
+    | '/$lng/_admin/admin/_authed/lti-platforms/add'
+    | '/$lng/_admin/admin/_authed/roles/add'
+    | '/$lng/_admin/admin/_authed/users/add'
     | '/$lng/_auth/dashboard/activity-code/$id/completion'
     | '/$lng/_auth/dashboard/activity-code/$id/learners'
+    | '/$lng/_admin/admin/_authed/activities/'
+    | '/$lng/_admin/admin/_authed/admin-roles/'
+    | '/$lng/_admin/admin/_authed/admin-users/'
+    | '/$lng/_admin/admin/_authed/lti-platforms/'
+    | '/$lng/_admin/admin/_authed/roles/'
+    | '/$lng/_admin/admin/_authed/users/'
     | '/$lng/_auth/dashboard/activity-code/$id/'
+    | '/$lng/_admin/admin/_authed/activities/$id/edit'
+    | '/$lng/_admin/admin/_authed/admin-roles/$id/delete'
+    | '/$lng/_admin/admin/_authed/admin-roles/$id/edit'
+    | '/$lng/_admin/admin/_authed/admin-users/$id/delete'
+    | '/$lng/_admin/admin/_authed/admin-users/$id/edit'
+    | '/$lng/_admin/admin/_authed/roles/$id/delete'
+    | '/$lng/_admin/admin/_authed/roles/$id/edit'
+    | '/$lng/_admin/admin/_authed/users/$id/delete'
+    | '/$lng/_admin/admin/_authed/users/$id/edit'
     | '/$lng/_auth/dashboard/activity-code/$id/activities/edit'
+    | '/$lng/_admin/admin/_authed/admin-roles/$id/'
+    | '/$lng/_admin/admin/_authed/admin-users/$id/'
+    | '/$lng/_admin/admin/_authed/lti-platforms/$id/'
+    | '/$lng/_admin/admin/_authed/roles/$id/'
+    | '/$lng/_admin/admin/_authed/users/$id/'
     | '/$lng/_auth/dashboard/activity-code/$id/activities/'
   fileRoutesById: FileRoutesById
 }
@@ -749,11 +1136,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoutesOauthGoogleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$lng/_admin/admin/_authed': {
+      id: '/$lng/_admin/admin/_authed'
+      path: '/admin'
+      fullPath: '/$lng/admin'
+      preLoaderRoute: typeof LngAdminAdminAuthedRouteRouteImport
+      parentRoute: typeof LngAdminRouteRoute
+    }
     '/$lng/_admin/admin/renew': {
       id: '/$lng/_admin/admin/renew'
       path: '/admin/renew'
       fullPath: '/$lng/admin/renew'
       preLoaderRoute: typeof LngAdminAdminRenewRouteImport
+      parentRoute: typeof LngAdminRouteRoute
+    }
+    '/$lng/_admin/admin/sign-in': {
+      id: '/$lng/_admin/admin/sign-in'
+      path: '/admin/sign-in'
+      fullPath: '/$lng/admin/sign-in'
+      preLoaderRoute: typeof LngAdminAdminSignInRouteImport
       parentRoute: typeof LngAdminRouteRoute
     }
     '/$lng/_auth/dashboard/': {
@@ -798,6 +1199,104 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoutesLtiDeepLinkActivitiesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$lng/_admin/admin/_authed/': {
+      id: '/$lng/_admin/admin/_authed/'
+      path: '/'
+      fullPath: '/$lng/admin/'
+      preLoaderRoute: typeof LngAdminAdminAuthedIndexRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/account': {
+      id: '/$lng/_admin/admin/_authed/account'
+      path: '/account'
+      fullPath: '/$lng/admin/account'
+      preLoaderRoute: typeof LngAdminAdminAuthedAccountRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/activities/': {
+      id: '/$lng/_admin/admin/_authed/activities/'
+      path: '/activities'
+      fullPath: '/$lng/admin/activities/'
+      preLoaderRoute: typeof LngAdminAdminAuthedActivitiesIndexRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/activities/add': {
+      id: '/$lng/_admin/admin/_authed/activities/add'
+      path: '/activities/add'
+      fullPath: '/$lng/admin/activities/add'
+      preLoaderRoute: typeof LngAdminAdminAuthedActivitiesAddRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/admin-roles/': {
+      id: '/$lng/_admin/admin/_authed/admin-roles/'
+      path: '/admin-roles'
+      fullPath: '/$lng/admin/admin-roles/'
+      preLoaderRoute: typeof LngAdminAdminAuthedAdminRolesIndexRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/admin-roles/add': {
+      id: '/$lng/_admin/admin/_authed/admin-roles/add'
+      path: '/admin-roles/add'
+      fullPath: '/$lng/admin/admin-roles/add'
+      preLoaderRoute: typeof LngAdminAdminAuthedAdminRolesAddRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/admin-users/': {
+      id: '/$lng/_admin/admin/_authed/admin-users/'
+      path: '/admin-users'
+      fullPath: '/$lng/admin/admin-users/'
+      preLoaderRoute: typeof LngAdminAdminAuthedAdminUsersIndexRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/admin-users/add': {
+      id: '/$lng/_admin/admin/_authed/admin-users/add'
+      path: '/admin-users/add'
+      fullPath: '/$lng/admin/admin-users/add'
+      preLoaderRoute: typeof LngAdminAdminAuthedAdminUsersAddRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/lti-platforms/': {
+      id: '/$lng/_admin/admin/_authed/lti-platforms/'
+      path: '/lti-platforms'
+      fullPath: '/$lng/admin/lti-platforms/'
+      preLoaderRoute: typeof LngAdminAdminAuthedLtiPlatformsIndexRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/lti-platforms/add': {
+      id: '/$lng/_admin/admin/_authed/lti-platforms/add'
+      path: '/lti-platforms/add'
+      fullPath: '/$lng/admin/lti-platforms/add'
+      preLoaderRoute: typeof LngAdminAdminAuthedLtiPlatformsAddRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/roles/': {
+      id: '/$lng/_admin/admin/_authed/roles/'
+      path: '/roles'
+      fullPath: '/$lng/admin/roles/'
+      preLoaderRoute: typeof LngAdminAdminAuthedRolesIndexRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/roles/add': {
+      id: '/$lng/_admin/admin/_authed/roles/add'
+      path: '/roles/add'
+      fullPath: '/$lng/admin/roles/add'
+      preLoaderRoute: typeof LngAdminAdminAuthedRolesAddRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/users/': {
+      id: '/$lng/_admin/admin/_authed/users/'
+      path: '/users'
+      fullPath: '/$lng/admin/users/'
+      preLoaderRoute: typeof LngAdminAdminAuthedUsersIndexRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/users/add': {
+      id: '/$lng/_admin/admin/_authed/users/add'
+      path: '/users/add'
+      fullPath: '/$lng/admin/users/add'
+      preLoaderRoute: typeof LngAdminAdminAuthedUsersAddRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
     '/$lng/_auth/dashboard/activity-code/$id/': {
       id: '/$lng/_auth/dashboard/activity-code/$id/'
       path: '/dashboard/activity-code/$id'
@@ -819,6 +1318,104 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LngAuthDashboardActivityCodeIdLearnersRouteImport
       parentRoute: typeof LngAuthRouteRoute
     }
+    '/$lng/_admin/admin/_authed/activities/$id/edit': {
+      id: '/$lng/_admin/admin/_authed/activities/$id/edit'
+      path: '/activities/$id/edit'
+      fullPath: '/$lng/admin/activities/$id/edit'
+      preLoaderRoute: typeof LngAdminAdminAuthedActivitiesIdEditRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/admin-roles/$id/': {
+      id: '/$lng/_admin/admin/_authed/admin-roles/$id/'
+      path: '/admin-roles/$id'
+      fullPath: '/$lng/admin/admin-roles/$id/'
+      preLoaderRoute: typeof LngAdminAdminAuthedAdminRolesIdIndexRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/admin-roles/$id/delete': {
+      id: '/$lng/_admin/admin/_authed/admin-roles/$id/delete'
+      path: '/admin-roles/$id/delete'
+      fullPath: '/$lng/admin/admin-roles/$id/delete'
+      preLoaderRoute: typeof LngAdminAdminAuthedAdminRolesIdDeleteRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/admin-roles/$id/edit': {
+      id: '/$lng/_admin/admin/_authed/admin-roles/$id/edit'
+      path: '/admin-roles/$id/edit'
+      fullPath: '/$lng/admin/admin-roles/$id/edit'
+      preLoaderRoute: typeof LngAdminAdminAuthedAdminRolesIdEditRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/admin-users/$id/': {
+      id: '/$lng/_admin/admin/_authed/admin-users/$id/'
+      path: '/admin-users/$id'
+      fullPath: '/$lng/admin/admin-users/$id/'
+      preLoaderRoute: typeof LngAdminAdminAuthedAdminUsersIdIndexRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/admin-users/$id/delete': {
+      id: '/$lng/_admin/admin/_authed/admin-users/$id/delete'
+      path: '/admin-users/$id/delete'
+      fullPath: '/$lng/admin/admin-users/$id/delete'
+      preLoaderRoute: typeof LngAdminAdminAuthedAdminUsersIdDeleteRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/admin-users/$id/edit': {
+      id: '/$lng/_admin/admin/_authed/admin-users/$id/edit'
+      path: '/admin-users/$id/edit'
+      fullPath: '/$lng/admin/admin-users/$id/edit'
+      preLoaderRoute: typeof LngAdminAdminAuthedAdminUsersIdEditRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/lti-platforms/$id/': {
+      id: '/$lng/_admin/admin/_authed/lti-platforms/$id/'
+      path: '/lti-platforms/$id'
+      fullPath: '/$lng/admin/lti-platforms/$id/'
+      preLoaderRoute: typeof LngAdminAdminAuthedLtiPlatformsIdIndexRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/roles/$id/': {
+      id: '/$lng/_admin/admin/_authed/roles/$id/'
+      path: '/roles/$id'
+      fullPath: '/$lng/admin/roles/$id/'
+      preLoaderRoute: typeof LngAdminAdminAuthedRolesIdIndexRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/roles/$id/delete': {
+      id: '/$lng/_admin/admin/_authed/roles/$id/delete'
+      path: '/roles/$id/delete'
+      fullPath: '/$lng/admin/roles/$id/delete'
+      preLoaderRoute: typeof LngAdminAdminAuthedRolesIdDeleteRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/roles/$id/edit': {
+      id: '/$lng/_admin/admin/_authed/roles/$id/edit'
+      path: '/roles/$id/edit'
+      fullPath: '/$lng/admin/roles/$id/edit'
+      preLoaderRoute: typeof LngAdminAdminAuthedRolesIdEditRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/users/$id/': {
+      id: '/$lng/_admin/admin/_authed/users/$id/'
+      path: '/users/$id'
+      fullPath: '/$lng/admin/users/$id/'
+      preLoaderRoute: typeof LngAdminAdminAuthedUsersIdIndexRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/users/$id/delete': {
+      id: '/$lng/_admin/admin/_authed/users/$id/delete'
+      path: '/users/$id/delete'
+      fullPath: '/$lng/admin/users/$id/delete'
+      preLoaderRoute: typeof LngAdminAdminAuthedUsersIdDeleteRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
+    '/$lng/_admin/admin/_authed/users/$id/edit': {
+      id: '/$lng/_admin/admin/_authed/users/$id/edit'
+      path: '/users/$id/edit'
+      fullPath: '/$lng/admin/users/$id/edit'
+      preLoaderRoute: typeof LngAdminAdminAuthedUsersIdEditRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
     '/$lng/_auth/dashboard/activity-code/$id/activities/': {
       id: '/$lng/_auth/dashboard/activity-code/$id/activities/'
       path: '/dashboard/activity-code/$id/activities'
@@ -836,12 +1433,102 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface LngAdminAdminAuthedRouteRouteChildren {
+  LngAdminAdminAuthedAccountRoute: typeof LngAdminAdminAuthedAccountRoute
+  LngAdminAdminAuthedIndexRoute: typeof LngAdminAdminAuthedIndexRoute
+  LngAdminAdminAuthedActivitiesAddRoute: typeof LngAdminAdminAuthedActivitiesAddRoute
+  LngAdminAdminAuthedAdminRolesAddRoute: typeof LngAdminAdminAuthedAdminRolesAddRoute
+  LngAdminAdminAuthedAdminUsersAddRoute: typeof LngAdminAdminAuthedAdminUsersAddRoute
+  LngAdminAdminAuthedLtiPlatformsAddRoute: typeof LngAdminAdminAuthedLtiPlatformsAddRoute
+  LngAdminAdminAuthedRolesAddRoute: typeof LngAdminAdminAuthedRolesAddRoute
+  LngAdminAdminAuthedUsersAddRoute: typeof LngAdminAdminAuthedUsersAddRoute
+  LngAdminAdminAuthedActivitiesIndexRoute: typeof LngAdminAdminAuthedActivitiesIndexRoute
+  LngAdminAdminAuthedAdminRolesIndexRoute: typeof LngAdminAdminAuthedAdminRolesIndexRoute
+  LngAdminAdminAuthedAdminUsersIndexRoute: typeof LngAdminAdminAuthedAdminUsersIndexRoute
+  LngAdminAdminAuthedLtiPlatformsIndexRoute: typeof LngAdminAdminAuthedLtiPlatformsIndexRoute
+  LngAdminAdminAuthedRolesIndexRoute: typeof LngAdminAdminAuthedRolesIndexRoute
+  LngAdminAdminAuthedUsersIndexRoute: typeof LngAdminAdminAuthedUsersIndexRoute
+  LngAdminAdminAuthedActivitiesIdEditRoute: typeof LngAdminAdminAuthedActivitiesIdEditRoute
+  LngAdminAdminAuthedAdminRolesIdDeleteRoute: typeof LngAdminAdminAuthedAdminRolesIdDeleteRoute
+  LngAdminAdminAuthedAdminRolesIdEditRoute: typeof LngAdminAdminAuthedAdminRolesIdEditRoute
+  LngAdminAdminAuthedAdminUsersIdDeleteRoute: typeof LngAdminAdminAuthedAdminUsersIdDeleteRoute
+  LngAdminAdminAuthedAdminUsersIdEditRoute: typeof LngAdminAdminAuthedAdminUsersIdEditRoute
+  LngAdminAdminAuthedRolesIdDeleteRoute: typeof LngAdminAdminAuthedRolesIdDeleteRoute
+  LngAdminAdminAuthedRolesIdEditRoute: typeof LngAdminAdminAuthedRolesIdEditRoute
+  LngAdminAdminAuthedUsersIdDeleteRoute: typeof LngAdminAdminAuthedUsersIdDeleteRoute
+  LngAdminAdminAuthedUsersIdEditRoute: typeof LngAdminAdminAuthedUsersIdEditRoute
+  LngAdminAdminAuthedAdminRolesIdIndexRoute: typeof LngAdminAdminAuthedAdminRolesIdIndexRoute
+  LngAdminAdminAuthedAdminUsersIdIndexRoute: typeof LngAdminAdminAuthedAdminUsersIdIndexRoute
+  LngAdminAdminAuthedLtiPlatformsIdIndexRoute: typeof LngAdminAdminAuthedLtiPlatformsIdIndexRoute
+  LngAdminAdminAuthedRolesIdIndexRoute: typeof LngAdminAdminAuthedRolesIdIndexRoute
+  LngAdminAdminAuthedUsersIdIndexRoute: typeof LngAdminAdminAuthedUsersIdIndexRoute
+}
+
+const LngAdminAdminAuthedRouteRouteChildren: LngAdminAdminAuthedRouteRouteChildren =
+  {
+    LngAdminAdminAuthedAccountRoute: LngAdminAdminAuthedAccountRoute,
+    LngAdminAdminAuthedIndexRoute: LngAdminAdminAuthedIndexRoute,
+    LngAdminAdminAuthedActivitiesAddRoute:
+      LngAdminAdminAuthedActivitiesAddRoute,
+    LngAdminAdminAuthedAdminRolesAddRoute:
+      LngAdminAdminAuthedAdminRolesAddRoute,
+    LngAdminAdminAuthedAdminUsersAddRoute:
+      LngAdminAdminAuthedAdminUsersAddRoute,
+    LngAdminAdminAuthedLtiPlatformsAddRoute:
+      LngAdminAdminAuthedLtiPlatformsAddRoute,
+    LngAdminAdminAuthedRolesAddRoute: LngAdminAdminAuthedRolesAddRoute,
+    LngAdminAdminAuthedUsersAddRoute: LngAdminAdminAuthedUsersAddRoute,
+    LngAdminAdminAuthedActivitiesIndexRoute:
+      LngAdminAdminAuthedActivitiesIndexRoute,
+    LngAdminAdminAuthedAdminRolesIndexRoute:
+      LngAdminAdminAuthedAdminRolesIndexRoute,
+    LngAdminAdminAuthedAdminUsersIndexRoute:
+      LngAdminAdminAuthedAdminUsersIndexRoute,
+    LngAdminAdminAuthedLtiPlatformsIndexRoute:
+      LngAdminAdminAuthedLtiPlatformsIndexRoute,
+    LngAdminAdminAuthedRolesIndexRoute: LngAdminAdminAuthedRolesIndexRoute,
+    LngAdminAdminAuthedUsersIndexRoute: LngAdminAdminAuthedUsersIndexRoute,
+    LngAdminAdminAuthedActivitiesIdEditRoute:
+      LngAdminAdminAuthedActivitiesIdEditRoute,
+    LngAdminAdminAuthedAdminRolesIdDeleteRoute:
+      LngAdminAdminAuthedAdminRolesIdDeleteRoute,
+    LngAdminAdminAuthedAdminRolesIdEditRoute:
+      LngAdminAdminAuthedAdminRolesIdEditRoute,
+    LngAdminAdminAuthedAdminUsersIdDeleteRoute:
+      LngAdminAdminAuthedAdminUsersIdDeleteRoute,
+    LngAdminAdminAuthedAdminUsersIdEditRoute:
+      LngAdminAdminAuthedAdminUsersIdEditRoute,
+    LngAdminAdminAuthedRolesIdDeleteRoute:
+      LngAdminAdminAuthedRolesIdDeleteRoute,
+    LngAdminAdminAuthedRolesIdEditRoute: LngAdminAdminAuthedRolesIdEditRoute,
+    LngAdminAdminAuthedUsersIdDeleteRoute:
+      LngAdminAdminAuthedUsersIdDeleteRoute,
+    LngAdminAdminAuthedUsersIdEditRoute: LngAdminAdminAuthedUsersIdEditRoute,
+    LngAdminAdminAuthedAdminRolesIdIndexRoute:
+      LngAdminAdminAuthedAdminRolesIdIndexRoute,
+    LngAdminAdminAuthedAdminUsersIdIndexRoute:
+      LngAdminAdminAuthedAdminUsersIdIndexRoute,
+    LngAdminAdminAuthedLtiPlatformsIdIndexRoute:
+      LngAdminAdminAuthedLtiPlatformsIdIndexRoute,
+    LngAdminAdminAuthedRolesIdIndexRoute: LngAdminAdminAuthedRolesIdIndexRoute,
+    LngAdminAdminAuthedUsersIdIndexRoute: LngAdminAdminAuthedUsersIdIndexRoute,
+  }
+
+const LngAdminAdminAuthedRouteRouteWithChildren =
+  LngAdminAdminAuthedRouteRoute._addFileChildren(
+    LngAdminAdminAuthedRouteRouteChildren,
+  )
+
 interface LngAdminRouteRouteChildren {
+  LngAdminAdminAuthedRouteRoute: typeof LngAdminAdminAuthedRouteRouteWithChildren
   LngAdminAdminRenewRoute: typeof LngAdminAdminRenewRoute
+  LngAdminAdminSignInRoute: typeof LngAdminAdminSignInRoute
 }
 
 const LngAdminRouteRouteChildren: LngAdminRouteRouteChildren = {
+  LngAdminAdminAuthedRouteRoute: LngAdminAdminAuthedRouteRouteWithChildren,
   LngAdminAdminRenewRoute: LngAdminAdminRenewRoute,
+  LngAdminAdminSignInRoute: LngAdminAdminSignInRoute,
 }
 
 const LngAdminRouteRouteWithChildren = LngAdminRouteRoute._addFileChildren(
