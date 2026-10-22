@@ -1138,7 +1138,7 @@ Resolved 2026-10-23:
 5. **Public env names** — `NEXT_PUBLIC_*` → `VITE_*`, no fallback window; the
    public server URL is delivered at runtime.
 
-## Implementation Notes (Tasks 3–7, 2026-10-23)
+## Implementation Notes (Tasks 3–17, 2026-10-23)
 
 Recorded while the checkpoint 1 review was pending; the work sits on
 `wip/tanstack-next`, stacked on `feat/tanstack` and rebased if review asks for
@@ -1172,6 +1172,60 @@ changes.
   found (and fixed) a double renewal caused by an unstable default prop. The
   iframe harness was not moved into the branch: its probe routes are spike-only
   and must not ship; Task 21 reruns it from `spike/tanstack`.
+
+- **Task 8:** each `/routes/*` handler is a `server.handlers` file route whose
+  body dynamic-imports a `*.server.ts` half, so no server-only module enters the
+  client graph. `/routes/lti/register` renders its failure on the page instead
+  of returning a bare 500.
+- **Task 9:** `getRootConfigFn` returns `{ publicConfig, analyticsEnabled, flash }`
+  once per page load. The ICU syntax in `en.json` / `es.json` was corrected where
+  the new formatter rejected it.
+- **Framework adapter (between Tasks 9 and 10):** components shared by both hosts
+  import `Link`, `Image`, `useRouter`, `usePathname` and friends from
+  `@/framework`. TypeScript resolves it to the Next implementation
+  (`framework/index.ts`); the Start Vite config aliases it to
+  `framework/start.tsx`. A parity test keeps the two export lists equal. This
+  replaced per-component `*.start.tsx` copies; `lang-link.start.tsx` was removed.
+  Task 18 collapses the adapter into plain TanStack imports or keeps it as a thin
+  seam, whichever reads better then.
+- **Host overrides (Task 11):** a `x.start.ts` sibling replaces `x.ts` in the Start
+  build (Vite plugin `hostOverrides`); `import … from './x.ts?original'` reaches
+  the original. A convention test requires each override to export the same
+  names. Used for registration, the OAuth starts and the bridged actions below.
+- **Action bridge (Task 12, transitional):** the Next server actions under
+  `modules/app/**` and `modules/admin/**` run unchanged on the Start server.
+  Vite aliases `next/headers` and `next/navigation` to shims over the Start
+  request (`lib/next-shims/`), `core-adapter.start.ts` maps the Next core adapter
+  onto `lib/core/start-adapter`, and each action module has a generated
+  `.start.ts` stub that calls a generic server function (`invokeAppAction` /
+  `invokeAdminAction`, each behind its surface and session middleware). The
+  server looks the action up in `ACTION_REGISTRY` by key; anything not listed is
+  rejected. A `redirect()` thrown by an action comes back as a URL the stub loads with a full-page navigation. Task 18
+  converts these to native server functions and deletes the bridge.
+- **Task 13:** the LTI and agent error pages accept only known error codes; an
+  unknown `code` 307s to the page without it, where Next rendered a generic
+  message. The deep-linking logic moved to `deep-linking.logic.ts`, shared by the
+  Next action and the Start server function.
+- **Tasks 14–15:** admin sign-in sits outside the `_authed` layout, which fixes
+  the Next `/es/admin/sign-in` self-redirect (now a Start-only contract check).
+  The admin `callbackUrl` passes through `safeCallbackPath`, closing the Next
+  open redirect. Loaders that 404 on a missing record return the narrowed record,
+  so a missing `data` is a 404 where Next would have thrown during render.
+- **Task 16:** the `__root` smoke test became a contract check
+  (`shell.contract.ts`): `lang` and `data-theme-context` for public, forms and
+  admin pages, passing on both hosts. Rendering `__root` in jsdom would have
+  needed stubs for every piece it exists to test. Tests that still mock `next/*`
+  belong to files Task 18 deletes, plus `create-activity-code.test.node.ts`,
+  whose action converts in Task 18.
+- **Task 17:** `src/lib/shutdown.ts` holds the sequence; `src/server.ts` wires it.
+  Jobs start without blocking the entry module, so HTTP comes up while core
+  initialises. Only an instance that runs jobs installs signal handlers; a
+  frontend instance keeps Nitro's own close (it exited about 1 s after `TERM`).
+  The drain waits for the job `StopHandle` and then for requests the entry
+  pipeline still holds; a streamed body's tail is left to Nitro's
+  `SERVER_SHUTDOWN_TIMEOUT`. `SHUTDOWN_DRAIN_SECONDS` (default 70) and a mirror of
+  core's `LTI_SCORE_SUBMISSION_REQUEST_TIMEOUT_SECONDS` feed the boot warning.
+  `/routes/elb-status` returns `{ status, mode, jobs }`.
 
 ## Spike Findings
 
