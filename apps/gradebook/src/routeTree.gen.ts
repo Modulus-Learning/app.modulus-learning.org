@@ -9,27 +9,69 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AdminRenewRouteImport } from './routes/admin/renew'
+import { Route as AuthRenewRouteImport } from './routes/auth/renew'
 
-export interface FileRoutesByFullPath {}
-export interface FileRoutesByTo {}
+const AdminRenewRoute = AdminRenewRouteImport.update({
+  id: '/admin/renew',
+  path: '/admin/renew',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRenewRoute = AuthRenewRouteImport.update({
+  id: '/auth/renew',
+  path: '/auth/renew',
+  getParentRoute: () => rootRouteImport,
+} as any)
+
+export interface FileRoutesByFullPath {
+  '/admin/renew': typeof AdminRenewRoute
+  '/auth/renew': typeof AuthRenewRoute
+}
+export interface FileRoutesByTo {
+  '/admin/renew': typeof AdminRenewRoute
+  '/auth/renew': typeof AuthRenewRoute
+}
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/admin/renew': typeof AdminRenewRoute
+  '/auth/renew': typeof AuthRenewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: never
+  fullPaths: '/admin/renew' | '/auth/renew'
   fileRoutesByTo: FileRoutesByTo
-  to: never
-  id: '__root__'
+  to: '/admin/renew' | '/auth/renew'
+  id: '__root__' | '/admin/renew' | '/auth/renew'
   fileRoutesById: FileRoutesById
 }
-export interface RootRouteChildren {}
-
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {}
+export interface RootRouteChildren {
+  AdminRenewRoute: typeof AdminRenewRoute
+  AuthRenewRoute: typeof AuthRenewRoute
 }
 
-const rootRouteChildren: RootRouteChildren = {}
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/admin/renew': {
+      id: '/admin/renew'
+      path: '/admin/renew'
+      fullPath: '/admin/renew'
+      preLoaderRoute: typeof AdminRenewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/renew': {
+      id: '/auth/renew'
+      path: '/auth/renew'
+      fullPath: '/auth/renew'
+      preLoaderRoute: typeof AuthRenewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+  }
+}
+
+const rootRouteChildren: RootRouteChildren = {
+  AdminRenewRoute: AdminRenewRoute,
+  AuthRenewRoute: AuthRenewRoute,
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()

@@ -4,19 +4,24 @@ import { join, relative, resolve } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
 /**
- * Convention test for the server-function factories (spec: Data and
- * mutations). A server function that skips its surface gate would be callable
- * on an instance that should not serve it, so "forgot the guard" fails here
- * rather than in review.
+ * Convention test for server-function gating (spec: Data and mutations). A
+ * server function that skips its surface gate would be callable on an
+ * instance that should not serve it, so "forgot the guard" fails here rather
+ * than in review.
+ *
+ * Rule: every `createServerFn(...)` is immediately followed by
+ * `.middleware([<gate>, ...])`, where `<gate>` is one of the four gate
+ * middlewares exported by `@/lib/server-fn`, and the gate matches the module's
+ * surface.
  */
 
 const SRC = resolve(__dirname, '..')
-const FACTORY_MODULE = 'lib/server-fn.ts'
 
-const ADMIN_FACTORIES = ['adminFn', 'adminSurfaceFn']
-const FRONTEND_FACTORIES = ['appFn', 'frontendSurfaceFn']
+const ADMIN_GATES = ['adminSessionMiddleware', 'adminSurfaceMiddleware']
+const FRONTEND_GATES = ['appSessionMiddleware', 'frontendSurfaceMiddleware']
+const ALL_GATES = [...ADMIN_GATES, ...FRONTEND_GATES]
 
-/** The only modules allowed the session-free admin factory. */
+/** The only modules allowed the session-free admin gate. */
 const ADMIN_SURFACE_ALLOWLIST = new Set([
   'modules/admin/session/sign-in.ts',
   'modules/admin/session/renew.ts',
@@ -30,57 +35,73 @@ const sourceFiles = (dir: string): string[] =>
     return /\.(ts|tsx)$/.test(name) && !/\.test(\.node)?\.tsx?$/.test(name) ? [path] : []
   })
 
+/** Drops block and line comments, so documentation that mentions `createServerFn(...)` is not scanned. */
+const stripComments = (source: string) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
 const files = sourceFiles(SRC).map((path) => ({
   path: relative(SRC, path),
-  source: readFileSync(path, 'utf8'),
+  source: stripComments(readFileSync(path, 'utf8')),
 }))
 
-const importedFactories = (source: string): string[] => {
-  const match = source.match(/import\s*\{([^}]*)\}\s*from\s*['"]@\/lib\/server-fn['"]/)
-  if (match == null) return []
-  return match[1]
-    .split(',')
-    .map((name) => name.trim().split(/\s+as\s+/)[0])
-    .filter(Boolean)
-}
+/** The first middleware of each `createServerFn(...)` in a source, or null when none follows. */
+const serverFnGates = (source: string): Array<string | null> =>
+  [...source.matchAll(/\bcreateServerFn\s*\(/g)].map((match) => {
+    const rest = source.slice(match.index)
+    const gate = rest.match(/^createServerFn\s*\([^)]*\)\s*\.middleware\(\s*\[\s*(\w+)/)
+    return gate?.[1] ?? null
+  })
 
-describe('server-function factory convention', () => {
-  test('no bare createServerFn outside the factory module', () => {
-    const offenders = files
-      .filter(({ path }) => path !== FACTORY_MODULE)
-      .filter(({ source }) => /\bcreateServerFn\s*\(/.test(source))
-      .map(({ path }) => path)
+const withServerFns = files
+  .map((file) => ({ ...file, gates: serverFnGates(file.source) }))
+  .filter(({ gates }) => gates.length > 0)
+
+describe('server-function gate convention', () => {
+  test('every createServerFn starts with a gate middleware', () => {
+    const offenders = withServerFns
+      .filter(({ gates }) => gates.some((gate) => gate == null || !ALL_GATES.includes(gate)))
+      .map(({ path, gates }) => `${path}: ${gates.join(', ')}`)
     expect(offenders).toEqual([])
   })
 
-  test('admin modules use only admin factories', () => {
-    const offenders = files
+  test('admin modules use only admin gates', () => {
+    const offenders = withServerFns
       .filter(({ path }) => path.startsWith('modules/admin/'))
-      .filter(({ source }) => importedFactories(source).some((f) => FRONTEND_FACTORIES.includes(f)))
+      .filter(({ gates }) => gates.some((gate) => gate != null && FRONTEND_GATES.includes(gate)))
       .map(({ path }) => path)
     expect(offenders).toEqual([])
   })
 
-  test('learner and LTI modules use only frontend factories', () => {
-    const offenders = files
+  test('learner and LTI modules use only frontend gates', () => {
+    const offenders = withServerFns
       .filter(({ path }) => /^modules\/(app|lti)\//.test(path))
-      .filter(({ source }) => importedFactories(source).some((f) => ADMIN_FACTORIES.includes(f)))
+      .filter(({ gates }) => gates.some((gate) => gate != null && ADMIN_GATES.includes(gate)))
       .map(({ path }) => path)
     expect(offenders).toEqual([])
   })
 
-  test('adminSurfaceFn appears only in the admin session allowlist', () => {
-    const offenders = files
-      .filter(({ path }) => path !== FACTORY_MODULE && !ADMIN_SURFACE_ALLOWLIST.has(path))
-      .filter(({ source }) => importedFactories(source).includes('adminSurfaceFn'))
+  test('the session-free admin gate appears only in the admin session allowlist', () => {
+    const offenders = withServerFns
+      .filter(({ path }) => !ADMIN_SURFACE_ALLOWLIST.has(path))
+      .filter(({ gates }) => gates.includes('adminSurfaceMiddleware'))
       .map(({ path }) => path)
     expect(offenders).toEqual([])
   })
 
-  test('the detector sees factory imports', () => {
-    expect(importedFactories("import { appFn, adminFn as a } from '@/lib/server-fn'")).toEqual([
-      'appFn',
-      'adminFn',
+  test('the detector reads gates and reports a missing one', () => {
+    expect(
+      serverFnGates(
+        "createServerFn({ method: 'POST' })\n  .middleware([appSessionMiddleware, other])\n  .handler(x)\n" +
+          'createServerFn().handler(y)'
+      )
+    ).toEqual(['appSessionMiddleware', null])
+  })
+
+  test('the renewal functions are found and gated', () => {
+    const renewals = withServerFns.filter(({ path }) => path.endsWith('session/renew.ts'))
+    expect(renewals.map(({ path, gates }) => [path, gates])).toEqual([
+      ['modules/admin/session/renew.ts', ['adminSurfaceMiddleware']],
+      ['modules/app/session/renew.ts', ['frontendSurfaceMiddleware']],
     ])
   })
 })
