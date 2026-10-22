@@ -18,6 +18,8 @@ export interface RequestScope {
   log: AccessLogAnnotations
   nonce?: string
   flash?: string
+  /** Results memoized for the life of the request (see `oncePerRequest`). */
+  memo: Map<string, Promise<unknown>>
 }
 
 export interface AccessLogAnnotations {
@@ -44,6 +46,7 @@ export const createRequestScope = (now: number = Date.now()): RequestScope => ({
   requestId: uuidv7(),
   startedAt: now,
   log: {},
+  memo: new Map(),
 })
 
 export const runInRequestScope = <T>(scope: RequestScope, fn: () => T): T => storage.run(scope, fn)
@@ -57,4 +60,19 @@ export const currentRequestId = (): string => getRequestScope()?.requestId ?? uu
 export const annotateRequest = (annotations: AccessLogAnnotations): void => {
   const scope = getRequestScope()
   if (scope != null) Object.assign(scope.log, annotations)
+}
+
+/**
+ * Resolve `factory` at most once per request for `key`, rejections included:
+ * a request's cookies cannot change mid-flight, so retrying would only repeat
+ * the same verification. Outside a request it runs unmemoized.
+ */
+export const oncePerRequest = <T>(key: string, factory: () => Promise<T>): Promise<T> => {
+  const scope = getRequestScope()
+  if (scope == null) return factory()
+  const existing = scope.memo.get(key)
+  if (existing != null) return existing as Promise<T>
+  const pending = factory()
+  scope.memo.set(key, pending)
+  return pending
 }

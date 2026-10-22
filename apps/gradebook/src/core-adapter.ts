@@ -1,61 +1,34 @@
 import type { NextRequest } from 'next/server'
 
-import {
-  AdminAuth,
-  type AdminRequestContext,
-  AgentAuth,
-  type AgentRequestContext,
-  type CoreCommands,
-  type CoreInstance,
-  initCore,
-  type RequestContext,
-  UserAuth,
-  type UserRequestContext,
+import type {
+  AdminRequestContext,
+  AgentRequestContext,
+  CoreCommands,
+  CoreInstance,
+  RequestContext,
+  UserRequestContext,
 } from '@modulus-learning/core'
-import { initTokenVerifiers, type TokenVerifiers } from '@modulus-learning/core/tokens'
+import type { TokenVerifiers } from '@modulus-learning/core/tokens'
 
-import { getServerConfig } from './config'
+import * as shared from './lib/core/instance'
 import { getLogger } from './lib/logger'
 import { getRequestId } from './lib/request-id'
 import { getAdminSession } from './modules/admin/session/storage'
 import { getUserSession } from './modules/app/session/storage'
 
-// Singleton instance of the full core instance (commands + background jobs)
-let coreInstancePromise: Promise<CoreInstance>
+// The Next host's core adapter. Initialisation and context building live in
+// the framework-neutral `@/lib/core/instance`, shared with the TanStack Start
+// adapter (`@/lib/core/start-adapter`); this module supplies the Next pieces —
+// `next/headers` sessions, the proxy-set request id and `NextRequest` — and
+// keeps every existing `@/core-adapter` import working. Removed in Task 18.
 
-export const getCoreInstance = (): Promise<CoreInstance> => {
-  if (coreInstancePromise == null) {
-    const { publicServerUrl } = getServerConfig()
-    coreInstancePromise = initCore({
-      pinoLogger: getLogger(),
-      urlBuilder: {
-        baseUrl: publicServerUrl,
-        // The tool's launch endpoint, which is what an LTI resource link's
-        // `target_link_uri` names: the end-point executed at the end of the
-        // OIDC flow, reached by POST. It is deliberately not a page -- see
-        // `LtiDeepLinkingService`, which uses this as the deep-link content
-        // item's url.
-        ltiLaunchUrl: `${publicServerUrl}/routes/lti/launch`,
-        dashboardUrl: `${publicServerUrl}/dashboard`,
-      },
-    })
-  }
-
-  return coreInstancePromise
-}
+export const getCoreInstance = (): Promise<CoreInstance> => shared.getCoreInstance(getLogger())
 
 // Convenience accessor for the commands facade
-export const getCoreCommands = async (): Promise<CoreCommands> => (await getCoreInstance()).commands
+export const getCoreCommands = (): Promise<CoreCommands> => shared.getCoreCommands(getLogger())
 
-// Singleton instance of modulus core token verifiers
-let tokenVerifiersPromise: Promise<TokenVerifiers>
-
-export const getCoreTokenVerifiers = (): Promise<TokenVerifiers> => {
-  if (tokenVerifiersPromise == null) {
-    tokenVerifiersPromise = initTokenVerifiers({ pinoLogger: getLogger() })
-  }
-  return tokenVerifiersPromise
-}
+export const getCoreTokenVerifiers = (): Promise<TokenVerifiers> =>
+  shared.getCoreTokenVerifiers(getLogger())
 
 export const getCoreRequestContext = async (): Promise<RequestContext> => {
   return {
@@ -67,44 +40,22 @@ export const getCoreRequestContext = async (): Promise<RequestContext> => {
 export const getCoreUserRequestContext = async (): Promise<UserRequestContext | undefined> => {
   const session = await getUserSession()
   if (session != null) {
-    return {
-      requestId: await getRequestId(),
-      userAuth: new UserAuth(session.user.id, session.abilities),
-    }
+    return shared.toUserRequestContext(session, await getRequestId())
   }
 }
 
 export const getCoreAdminRequestContext = async (): Promise<AdminRequestContext | undefined> => {
   const session = await getAdminSession()
   if (session != null) {
-    return {
-      requestId: await getRequestId(),
-      adminAuth: new AdminAuth(session.user.id, session.abilities),
-    }
+    return shared.toAdminRequestContext(session, await getRequestId())
   }
 }
 
 export const getCoreAgentRequestContext = async (
   request: NextRequest
-): Promise<AgentRequestContext | undefined> => {
-  const header = request.headers.get('Authorization')
-  if (header == null) {
-    return undefined
-  }
-
-  const headerParts = header.split(' ')
-  if (headerParts.length !== 2 || headerParts[0] !== 'Bearer') {
-    return undefined
-  }
-
-  const tokenVerifiers = await getCoreTokenVerifiers()
-  const result = await tokenVerifiers.agent.verifyAccessToken(headerParts[1])
-
-  if (result.status === 'valid') {
-    const { activity_id, scope_id, user, renew_after } = result.payload
-    return {
-      requestId: await getRequestId(request),
-      agentAuth: new AgentAuth(user.id, activity_id, scope_id, renew_after),
-    }
-  }
-}
+): Promise<AgentRequestContext | undefined> =>
+  shared.toAgentRequestContext(
+    request.headers.get('Authorization'),
+    await getRequestId(request),
+    await getCoreTokenVerifiers()
+  )
