@@ -11,6 +11,19 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AdminRenewRouteImport } from './routes/admin/renew'
 import { Route as AuthRenewRouteImport } from './routes/auth/renew'
+import { Route as RoutesElbStatusRouteImport } from './routes/routes/elb-status'
+import { Route as RoutesKeepAliveRouteImport } from './routes/routes/keep-alive'
+import { Route as RoutesAgentActivityRouteImport } from './routes/routes/agent/activity'
+import { Route as RoutesAgentAuthorizeRouteImport } from './routes/routes/agent/authorize'
+import { Route as RoutesAgentTokenRouteImport } from './routes/routes/agent/token'
+import { Route as RoutesAuthSessionRouteImport } from './routes/routes/auth/session'
+import { Route as RoutesLtiJwksRouteImport } from './routes/routes/lti/jwks'
+import { Route as RoutesLtiLaunchRouteImport } from './routes/routes/lti/launch'
+import { Route as RoutesLtiLoginRouteImport } from './routes/routes/lti/login'
+import { Route as RoutesLtiRegisterRouteImport } from './routes/routes/lti/register'
+import { Route as RoutesOauthGithubRouteImport } from './routes/routes/oauth/github'
+import { Route as RoutesOauthGoogleRouteImport } from './routes/routes/oauth/google'
+import { Route as RoutesLtiDeepLinkActivitiesRouteImport } from './routes/routes/lti/deep-link/activities'
 
 const AdminRenewRoute = AdminRenewRouteImport.update({
   id: '/admin/renew',
@@ -22,31 +35,195 @@ const AuthRenewRoute = AuthRenewRouteImport.update({
   path: '/auth/renew',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RoutesElbStatusRoute = RoutesElbStatusRouteImport.update({
+  id: '/routes/elb-status',
+  path: '/routes/elb-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutesKeepAliveRoute = RoutesKeepAliveRouteImport.update({
+  id: '/routes/keep-alive',
+  path: '/routes/keep-alive',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutesAgentActivityRoute = RoutesAgentActivityRouteImport.update({
+  id: '/routes/agent/activity',
+  path: '/routes/agent/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutesAgentAuthorizeRoute = RoutesAgentAuthorizeRouteImport.update({
+  id: '/routes/agent/authorize',
+  path: '/routes/agent/authorize',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutesAgentTokenRoute = RoutesAgentTokenRouteImport.update({
+  id: '/routes/agent/token',
+  path: '/routes/agent/token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutesAuthSessionRoute = RoutesAuthSessionRouteImport.update({
+  id: '/routes/auth/session',
+  path: '/routes/auth/session',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutesLtiJwksRoute = RoutesLtiJwksRouteImport.update({
+  id: '/routes/lti/jwks',
+  path: '/routes/lti/jwks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutesLtiLaunchRoute = RoutesLtiLaunchRouteImport.update({
+  id: '/routes/lti/launch',
+  path: '/routes/lti/launch',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutesLtiLoginRoute = RoutesLtiLoginRouteImport.update({
+  id: '/routes/lti/login',
+  path: '/routes/lti/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutesLtiRegisterRoute = RoutesLtiRegisterRouteImport.update({
+  id: '/routes/lti/register',
+  path: '/routes/lti/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutesOauthGithubRoute = RoutesOauthGithubRouteImport.update({
+  id: '/routes/oauth/github',
+  path: '/routes/oauth/github',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutesOauthGoogleRoute = RoutesOauthGoogleRouteImport.update({
+  id: '/routes/oauth/google',
+  path: '/routes/oauth/google',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutesLtiDeepLinkActivitiesRoute =
+  RoutesLtiDeepLinkActivitiesRouteImport.update({
+    id: '/routes/lti/deep-link/activities',
+    path: '/routes/lti/deep-link/activities',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/admin/renew': typeof AdminRenewRoute
   '/auth/renew': typeof AuthRenewRoute
+  '/routes/elb-status': typeof RoutesElbStatusRoute
+  '/routes/keep-alive': typeof RoutesKeepAliveRoute
+  '/routes/agent/activity': typeof RoutesAgentActivityRoute
+  '/routes/agent/authorize': typeof RoutesAgentAuthorizeRoute
+  '/routes/agent/token': typeof RoutesAgentTokenRoute
+  '/routes/auth/session': typeof RoutesAuthSessionRoute
+  '/routes/lti/jwks': typeof RoutesLtiJwksRoute
+  '/routes/lti/launch': typeof RoutesLtiLaunchRoute
+  '/routes/lti/login': typeof RoutesLtiLoginRoute
+  '/routes/lti/register': typeof RoutesLtiRegisterRoute
+  '/routes/oauth/github': typeof RoutesOauthGithubRoute
+  '/routes/oauth/google': typeof RoutesOauthGoogleRoute
+  '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
 }
 export interface FileRoutesByTo {
   '/admin/renew': typeof AdminRenewRoute
   '/auth/renew': typeof AuthRenewRoute
+  '/routes/elb-status': typeof RoutesElbStatusRoute
+  '/routes/keep-alive': typeof RoutesKeepAliveRoute
+  '/routes/agent/activity': typeof RoutesAgentActivityRoute
+  '/routes/agent/authorize': typeof RoutesAgentAuthorizeRoute
+  '/routes/agent/token': typeof RoutesAgentTokenRoute
+  '/routes/auth/session': typeof RoutesAuthSessionRoute
+  '/routes/lti/jwks': typeof RoutesLtiJwksRoute
+  '/routes/lti/launch': typeof RoutesLtiLaunchRoute
+  '/routes/lti/login': typeof RoutesLtiLoginRoute
+  '/routes/lti/register': typeof RoutesLtiRegisterRoute
+  '/routes/oauth/github': typeof RoutesOauthGithubRoute
+  '/routes/oauth/google': typeof RoutesOauthGoogleRoute
+  '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/admin/renew': typeof AdminRenewRoute
   '/auth/renew': typeof AuthRenewRoute
+  '/routes/elb-status': typeof RoutesElbStatusRoute
+  '/routes/keep-alive': typeof RoutesKeepAliveRoute
+  '/routes/agent/activity': typeof RoutesAgentActivityRoute
+  '/routes/agent/authorize': typeof RoutesAgentAuthorizeRoute
+  '/routes/agent/token': typeof RoutesAgentTokenRoute
+  '/routes/auth/session': typeof RoutesAuthSessionRoute
+  '/routes/lti/jwks': typeof RoutesLtiJwksRoute
+  '/routes/lti/launch': typeof RoutesLtiLaunchRoute
+  '/routes/lti/login': typeof RoutesLtiLoginRoute
+  '/routes/lti/register': typeof RoutesLtiRegisterRoute
+  '/routes/oauth/github': typeof RoutesOauthGithubRoute
+  '/routes/oauth/google': typeof RoutesOauthGoogleRoute
+  '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/admin/renew' | '/auth/renew'
+  fullPaths:
+    | '/admin/renew'
+    | '/auth/renew'
+    | '/routes/elb-status'
+    | '/routes/keep-alive'
+    | '/routes/agent/activity'
+    | '/routes/agent/authorize'
+    | '/routes/agent/token'
+    | '/routes/auth/session'
+    | '/routes/lti/jwks'
+    | '/routes/lti/launch'
+    | '/routes/lti/login'
+    | '/routes/lti/register'
+    | '/routes/oauth/github'
+    | '/routes/oauth/google'
+    | '/routes/lti/deep-link/activities'
   fileRoutesByTo: FileRoutesByTo
-  to: '/admin/renew' | '/auth/renew'
-  id: '__root__' | '/admin/renew' | '/auth/renew'
+  to:
+    | '/admin/renew'
+    | '/auth/renew'
+    | '/routes/elb-status'
+    | '/routes/keep-alive'
+    | '/routes/agent/activity'
+    | '/routes/agent/authorize'
+    | '/routes/agent/token'
+    | '/routes/auth/session'
+    | '/routes/lti/jwks'
+    | '/routes/lti/launch'
+    | '/routes/lti/login'
+    | '/routes/lti/register'
+    | '/routes/oauth/github'
+    | '/routes/oauth/google'
+    | '/routes/lti/deep-link/activities'
+  id:
+    | '__root__'
+    | '/admin/renew'
+    | '/auth/renew'
+    | '/routes/elb-status'
+    | '/routes/keep-alive'
+    | '/routes/agent/activity'
+    | '/routes/agent/authorize'
+    | '/routes/agent/token'
+    | '/routes/auth/session'
+    | '/routes/lti/jwks'
+    | '/routes/lti/launch'
+    | '/routes/lti/login'
+    | '/routes/lti/register'
+    | '/routes/oauth/github'
+    | '/routes/oauth/google'
+    | '/routes/lti/deep-link/activities'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AdminRenewRoute: typeof AdminRenewRoute
   AuthRenewRoute: typeof AuthRenewRoute
+  RoutesElbStatusRoute: typeof RoutesElbStatusRoute
+  RoutesKeepAliveRoute: typeof RoutesKeepAliveRoute
+  RoutesAgentActivityRoute: typeof RoutesAgentActivityRoute
+  RoutesAgentAuthorizeRoute: typeof RoutesAgentAuthorizeRoute
+  RoutesAgentTokenRoute: typeof RoutesAgentTokenRoute
+  RoutesAuthSessionRoute: typeof RoutesAuthSessionRoute
+  RoutesLtiJwksRoute: typeof RoutesLtiJwksRoute
+  RoutesLtiLaunchRoute: typeof RoutesLtiLaunchRoute
+  RoutesLtiLoginRoute: typeof RoutesLtiLoginRoute
+  RoutesLtiRegisterRoute: typeof RoutesLtiRegisterRoute
+  RoutesOauthGithubRoute: typeof RoutesOauthGithubRoute
+  RoutesOauthGoogleRoute: typeof RoutesOauthGoogleRoute
+  RoutesLtiDeepLinkActivitiesRoute: typeof RoutesLtiDeepLinkActivitiesRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +242,116 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRenewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/routes/elb-status': {
+      id: '/routes/elb-status'
+      path: '/routes/elb-status'
+      fullPath: '/routes/elb-status'
+      preLoaderRoute: typeof RoutesElbStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/keep-alive': {
+      id: '/routes/keep-alive'
+      path: '/routes/keep-alive'
+      fullPath: '/routes/keep-alive'
+      preLoaderRoute: typeof RoutesKeepAliveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/agent/activity': {
+      id: '/routes/agent/activity'
+      path: '/routes/agent/activity'
+      fullPath: '/routes/agent/activity'
+      preLoaderRoute: typeof RoutesAgentActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/agent/authorize': {
+      id: '/routes/agent/authorize'
+      path: '/routes/agent/authorize'
+      fullPath: '/routes/agent/authorize'
+      preLoaderRoute: typeof RoutesAgentAuthorizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/agent/token': {
+      id: '/routes/agent/token'
+      path: '/routes/agent/token'
+      fullPath: '/routes/agent/token'
+      preLoaderRoute: typeof RoutesAgentTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/auth/session': {
+      id: '/routes/auth/session'
+      path: '/routes/auth/session'
+      fullPath: '/routes/auth/session'
+      preLoaderRoute: typeof RoutesAuthSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/lti/jwks': {
+      id: '/routes/lti/jwks'
+      path: '/routes/lti/jwks'
+      fullPath: '/routes/lti/jwks'
+      preLoaderRoute: typeof RoutesLtiJwksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/lti/launch': {
+      id: '/routes/lti/launch'
+      path: '/routes/lti/launch'
+      fullPath: '/routes/lti/launch'
+      preLoaderRoute: typeof RoutesLtiLaunchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/lti/login': {
+      id: '/routes/lti/login'
+      path: '/routes/lti/login'
+      fullPath: '/routes/lti/login'
+      preLoaderRoute: typeof RoutesLtiLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/lti/register': {
+      id: '/routes/lti/register'
+      path: '/routes/lti/register'
+      fullPath: '/routes/lti/register'
+      preLoaderRoute: typeof RoutesLtiRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/oauth/github': {
+      id: '/routes/oauth/github'
+      path: '/routes/oauth/github'
+      fullPath: '/routes/oauth/github'
+      preLoaderRoute: typeof RoutesOauthGithubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/oauth/google': {
+      id: '/routes/oauth/google'
+      path: '/routes/oauth/google'
+      fullPath: '/routes/oauth/google'
+      preLoaderRoute: typeof RoutesOauthGoogleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routes/lti/deep-link/activities': {
+      id: '/routes/lti/deep-link/activities'
+      path: '/routes/lti/deep-link/activities'
+      fullPath: '/routes/lti/deep-link/activities'
+      preLoaderRoute: typeof RoutesLtiDeepLinkActivitiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   AdminRenewRoute: AdminRenewRoute,
   AuthRenewRoute: AuthRenewRoute,
+  RoutesElbStatusRoute: RoutesElbStatusRoute,
+  RoutesKeepAliveRoute: RoutesKeepAliveRoute,
+  RoutesAgentActivityRoute: RoutesAgentActivityRoute,
+  RoutesAgentAuthorizeRoute: RoutesAgentAuthorizeRoute,
+  RoutesAgentTokenRoute: RoutesAgentTokenRoute,
+  RoutesAuthSessionRoute: RoutesAuthSessionRoute,
+  RoutesLtiJwksRoute: RoutesLtiJwksRoute,
+  RoutesLtiLaunchRoute: RoutesLtiLaunchRoute,
+  RoutesLtiLoginRoute: RoutesLtiLoginRoute,
+  RoutesLtiRegisterRoute: RoutesLtiRegisterRoute,
+  RoutesOauthGithubRoute: RoutesOauthGithubRoute,
+  RoutesOauthGoogleRoute: RoutesOauthGoogleRoute,
+  RoutesLtiDeepLinkActivitiesRoute: RoutesLtiDeepLinkActivitiesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
