@@ -1,10 +1,10 @@
 'use client'
 
 import type React from 'react'
-import { useRouter } from 'next/navigation'
 
 import { Button } from '@infonomic/uikit/react'
 
+import { useRouter } from '@/framework'
 import { buildActivityLaunchUrl } from '../launch-url'
 import type { Locale } from '@/i18n/i18n-config'
 import type { UserSession } from '@/modules/app/session/@types'

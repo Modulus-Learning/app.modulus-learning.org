@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 
 import {
   Container,
@@ -16,8 +15,7 @@ import {
 import cx from 'clsx'
 
 import { useProgressBarContext } from '@/context/progress-bar-provider'
-import { LangLink } from '@/i18n/components/lang-link'
-import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
+import { LangLink, useLangNavigation, useSearchParams } from '@/framework'
 import { RouterPager } from '@/ui/components/router-pager'
 import {
   TableHeadingCellSortable,

@@ -5,7 +5,7 @@ import { startTransition, useActionState, useId, useState } from 'react'
 
 import { Button, ErrorText, Input, TextArea } from '@infonomic/uikit/react'
 
-import { LangLink } from '@/i18n/components/lang-link'
+import { LangLink } from '@/framework'
 import { validateUrlPrefix, validateUrls } from '../@types/validate-urls'
 import { createActivityCode } from '../create-activity-code'
 import { RequestActivityCodeForm } from './request-activity-code-form'

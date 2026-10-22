@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 
@@ -29,7 +30,15 @@ const https =
 
 export default defineConfig({
   server: { port: 3000, https },
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    tsconfigPaths: true,
+    // Shared components import their navigation and image primitives from
+    // `@/framework`; the Next host resolves that to `src/framework/index.ts`
+    // (tsconfig paths), this host to the TanStack implementation.
+    alias: {
+      '@/framework': fileURLToPath(new URL('./src/framework/start.tsx', import.meta.url)),
+    },
+  },
   // Next owns postcss.config.js until Task 18; Vite uses @tailwindcss/vite and
   // must not run the PostCSS Tailwind plugin a second time.
   css: { postcss: { plugins: [] } },

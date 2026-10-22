@@ -1,10 +1,10 @@
 'use client'
 
 import { useActionState } from 'react'
-import { useSearchParams } from 'next/navigation'
 
 import { Button, GoogleIcon, LoaderEllipsis } from '@infonomic/uikit/react'
 
+import { useSearchParams } from '@/framework'
 import { startGoogleOAuthFlow, unlinkGoogleAccount } from '@/modules/app/session/oauth-google'
 import type { Locale } from '@/i18n/i18n-config'
 import type { GoogleFormState } from '@/modules/app/session/@types'

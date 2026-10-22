@@ -1,12 +1,11 @@
 'use client'
 
 import { type FormEvent, startTransition, useActionState, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 
 import { Alert, Button, Card, Checkbox, Input, LoaderEllipsis } from '@infonomic/uikit/react'
 
+import { LangLink, useSearchParams } from '@/framework'
 import { useTranslations } from '@/i18n/client'
-import { LangLink } from '@/i18n/components/lang-link'
 import { signIn } from '@/modules/admin/session/password-auth'
 import { signInSchema } from '../@types'
 import type { Locale } from '@/i18n/i18n-config'

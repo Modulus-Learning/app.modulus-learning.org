@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 
 import {
   Autocomplete,
@@ -12,6 +11,7 @@ import {
   Modal,
 } from '@infonomic/uikit/react'
 
+import { useRouter } from '@/framework'
 import useDebounce from '@/hooks/use-debounce'
 import { addActivityCodeMember } from '../add-activity-code-member'
 import { listActivityCodeMembers } from '../list-activity-code-members'

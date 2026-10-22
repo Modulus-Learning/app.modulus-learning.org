@@ -5,8 +5,8 @@ import { type FormEvent, startTransition, useActionState, useEffect, useState } 
 import { Alert, Button, Card, Checkbox, Input, LoaderEllipsis } from '@infonomic/uikit/react'
 import cx from 'clsx'
 
+import { LangLink } from '@/framework'
 import { useTranslations } from '@/i18n/client'
-import { LangLink } from '@/i18n/components/lang-link'
 import { Stepper } from '@/modules/app/registration/components/registration-stepper'
 import { registrationStep1 } from '@/modules/app/registration/registration'
 import { registrationStep1Schema } from '../@types'

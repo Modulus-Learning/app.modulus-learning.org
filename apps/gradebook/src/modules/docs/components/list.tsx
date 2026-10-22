@@ -2,7 +2,7 @@ import type React from 'react'
 
 import { Card, ChevronRightIcon } from '@infonomic/uikit/react'
 
-import { LangLink } from '@/i18n/components/lang-link'
+import { LangLink } from '@/framework'
 import type { Locale } from '@/i18n/i18n-config'
 import type { DocEntry } from '@/modules/docs/lib/registry'
 

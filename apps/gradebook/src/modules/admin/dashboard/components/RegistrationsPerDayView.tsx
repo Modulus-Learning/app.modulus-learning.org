@@ -1,10 +1,8 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
-
 import { Card, Select } from '@infonomic/uikit/react'
 
-import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
+import { useLangNavigation, useSearchParams } from '@/framework'
 import { AccessibleBarChart } from '@/ui/components/bar-chart'
 import { formatMonthYear, summarizeRegistrations } from '../chart-summaries'
 import type { Locale } from '@/i18n/i18n-config'

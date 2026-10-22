@@ -1,8 +1,7 @@
-import Link from 'next/link'
-
 import { Button, Container, Section } from '@infonomic/uikit/react'
 import { ArrowRight, BookOpen, ExternalLink } from 'lucide-react'
 
+import { Link } from '@/framework'
 import { HeroAnimation } from './hero-animation'
 
 export function ComingSoon() {

@@ -4,7 +4,7 @@ import { startTransition, useActionState, useState } from 'react'
 
 import { Alert, Button, Input, Label, Tabs } from '@infonomic/uikit/react'
 
-import { LangLink } from '@/i18n/components/lang-link'
+import { LangLink } from '@/framework'
 import { useTheme } from '@/ui/theme/provider-base'
 import { deleteRole } from '../delete'
 import { RoleContextMenu } from './context-menu'

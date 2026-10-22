@@ -1,7 +1,6 @@
 'use client'
 
-import Image from 'next/image'
-
+import { Image } from '@/framework'
 import logoBlack from '@/images/logo/modulus-logo-symbol-black.svg'
 import logoWhite from '@/images/logo/modulus-logo-symbol-white.svg'
 

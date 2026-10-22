@@ -3,7 +3,6 @@
 import type React from 'react'
 import type { FormEvent } from 'react'
 import { startTransition, useActionState, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 
 import {
   Alert,
@@ -17,8 +16,8 @@ import {
 } from '@infonomic/uikit/react'
 import cx from 'clsx'
 
+import { LangLink, useSearchParams } from '@/framework'
 import { useTranslations } from '@/i18n/client'
-import { LangLink } from '@/i18n/components/lang-link'
 import { startGithubOAuthFlow } from '@/modules/app/session/oauth-github'
 import { startGoogleOAuthFlow } from '@/modules/app/session/oauth-google'
 import { signIn } from '@/modules/app/session/password-auth'

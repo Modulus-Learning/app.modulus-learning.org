@@ -1,7 +1,6 @@
-import Image from 'next/image'
-
 import cx from 'clsx'
 
+import { Image } from '@/framework'
 import logoWhite from '@/images/logo/modulus-logo-white.svg'
 import { LangLink } from '../../i18n/components/lang-link'
 import type { Locale } from '@/i18n/i18n-config'

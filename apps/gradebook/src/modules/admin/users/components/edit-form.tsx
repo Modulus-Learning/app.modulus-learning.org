@@ -16,7 +16,7 @@ import {
 } from '@infonomic/uikit/react'
 import { Controller, useForm } from 'react-hook-form'
 
-import { LangLink } from '@/i18n/components/lang-link'
+import { LangLink } from '@/framework'
 import { useTheme } from '@/ui/theme/provider-base'
 import { getErrorText, hasAnyErrors, hasErrors } from '@/utils/utils.forms'
 import { userEditSchema } from '../@types'

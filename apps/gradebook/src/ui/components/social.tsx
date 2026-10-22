@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { Link } from '@/framework'
 
 export function Social(): React.JSX.Element {
   return (

@@ -1,13 +1,10 @@
 'use client'
 
-import Image from 'next/image'
-import { usePathname } from 'next/navigation'
-
 import { Accordion, HomeIcon } from '@infonomic/uikit/react'
 import cx from 'clsx'
 import { useSwipeable } from 'react-swipeable'
 
-import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
+import { Image, useLangNavigation, usePathname } from '@/framework'
 import { t } from '@/i18n/migrate-t'
 import { pathWithoutLocale } from '@/i18n/utils'
 import logo from '@/images/infonomic-type-logo-web-white.svg'

@@ -1,10 +1,9 @@
 import type * as React from 'react'
-import { usePathname } from 'next/navigation'
 
 import { NavigationMenu } from '@base-ui/react/navigation-menu'
 
+import { useLangNavigation, usePathname } from '@/framework'
 import { useTranslations } from '@/i18n/client'
-import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
 import { pathWithoutLocale } from '@/i18n/utils'
 import type { Locale } from '@/i18n/i18n-config'
 

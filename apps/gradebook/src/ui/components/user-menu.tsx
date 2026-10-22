@@ -12,8 +12,8 @@ import {
 } from '@infonomic/uikit/react'
 import cx from 'clsx'
 
+import { useLangNavigation } from '@/framework'
 import { useTranslations } from '@/i18n/client'
-import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
 import { signOut } from '@/modules/app/session/password-auth'
 import { useUserSession } from '@/modules/app/session/provider'
 import type { Locale } from '@/i18n/i18n-config'

@@ -1,10 +1,8 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
-
 import { Card, Select } from '@infonomic/uikit/react'
 
-import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
+import { useLangNavigation, useSearchParams } from '@/framework'
 import { AccessibleBarChartStacked } from '@/ui/components/bar-chart-stacked'
 import { useTheme } from '@/ui/theme/provider-base'
 import { summarizeNewVsReturningUsers } from '../chart-summaries'

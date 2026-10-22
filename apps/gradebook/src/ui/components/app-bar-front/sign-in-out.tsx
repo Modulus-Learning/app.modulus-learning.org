@@ -4,8 +4,8 @@ import { useActionState } from 'react'
 
 import { Button } from '@infonomic/uikit/react'
 
+import { LangLink } from '@/framework'
 import { useTranslations } from '@/i18n/client'
-import { LangLink } from '@/i18n/components/lang-link'
 import { signOut } from '@/modules/app/session/password-auth'
 import { useUserSession } from '@/modules/app/session/provider'
 import type { Locale } from '@/i18n/i18n-config'

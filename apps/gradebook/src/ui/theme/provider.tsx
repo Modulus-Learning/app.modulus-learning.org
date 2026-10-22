@@ -1,8 +1,8 @@
 'use client'
 
 import type React from 'react'
-import { usePathname } from 'next/navigation'
 
+import { usePathname } from '@/framework'
 import { ThemeProviderBase, type ThemeProviderBaseProps } from './provider-base'
 
 export { useTheme } from './provider-base'

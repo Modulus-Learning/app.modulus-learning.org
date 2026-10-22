@@ -1,9 +1,7 @@
-import Link from 'next/link'
-
 import { Button, Container, Section } from '@infonomic/uikit/react'
 import { ArrowRight, BookOpen } from 'lucide-react'
 
-import { LangLink } from '@/i18n/components/lang-link'
+import { LangLink, Link } from '@/framework'
 import { HeroAnimation } from './hero-animation'
 import type { Locale } from '@/i18n/i18n-config'
 

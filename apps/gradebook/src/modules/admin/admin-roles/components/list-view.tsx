@@ -17,7 +17,7 @@ import {
 import cx from 'clsx'
 
 import { useProgressBarContext } from '@/context/progress-bar-provider'
-import { LangLink } from '@/i18n/components/lang-link'
+import { LangLink } from '@/framework'
 import {
   TableHeadingCellSortable,
   type TableHeadingCellSortableProps,

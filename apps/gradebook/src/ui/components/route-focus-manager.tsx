@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { usePathname } from 'next/navigation'
+
+import { usePathname } from '@/framework'
 
 /**
  * Moves focus to the new page's `<h1>` after a client-side (SPA) navigation so

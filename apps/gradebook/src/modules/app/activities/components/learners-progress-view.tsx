@@ -1,13 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 
 import { Container, LoaderRing, Search, Section, Select, Table } from '@infonomic/uikit/react'
 import cx from 'clsx'
 
 import { useProgressBarContext } from '@/context/progress-bar-provider'
-import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
+import { useLangNavigation, useSearchParams } from '@/framework'
 import { RouterPager } from '@/ui/components/router-pager'
 import {
   TableHeadingCellSortable,

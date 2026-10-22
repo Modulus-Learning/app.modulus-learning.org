@@ -1,8 +1,8 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-
 import { Button, CloseIcon } from '@infonomic/uikit/react'
+
+import { useRouter } from '@/framework'
 
 export function InterceptedModalClose(): React.JSX.Element {
   const router = useRouter()

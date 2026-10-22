@@ -10,7 +10,7 @@ import {
 } from '@infonomic/uikit/react'
 import cx from 'clsx'
 
-import { LangLink } from '@/i18n/components/lang-link'
+import { LangLink } from '@/framework'
 import type { Locale } from '@/i18n/i18n-config'
 import type { UserResponse } from '../@types'
 

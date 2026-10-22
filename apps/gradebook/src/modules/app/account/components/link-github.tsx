@@ -1,10 +1,10 @@
 'use client'
 
 import { useActionState } from 'react'
-import { useSearchParams } from 'next/navigation'
 
 import { Button, GithubIcon, LoaderEllipsis } from '@infonomic/uikit/react'
 
+import { useSearchParams } from '@/framework'
 import { startGithubOAuthFlow } from '@/modules/app/session/oauth-github'
 import type { Locale } from '@/i18n/i18n-config'
 import type { GitHubFormState } from '@/modules/app/session/@types'

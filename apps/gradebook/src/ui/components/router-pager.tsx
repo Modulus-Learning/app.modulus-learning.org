@@ -1,7 +1,5 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
-
 import type { PaginationProps } from '@infonomic/uikit/react'
 import {
   ChevronLeftDoubleIcon,
@@ -11,6 +9,7 @@ import {
   Pagination,
 } from '@infonomic/uikit/react'
 
+import { useSearchParams } from '@/framework'
 import { LangLink } from '../../i18n/components/lang-link'
 import type { Locale } from '@/i18n/i18n-config'
 

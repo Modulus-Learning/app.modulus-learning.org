@@ -2,11 +2,11 @@
 
 import type React from 'react'
 import { Suspense, useEffect, useState } from 'react'
-import { usePathname } from 'next/navigation'
 
 import cx from 'clsx'
 
 import { ProgressBar } from '@/context/progress-bar-provider'
+import { usePathname } from '@/framework'
 import { ThemeSwitch } from '@/ui/theme/theme-switch'
 import { AdminUserMenu } from './admin-user-menu'
 import { Branding } from './branding'

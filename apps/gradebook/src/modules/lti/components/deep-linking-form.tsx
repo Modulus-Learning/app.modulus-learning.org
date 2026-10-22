@@ -2,7 +2,6 @@
 
 import type React from 'react'
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Image from 'next/image'
 
 import {
   Autocomplete,
@@ -14,6 +13,7 @@ import {
 } from '@infonomic/uikit/react'
 
 import { getPublicConfig } from '@/config'
+import { Image } from '@/framework'
 import logoBlack from '@/images/logo/modulus-logo-symbol-black.svg'
 import { validateUrls } from '@/modules/app/activities/@types/validate-urls'
 import { deepLinking } from '../actions/deep-linking-action'

@@ -10,7 +10,7 @@ import {
   Table,
 } from '@infonomic/uikit/react'
 
-import { LangLink } from '@/i18n/components/lang-link'
+import { LangLink } from '@/framework'
 import { formatDateTime } from '@/utils/utils.general'
 import { AllowAllEmptyState } from './copy'
 import type { Locale } from '@/i18n/i18n-config'

@@ -2,12 +2,11 @@
 
 import type React from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 
 import { Table } from '@infonomic/uikit/react'
 import cx from 'clsx'
 
-import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
+import { useLangNavigation, useSearchParams } from '@/framework'
 import { SortAscendingIcon, SortDescendingIcon, SortNeutralIcon } from '@/ui/components/sort-icons'
 import type { Locale } from '@/i18n/i18n-config'
 

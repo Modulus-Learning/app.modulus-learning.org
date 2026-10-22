@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Alert, Button, Input, LoaderEllipsis } from '@infonomic/uikit/react'
 import { useForm } from 'react-hook-form'
 
-import { LangLink } from '@/i18n/components/lang-link'
+import { LangLink } from '@/framework'
 import { useTheme } from '@/ui/theme/provider-base'
 import { getErrorText, hasErrors } from '@/utils/utils.forms'
 import { ltiPlatformCreateSchema } from '../@types'

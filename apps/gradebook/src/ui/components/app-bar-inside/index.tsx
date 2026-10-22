@@ -1,11 +1,11 @@
 'use client'
 
 import { forwardRef, Suspense, useEffect, useState } from 'react'
-import { usePathname } from 'next/navigation'
 
 import cx from 'clsx'
 
 import { ProgressBar } from '@/context/progress-bar-provider'
+import { usePathname } from '@/framework'
 import { ThemeSwitch } from '@/ui/theme/theme-switch'
 import { UserMenu } from '../user-menu'
 import { Branding } from './branding'

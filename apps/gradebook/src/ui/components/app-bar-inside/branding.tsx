@@ -1,9 +1,8 @@
 import type React from 'react'
-import Image from 'next/image'
 
 import cx from 'clsx'
 
-import { LangLink } from '@/i18n/components/lang-link'
+import { Image, LangLink } from '@/framework'
 import logoBlack from '@/images/logo/modulus-logo-black.svg'
 import logoWhite from '@/images/logo/modulus-logo-white.svg'
 import type { Locale } from '@/i18n/i18n-config'

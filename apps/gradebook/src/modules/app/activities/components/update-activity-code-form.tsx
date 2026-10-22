@@ -5,7 +5,7 @@ import { startTransition, useActionState, useId, useState } from 'react'
 
 import { Button, ErrorText, Input, TextArea } from '@infonomic/uikit/react'
 
-import { LangLink } from '@/i18n/components/lang-link'
+import { LangLink } from '@/framework'
 import { validateUrlPrefix, validateUrls } from '../@types/validate-urls'
 import { updateActivityCode } from '../update-activity-code'
 import type { Locale } from '@/i18n/i18n-config'
