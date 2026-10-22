@@ -23,10 +23,10 @@ export const PublicConfigProvider = ({
   </PublicConfigContext.Provider>
 )
 
-export const usePublicConfig = () => {
-  const context = useContext(PublicConfigContext)
-  if (context != null) {
-    return context
-  }
-  throw new Error('usePublicConfig must be used within a PublicConfigProvider')
-}
+/**
+ * The public config from the nearest provider. Without one (the Next LTI
+ * layout renders none) it falls back to the Next host's build-time env; the
+ * TanStack Start root always provides it, from the server.
+ */
+export const usePublicConfig = (): PublicConfig =>
+  useContext(PublicConfigContext) ?? getPublicConfig()

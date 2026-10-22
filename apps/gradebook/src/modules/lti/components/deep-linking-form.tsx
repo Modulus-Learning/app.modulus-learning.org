@@ -12,7 +12,7 @@ import {
   Select,
 } from '@infonomic/uikit/react'
 
-import { getPublicConfig } from '@/config'
+import { usePublicConfig } from '@/config/provider'
 import { Image } from '@/framework'
 import logoBlack from '@/images/logo/modulus-logo-symbol-black.svg'
 import { validateUrls } from '@/modules/app/activities/@types/validate-urls'
@@ -41,7 +41,7 @@ export function DeepLinkingForm({
   launchId: string
   activityCodes: ActivityCode[]
 }): React.JSX.Element {
-  const config = getPublicConfig()
+  const config = usePublicConfig()
 
   const [formState, formAction, isPending] = useActionState(deepLinking, initialState)
   const [activityCode, setActivityCode] = useState('')

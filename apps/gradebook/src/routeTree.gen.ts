@@ -10,10 +10,15 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LngRouteRouteImport } from './routes/$lng/route'
+import { Route as AgentRouteRouteImport } from './routes/agent/route'
+import { Route as LtiRouteRouteImport } from './routes/lti/route'
 import { Route as LngAdminRouteRouteImport } from './routes/$lng/_admin/route'
 import { Route as LngFormsRouteRouteImport } from './routes/$lng/_forms/route'
 import { Route as LngPublicRouteRouteImport } from './routes/$lng/_public/route'
+import { Route as AgentErrorRouteImport } from './routes/agent/error'
 import { Route as AuthRenewRouteImport } from './routes/auth/renew'
+import { Route as LtiDeepLinkRouteImport } from './routes/lti/deep-link'
+import { Route as LtiErrorRouteImport } from './routes/lti/error'
 import { Route as RoutesElbStatusRouteImport } from './routes/routes/elb-status'
 import { Route as RoutesKeepAliveRouteImport } from './routes/routes/keep-alive'
 import { Route as LngFormsSignInRouteImport } from './routes/$lng/_forms/sign-in'
@@ -21,6 +26,7 @@ import { Route as LngFormsSignUpRouteImport } from './routes/$lng/_forms/sign-up
 import { Route as LngPublicIndexRouteImport } from './routes/$lng/_public/index'
 import { Route as LngPublicSplatRouteImport } from './routes/$lng/_public/$'
 import { Route as LngPublicAboutRouteImport } from './routes/$lng/_public/about'
+import { Route as LtiLaunchActivity_idRouteImport } from './routes/lti/launch/$activity_id'
 import { Route as RoutesAgentActivityRouteImport } from './routes/routes/agent/activity'
 import { Route as RoutesAgentAuthorizeRouteImport } from './routes/routes/agent/authorize'
 import { Route as RoutesAgentTokenRouteImport } from './routes/routes/agent/token'
@@ -42,6 +48,16 @@ const LngRouteRoute = LngRouteRouteImport.update({
   path: '/$lng',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AgentRouteRoute = AgentRouteRouteImport.update({
+  id: '/agent',
+  path: '/agent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LtiRouteRoute = LtiRouteRouteImport.update({
+  id: '/lti',
+  path: '/lti',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LngAdminRouteRoute = LngAdminRouteRouteImport.update({
   id: '/_admin',
   getParentRoute: () => LngRouteRoute,
@@ -54,10 +70,25 @@ const LngPublicRouteRoute = LngPublicRouteRouteImport.update({
   id: '/_public',
   getParentRoute: () => LngRouteRoute,
 } as any)
+const AgentErrorRoute = AgentErrorRouteImport.update({
+  id: '/error',
+  path: '/error',
+  getParentRoute: () => AgentRouteRoute,
+} as any)
 const AuthRenewRoute = AuthRenewRouteImport.update({
   id: '/auth/renew',
   path: '/auth/renew',
   getParentRoute: () => rootRouteImport,
+} as any)
+const LtiDeepLinkRoute = LtiDeepLinkRouteImport.update({
+  id: '/deep-link',
+  path: '/deep-link',
+  getParentRoute: () => LtiRouteRoute,
+} as any)
+const LtiErrorRoute = LtiErrorRouteImport.update({
+  id: '/error',
+  path: '/error',
+  getParentRoute: () => LtiRouteRoute,
 } as any)
 const RoutesElbStatusRoute = RoutesElbStatusRouteImport.update({
   id: '/routes/elb-status',
@@ -93,6 +124,11 @@ const LngPublicAboutRoute = LngPublicAboutRouteImport.update({
   id: '/about',
   path: '/about',
   getParentRoute: () => LngPublicRouteRoute,
+} as any)
+const LtiLaunchActivity_idRoute = LtiLaunchActivity_idRouteImport.update({
+  id: '/launch/$activity_id',
+  path: '/launch/$activity_id',
+  getParentRoute: () => LtiRouteRoute,
 } as any)
 const RoutesAgentActivityRoute = RoutesAgentActivityRouteImport.update({
   id: '/routes/agent/activity',
@@ -174,13 +210,19 @@ const RoutesLtiDeepLinkActivitiesRoute =
 
 export interface FileRoutesByFullPath {
   '/$lng': typeof LngRouteRouteWithChildren
+  '/agent': typeof AgentRouteRouteWithChildren
+  '/lti': typeof LtiRouteRouteWithChildren
+  '/agent/error': typeof AgentErrorRoute
   '/auth/renew': typeof AuthRenewRoute
+  '/lti/deep-link': typeof LtiDeepLinkRoute
+  '/lti/error': typeof LtiErrorRoute
   '/routes/elb-status': typeof RoutesElbStatusRoute
   '/routes/keep-alive': typeof RoutesKeepAliveRoute
   '/$lng/sign-in': typeof LngFormsSignInRoute
   '/$lng/sign-up': typeof LngFormsSignUpRoute
   '/$lng/$': typeof LngPublicSplatRoute
   '/$lng/about': typeof LngPublicAboutRoute
+  '/lti/launch/$activity_id': typeof LtiLaunchActivity_idRoute
   '/routes/agent/activity': typeof RoutesAgentActivityRoute
   '/routes/agent/authorize': typeof RoutesAgentAuthorizeRoute
   '/routes/agent/token': typeof RoutesAgentTokenRoute
@@ -200,13 +242,19 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/$lng': typeof LngPublicIndexRoute
+  '/agent': typeof AgentRouteRouteWithChildren
+  '/lti': typeof LtiRouteRouteWithChildren
+  '/agent/error': typeof AgentErrorRoute
   '/auth/renew': typeof AuthRenewRoute
+  '/lti/deep-link': typeof LtiDeepLinkRoute
+  '/lti/error': typeof LtiErrorRoute
   '/routes/elb-status': typeof RoutesElbStatusRoute
   '/routes/keep-alive': typeof RoutesKeepAliveRoute
   '/$lng/sign-in': typeof LngFormsSignInRoute
   '/$lng/sign-up': typeof LngFormsSignUpRoute
   '/$lng/$': typeof LngPublicSplatRoute
   '/$lng/about': typeof LngPublicAboutRoute
+  '/lti/launch/$activity_id': typeof LtiLaunchActivity_idRoute
   '/routes/agent/activity': typeof RoutesAgentActivityRoute
   '/routes/agent/authorize': typeof RoutesAgentAuthorizeRoute
   '/routes/agent/token': typeof RoutesAgentTokenRoute
@@ -226,16 +274,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/$lng': typeof LngRouteRouteWithChildren
+  '/agent': typeof AgentRouteRouteWithChildren
+  '/lti': typeof LtiRouteRouteWithChildren
   '/$lng/_admin': typeof LngAdminRouteRouteWithChildren
   '/$lng/_forms': typeof LngFormsRouteRouteWithChildren
   '/$lng/_public': typeof LngPublicRouteRouteWithChildren
+  '/agent/error': typeof AgentErrorRoute
   '/auth/renew': typeof AuthRenewRoute
+  '/lti/deep-link': typeof LtiDeepLinkRoute
+  '/lti/error': typeof LtiErrorRoute
   '/routes/elb-status': typeof RoutesElbStatusRoute
   '/routes/keep-alive': typeof RoutesKeepAliveRoute
   '/$lng/_forms/sign-in': typeof LngFormsSignInRoute
   '/$lng/_forms/sign-up': typeof LngFormsSignUpRoute
   '/$lng/_public/$': typeof LngPublicSplatRoute
   '/$lng/_public/about': typeof LngPublicAboutRoute
+  '/lti/launch/$activity_id': typeof LtiLaunchActivity_idRoute
   '/routes/agent/activity': typeof RoutesAgentActivityRoute
   '/routes/agent/authorize': typeof RoutesAgentAuthorizeRoute
   '/routes/agent/token': typeof RoutesAgentTokenRoute
@@ -257,13 +311,19 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/$lng'
+    | '/agent'
+    | '/lti'
+    | '/agent/error'
     | '/auth/renew'
+    | '/lti/deep-link'
+    | '/lti/error'
     | '/routes/elb-status'
     | '/routes/keep-alive'
     | '/$lng/sign-in'
     | '/$lng/sign-up'
     | '/$lng/$'
     | '/$lng/about'
+    | '/lti/launch/$activity_id'
     | '/routes/agent/activity'
     | '/routes/agent/authorize'
     | '/routes/agent/token'
@@ -283,13 +343,19 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/$lng'
+    | '/agent'
+    | '/lti'
+    | '/agent/error'
     | '/auth/renew'
+    | '/lti/deep-link'
+    | '/lti/error'
     | '/routes/elb-status'
     | '/routes/keep-alive'
     | '/$lng/sign-in'
     | '/$lng/sign-up'
     | '/$lng/$'
     | '/$lng/about'
+    | '/lti/launch/$activity_id'
     | '/routes/agent/activity'
     | '/routes/agent/authorize'
     | '/routes/agent/token'
@@ -308,16 +374,22 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/$lng'
+    | '/agent'
+    | '/lti'
     | '/$lng/_admin'
     | '/$lng/_forms'
     | '/$lng/_public'
+    | '/agent/error'
     | '/auth/renew'
+    | '/lti/deep-link'
+    | '/lti/error'
     | '/routes/elb-status'
     | '/routes/keep-alive'
     | '/$lng/_forms/sign-in'
     | '/$lng/_forms/sign-up'
     | '/$lng/_public/$'
     | '/$lng/_public/about'
+    | '/lti/launch/$activity_id'
     | '/routes/agent/activity'
     | '/routes/agent/authorize'
     | '/routes/agent/token'
@@ -338,6 +410,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   LngRouteRoute: typeof LngRouteRouteWithChildren
+  AgentRouteRoute: typeof AgentRouteRouteWithChildren
+  LtiRouteRoute: typeof LtiRouteRouteWithChildren
   AuthRenewRoute: typeof AuthRenewRoute
   RoutesElbStatusRoute: typeof RoutesElbStatusRoute
   RoutesKeepAliveRoute: typeof RoutesKeepAliveRoute
@@ -363,6 +437,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LngRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/agent': {
+      id: '/agent'
+      path: '/agent'
+      fullPath: '/agent'
+      preLoaderRoute: typeof AgentRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lti': {
+      id: '/lti'
+      path: '/lti'
+      fullPath: '/lti'
+      preLoaderRoute: typeof LtiRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$lng/_admin': {
       id: '/$lng/_admin'
       path: ''
@@ -384,12 +472,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LngPublicRouteRouteImport
       parentRoute: typeof LngRouteRoute
     }
+    '/agent/error': {
+      id: '/agent/error'
+      path: '/error'
+      fullPath: '/agent/error'
+      preLoaderRoute: typeof AgentErrorRouteImport
+      parentRoute: typeof AgentRouteRoute
+    }
     '/auth/renew': {
       id: '/auth/renew'
       path: '/auth/renew'
       fullPath: '/auth/renew'
       preLoaderRoute: typeof AuthRenewRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/lti/deep-link': {
+      id: '/lti/deep-link'
+      path: '/deep-link'
+      fullPath: '/lti/deep-link'
+      preLoaderRoute: typeof LtiDeepLinkRouteImport
+      parentRoute: typeof LtiRouteRoute
+    }
+    '/lti/error': {
+      id: '/lti/error'
+      path: '/error'
+      fullPath: '/lti/error'
+      preLoaderRoute: typeof LtiErrorRouteImport
+      parentRoute: typeof LtiRouteRoute
     }
     '/routes/elb-status': {
       id: '/routes/elb-status'
@@ -439,6 +548,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$lng/about'
       preLoaderRoute: typeof LngPublicAboutRouteImport
       parentRoute: typeof LngPublicRouteRoute
+    }
+    '/lti/launch/$activity_id': {
+      id: '/lti/launch/$activity_id'
+      path: '/launch/$activity_id'
+      fullPath: '/lti/launch/$activity_id'
+      preLoaderRoute: typeof LtiLaunchActivity_idRouteImport
+      parentRoute: typeof LtiRouteRoute
     }
     '/routes/agent/activity': {
       id: '/routes/agent/activity'
@@ -612,8 +728,38 @@ const LngRouteRouteWithChildren = LngRouteRoute._addFileChildren(
   LngRouteRouteChildren,
 )
 
+interface AgentRouteRouteChildren {
+  AgentErrorRoute: typeof AgentErrorRoute
+}
+
+const AgentRouteRouteChildren: AgentRouteRouteChildren = {
+  AgentErrorRoute: AgentErrorRoute,
+}
+
+const AgentRouteRouteWithChildren = AgentRouteRoute._addFileChildren(
+  AgentRouteRouteChildren,
+)
+
+interface LtiRouteRouteChildren {
+  LtiDeepLinkRoute: typeof LtiDeepLinkRoute
+  LtiErrorRoute: typeof LtiErrorRoute
+  LtiLaunchActivity_idRoute: typeof LtiLaunchActivity_idRoute
+}
+
+const LtiRouteRouteChildren: LtiRouteRouteChildren = {
+  LtiDeepLinkRoute: LtiDeepLinkRoute,
+  LtiErrorRoute: LtiErrorRoute,
+  LtiLaunchActivity_idRoute: LtiLaunchActivity_idRoute,
+}
+
+const LtiRouteRouteWithChildren = LtiRouteRoute._addFileChildren(
+  LtiRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   LngRouteRoute: LngRouteRouteWithChildren,
+  AgentRouteRoute: AgentRouteRouteWithChildren,
+  LtiRouteRoute: LtiRouteRouteWithChildren,
   AuthRenewRoute: AuthRenewRoute,
   RoutesElbStatusRoute: RoutesElbStatusRoute,
   RoutesKeepAliveRoute: RoutesKeepAliveRoute,
