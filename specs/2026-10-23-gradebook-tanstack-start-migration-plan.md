@@ -1138,7 +1138,7 @@ Resolved 2026-10-23:
 5. **Public env names** — `NEXT_PUBLIC_*` → `VITE_*`, no fallback window; the
    public server URL is delivered at runtime.
 
-## Implementation Notes (Tasks 3–17, 2026-10-23)
+## Implementation Notes (Tasks 3–19, 2026-10-23)
 
 Recorded while the checkpoint 1 review was pending; the work sits on
 `wip/tanstack-next`, stacked on `feat/tanstack` and rebased if review asks for
@@ -1226,6 +1226,32 @@ changes.
   `SERVER_SHUTDOWN_TIMEOUT`. `SHUTDOWN_DRAIN_SECONDS` (default 70) and a mirror of
   core's `LTI_SCORE_SUBMISSION_REQUEST_TIMEOUT_SECONDS` feed the boot warning.
   `/routes/elb-status` returns `{ status, mode, jobs }`.
+
+- **Redirects behind the proxy (found in Task 19):** Start builds an absolute
+  `Location` from `request.url`, which behind nginx is `http://` plus the
+  proxied Host. Locally that dropped the port; on Fly it would name `http://`
+  behind the TLS edge. The entry pipeline now rewrites a same-origin `Location`
+  to a relative one (`relativeSameOriginRedirect` in `src/lib/entry.ts`), which
+  covers handler, router and entry redirects alike. Server functions are not
+  affected: Start's CSRF check reads `Sec-Fetch-Site` before it falls back to
+  comparing `Origin` with `request.url`. A browser that sends no
+  `Sec-Fetch-Site` would hit that fallback; passing `origin` to
+  `createCsrfMiddleware` would close the gap and is left for Task 18.
+- **Task 19 (ahead of Task 18):** the Dockerfile builds core and runs
+  `build:start` explicitly (marked `TODO(Task 18)`: it becomes `pnpm run build`).
+  `Dockerfile-ubuntu` was unreferenced and is deleted. The build heap dropped
+  from 6 GB to 3 GB (a local `vite build` peaks near 2.1 GB resident). The image
+  sets `SERVER_SHUTDOWN_TIMEOUT=25`; supervisord `stopwaitsecs` is 80; Fly
+  `kill_timeout` is 90 (admin) and 30 (frontend). Each toml lists only what its
+  mode needs (per `config/fixtures/mode-env.ts`). Compose reads `.env` and an
+  optional `.env.local`. nginx serves nothing from `.output/public`: `/_build`
+  and `/fonts` get a one-year cache header and fall through to Node. Verified
+  on a local arm64 image: the contract suite passes through nginx in all three
+  modes, `docker stop` drains and exits 0, and an agent `authorize` query string
+  reaches neither the nginx nor the pino log. **Not run:** the termination test
+  against a slow mock LTI platform. It needs a working database, and the local
+  `modulus` credentials currently fail (port 5432 is held by another project's
+  container).
 
 ## Spike Findings
 
