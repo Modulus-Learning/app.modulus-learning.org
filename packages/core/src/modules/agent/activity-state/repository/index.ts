@@ -97,6 +97,14 @@ export class ActivityStateQueries extends BaseService {
       .catch(this.utils.wrapDbErrorNew())
   }
 
+  /**
+   * Resolves an activity by its exact URL.
+   *
+   * `url` is a canonical activity URL key, already produced by the calling
+   * service with `normalizeActivityUrl()`. This is SQL equality over the
+   * stored canonical form; passing a URL as the agent sent it would miss an
+   * activity requested with a query, fragment, or non-canonical spelling.
+   */
   @method
   async findActivityByUrl(url: string): Promise<ActivityRecord | undefined> {
     return await this.db

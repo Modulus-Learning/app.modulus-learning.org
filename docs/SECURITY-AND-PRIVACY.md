@@ -1,7 +1,7 @@
 ---
 title: "Security & Privacy"
 path: "security-and-privacy"
-summary: "Modulus's security and privacy posture for IT and security staff: the FERPA-aligned data-isolation boundary, what learner data is and isn't stored, the authentication and trust mechanisms across LTI, sessions, and the agent, and the open questions (retention windows, throttling) that need institutional policy."
+summary: "Modulus's security and privacy posture for IT and security staff: the FERPA-aligned data-isolation boundary, what learner data is and isn't stored, the authentication and trust mechanisms across LTI, sessions, and the agent, canonical activity URL lookup before allowlist admission and the restricted diagnostics around it, and the open questions (retention windows, throttling) that need institutional policy."
 ---
 
 # Security & Privacy
@@ -154,16 +154,63 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
   activity already accepted is a separate capability that does not exist (see
   Open Questions).
 
-  One qualification, because it bounds the guarantee: the lookup that
-  grandfathers a URL is an **exact string match** on `activities.url`, which
-  stores the raw URL as it was submitted. Activity URLs are not canonicalized on
-  storage — the registration service's own docstring calls that storage form
-  unsettled and names canonicalization as deferred work — so grandfathering is
-  spelling-sensitive. The same page reached by an equivalent but differently
-  spelled URL misses the lookup and is evaluated as a new registration.
+  **Lookup happens before admission, and the lookup key is canonical.**
+  `activities.url` holds a **canonical activity URL** — the `URL` serialization
+  with query and fragment removed — and every reader derives that same key before
+  looking a URL up
+  ([DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping)).
+  Grandfathering therefore covers every equivalent spelling of an activity
+  Modulus has accepted, not only the spelling that was first submitted: an
+  uppercase host, an explicit default port, or an added query string resolves to
+  the existing activity rather than being evaluated as a new registration.
+
+  Two bounds on that, stated plainly:
+
+  - **It resolves spellings, not standards equivalence.** Percent-escape case
+    and escaped unreserved characters remain significant, so `/%7euser` and
+    `/~user` are two activities. Path case, non-root trailing slashes, repeated
+    slashes, and host aliases are all preserved as distinct. Modulus does not
+    claim to merge every standards-equivalent URL, and the conservative
+    direction is deliberate: a false merge would combine two learners' progress
+    and page state under one activity, which is worse than a missed equivalence.
+  - **No equivalence is established over the network.** Modulus follows no
+    redirects, resolves no DNS aliases, and reads no HTML canonical link to
+    decide that two URLs serve one page. Those answers depend on a publisher's
+    routing and can change under Modulus without notice.
+
+  Canonicalization never relaxes admission. It produces a lookup key; whether a
+  previously unseen URL has an acceptable scheme and no embedded credentials is
+  still decided by `parseAdmissibleUrl()`, and **credentials are never stripped
+  to make a URL admissible**. Keeping the two separate is what preserves
+  grandfathering for a stored URL that would not pass today's admission syntax:
+  running the admission gate before every lookup would add a new rejection where
+  none exists today.
+- **Instructor input is validated more strictly than identity, and separately.**
+  Where an instructor types an activity URL — activity-code creation and editing,
+  and LTI deep linking — surrounding whitespace is trimmed, an internal literal
+  space is rejected rather than percent-encoded, and a query string or fragment
+  is rejected outright. Failed input is preserved in the form with a per-field
+  message. This is **input policy only**: it governs what a person may submit,
+  not what counts as the same activity, and it does not tighten the canonical
+  lookup or apply to the agent and OAuth paths
+  ([LTI → Instructor Activity URL Validation](./LTI.md#instructor-activity-url-validation)).
+  Because it is separate from admission, an activity already recorded stays
+  usable even if its stored URL would fail these input rules today.
+- **Diagnostics stay restricted.** A denial is logged with its refusal reason and
+  the candidate's normalized origin and path — the URL is split so the query
+  string and fragment are dropped — plus the `request_id`, `command`, and opaque
+  `user_id` every core log line carries. Rejected component values are not added
+  anywhere: the two per-code prefix failures log an activity code id and a
+  reason, never the prefix or the submitted URL; the duplicate-target validation
+  message names the field, not the URLs; and the registration service's
+  unhandled-race error carries a fixed message with no URL at all. The full list
+  of rejected URLs is returned to the submitter so a form can mark the offending
+  lines, and is deliberately excluded from the log.
 - **Activity codes remain a second, independent constraint.** Institutions also
   control which activities a given course grouping covers through **activity
-  codes**, and deep linking enforces a code's `url_prefix`. A code's `url_prefix`
+  codes**, and deep linking enforces a code's `url_prefix`. That comparison is
+  made on the canonical form of both sides, so an instructor cannot evade a
+  prefix by respelling the host or adding a default port. A code's `url_prefix`
   cannot broaden the sitewide policy, and the sitewide policy does not replace it.
 
 ### Score integrity

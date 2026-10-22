@@ -1,7 +1,7 @@
 ---
 title: "Authentication & Authorization"
 path: "authn-authz"
-summary: "How Modulus answers 'who are you?' and 'what may you do?' for its three actor types — learners, administrators, and instrumentation agents — covering the RS256 JWT layer, per-actor sessions and token refresh, ability-based authorization, and the agent's OAuth 2.0 + PKCE flow, including the fixed branch ordering of the authorization endpoint, the syntactic `redirect_uri` gate, and the sitewide allowlist check that admits an activity URL."
+summary: "How Modulus answers 'who are you?' and 'what may you do?' for its three actor types — learners, administrators, and instrumentation agents — covering the RS256 JWT layer, per-actor sessions and token refresh, ability-based authorization, and the agent's OAuth 2.0 + PKCE flow, including the fixed branch ordering of the authorization endpoint, the syntactic `redirect_uri` gate, the canonical activity lookup that stays separate from the exactly-compared OAuth protocol values, and the sitewide allowlist check that admits an activity URL."
 ---
 
 # Authentication & Authorization
@@ -242,6 +242,34 @@ activity up and requires it to exist, nothing more. Admission was decided at ste
 1; re-deciding it here would let a rule change revoke a code already issued. Only
 then does Modulus issue an **activity-and-scope-bound access token**:
 
+**The OAuth protocol values are compared exactly; only the activity lookup is
+canonical.** `agent_auth_codes` stores `client_id` and `redirect_uri` byte for
+byte as the authorization request sent them, and exchange compares the token
+request against those stored strings unchanged. An equivalent spelling is not
+the same `redirect_uri` to OAuth, and canonicalizing the stored copy would
+reject the agent's own exact replay. The canonical key is derived separately,
+for the activity lookup alone:
+
+```ts
+// packages/core/src/modules/agent/auth/services/agent-auth.ts (excerpt)
+const activityKey = normalizeActivityUrl(redirect_uri)
+const activity =
+  activityKey === null ? undefined : await this.queries.findActivityByUrl(activityKey)
+if (!activity) {
+  throw ERR_UNAUTHORIZED({ message: 'Unknown activity' /* … */ })
+}
+```
+
+In practice both legs already send one spelling: the agent derives
+`redirect_uri` and `client_id` from `window.location` with query and fragment
+cleared, so a learner arriving at `/lesson?tab=2#part-3` authorizes as
+`/lesson` ([AGENT → Connecting to Modulus](./AGENT.md#connecting-to-modulus)).
+The canonical lookup is what makes the resolution correct anyway, rather than
+dependent on that client behaviour. The **syntactic `redirect_uri` gate** in the
+host route is unchanged and independent of all of this: `isUsableRedirectUri`
+still rejects a credentialed, `javascript:`, or `data:` destination, and
+canonicalization never strips credentials to make a URL usable.
+
 ```ts
 const code_challenge = createHash('sha256').update(code_verifier).digest().toString('base64url')
 if (authCode.code_challenge !== code_challenge) throw ERR_UNAUTHORIZED('Incorrect code_challenge')
@@ -282,13 +310,26 @@ the URL against the **sitewide activity URL allowlist**: a set of rules managed
 by administrators, each a normalized origin plus a path prefix, stored in
 `activity_url_allowlist_rules` and edited at `/admin/activities`.
 
-Three properties of that check matter here:
+Every step of that service works on the **canonical activity URL** — the `URL`
+serialization with query and fragment removed, defined in
+[DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping).
+The lookup, the length bound, the policy evaluation, the insert, and the re-read
+after a conflict all use that one key, so equivalent spellings of a page resolve
+to one activity. A submitted URL with no canonical form is denied as
+`malformed_url` before any database access.
+
+Four properties of that check matter here:
 
 - **Resolve before evaluate.** An activity that already exists is returned
   without the policy being consulted. A rule change therefore cannot revoke an
   activity Modulus has already accepted — learners keep launching it, and it may
   still be added to activity codes and used in new deep links. The allowlist
   governs *admission*, never use.
+- **Canonicalizing is the caller's job, not the repository's.** All four
+  `findActivityByUrl` repositories stay exact-key stores — a plain
+  `eq(activities.url, url)` with no case folding and no alias table — and each
+  calling service derives the key first. That keeps one definition of identity
+  in one pure function instead of four SQL predicates.
 - **Allow-all with no enabled rules.** A previously unseen URL is admitted if
   it passes URL validation. This applies both to an empty table and to a table
   containing only disabled rules. Seeds create no rules. Adding or enabling the
@@ -428,7 +469,14 @@ Flagged in the code, worth knowing before relying on these paths:
   [The Authorization Endpoint's Branch Ordering](#the-authorization-endpoints-branch-ordering).
 - **`client_id` has no registry.** The route requires `client_id === redirect_uri`
   and carries a `TODO` asking whether it should instead be the redirect URI's
-  domain, or come from a registry.
+  domain, or come from a registry. That equality is a string comparison on the
+  submitted values, like every other protocol check here — it is not weakened to
+  canonical equivalence.
+- **Canonical identity resolves spellings, not standards equivalence.** Two URLs
+  that differ only by percent-escape case, or by an unreserved character being
+  escaped, remain two activities, and no network check is made for redirects or
+  host aliases. The limits are listed in
+  [DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping).
 - **Withdrawing an admitted activity is not implemented.** The allowlist admits;
   nothing revokes. An emergency block — stopping launches, tokens, or passback
   for an activity already accepted — is a separate deferred feature with its own

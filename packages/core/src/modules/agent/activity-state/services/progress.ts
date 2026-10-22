@@ -1,4 +1,5 @@
 import { BaseService, method } from '@/lib/base-service.js'
+import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
 import type { AgentAuth } from '@/lib/auth.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
@@ -57,11 +58,22 @@ export class ActivityProgressService extends BaseService {
   // side-effect-free: an unknown URL is omitted (returns null) -- the agent
   // renders a missing entry as 0 -- and we never create a row on the read path.
   // No activity-code scope check: codes are orthogonal to umbrella reporting.
+  //
+  // The lookup uses the canonical key, so any spelling of a registered
+  // activity finds it, but the entry echoes the URL as requested: the agent
+  // correlates results by the strings it sent.  A URL the parser rejects cannot
+  // name an activity and is omitted without a lookup.  Each requested
+  // occurrence is answered separately, so repeated or equivalent URLs are not
+  // collapsed.
   private async readScopedProgress(
     auth: AgentAuth,
     url: string
   ): Promise<{ url: string; progress: number } | null> {
-    const target = await this.queries.findActivityByUrl(url)
+    const key = normalizeActivityUrl(url)
+    if (key === null) {
+      return null
+    }
+    const target = await this.queries.findActivityByUrl(key)
     if (!target) {
       return null
     }
@@ -211,9 +223,13 @@ export class ActivityProgressService extends BaseService {
    * otherwise be unable to report *any* progress, ever.
    *
    * Self-reference is compared by activity id, not by URL string: `register`
-   * resolves the URL to a row first, and a self-referencing URL always resolves
-   * to an existing row, since self's own activity was created when its token
-   * was minted. Nothing is created on the way to that refusal.
+   * resolves the URL's canonical key to a row first, so any equivalent spelling
+   * of the reporting activity's URL is caught, and a self-referencing URL
+   * always resolves to an existing row, since self's own activity was created
+   * when its token was minted. Nothing is created on the way to that refusal.
+   *
+   * `url` is passed to `register` as submitted; registration derives the
+   * canonical key, and the caller keeps the submitted spelling for its response.
    */
   private async resolveTarget(
     auth: AgentAuth,

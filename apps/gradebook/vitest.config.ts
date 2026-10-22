@@ -17,6 +17,10 @@ export default defineConfig(({ mode }) => {
       include: testFiles,
       reporter: 'verbose',
       globals: true,
+      // UIKit's compiled components import their CSS modules. Processing the
+      // package through Vite, rather than loading it as an external Node
+      // module, lets tests render the real components.
+      server: { deps: { inline: [/@infonomic\/uikit/] } },
     },
   }
 })

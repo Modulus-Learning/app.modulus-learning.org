@@ -1,7 +1,7 @@
 ---
 title: "LTI 1.3 Integration"
 path: "lti"
-summary: "How Modulus is an LTI 1.3 tool for an institutional LMS: the three keypairs and trust model, platform registration, the OIDC login and launch flows, deep linking for content selection, and the queue-backed AGS score-passback worker built to survive thousands of concurrent submissions."
+summary: "How Modulus is an LTI 1.3 tool for an institutional LMS: the three keypairs and trust model, platform registration, the OIDC login and launch flows, deep linking for content selection with instructor activity URL validation and canonical custom claims, and the queue-backed AGS score-passback worker built to survive thousands of concurrent submissions."
 ---
 
 # LTI 1.3 Integration
@@ -177,20 +177,66 @@ under `never`, a third-party activity origin.
 
 No Modulus-owned URL on the LTI path embeds an activity URL. Under `never` the
 redirect target is the activity URL itself, and under `always` the interstitial
-is keyed on the activity's uuid and reads the URL from the `activities` row. An
-authored query, fragment, or literal percent escape in an activity URL therefore
-survives both modes. The readable nested-URL form, and the round-trip caveat that
-came with it, now apply only to the direct `/start-activity` path described
-below.
+is keyed on the activity's uuid and reads the URL from the `activities` row. A
+literal percent escape in an activity URL therefore survives both modes. The
+readable nested-URL form, and the round-trip caveat that came with it, now apply
+only to the direct `/start-activity` path described below.
 
-:::note[The direct `/start-activity` path is unchanged]
+**The destination is the stored activity URL, not the launch claim.** The
+`modulus_activity_url` custom claim is resolved to an `activities` row by its
+canonical form, and the redirect is then built from `activity.url`:
+
+```ts
+// packages/core/src/modules/app/lti/services/launch.ts (excerpt)
+const activityKey = normalizeActivityUrl(activity_url)
+const activity =
+  activityKey === null ? undefined : await this.activityQueries.findActivityByURL(activityKey)
+```
+
+That makes older links keep working: a resource link published before activity
+URLs were canonicalized, or one whose URL a platform re-serialized in transit,
+still resolves to its activity. A claim with no canonical form resolves to
+nothing and remains an invalid launch, as it was before.
+
+It also fixes what the launch forwards. Because the redirect is built from the
+stored column rather than from the claim, **a query string or fragment on the
+incoming claim is dropped, not carried through to the activity as a launch
+option.** Only `modulus` and `scope_id` are added. Modulus does not support
+instructor-configured launch parameters, and this path does not quietly provide
+them.
+
+:::warning[Known limitation: generated direct links lose path structure]
 `/{lng}/start-activity/{code}/{activity-url}` — the non-LTI path, for a learner
 who arrives with an activity code rather than through an LMS link — still nests
 the target activity URL in the route, readable and unencoded, at stakeholder
-request. An authored query, fragment, or literal percent escape embedded in that
-target is not guaranteed to round-trip through that catch-all route. Authors
-should avoid those forms on that path until link validation or a transport change
-is agreed.
+request. Nesting it there exposes the activity URL to Next.js's outer-path
+handling, which collapses repeated slashes before application middleware runs
+and, under the current configuration, removes a trailing slash. The extractor in
+`apps/gradebook/src/modules/app/activity/launch-url.ts` restores the known `//`
+after the scheme, but it cannot recover a slash lost from the activity's own
+path, and canonicalizing the reconstructed URL cannot recover it either.
+
+| Activity path | What lookup receives | Result |
+| --- | --- | --- |
+| `/lesson/` | `/lesson` | A different activity identity |
+| `/a//b` | `/a/b` | A different activity identity |
+| `/` | `/` | Correct — the lookup restores the root slash |
+
+So an activity whose path has a **non-root trailing slash will not launch
+correctly through a generated direct link**, and neither will one with a
+repeated slash, which the maintainer does not expect in production. If the
+altered URL matches no activity the launch fails; if it matches a *different*
+registered activity, the learner lands on that one. Both URLs are perfectly
+valid activity identities — the limitation belongs to this route's transport and
+does not affect LTI launches, which never put an activity URL in a Modulus path.
+A literal percent escape embedded in the nested target is likewise not
+guaranteed to round-trip.
+
+Replacing the transport is deferred pending stakeholder discussion; two
+candidates are open — carrying the activity URL in a query parameter, or
+carrying the activity's ID in the path — and neither has been chosen. Until
+then, prefer activity paths without a trailing slash for content that will be
+reached by a generated direct link.
 :::
 
 If a launch fails before or during any of this, the host redirects to
@@ -215,15 +261,28 @@ an assignment points to.
    at `/lti/deep-link?id=<launch_id>`; the
    host posts to `/routes/lti/deep-link/activities` → `LtiCommands.handleDeepLink` →
    `LtiDeepLinkingService.handleDeepLink`:
+   - **validate the submitted activity URL** as instructor input, before
+     anything else is loaded — see
+     [Instructor Activity URL Validation](#instructor-activity-url-validation);
    - load the stored launch (reject if expired), resolve the platform;
    - resolve the **activity code** by its public code and enforce its
-     `url_prefix` if set;
+     `url_prefix` if set. Both sides of that comparison are canonicalized, so
+     `HTTPS://Content.test:443/course/x` falls under the prefix
+     `https://content.test/course`, while the `startsWith()` semantics are
+     retained — a stored prefix ending in a non-root `/` still narrows the
+     match. A stored prefix that is itself invalid — possible for a row written
+     before prefixes were canonicalized — fails with
+     `ERR_DEEP_LINK_PREFIX_INVALID` and is attributed to the activity code, not
+     to the URL the instructor typed; a genuine mismatch fails with
+     `ERR_DEEP_LINK_PREFIX_MISMATCH`. Neither error carries the prefix or the
+     submitted URL;
    - **find-or-create** the `activities` row for the URL and **associate** it with
      the activity code (idempotent — see the in-code note on the cancel-after-
      submit caveat). This association is what a later resource-link launch checks
      before enrolling the learner, so removing an activity from a code in the
      Modulus dashboard stops enrollment through any LMS link that still points at
-     it;
+     it. Registration receives the canonical URL derived from the trimmed input,
+     so the activity that is checked is the activity that is stored;
    - build an `ltiResourceLink` content item whose `url` is the **tool's launch
      endpoint** — `urlBuilder.ltiLaunchUrl`, `{publicServerUrl}/routes/lti/launch`
      — with the resource identity carried in the custom claims
@@ -245,6 +304,98 @@ an assignment points to.
 Canvas substitutions are stored on each resource link. Links created before the
 term fields were added must be deep-linked again before their launches can
 resolve a named scope; otherwise they correctly fall back to the sentinel.
+
+### What a Deep Link Durably Records
+
+The content item names the **resolved activity**, never the spelling the
+instructor typed. Both durable fields come off the `activities` row that
+registration returned:
+
+```ts
+// packages/core/src/modules/app/lti/services/deep-link.ts (excerpt)
+const customFields = {
+  modulus_launch_type: 'start-activity',
+  modulus_activity_code: activity_code,
+  modulus_activity_url: activity.url,
+  ...CANVAS_CUSTOM_LAUNCH_FIELDS,
+}
+// …
+window: { targetName: `modulus-${activity_code}-${activity.id}` },
+```
+
+Two consequences are worth stating:
+
+- **`modulus_activity_url` is the canonical activity URL.** Two instructors who
+  enter two spellings of one page publish identical content items, and a later
+  launch resolves exactly the row registered here.
+- **The window target is `modulus-${activity_code}-${activity.id}`.** It is
+  stable across spellings, distinct per code and activity, and contains no URL
+  characters. It previously embedded the submitted activity URL, which made the
+  browser's window name vary with spelling.
+
+### Instructor Activity URL Validation
+
+The same rule governs an activity URL wherever an instructor types one — the
+deep-linking form, and activity-code creation and editing. One pure helper
+decides it, shared by core's command schemas and the host's form feedback, so the
+two cannot disagree:
+
+```ts
+// packages/core/src/modules/activity-registration/activity-url.ts (excerpt)
+export const validateInstructorActivityUrl = (value: string): InstructorActivityUrlResult => {
+  const trimmed = value.trim()
+  if (trimmed.includes(' ')) {
+    return { ok: false, reason: 'literal_space' }
+  }
+
+  const url = parseUrl(trimmed)
+  if (url === null) {
+    return { ok: false, reason: 'malformed_url' }
+  }
+
+  if (url.href.includes('?') || url.href.includes('#')) {
+    return { ok: false, reason: 'unsupported_url_components' }
+  }
+
+  return { ok: true, url: serializeWithoutComponents(url) }
+}
+```
+
+In plain terms:
+
+- **Surrounding whitespace is trimmed** before anything is judged, and the
+  trimmed string is what gets registered. The parser does not strip every
+  character `trim()` does, so validating the trimmed form and registering the raw
+  one could otherwise store a different activity from the one that was checked.
+- **An internal literal space is rejected**, not encoded. The check runs before
+  parsing, because the parser would quietly turn `lesson one` into
+  `lesson%20one` and accept it. An inner space in typed input is far more likely
+  a paste error — two URLs on one line — than an intended path character.
+- **An explicit `%20` is accepted** and never decoded. This is a rule about what
+  an instructor may type, not about identity: `normalizeActivityUrl()` still
+  resolves the raw-space spelling to its encoded canonical form.
+- **A query string or fragment is rejected**, including an empty one from a
+  trailing `?` or `#`. Presence is detected in the serialization before the
+  components are cleared, because `url.search` and `url.hash` both read as `''`
+  for an empty component. An encoded `%3F` or `%23` in a path is an ordinary path
+  character and is accepted.
+- **Failed input is preserved.** The entered text stays in the field with a
+  specific per-field message — per physical line, for the activity-URL textarea,
+  so `Lines 2, 5: …` names what the instructor is looking at. Nothing is
+  silently rewritten and nothing is discarded for the instructor to retype.
+
+This is **input policy, not admission and not identity**. Scheme, credentials,
+the 255-character storage bound, and the sitewide allowlist are admission rules
+that apply only to an activity Modulus has not seen, and they are decided by
+registration ([AUTHN-AUTHZ → Admitting the Activity URL](./AUTHN-AUTHZ.md#admitting-the-activity-url)).
+A grandfathered activity whose stored URL would fail today's admission syntax
+stays usable. Nor does this rule reach the agent or OAuth paths: the agent
+submits a `redirect_uri` derived from `window.location`, and a learner's query
+string or fragment is dropped from the lookup key rather than rejected.
+
+Instructor-configured launch parameters — a query string an instructor wants
+appended to a launch — are **not supported**, which is what the rejection message
+tells the instructor. Adding them is deferred work, not an oversight.
 
 ## Flow 4 — AGS Score Passback
 
@@ -350,6 +501,17 @@ that case.
   instead reaches the endpoint registered as `LTI_REDIRECT_URI` — a separate
   configuration key, conventionally set to the same URL, but free to diverge
   from it.
+- **Generated direct links cannot carry every activity path.** A non-root
+  trailing slash or a repeated slash is lost before the `/start-activity` route
+  receives its parameters, so those activities do not launch correctly through a
+  generated link. The replacement transport is deferred and unchosen — see the
+  warning in [Where The Learner Lands](#where-the-learner-lands). A later fix
+  must be verified through actual routing, locale redirects, and sign-in;
+  extractor-only tests cannot detect information lost upstream of the page.
+- **Instructor-configured launch parameters are not supported.** An activity URL
+  carrying a query string or fragment is rejected at input, and no launch path
+  forwards one. Supporting authored launch parameters is deferred work with its
+  own design questions, not a gap in validation.
 - **No LTI-conformant error response.** `/lti/error` is a first-party page for
   the learner. Signing and posting an error back to the platform, or honouring a
   platform-supplied error return URL, is still outstanding and is what the

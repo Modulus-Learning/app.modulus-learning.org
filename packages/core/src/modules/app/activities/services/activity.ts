@@ -4,6 +4,7 @@ import { adjectives, animals, uniqueNamesGenerator } from 'unique-names-generato
 import { v7 as uuidv7 } from 'uuid'
 
 import { BaseService, method } from '@/lib/base-service.js'
+import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
 import { activityUrlNotAllowed } from '@/modules/activity-registration/errors.js'
 import {
   ERR_ACTIVITY_CODE_GENERATION,
@@ -67,6 +68,13 @@ export class ActivityService extends BaseService {
    *   - **All or nothing.** A denial names *every* offending URL and writes
    *     none of them. A code saved with only the approved subset would differ
    *     silently from the instructor's form.
+   *
+   * Submitted URLs are grouped by canonical activity URL, so equivalent
+   * spellings on two lines register once and associate one activity. A denial
+   * is expanded back to every distinct submitted spelling of the denied key,
+   * so the host can mark each line the instructor typed. Denials therefore
+   * follow canonical order, with unparseable URLs first in submission order --
+   * not the raw order of the form.
    */
   private async registerActivityUrls(urls: string[]): Promise<RegisteredActivity[]> {
     // One snapshot for the whole submission. Five unseen URLs evaluated under
@@ -74,22 +82,55 @@ export class ActivityService extends BaseService {
     // naming an arbitrary subset, that the instructor cannot act on.
     const policy = await this.registration.loadPolicy()
 
-    // Sorted and de-duplicated so that every transaction acquires row locks in
-    // the same order. Each registration is now its own statement rather than
-    // one multi-row insert, so two instructors submitting codes that share
-    // unseen URLs in different orders could otherwise deadlock on each other's
-    // uncommitted rows and have one aborted by Postgres.
-    const ordered = [...new Set(urls)].sort()
-
-    const activities: RegisteredActivity[] = []
     const rejected: RejectedRegistration[] = []
 
-    for (const url of ordered) {
-      const outcome = await this.registration.register(url, policy)
+    // Canonical key -> the distinct submitted spellings that resolve to it.
+    // The public commands reject unparseable URLs before this handler runs;
+    // a direct caller's malformed URL is still denied here, and never enters
+    // the map under a `null` key where distinct malformed inputs would merge.
+    //
+    // The key comes from the trimmed spelling, exactly as the command schema
+    // validated it. The parser strips only surrounding C0 controls and spaces,
+    // so an untrimmed `https://content.test/lesson ` would otherwise pass
+    // validation as `/lesson` and register as `/lesson%C2%A0`. The submitted
+    // spelling itself is kept for denial correlation.
+    const spellingsByKey = new Map<string, string[]>()
+    for (const url of urls) {
+      const key = normalizeActivityUrl(url.trim())
+      if (key === null) {
+        if (!rejected.some((entry) => entry.url === url)) {
+          rejected.push({ url, reason: 'malformed_url' })
+        }
+        continue
+      }
+
+      const spellings = spellingsByKey.get(key)
+      if (spellings === undefined) {
+        spellingsByKey.set(key, [url])
+      } else if (!spellings.includes(url)) {
+        spellings.push(url)
+      }
+    }
+
+    // Canonical keys, sorted and de-duplicated, so that every transaction
+    // acquires row locks in the same order. Each registration is its own
+    // statement rather than one multi-row insert, so two instructors
+    // submitting codes that share unseen URLs in different orders -- or in
+    // different spellings -- could otherwise deadlock on each other's
+    // uncommitted rows and have one aborted by Postgres.
+    const ordered = [...spellingsByKey.keys()].sort()
+
+    // Keyed by activity ID so each resolved activity is associated once.
+    const activities = new Map<string, RegisteredActivity>()
+
+    for (const key of ordered) {
+      const outcome = await this.registration.register(key, policy)
       if (outcome.ok) {
-        activities.push(outcome.activity)
+        activities.set(outcome.activity.id, outcome.activity)
       } else {
-        rejected.push({ url: outcome.url, reason: outcome.reason })
+        for (const url of spellingsByKey.get(key) ?? []) {
+          rejected.push({ url, reason: outcome.reason })
+        }
       }
     }
 
@@ -111,7 +152,7 @@ export class ActivityService extends BaseService {
       throw activityUrlNotAllowed(rejected)
     }
 
-    return activities
+    return [...activities.values()]
   }
 
   @method
@@ -277,9 +318,10 @@ export class ActivityService extends BaseService {
     userAuth: UserAuth,
     { id, url_prefix, description, urls }: UpdateActivityCodeRequest
   ): Promise<ActivityCode> {
-    // TODO: Validate urls, here and in createActivityCode
-    // (the per-code `url_prefix` check stays in the host by explicit decision;
-    // the sitewide allowlist is enforced by `registerActivityUrls` below)
+    // The command schema has already rejected unparseable URLs and any query
+    // or fragment, and canonicalized `url_prefix`. Checking activity URLs
+    // against that prefix stays in the host by explicit decision; the sitewide
+    // allowlist is enforced by `registerActivityUrls` below.
 
     // 1. Check that the caller is a member of the activity code.
     const { record: activityCodeRecord } = await this.loadAsMember(userAuth, id)

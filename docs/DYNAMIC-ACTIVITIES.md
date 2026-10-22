@@ -36,6 +36,16 @@ summary: "Why Modulus materializes an activity row on demand ('lazy create') fro
 > path), and
 > [SECURITY-AND-PRIVACY → Agent / activity trust](./SECURITY-AND-PRIVACY.md#agent--activity-trust-tier-2--tier-3)
 > (what admission does and does not control).
+>
+> **One further change since this document was written:** an activity is now
+> identified by a **canonical activity URL** — the `URL` serialization with
+> query and fragment removed — so equivalent spellings of a page resolve to one
+> `activities` row on every path, lazy creation included. Wherever the sections
+> below describe a URL being matched, looked up, or created, read that as
+> happening on the canonical key rather than on the submitted string. The
+> identity contract, including the distinctions it deliberately preserves, is
+> defined in
+> [DATA-MODEL → Activities & Grouping](./DATA-MODEL.md#3-activities--grouping).
 
 This document describes **lazy activity creation** — letting Modulus materialize
 an `activities` row on demand when an agent reports against a URL that is not yet

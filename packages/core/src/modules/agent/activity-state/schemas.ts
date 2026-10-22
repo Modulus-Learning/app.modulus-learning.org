@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
+
 /*
  * A single cumulative ("umbrella") contribution target in a `set-progress`
  * submission.
@@ -55,9 +57,10 @@ export const getProgressSchemas = {
  * this activity reports a calculation against.
  *
  * `progress_for_current_page` must be a finite number; values outside of `[0,1]`
- * will be clamped.  Duplicate target URLs are an authoring error and are rejected here;
- * a self-referencing target (a URL matching the current activity) is rejected by
- * the server.
+ * will be clamped.  Duplicate target URLs -- repeated strings, or spellings that
+ * canonicalize to the same activity URL -- are an authoring error and are
+ * rejected here; a self-referencing target (a URL resolving to the current
+ * activity) is rejected by the server.
  */
 /**
  * Why one cumulative target was refused.
@@ -88,12 +91,38 @@ export const rejectedTargetSchema = z.object({
 
 export type RejectedTarget = z.infer<typeof rejectedTargetSchema>
 
+/**
+ * Whether two cumulative targets name the same activity.
+ *
+ * Repeated raw strings are checked first, so an identical malformed URL is
+ * still a duplicate. Canonical keys are then compared only for inputs that
+ * parse: every parse failure normalizes to `null`, and two *different*
+ * malformed URLs must not collide on it. They remain separate targets that
+ * registration refuses one at a time.
+ *
+ * Canonical duplicates (`https://content.test:443/a` and
+ * `https://CONTENT.test/a?x=1`, say) resolve to one activity, and there is no
+ * sound way to choose or combine their factors, so the page's authored markup
+ * is wrong and the whole submission is refused here, before the handler runs.
+ */
+const hasDuplicateTargets = (targets: { url: string }[]): boolean => {
+  const urls = targets.map((t) => t.url)
+  if (new Set(urls).size !== urls.length) {
+    return true
+  }
+
+  const keys = urls.map(normalizeActivityUrl).filter((key): key is string => key !== null)
+  return new Set(keys).size !== keys.length
+}
+
 export const setProgressSchemas = {
   input: z.object({
     progress_for_current_page: z.number(),
+    // The message never echoes a target: `CoreUtils.zodParse()` logs every
+    // issue, and a target URL can carry query or fragment values.
     increments_for_other_pages: z
       .array(progressUpdateSchema)
-      .refine((targets) => new Set(targets.map((t) => t.url)).size === targets.length, {
+      .refine((targets) => !hasDuplicateTargets(targets), {
         message: 'increments_for_other_pages contains duplicate target URLs',
       }),
   }),
@@ -103,10 +132,17 @@ export const setProgressSchemas = {
     // Resulting progress for each reported-against activity.  Populated in
     // Phase 2, once transactional multi-activity writes land.
     others: z.array(progressResultSchema).optional(),
-    // Targets that were refused, each with the reason. A rejected target never
+    // Targets that were refused, each with the reason and its submitted `url`
+    // spelling. An admission or self-reference refusal is per target and never
     // fails the submission carrying it: the target list comes from the page's
     // authored markup, so failing would stop that page reporting progress
     // permanently -- including the learner's own valid self high-water mark.
+    //
+    // Request validation is the explicit exception. It runs before the
+    // handler, so a failure there -- including duplicate targets, whether
+    // repeated strings or canonically equivalent spellings -- rejects the
+    // entire submission with `ERR_VALIDATION`, self progress included, and
+    // nothing appears here.
     //
     // Omitted rather than empty when every target was accepted, matching how
     // `others` is already handled.

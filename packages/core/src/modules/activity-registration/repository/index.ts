@@ -115,6 +115,11 @@ export class ActivityUrlAllowlistQueries extends BaseService {
   /**
    * Resolves an activity by its exact URL.
    *
+   * `url` is a canonical activity URL key, already produced by the calling
+   * service with `normalizeActivityUrl()`. This is SQL equality over the
+   * stored canonical form and deliberately knows nothing about URL spelling;
+   * passing a raw submitted URL would miss equivalent spellings.
+   *
    * This lives here, beside the rules, so the registration service can resolve
    * a URL without borrowing another module's repository — it is the only writer
    * of `activities`, so it owns the read that decides whether to write.
@@ -200,6 +205,11 @@ export class ActivityUrlAllowlistMutations extends BaseService {
 
   /**
    * Inserts an activity, or does nothing if one already holds the URL.
+   *
+   * `url` is the canonical activity URL key the registration service derived
+   * and admitted; it is stored as given. Because equivalent spellings share
+   * that key, the unique constraint on `activities.url` also resolves races
+   * between different spellings of one page.
    *
    * Returns the inserted row, or `undefined` when a concurrent insert won the
    * race — the caller then re-reads to find the winner.

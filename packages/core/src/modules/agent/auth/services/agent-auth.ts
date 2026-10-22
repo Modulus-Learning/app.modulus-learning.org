@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto'
 
 import { BaseService } from '@/lib/base-service.js'
 import { ERR_UNAUTHORIZED, ERR_VALIDATION } from '@/lib/errors.js'
+import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
 import { activityUrlNotAllowed } from '@/modules/activity-registration/errors.js'
 import type { Config } from '@/config.js'
 import type { UserAuth } from '@/lib/auth.js'
@@ -80,6 +81,10 @@ export class AgentAuthService extends BaseService {
     // Deliberately not associated with any activity code. The allowlist
     // expresses site trust, not curriculum ownership.
 
+    // `register` resolved the canonical activity URL, but the code stores the
+    // protocol values exactly as received. Token exchange compares them
+    // byte-for-byte against what the agent sends again, so a canonicalized
+    // copy here would reject the agent's own exact replay.
     const code = randomBytes(60).toString('base64url')
     const expires_at = new Date(Date.now() + 1000 * 60 * 5)
 
@@ -140,7 +145,17 @@ export class AgentAuthService extends BaseService {
       }).log(this.logger)
     }
 
-    const activity = await this.queries.findActivityByUrl(redirect_uri)
+    // The protocol values above were compared exactly, as submitted: an
+    // equivalent spelling is not the same `redirect_uri` to OAuth. Only the
+    // activity lookup is canonical, because `createAuthCode` registered the
+    // activity under the canonical key. Nothing here registers or evaluates
+    // the allowlist -- the code already proves the activity was admitted.
+    //
+    // A value the parser rejects has no key and cannot name an activity, so it
+    // takes the unknown-activity outcome without a lookup.
+    const activityKey = normalizeActivityUrl(redirect_uri)
+    const activity =
+      activityKey === null ? undefined : await this.queries.findActivityByUrl(activityKey)
     if (!activity) {
       throw ERR_UNAUTHORIZED({
         message: 'Unknown activity',

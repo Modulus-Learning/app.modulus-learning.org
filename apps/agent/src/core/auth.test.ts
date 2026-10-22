@@ -559,6 +559,98 @@ describe('OAuth response restoration and persistence', () => {
     expect(redirectUri.hash).toBe('')
   })
 
+  it('binds a round trip from a query and fragment location to the component-free page URL', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      `/chapter/activity?tag=one&modulus=${encodeURIComponent(ISSUER)}&scope_id=${SCOPE_ID}&tag=two#section-2`
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => registryResponse())
+    )
+    const redirected = captureNavigation()
+
+    await expect(authenticate(undefined, { navigate: redirected.navigate })).rejects.toBeInstanceOf(
+      Navigation
+    )
+
+    // The gradebook resolves the activity from these values and later compares
+    // the token request against them exactly, so both legs must send one
+    // spelling with neither query nor fragment.
+    const pageUrl = `${window.location.origin}/chapter/activity`
+    const authorization = redirected.navigation.url
+    expect(authorization.searchParams.get('client_id')).toBe(pageUrl)
+    expect(authorization.searchParams.get('redirect_uri')).toBe(pageUrl)
+    const saved = readOAuthSession()
+    if (saved == null) throw new Error('OAuth session was not saved')
+    expect(saved.return_location).toEqual({ search: '?tag=one&tag=two', hash: '#section-2' })
+
+    // The redirect unloads the page. The authorization server then returns to
+    // the bare redirect URI carrying only its own response parameters.
+    resetAuthenticationStateForTesting()
+    const callback = new URL(pageUrl)
+    callback.search = new URLSearchParams({ state: saved.state, code: 'auth-code' }).toString()
+    window.history.replaceState(null, '', callback)
+    let tokenBody: URLSearchParams | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        tokenBody = new URLSearchParams(String(init?.body))
+        return tokenResponse()
+      })
+    )
+
+    await expect(authenticate(undefined)).resolves.toMatchObject({
+      status: 'authenticated',
+      scope_id: SCOPE_ID,
+    })
+
+    expect(tokenBody?.get('client_id')).toBe(pageUrl)
+    expect(tokenBody?.get('redirect_uri')).toBe(pageUrl)
+    expect(tokenBody?.get('code_verifier')).toBe(saved.code_verifier)
+    // History restoration only rewrites the address bar; it does not reload
+    // the page, re-render query-dependent content, or scroll to the fragment.
+    expect(window.location.pathname).toBe('/chapter/activity')
+    expect(window.location.search).toBe('?tag=one&tag=two')
+    expect(window.location.hash).toBe('#section-2')
+  })
+
+  it('sends the same OAuth client identity when only query and fragment change', async () => {
+    storeTabContext(context())
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => registryResponse())
+    )
+    const pageUrl = `${window.location.origin}/chapter/activity`
+    const locations = [
+      { path: '/chapter/activity', search: '', hash: '' },
+      { path: '/chapter/activity?tag=one#part-1', search: '?tag=one', hash: '#part-1' },
+      {
+        path: '/chapter/activity?other=2&tag=two#part-2',
+        search: '?other=2&tag=two',
+        hash: '#part-2',
+      },
+      { path: '/chapter/activity?#', search: '', hash: '' },
+    ]
+
+    for (const { path, search, hash } of locations) {
+      resetAuthenticationStateForTesting()
+      window.sessionStorage.removeItem(OAUTH_SESSION_STORAGE_KEY)
+      window.history.replaceState(null, '', path)
+      const redirected = captureNavigation()
+
+      await expect(
+        authenticate(undefined, { navigate: redirected.navigate })
+      ).rejects.toBeInstanceOf(Navigation)
+
+      expect(redirected.navigation.url.searchParams.get('client_id')).toBe(pageUrl)
+      expect(redirected.navigation.url.searchParams.get('redirect_uri')).toBe(pageUrl)
+      expect(redirected.navigation.url.searchParams.get('scope_id')).toBe(SCOPE_ID)
+      expect(readOAuthSession()?.return_location).toEqual({ search, hash })
+    }
+  })
+
   it('single-flights concurrent OAuth callbacks through one token exchange', async () => {
     storeOAuthSession(oauthSession())
     window.history.replaceState(null, '', '/activity?state=oauth-state&code=auth-code')

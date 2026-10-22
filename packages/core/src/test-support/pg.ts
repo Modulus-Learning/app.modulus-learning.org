@@ -23,11 +23,14 @@ import {
 } from '@/modules/agent/activity-state/repository/index.js'
 import { ActivityPageStateService } from '@/modules/agent/activity-state/services/pagestate.js'
 import { ActivityProgressService } from '@/modules/agent/activity-state/services/progress.js'
+import { AgentAuthMutations, AgentAuthQueries } from '@/modules/agent/auth/repository/index.js'
+import { AgentAuthService } from '@/modules/agent/auth/services/agent-auth.js'
 import {
   ActivityMutations as AppActivityMutations,
   ActivityQueries as AppActivityQueries,
 } from '@/modules/app/activities/repository/index.js'
 import { ActivityService as AppActivityService } from '@/modules/app/activities/services/activity.js'
+import { EnrollmentService } from '@/modules/app/activities/services/enrollment.js'
 import { LtiMutations, LtiQueries } from '@/modules/app/lti/repository/index.js'
 import {
   LtiScoreSubmissionMutations,
@@ -35,11 +38,15 @@ import {
 } from '@/modules/app/lti/score-submission/repository.js'
 import { LtiScoreSubmitter } from '@/modules/app/lti/score-submission/submitter.js'
 import { LtiDeepLinkingService } from '@/modules/app/lti/services/deep-link.js'
+import { LtiLaunchService } from '@/modules/app/lti/services/launch.js'
 import { testConfig } from '@/test-support/config.js'
-import type { UrlBuilder } from '@/config.js'
+import type { Config, UrlBuilder } from '@/config.js'
 import type { DB } from '@/database/index.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
+import type { AgentTokenIssuer } from '@/modules/agent/auth/services/token-issuer.js'
 import type { LtiAgsClient } from '@/modules/app/lti/score-submission/ags-client.js'
+import type { LtiSignInService } from '@/modules/app/session/services/lti-sign-in.js'
+import type { TokenIssuer } from '@/modules/app/session/services/token-issuer.js'
 
 const MIGRATIONS_FOLDER = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -86,6 +93,8 @@ export type TestRepos = {
   appActivityMutations: AppActivityMutations
   allowlistQueries: ActivityUrlAllowlistQueries
   allowlistMutations: ActivityUrlAllowlistMutations
+  agentAuthQueries: AgentAuthQueries
+  agentAuthMutations: AgentAuthMutations
 }
 
 // Service-layer seam for the 7.1b composition tests: the real service over the
@@ -97,11 +106,27 @@ export type TestServices = {
   allowlistPolicy: AllowlistPolicyService
   activityRegistration: ActivityRegistrationService
   appActivity: AppActivityService
+  enrollment: EnrollmentService
   /** Built per test, so a fake key store and url builder can be injected. */
   makeDeepLinking: (deps: {
     urlBuilder: UrlBuilder
     ltiKeyStore: LtiKeyStore
   }) => LtiDeepLinkingService
+  /**
+   * Built per test, so the issued access token can be inspected. Registration,
+   * the auth-code store, and the activity lookup are all real.
+   */
+  makeAgentAuth: (deps: { config: Config; tokenIssuer: AgentTokenIssuer }) => AgentAuthService
+  /**
+   * Built per test, so LMS sign-in and session tokens -- the launch's outbound
+   * effects -- can be faked while activity resolution, enrollment, scope
+   * resolution, and line-item reconciliation run against the real database.
+   */
+  makeLtiLaunch: (deps: {
+    config: Config
+    ltiSignInService: LtiSignInService
+    tokenIssuer: TokenIssuer
+  }) => LtiLaunchService
   makeSubmitter: (agsClient: LtiAgsClient) => LtiScoreSubmitter
 }
 
@@ -158,6 +183,8 @@ export async function setupTestHarness(): Promise<TestHarness> {
     appActivityMutations: new AppActivityMutations(deps),
     allowlistQueries: new ActivityUrlAllowlistQueries(deps),
     allowlistMutations: new ActivityUrlAllowlistMutations(deps),
+    agentAuthQueries: new AgentAuthQueries(deps),
+    agentAuthMutations: new AgentAuthMutations(deps),
   }
 
   const allowlistPolicy = new AllowlistPolicyService({
@@ -170,6 +197,12 @@ export async function setupTestHarness(): Promise<TestHarness> {
     queries: repos.allowlistQueries,
     mutations: repos.allowlistMutations,
     policy: allowlistPolicy,
+  })
+
+  const enrollment = new EnrollmentService({
+    logger,
+    queries: repos.appActivityQueries,
+    mutations: repos.appActivityMutations,
   })
 
   const services: TestServices = {
@@ -194,6 +227,7 @@ export async function setupTestHarness(): Promise<TestHarness> {
       mutations: repos.appActivityMutations,
       activityRegistration: { service: activityRegistration },
     }),
+    enrollment,
     makeDeepLinking: ({ urlBuilder, ltiKeyStore }) =>
       new LtiDeepLinkingService({
         logger,
@@ -202,6 +236,25 @@ export async function setupTestHarness(): Promise<TestHarness> {
         activities: { queries: repos.appActivityQueries, mutations: repos.appActivityMutations },
         ltiKeyStore,
         activityRegistration: { service: activityRegistration },
+      }),
+    makeAgentAuth: ({ config, tokenIssuer }) =>
+      new AgentAuthService({
+        logger,
+        config,
+        queries: repos.agentAuthQueries,
+        mutations: repos.agentAuthMutations,
+        tokenIssuer,
+        activityRegistration: { service: activityRegistration },
+      }),
+    makeLtiLaunch: ({ config, ltiSignInService, tokenIssuer }) =>
+      new LtiLaunchService({
+        logger,
+        config,
+        tx,
+        queries: repos.ltiQueries,
+        mutations: repos.ltiMutations,
+        activities: { queries: repos.appActivityQueries, enrollmentService: enrollment },
+        session: { ltiSignInService, tokenIssuer },
       }),
     makeSubmitter: (agsClient) =>
       new LtiScoreSubmitter({

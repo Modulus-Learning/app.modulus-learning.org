@@ -257,6 +257,36 @@ describe('agent authorization error bounces', () => {
     expect(mocks.createAuthCode).not.toHaveBeenCalled()
   })
 
+  test.each([
+    ['an explicit default port', 'https://content.test:443/activity'],
+    ['an uppercase scheme and host', 'HTTPS://CONTENT.TEST/activity'],
+    ['a callback query', `${REDIRECT_URI}?section=2`],
+  ])(
+    'rejects a client_id that differs from the redirect uri only by %s',
+    async (_label, client_id) => {
+      // Both name the same activity, but OAuth binds the values as sent. The
+      // comparison is exact; only core's activity lookup is canonical.
+      const response = await GET(makeRequestWith({ client_id }))
+
+      expect(response.status).toBe(307)
+      expect(locationOf(response).searchParams.get('error')).toBe('invalid_request')
+      expect(mocks.createAuthCode).not.toHaveBeenCalled()
+    }
+  )
+
+  test('passes a non-canonical, query-bearing callback pair to core exactly as received', async () => {
+    // The instructor restriction on queries and fragments does not apply to
+    // OAuth callbacks, and the route does not canonicalize either value.
+    const value = 'https://content.test:443/activity?section=2'
+
+    await GET(makeRequestWith({ client_id: value, redirect_uri: value }))
+
+    expect(mocks.createAuthCode).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ client_id: value, redirect_uri: value })
+    )
+  })
+
   test('bounces with access_denied when there is no Modulus session', async () => {
     mocks.getCoreUserRequestContext.mockResolvedValue(null)
 

@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
+import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
 import {
   CLAIM_AGS_ENDPOINT,
   CLAIM_CUSTOM,
@@ -260,7 +261,15 @@ export class LtiLaunchService extends BaseService {
     // skipped with a warning below and the launch response is unchanged.  An
     // activity URL that resolves to no `activities` row at all is a different
     // matter -- there is nothing to launch -- and remains an invalid launch.
-    const activity = await this.activityQueries.findActivityByURL(activity_url)
+    //
+    // The claim is resolved by its canonical key, so a link published before
+    // canonical registration, or by a platform that re-serializes the URL,
+    // still finds its activity.  A claim the parser rejects has no key and
+    // cannot name an activity, so it takes the same outcome without a lookup.
+    // This is a read: nothing is registered and the allowlist is not consulted.
+    const activityKey = normalizeActivityUrl(activity_url)
+    const activity =
+      activityKey === null ? undefined : await this.activityQueries.findActivityByURL(activityKey)
     if (activity == null) {
       throw ERR_INVALID_LAUNCH({
         message: 'activity not found',
@@ -335,10 +344,11 @@ export class LtiLaunchService extends BaseService {
 
     const tokens = await this.tokens.createTokens(signIn)
 
-    // The resolved row is the authority for both activity fields.
-    // `activity.url` and the `activity_url` claim agree today --
-    // `findActivityByURL` matched on that exact value -- but the redirect is
-    // built from the database column, not from the claim.  `activity_code`
+    // The resolved row is the authority for both activity fields.  The redirect
+    // is built from `activity.url`, not from the claim: the two need not be
+    // spelled alike, since `findActivityByURL` matched the claim's canonical
+    // key, and a query or fragment on the claim is dropped rather than
+    // forwarded as a launch option.  `activity_code`
     // stays in the response: enrollment above still needs it and it is
     // informative in the logs, even though nothing downstream of the launch
     // route consumes it.

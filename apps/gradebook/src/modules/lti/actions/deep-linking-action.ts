@@ -4,7 +4,12 @@ import { z } from 'zod'
 
 import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
 import { getLogger } from '@/lib/logger'
-import { readRejectedUrls, rejectedUrlsMessage } from '@/modules/app/activities/rejected-urls'
+import { DEEP_LINK_PREFIX_MESSAGES } from '@/modules/app/activities/@types/validate-urls'
+import {
+  readRejectedUrls,
+  readValidationIssues,
+  rejectedUrlsMessage,
+} from '@/modules/app/activities/rejected-urls'
 import type { DeepLinkingFormState } from '../@types'
 
 export const deepLinking = async (
@@ -38,24 +43,65 @@ export const deepLinking = async (
 
   const result = await core.app.lti.handleDeepLink(ctx, validationResult.data)
   if (!result.ok) {
-    // The sitewide allowlist refused the URL. This is a *second* code mapped
-    // onto `activity_url`; without it a policy denial renders as the generic
-    // "An error occurred." and the instructor is told nothing actionable.
-    //
-    // It returns ahead of the error log below deliberately, as the
-    // activity-code actions do. `result.error.details` carries the whole URL,
-    // query and fragment included, and an instructor typo is not an error
-    // anyway -- core has already recorded the denial at warn, with the
-    // normalized origin and path alone.
-    if (result.error.code === 'ERR_ACTIVITY_URL_NOT_ALLOWED') {
-      const rejected = readRejectedUrls(result.error.details)
-      if (rejected.length > 0) {
+    // Every branch mapped onto a field returns ahead of the error log below
+    // deliberately, as the activity-code actions do. An instructor's input is
+    // not an error, and `result.error.details` can carry the whole submitted
+    // URL, query and fragment included. Core has already recorded each of
+    // these at warn without the URL or the stored prefix.
+    switch (result.error.code) {
+      case 'ERR_DEEP_LINK_PREFIX_MISMATCH':
         return {
-          errors: {
-            activity_url: [rejectedUrlsMessage(rejected)],
-          },
+          errors: { activity_url: [DEEP_LINK_PREFIX_MESSAGES.mismatch] },
           message: 'Invalid activity URL.',
           status: 'failed',
+        }
+
+      // The stored prefix itself is invalid. That is a problem with the
+      // selected activity code, not with the URL the instructor entered.
+      case 'ERR_DEEP_LINK_PREFIX_INVALID':
+        return {
+          errors: { activity_code_id: [DEEP_LINK_PREFIX_MESSAGES.invalid] },
+          message: 'Invalid activity code.',
+          status: 'failed',
+        }
+
+      case 'ERR_VALIDATION': {
+        const messages = readValidationIssues(result.error.details)
+          .filter(({ path }) => path[0] === 'activity_url')
+          .map(({ message }) => message)
+        if (messages.length > 0) {
+          return {
+            errors: { activity_url: [...new Set(messages)] },
+            message: 'Invalid activity URL.',
+            status: 'failed',
+          }
+        }
+        break
+      }
+
+      case 'ERR_ACTIVITY_URL_NOT_ALLOWED': {
+        const rejected = readRejectedUrls(result.error.details)
+        if (rejected.length > 0) {
+          return {
+            errors: { activity_url: [rejectedUrlsMessage(rejected)] },
+            message: 'Invalid activity URL.',
+            status: 'failed',
+          }
+        }
+
+        // A contract mismatch with core, so it is logged -- but by code
+        // alone, and with a neutral message rather than a guessed reason.
+        log.error({
+          deep_link: {
+            status: 'failed',
+            message: 'unreadable activity url denial in deep linking',
+            method: 'deepLinking',
+            code: result.error.code,
+          },
+        })
+        return {
+          status: 'failed',
+          message: 'An error occurred.',
         }
       }
     }
@@ -68,24 +114,6 @@ export const deepLinking = async (
         error: result.error,
       },
     })
-
-    const errorMessage =
-      result.error != null && typeof result.error === 'object' && 'message' in result.error
-        ? String(result.error.message)
-        : 'An error occurred.'
-
-    // The per-code `url_prefix` violation, matched on the message rather than
-    // the code. Left exactly as it is: converting it to a code check is a
-    // reasonable cleanup but is not part of this change.
-    if (/activity url must start with/i.test(errorMessage)) {
-      return {
-        errors: {
-          activity_url: [errorMessage],
-        },
-        message: 'Invalid activity URL.',
-        status: 'failed',
-      }
-    }
 
     return {
       status: 'failed',

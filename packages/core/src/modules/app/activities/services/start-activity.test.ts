@@ -7,6 +7,7 @@ import { v7 as uuidv7 } from 'uuid'
 import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
 import { UserAuth } from '@/lib/auth.js'
 import { createCoreLogger } from '@/lib/logger.js'
+import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
 import { ErrorCodes } from '../errors.js'
 import { startActivityRequestSchema, startActivityResponseSchema } from '../schemas.js'
 import { StartActivityService } from './start-activity.js'
@@ -16,23 +17,34 @@ import type { EnrollmentOutcome, EnrollmentService } from './enrollment.js'
 
 const logger = createCoreLogger({ pinoLogger: pino({ level: 'silent' }) })
 
+/** The canonical URL stored on the fake's only `activities` row. */
+const STORED_ACTIVITY_URL = 'https://content.test/activity'
+
 const createService = ({
   scopeId,
   scopeName,
   activityCode,
   enrollmentOutcome,
+  storedActivityUrl = STORED_ACTIVITY_URL,
 }: {
   scopeId?: string
   scopeName?: string | null
   /** When explicitly null, the public code does not resolve. */
   activityCode?: { id: string; code: string } | null
   enrollmentOutcome?: EnrollmentOutcome
+  /**
+   * The `url` of the only stored activity. `findActivityByURL` resolves it by
+   * SQL-style exact equality, so a raw spelling passed to the fake misses.
+   */
+  storedActivityUrl?: string
 }) => {
   const userId = uuidv7()
   const activityCodeId = uuidv7()
   const activityId = uuidv7()
-  const activityUrl = 'https://content.test/activity?existing=one#authored'
+  const activityUrl = storedActivityUrl
   const enrollments: { user_id: string; activity_code_id: string; activity_id: string }[] = []
+  /** Every key passed to `findActivityByURL`, in order. */
+  const lookups: string[] = []
 
   const service = new StartActivityService({
     logger,
@@ -43,11 +55,12 @@ const createService = ({
         activityCode === null
           ? undefined
           : (activityCode ?? { id: activityCodeId, code: 'course-code' }),
-      findActivityByURL: async () => ({
-        id: activityId,
-        name: 'Test Activity',
-        url: activityUrl,
-      }),
+      findActivityByURL: async (url: string) => {
+        lookups.push(url)
+        return url === activityUrl
+          ? { id: activityId, name: 'Test Activity', url: activityUrl }
+          : undefined
+      },
       findScopeById: async (id: string) =>
         scopeId == null
           ? undefined
@@ -87,7 +100,13 @@ const createService = ({
     activityId,
     activityUrl,
     enrollments,
+    lookups,
   }
+}
+
+const rejectsWithCode = (code: string) => (error: unknown) => {
+  assert.equal((error as { code?: string }).code, code)
+  return true
 }
 
 describe('StartActivityService', () => {
@@ -195,6 +214,170 @@ describe('StartActivityService', () => {
       }
     )
     assert.deepEqual(enrollments, [])
+  })
+
+  describe('canonical activity lookup', () => {
+    const variants = [
+      { name: 'an uppercase scheme and host', url: 'HTTPS://CONTENT.TEST/activity' },
+      { name: 'an explicit default port', url: 'https://content.test:443/activity' },
+      { name: 'dot segments', url: 'https://content.test/unit/./../activity' },
+      { name: 'an encoded dot segment', url: 'https://content.test/unit/%2e%2E/activity' },
+      { name: 'a query', url: 'https://content.test/activity?page=2&token=synthetic' },
+      { name: 'a fragment', url: 'https://content.test/activity#section-3' },
+      { name: 'an empty query and fragment', url: 'https://content.test/activity?#' },
+    ]
+
+    for (const { name, url } of variants) {
+      it(`resolves the stored activity from a url with ${name}`, async () => {
+        const scopeId = uuidv7()
+        const { service, userId, activityCodeId, activityId, enrollments, lookups } = createService(
+          { scopeId }
+        )
+
+        const result = await service.startActivity(new UserAuth(userId, []), {
+          activity_code: 'course-code',
+          activity_url: url,
+          scope_id: scopeId,
+        })
+
+        assert.deepEqual(lookups, [STORED_ACTIVITY_URL])
+        assert.equal(result.activity.id, activityId)
+        // The destination is the stored row's URL: nothing from the incoming
+        // query or fragment is forwarded.
+        assert.equal(result.activity.url, STORED_ACTIVITY_URL)
+        assert.equal(result.activity.url.includes('?'), false)
+        assert.equal(result.activity.url.includes('#'), false)
+        assert.deepEqual(enrollments, [
+          { user_id: userId, activity_code_id: activityCodeId, activity_id: activityId },
+        ])
+      })
+    }
+
+    it('resolves a raw-space spelling to the stored encoded activity', async () => {
+      // The instructor literal-space rule does not apply to launch readers.
+      const scopeId = uuidv7()
+      const storedActivityUrl = 'https://content.test/lesson%20one'
+      const { service, userId, activityId, lookups } = createService({
+        scopeId,
+        storedActivityUrl,
+      })
+
+      const activity_url = 'https://content.test/lesson one'
+      assert.equal(
+        startActivityRequestSchema.safeParse({
+          activity_code: 'course-code',
+          activity_url,
+          scope_id: scopeId,
+        }).success,
+        true
+      )
+
+      const result = await service.startActivity(new UserAuth(userId, []), {
+        activity_code: 'course-code',
+        activity_url,
+        scope_id: scopeId,
+      })
+
+      assert.deepEqual(lookups, [storedActivityUrl])
+      assert.equal(result.activity.id, activityId)
+      assert.equal(result.activity.url, storedActivityUrl)
+    })
+
+    it('completes the root path of an origin-only url', async () => {
+      const scopeId = uuidv7()
+      const storedActivityUrl = 'https://content.test/'
+      const { service, userId, activityId, lookups } = createService({
+        scopeId,
+        storedActivityUrl,
+      })
+
+      const result = await service.startActivity(new UserAuth(userId, []), {
+        activity_code: 'course-code',
+        activity_url: 'https://CONTENT.test:443?launch=1',
+        scope_id: scopeId,
+      })
+
+      assert.deepEqual(lookups, [storedActivityUrl])
+      assert.equal(result.activity.id, activityId)
+      assert.equal(result.activity.url, storedActivityUrl)
+    })
+
+    // These spellings reach the service intact only when a caller passes them
+    // intact. Generated direct-start links still lose them in route extraction
+    // before lookup; this test does not change that.
+    it('keeps non-root trailing and repeated slashes significant', async () => {
+      const scopeId = uuidv7()
+      const { service, userId, enrollments, lookups } = createService({ scopeId })
+
+      for (const url of ['https://content.test/activity/', 'https://content.test//activity']) {
+        await assert.rejects(
+          service.startActivity(new UserAuth(userId, []), {
+            activity_code: 'course-code',
+            activity_url: url,
+            scope_id: scopeId,
+          }),
+          rejectsWithCode(ErrorCodes.ACTIVITY_NOT_FOUND)
+        )
+      }
+
+      assert.deepEqual(lookups, [
+        'https://content.test/activity/',
+        'https://content.test//activity',
+      ])
+      assert.deepEqual(enrollments, [])
+    })
+
+    it('rejects an unknown activity without enrolling the learner', async () => {
+      const scopeId = uuidv7()
+      const { service, userId, enrollments, lookups } = createService({ scopeId })
+
+      await assert.rejects(
+        service.startActivity(new UserAuth(userId, []), {
+          activity_code: 'course-code',
+          activity_url: 'https://content.test/other?x=1',
+          scope_id: scopeId,
+        }),
+        rejectsWithCode(ErrorCodes.ACTIVITY_NOT_FOUND)
+      )
+
+      // Exactly one lookup, by the canonical key: no raw or near-match retry.
+      assert.deepEqual(lookups, ['https://content.test/other'])
+      assert.deepEqual(enrollments, [])
+    })
+
+    it('maps an unparseable url to activity-not-found without a lookup', async () => {
+      const scopeId = uuidv7()
+      const { service, userId, enrollments, lookups } = createService({ scopeId })
+
+      await assert.rejects(
+        service.startActivity(new UserAuth(userId, []), {
+          activity_code: 'course-code',
+          activity_url: 'https://content test/activity',
+          scope_id: scopeId,
+        }),
+        rejectsWithCode(ErrorCodes.ACTIVITY_NOT_FOUND)
+      )
+
+      assert.deepEqual(lookups, [])
+      assert.deepEqual(enrollments, [])
+    })
+  })
+
+  it('accepts a raw activity URL longer than 256 whose canonical key fits storage', () => {
+    const activity_url = `https://content.test/activity?${'q'.repeat(300)}#${'f'.repeat(20)}`
+    const key = normalizeActivityUrl(activity_url)
+    assert.ok(activity_url.length > 256)
+    assert.ok(key !== null && key.length <= 255)
+
+    const parsed = startActivityRequestSchema.safeParse({
+      activity_code: 'course-code',
+      activity_url,
+      scope_id: DEFAULT_SCOPE_ID,
+    })
+
+    assert.equal(parsed.success, true)
+    // A refinement, not a transform: the service derives the key itself.
+    assert.equal(parsed.data?.activity_url, activity_url)
   })
 
   it('requires a structurally valid scope id at the command boundary', () => {

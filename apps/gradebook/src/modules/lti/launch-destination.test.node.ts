@@ -26,17 +26,24 @@ describe('selectLaunchDestination', () => {
     expect(destination.searchParams.get('scope_id')).toBe(scopeId)
   })
 
-  test('never preserves an authored query, fragment, and percent escape', () => {
-    const authored = 'https://content.test/a%20b/activity?discount=50%25&existing=one#authored'
-    const destination = new URL(select('never', { activityUrl: authored }))
+  test.each([
+    ['a plain path', 'https://content.test/activity'],
+    ['a non-root trailing slash', 'https://content.test/course/lesson/'],
+    ['a percent escape', 'https://content.test/a%20b/activity'],
+    ['a root path and explicit port', 'http://localhost:5173/'],
+  ])(
+    'never builds exactly the stored canonical URL with %s plus transport parameters',
+    (_label, stored) => {
+      // Core returns the resolved record's `activity.url`, never the launch
+      // claim, so a query or fragment on an incoming claim cannot reach this
+      // input (see core's launch service tests). Stored URLs carry neither, so
+      // the only query is Modulus's own and there is no fragment.
+      const expected = `${stored}?${new URLSearchParams({ modulus: modulusServerUrl, scope_id: scopeId })}`
 
-    expect(destination.pathname).toBe('/a%20b/activity')
-    expect(destination.searchParams.get('discount')).toBe('50%')
-    expect(destination.searchParams.get('existing')).toBe('one')
-    expect(destination.hash).toBe('#authored')
-    expect(destination.searchParams.get('modulus')).toBe(modulusServerUrl)
-    expect(destination.searchParams.get('scope_id')).toBe(scopeId)
-  })
+      expect(select('never', { activityUrl: stored })).toBe(expected)
+      expect(new URL(expected).hash).toBe('')
+    }
+  )
 
   test('always sends the learner to the id-keyed interstitial', () => {
     expect(select('always')).toBe(`/lti/launch/${activityId}?scope_id=${scopeId}`)
