@@ -1138,6 +1138,41 @@ Resolved 2026-10-23:
 5. **Public env names** — `NEXT_PUBLIC_*` → `VITE_*`, no fallback window; the
    public server URL is delivered at runtime.
 
+## Implementation Notes (Tasks 3–7, 2026-10-23)
+
+Recorded while the checkpoint 1 review was pending; the work sits on
+`wip/tanstack-next`, stacked on `feat/tanstack` and rebased if review asks for
+changes.
+
+- **Task 3:** the contract suite (`apps/gradebook/src/contract/`, `pnpm test:contract`)
+  passes against the Next app in all three modes without a database (44 / 45 / 18
+  checks). It records three existing behaviours as `todo` rather than contract:
+  `/routes/keep-alive` pings `VERCEL_URL`; the GitHub OAuth callback redirects
+  to an unvalidated absolute `source` (an open redirect); `/es/admin/sign-in`
+  appears to redirect to itself. The Start target for `/routes/auth/session`
+  conveys `renewable` in the `x-modulus-session-renewable` header, keeping the
+  body (`session | null`) unchanged.
+- **Task 4:** `vite-tsconfig-paths` stays in `vitest.config.ts` (the Vite 8
+  `resolve.tsconfigPaths` option is not available to vitest 4 here). `start:start`
+  uses `node --env-file-if-exists=.env.local`. The developer's local `.env` →
+  `.env.local` move happened in the worktree only; the main checkout's untracked
+  `.env` still holds secrets and must be moved before `feat/tanstack` advances to
+  this point (git will refuse to overwrite it, which is the safe failure).
+- **Task 5:** server-fn names: see Spike Findings 12.
+- **Task 6:** the verification-only session context (`src/lib/session/context.ts`,
+  originally a Task 5 bullet) landed here with the core adapter split.
+- **Task 7:** the expected-principal check (originally listed under Task 6)
+  landed with the boundary in Task 7. Factories became gate middleware (Spike
+  Findings 11). Sign-in and sign-out server functions are not written yet: the
+  coordination helpers they use exist (`coordinateAuthAction`,
+  `notifySessionAction`), and the functions arrive with the sign-in forms in
+  Tasks 11 and 14. An end-to-end run in headless Chrome against the built server
+  confirmed the renew page → RPC → terminal → sign-in flow, a 404 for the
+  learner renewal RPC on an admin instance, CSRF 403 for a foreign origin, and
+  found (and fixed) a double renewal caused by an unstable default prop. The
+  iframe harness was not moved into the branch: its probe routes are spike-only
+  and must not ship; Task 21 reruns it from `spike/tanstack`.
+
 ## Spike Findings
 
 Recorded 2026-10-23. Spike branch `spike/tanstack` (`4c50a7b`), off
@@ -1156,3 +1191,5 @@ harness, which Task 7 reuses.
 | 8 | CSP nonce | Router option `ssr: { nonce }` is consumed by `HeadContent`, `Scripts` and `ScriptOnce`; the client reads the nonce from `<meta property="csp-nonce">`. Per-request: `getRouter()` runs per request on the server, so it can read the nonce from the AsyncLocalStorage request scope; `EarlyThemeDetector` should render through `ScriptOnce`. | Task 5 CSP item is implementable; no gap |
 | 9 | Cross-site iframe (headless Chrome 155) | Parent on `127.0.0.1:3200`, tool on `localhost:3100`. **Default:** Web Locks, BroadcastChannel and sessionStorage all `ok`; `SameSite=None; Secure; HttpOnly` cookie set and returned. **Third-party cookies blocked** (`--test-third-party-cookie-phaseout`): all three APIs still `ok` (partitioned), but the `SameSite=None` cookie is **not** returned. A `Partitioned` cookie **is** returned. Headless `--virtual-time-budget` cut async probes short, so the harness reports via `sendBeacon` to the server instead. | Open Question A; the coordination fallbacks remain required (other browsers and policies may deny storage); the blocked-cookie bounded state is a real path |
 | 10 | Unanswered | Safari (all settings); a real Canvas launch. | Open Question B; Task 21 on the Canvas installation |
+| 11 | Server-fn wrapper factories (found in Task 7) | Start's compiler swaps a handler for a client RPC stub only on a literal `createServerFn(...).handler(...)`. Behind a wrapper (`appFn(...).handler(...)`) the handler body and its server imports stay in the client bundle; Start's import protection rejected `*.server.ts` imports reached that way. | "Surface-tagged factories" became **gate middleware**: every server fn is a literal `createServerFn(...)` whose first middleware is `frontendSurfaceMiddleware`, `adminSurfaceMiddleware`, `appSessionMiddleware` or `adminSessionMiddleware` (`@/lib/server-fn`). The convention test enforces the first-middleware rule. Server halves load via dynamic `import()` from `*.server.ts` (FORRU pattern). |
+| 12 | `serverFnMeta.name` in production (found in Task 5/7) | In the production build the request middleware's `serverFnMeta.name` was undefined, so access lines for server fns carry the opaque `/_serverFn/<id>` route and no `server_fn` field. | Request Logging's "log the function name" is not met in production; the id is logged instead (still no query/body). Revisit if Start exposes the name. |
