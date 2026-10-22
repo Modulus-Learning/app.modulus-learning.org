@@ -140,7 +140,7 @@ src/routes/
       admin/_authed/ (route.tsx + every admin page)
   lti/       (staticData: chromeless) deep-link, error, launch/$activity_id
   agent/     (staticData: chromeless) error
-  routes/    (server.handlers only — no components)
+  routes/    (server.handlers, plus the one existing page at /routes/lti/register)
     lti/login.ts, lti/launch.ts, lti/jwks.ts, lti/deep-link/activities.ts, lti/register.tsx
     agent/authorize.ts, agent/token.ts, agent/activity.ts
     auth/session.ts                 # verification-only; auth/refresh and admin/refresh retired
@@ -196,9 +196,24 @@ src/routes/
   becomes a failing test rather than a review catch.
 - **Request-scoped, verification-only session.** React `cache()` on
   `getUserSession` / `getAdminSession` is replaced by a verification-only context
-  memoized once per request (see Authentication And Sessions). `core-adapter.ts`
-  builds `UserAuth`/`AdminAuth` from it and reads cookies via
-  `@tanstack/react-start/server` instead of `next/headers`.
+  memoized once per request (see Authentication And Sessions). The Start
+  adapter builds `UserAuth`/`AdminAuth` from it and reads cookies via
+  `@tanstack/react-start/server`. During the transition the core wiring is
+  split three ways so both apps keep running:
+  - `src/lib/core/instance.ts` (shared, framework-neutral): the `initCore`
+    singleton, `getCoreCommands`, token verifiers, and pure builders —
+    session payload + request id → `UserRequestContext` / `AdminRequestContext`;
+    `Authorization` header value → `AgentRequestContext`.
+  - `src/core-adapter.ts` (Next): keeps its current exports and behaviour —
+    `next/headers`, Next session storage, `getRequestId`, `NextRequest` — but
+    delegates initialisation and context building to `instance.ts`. Every
+    existing `@/core-adapter` import keeps working unchanged.
+  - `src/lib/core/start-adapter.ts` (Start): the same context accessors, built
+    on the verification-only session context and the AsyncLocalStorage request
+    id.
+
+  Task 18 deletes `core-adapter.ts`. Whether `start-adapter.ts` is then renamed
+  is a Task 18 call.
 
 ### Next API replacement table
 
@@ -589,9 +604,10 @@ on Byline's `SessionProvider` contract. This plan leaves the host ready for it.
   `next/*`, `app/**`, `middleware/**`, `'use server'` action modules) are not
   edited to suit Start; their Start replacements are written alongside them, and
   Task 18 deletes the Next set in one step. Framework-neutral modules — pure
-  utilities, validation, `config`, the core-adapter internals, the deployment-mode
-  classifier — are shared and edited in place, and must keep working for both
-  apps.
+  utilities, validation, `config`, `src/lib/core/instance.ts`, the
+  deployment-mode classifier — are shared and edited in place, and must keep
+  working for both apps. `src/core-adapter.ts` is the Next adapter; it only
+  changes to delegate to `instance.ts`.
 - **Green after every task:** `pnpm -F @modulus-learning/gradebook typecheck`,
   `pnpm lint:check`, both vitest modes, and — from Task 4 until Task 18 —
   **both** `next build` and `build:start`. Commit per task, conventional
@@ -698,8 +714,9 @@ existing behaviour that looks wrong rather than fixing it here.
   ones; `typecheck` stays `next typegen && tsc --noEmit` until Task 18.
   `biome.jsonc`: ignore `routeTree.gen.ts`.
 - `vitest.config.ts`: `resolve.tsconfigPaths` instead of `vite-tsconfig-paths`.
-- `next.config.ts`, `next-env.d.ts`, `proxy.ts`, `instrumentation.ts` and
-  `app/**` are untouched here and deleted in Task 18.
+- `next.config.ts` changes only to add the `env` forwarding above.
+  `next-env.d.ts`, `proxy.ts`, `instrumentation.ts` and `app/**` are untouched.
+  All of them are deleted in Task 18.
 
 ### Task 5 — Server entry and global request middleware
 
@@ -728,8 +745,11 @@ existing behaviour that looks wrong rather than fixing it here.
 - `src/lib/server-fn.ts`: `frontendSurfaceFn`, `adminSurfaceFn` (surface gate
   only), `appFn`, `adminFn` (surface + required context + expected-principal
   check; the renewal boundary is added in Task 7).
-- `core-adapter.ts`: replace `NextRequest` and `next/headers` usage. Keep the
-  singleton shape; `getCoreAgentRequestContext(request: Request)`.
+- Core wiring split per Target Architecture: extract `src/lib/core/instance.ts`
+  from `core-adapter.ts`, and make `core-adapter.ts` delegate to it with
+  unchanged exports (move `core-adapter.test.node.ts` coverage to `instance.ts`
+  and keep a thin Next-adapter test). Add `src/lib/core/start-adapter.ts`.
+  Both `next build` and `build:start` stay green.
 - The convention test described in Target Architecture.
 
 ### Task 7 — Explicit session renewal and browser coordination
@@ -768,8 +788,11 @@ existing behaviour that looks wrong rather than fixing it here.
   - calling the renewal fn never re-enters the boundary (no recursion);
   - the coordination fallbacks work with Web Locks, BroadcastChannel and
     sessionStorage each absent or throwing;
-  - **no renewal, bootstrap or verification path writes or deletes a cookie**
-    (a failed renewal racing a concurrent sign-in leaves the new cookies intact);
+  - successful renewal writes exactly the new access/refresh pair, with the
+    unchanged attributes;
+  - **failed renewal (terminal or transient), the bootstrap route,
+    verification and the renewal boundary write or delete no cookie**; a failed
+    renewal racing a concurrent sign-in leaves the new cookies intact;
   - `changed` survives the boundary, and a handler-set `x-modulus-auth-boundary`
     is stripped;
   - the bootstrap loop guard holds; terminal failure → sign-in (or the iframe
@@ -827,8 +850,11 @@ All `modules/app/**` actions → `appFn`; `revalidatePath` → `router.invalidat
 
 ### Task 13 — LTI and agent chromeless pages
 
-`/lti/deep-link`, `/lti/error`, `/lti/launch/$activity_id`, `/lti/register`,
-`/agent/error`, with the chromeless document variant. Port their
+`/lti/deep-link`, `/lti/error`, `/lti/launch/$activity_id`, `/agent/error`, and
+the dynamic-registration page at its existing URL **`/routes/lti/register`**
+(`src/routes/routes/lti/register.tsx` — not moved to `/lti/register`), all
+with the chromeless document variant. The Task 3 contract suite covers the
+registration URL. Port their
 `page.test.node.tsx` files. The `beforeLoad` defence-in-depth guard is a new
 TanStack `notFound()` variant, because the server entry now covers these paths.
 `deployment-mode-guard.ts` stays for the Next layouts and is deleted in Task 18.
@@ -870,7 +896,8 @@ deadline, throws).
 
 Delete `next.config.ts`, `next-env.d.ts`, `proxy.ts`, `middleware/` (Next proxy
 layers), `instrumentation.ts`, `app/`, every `'use server'` action module and
-other Next-only file superseded by a Start replacement, `utils/utils.framework.ts`
+other Next-only file superseded by a Start replacement, `core-adapter.ts` (the
+Next adapter), `utils/utils.framework.ts`
 if Next-only, and the `session-old.ts` / `.bak` leftovers. Remove the `next`,
 `@next/env`, `@tailwindcss/postcss`, `autoprefixer` and `cssnano` dependencies
 and `postcss.config.js`. Switch `dev`/`devlti`/`build`/`start` to Start, drop
