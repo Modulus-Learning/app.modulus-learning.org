@@ -27,7 +27,7 @@ describe('server entry: deployment-mode gate and redirects', () => {
     for (const path of ['/', '/es']) {
       const response = await handle(get(path))
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe(`${BASE}/admin/sign-in`)
+      expect(response.headers.get('location')).toBe('/admin/sign-in')
     }
     expect(router).not.toHaveBeenCalled()
   })
@@ -77,7 +77,7 @@ describe('server entry: deployment-mode gate and redirects', () => {
       const { handle, router } = setup('all-in-one')
       const response = await handle(get(path))
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe(`${BASE}/start-activity${path}`)
+      expect(response.headers.get('location')).toBe(`/start-activity${path}`)
       expect(router).not.toHaveBeenCalled()
     }
   )
@@ -228,5 +228,32 @@ describe('server entry: in-flight tracking', () => {
     })
     await expect(handle(get('/about'))).rejects.toThrow('boom')
     expect(inFlight.count).toBe(0)
+  })
+})
+
+describe('server entry: same-origin redirects become relative', () => {
+  // Behind nginx (and Fly's TLS edge) Node sees `http://` and the proxied Host,
+  // so an absolute same-origin Location would carry the wrong scheme or port.
+  test('a same-origin absolute Location is rewritten to its path', async () => {
+    const { handle } = setup('all-in-one', async () =>
+      Response.redirect(`${BASE}/lti/error?code=invalid_request`, 303)
+    )
+    const response = await handle(get('/routes/lti/login'))
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/lti/error?code=invalid_request')
+  })
+
+  test('entry redirects (admin apex) are relative too', async () => {
+    const { handle } = setup('admin')
+    const response = await handle(get('/'))
+    expect(response.headers.get('location')).toBe('/admin/sign-in')
+  })
+
+  test('a cross-origin Location is left alone', async () => {
+    const { handle } = setup('all-in-one', async () =>
+      Response.redirect('https://canvas.test/login/oauth2/auth?x=1', 302)
+    )
+    const response = await handle(get('/routes/lti/login'))
+    expect(response.headers.get('location')).toBe('https://canvas.test/login/oauth2/auth?x=1')
   })
 })

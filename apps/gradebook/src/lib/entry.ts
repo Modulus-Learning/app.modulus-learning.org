@@ -63,9 +63,31 @@ export const createEntryHandler =
         settle?.()
       }
       log(options, scope, request.method, url.pathname, response.status)
-      return response
+      return relativeSameOriginRedirect(response, url)
     })
   }
+
+/**
+ * Rewrites a redirect to this request's own origin into a relative Location.
+ * Node sees the request as the proxy forwards it (`http://`, nginx's Host), so
+ * an absolute same-origin URL built from `request.url` would name the wrong
+ * scheme behind a TLS edge, or drop the port locally. A relative Location
+ * resolves against the URL the browser actually used.
+ */
+export const relativeSameOriginRedirect = (response: Response, url: URL): Response => {
+  const location = response.headers.get('location')
+  if (location == null || response.status < 300 || response.status >= 400) return response
+  const target = new URL(location, url)
+  if (target.origin !== url.origin) return response
+  // `Response.redirect` headers are immutable; rebuild rather than mutate.
+  const headers = new Headers(response.headers)
+  headers.set('location', `${target.pathname}${target.search}${target.hash}`)
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
 
 const route = async (
   request: Request,
