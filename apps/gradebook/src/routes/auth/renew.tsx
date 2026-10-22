@@ -6,6 +6,7 @@ import { SessionBootstrap } from '@/lib/session/session-bootstrap'
 
 // Learner-session renewal bootstrap (spec: Authentication And Sessions, item 5).
 export const Route = createFileRoute('/auth/renew')({
+  staticData: { chrome: 'chromeless' },
   validateSearch: z.object({ return: z.string().optional() }),
   head: () => ({ meta: [{ name: 'robots', content: 'noindex' }] }),
   component: function UserRenew() {

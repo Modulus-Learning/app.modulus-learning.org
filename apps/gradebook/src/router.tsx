@@ -1,6 +1,7 @@
 import { createRouter } from '@tanstack/react-router'
 import { createIsomorphicFn } from '@tanstack/react-start'
 
+import { localeInputRewrite, localeOutputRewrite } from '@/i18n/locale-rewrite'
 import { routeTree } from './routeTree.gen'
 
 // The per-request CSP nonce lives in the server request scope (set by the CSP
@@ -20,6 +21,13 @@ export function getRouter() {
   const nonce = getSsrNonce()
   return createRouter({
     routeTree,
+    // Isomorphic locale rewrite (spec: Internationalisation): `input` makes
+    // the matcher always see a locale segment on localizable paths; `output`
+    // strips only the default locale, so `en` URLs stay clean.
+    rewrite: {
+      input: ({ url }) => localeInputRewrite(url),
+      output: ({ url }) => localeOutputRewrite(url),
+    },
     scrollRestoration: true,
     defaultPreload: 'intent',
     ...(nonce != null ? { ssr: { nonce } } : {}),
@@ -29,5 +37,11 @@ export function getRouter() {
 declare module '@tanstack/react-router' {
   interface Register {
     router: ReturnType<typeof getRouter>
+  }
+  interface StaticDataRouteOption {
+    /** Which theme palette the document uses (see `data-theme-context`). */
+    themeContext?: 'public' | 'protected'
+    /** `chromeless` documents (LTI, agent, renewal) render no app chrome. */
+    chrome?: 'full' | 'chromeless'
   }
 }

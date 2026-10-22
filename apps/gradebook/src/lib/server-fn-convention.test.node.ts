@@ -19,7 +19,10 @@ const SRC = resolve(__dirname, '..')
 
 const ADMIN_GATES = ['adminSessionMiddleware', 'adminSurfaceMiddleware']
 const FRONTEND_GATES = ['appSessionMiddleware', 'frontendSurfaceMiddleware']
-const ALL_GATES = [...ADMIN_GATES, ...FRONTEND_GATES]
+const ALL_GATES = [...ADMIN_GATES, ...FRONTEND_GATES, 'neutralMiddleware']
+
+/** The only modules allowed the surface-neutral gate. */
+const NEUTRAL_ALLOWLIST = new Set(['i18n/set-language-fn.ts', 'lib/public-config.ts'])
 
 /** The only modules allowed the session-free admin gate. */
 const ADMIN_SURFACE_ALLOWLIST = new Set([
@@ -84,6 +87,14 @@ describe('server-function gate convention', () => {
     const offenders = withServerFns
       .filter(({ path }) => !ADMIN_SURFACE_ALLOWLIST.has(path))
       .filter(({ gates }) => gates.includes('adminSurfaceMiddleware'))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  test('the surface-neutral gate appears only in its allowlist', () => {
+    const offenders = withServerFns
+      .filter(({ path }) => !NEUTRAL_ALLOWLIST.has(path))
+      .filter(({ gates }) => gates.includes('neutralMiddleware'))
       .map(({ path }) => path)
     expect(offenders).toEqual([])
   })

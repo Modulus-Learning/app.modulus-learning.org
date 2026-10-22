@@ -19,7 +19,7 @@ import {
   type ChartStatus,
   formatChartValue,
 } from '@/ui/components/chart-accessibility'
-import { useTheme } from '@/ui/theme/provider'
+import { useTheme } from '@/ui/theme/provider-base'
 
 interface AccessibleBarChartProps<T extends object> {
   className: string

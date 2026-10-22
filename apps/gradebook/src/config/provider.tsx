@@ -6,10 +6,22 @@ import { getPublicConfig, type PublicConfig } from '.'
 
 export const PublicConfigContext = createContext<PublicConfig | null>(null)
 
-export const PublicConfigProvider = ({ children }: { children: ReactNode }) => {
-  const config = getPublicConfig()
-  return <PublicConfigContext.Provider value={config}>{children}</PublicConfigContext.Provider>
-}
+/**
+ * The Next host reads the public config from its build-time env; the TanStack
+ * Start host passes the value its root loader resolved on the server, so the
+ * public server URL is correct per instance (spec: Deployment Modes item 3).
+ */
+export const PublicConfigProvider = ({
+  children,
+  config,
+}: {
+  children: ReactNode
+  config?: PublicConfig
+}) => (
+  <PublicConfigContext.Provider value={config ?? getPublicConfig()}>
+    {children}
+  </PublicConfigContext.Provider>
+)
 
 export const usePublicConfig = () => {
   const context = useContext(PublicConfigContext)

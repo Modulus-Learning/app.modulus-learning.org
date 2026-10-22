@@ -6,7 +6,7 @@ import { Card, Select } from '@infonomic/uikit/react'
 
 import { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
 import { AccessibleBarChartStacked } from '@/ui/components/bar-chart-stacked'
-import { useTheme } from '@/ui/theme/provider'
+import { useTheme } from '@/ui/theme/provider-base'
 import { summarizeNewVsReturningUsers } from '../chart-summaries'
 import type { Locale } from '@/i18n/i18n-config'
 import type { NewVsReturningUsers } from '../@types'

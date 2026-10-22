@@ -4,7 +4,7 @@ import { startTransition, useActionState, useEffect, useRef } from 'react'
 
 import { Button, ErrorText, Input, LoaderEllipsis } from '@infonomic/uikit/react'
 
-import { useTheme } from '@/ui/theme/provider'
+import { useTheme } from '@/ui/theme/provider-base'
 import { requestActivityCode } from '../request-activity-code'
 import type { ActivityCodeRequestFormState } from '../@types'
 

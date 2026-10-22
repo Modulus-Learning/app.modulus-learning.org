@@ -6,7 +6,10 @@ import { createContext, useContext } from 'react'
 // https://formatjs.io/docs/core-concepts/icu-syntax
 import { IntlMessageFormat } from 'intl-messageformat'
 
-import type { Translations } from '@/i18n/server/index'
+import type enType from '@/i18n/translations/en.json'
+
+/** One locale's namespaced messages; both hosts load the same JSON shape. */
+export type Translations = typeof enType
 
 const TranslationsContext = createContext<Translations | null>(null)
 
@@ -26,6 +29,7 @@ export const useTranslations = <T extends keyof Translations>(
   namespace: T
 ): {
   t: (key: keyof Translations[T], values?: Record<string, any>) => string
+  rich: (key: keyof Translations[T], values?: Record<string, any>) => React.ReactNode
 } => {
   const translations = useContext(TranslationsContext)
 
@@ -46,6 +50,19 @@ export const useTranslations = <T extends keyof Translations>(
       }
 
       return message
+    },
+    // Rich variant: ICU XML-like tags (e.g. `<link>…</link>`) are resolved by
+    // passing function handlers in `values` — `(chunks) => <a>{chunks}</a>` —
+    // so translated text keeps its inline markup and word order per locale.
+    rich: (key: keyof Translations[T], values?: Record<string, any>): React.ReactNode => {
+      const message = translations[namespace][key] ?? key
+
+      if (typeof message === 'string') {
+        const formatter = new IntlMessageFormat(message)
+        return formatter.format<React.ReactNode>(values) as React.ReactNode
+      }
+
+      return String(message)
     },
   }
 }

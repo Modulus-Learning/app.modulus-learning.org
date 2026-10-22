@@ -7,7 +7,7 @@ import { Alert, Button, Checkbox, LoaderEllipsis, TextArea } from '@infonomic/ui
 import { useForm } from 'react-hook-form'
 
 import { LangLink } from '@/i18n/components/lang-link'
-import { useTheme } from '@/ui/theme/provider'
+import { useTheme } from '@/ui/theme/provider-base'
 import { getErrorText, hasErrors } from '@/utils/utils.forms'
 import { allowlistRuleEditSchema } from '../@types'
 import { editAllowlistRule } from '../edit'

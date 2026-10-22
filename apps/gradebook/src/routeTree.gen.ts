@@ -9,7 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AdminRenewRouteImport } from './routes/admin/renew'
+import { Route as LngRouteRouteImport } from './routes/$lng/route'
+import { Route as LngAdminRouteRouteImport } from './routes/$lng/_admin/route'
 import { Route as AuthRenewRouteImport } from './routes/auth/renew'
 import { Route as RoutesElbStatusRouteImport } from './routes/routes/elb-status'
 import { Route as RoutesKeepAliveRouteImport } from './routes/routes/keep-alive'
@@ -23,12 +24,17 @@ import { Route as RoutesLtiLoginRouteImport } from './routes/routes/lti/login'
 import { Route as RoutesLtiRegisterRouteImport } from './routes/routes/lti/register'
 import { Route as RoutesOauthGithubRouteImport } from './routes/routes/oauth/github'
 import { Route as RoutesOauthGoogleRouteImport } from './routes/routes/oauth/google'
+import { Route as LngAdminAdminRenewRouteImport } from './routes/$lng/_admin/admin/renew'
 import { Route as RoutesLtiDeepLinkActivitiesRouteImport } from './routes/routes/lti/deep-link/activities'
 
-const AdminRenewRoute = AdminRenewRouteImport.update({
-  id: '/admin/renew',
-  path: '/admin/renew',
+const LngRouteRoute = LngRouteRouteImport.update({
+  id: '/$lng',
+  path: '/$lng',
   getParentRoute: () => rootRouteImport,
+} as any)
+const LngAdminRouteRoute = LngAdminRouteRouteImport.update({
+  id: '/_admin',
+  getParentRoute: () => LngRouteRoute,
 } as any)
 const AuthRenewRoute = AuthRenewRouteImport.update({
   id: '/auth/renew',
@@ -95,6 +101,11 @@ const RoutesOauthGoogleRoute = RoutesOauthGoogleRouteImport.update({
   path: '/routes/oauth/google',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LngAdminAdminRenewRoute = LngAdminAdminRenewRouteImport.update({
+  id: '/admin/renew',
+  path: '/admin/renew',
+  getParentRoute: () => LngAdminRouteRoute,
+} as any)
 const RoutesLtiDeepLinkActivitiesRoute =
   RoutesLtiDeepLinkActivitiesRouteImport.update({
     id: '/routes/lti/deep-link/activities',
@@ -103,7 +114,7 @@ const RoutesLtiDeepLinkActivitiesRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/admin/renew': typeof AdminRenewRoute
+  '/$lng': typeof LngRouteRouteWithChildren
   '/auth/renew': typeof AuthRenewRoute
   '/routes/elb-status': typeof RoutesElbStatusRoute
   '/routes/keep-alive': typeof RoutesKeepAliveRoute
@@ -117,10 +128,11 @@ export interface FileRoutesByFullPath {
   '/routes/lti/register': typeof RoutesLtiRegisterRoute
   '/routes/oauth/github': typeof RoutesOauthGithubRoute
   '/routes/oauth/google': typeof RoutesOauthGoogleRoute
+  '/$lng/admin/renew': typeof LngAdminAdminRenewRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
 }
 export interface FileRoutesByTo {
-  '/admin/renew': typeof AdminRenewRoute
+  '/$lng': typeof LngRouteRouteWithChildren
   '/auth/renew': typeof AuthRenewRoute
   '/routes/elb-status': typeof RoutesElbStatusRoute
   '/routes/keep-alive': typeof RoutesKeepAliveRoute
@@ -134,11 +146,13 @@ export interface FileRoutesByTo {
   '/routes/lti/register': typeof RoutesLtiRegisterRoute
   '/routes/oauth/github': typeof RoutesOauthGithubRoute
   '/routes/oauth/google': typeof RoutesOauthGoogleRoute
+  '/$lng/admin/renew': typeof LngAdminAdminRenewRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/admin/renew': typeof AdminRenewRoute
+  '/$lng': typeof LngRouteRouteWithChildren
+  '/$lng/_admin': typeof LngAdminRouteRouteWithChildren
   '/auth/renew': typeof AuthRenewRoute
   '/routes/elb-status': typeof RoutesElbStatusRoute
   '/routes/keep-alive': typeof RoutesKeepAliveRoute
@@ -152,12 +166,13 @@ export interface FileRoutesById {
   '/routes/lti/register': typeof RoutesLtiRegisterRoute
   '/routes/oauth/github': typeof RoutesOauthGithubRoute
   '/routes/oauth/google': typeof RoutesOauthGoogleRoute
+  '/$lng/_admin/admin/renew': typeof LngAdminAdminRenewRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/admin/renew'
+    | '/$lng'
     | '/auth/renew'
     | '/routes/elb-status'
     | '/routes/keep-alive'
@@ -171,10 +186,11 @@ export interface FileRouteTypes {
     | '/routes/lti/register'
     | '/routes/oauth/github'
     | '/routes/oauth/google'
+    | '/$lng/admin/renew'
     | '/routes/lti/deep-link/activities'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/admin/renew'
+    | '/$lng'
     | '/auth/renew'
     | '/routes/elb-status'
     | '/routes/keep-alive'
@@ -188,10 +204,12 @@ export interface FileRouteTypes {
     | '/routes/lti/register'
     | '/routes/oauth/github'
     | '/routes/oauth/google'
+    | '/$lng/admin/renew'
     | '/routes/lti/deep-link/activities'
   id:
     | '__root__'
-    | '/admin/renew'
+    | '/$lng'
+    | '/$lng/_admin'
     | '/auth/renew'
     | '/routes/elb-status'
     | '/routes/keep-alive'
@@ -205,11 +223,12 @@ export interface FileRouteTypes {
     | '/routes/lti/register'
     | '/routes/oauth/github'
     | '/routes/oauth/google'
+    | '/$lng/_admin/admin/renew'
     | '/routes/lti/deep-link/activities'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  AdminRenewRoute: typeof AdminRenewRoute
+  LngRouteRoute: typeof LngRouteRouteWithChildren
   AuthRenewRoute: typeof AuthRenewRoute
   RoutesElbStatusRoute: typeof RoutesElbStatusRoute
   RoutesKeepAliveRoute: typeof RoutesKeepAliveRoute
@@ -228,12 +247,19 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/admin/renew': {
-      id: '/admin/renew'
-      path: '/admin/renew'
-      fullPath: '/admin/renew'
-      preLoaderRoute: typeof AdminRenewRouteImport
+    '/$lng': {
+      id: '/$lng'
+      path: '/$lng'
+      fullPath: '/$lng'
+      preLoaderRoute: typeof LngRouteRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/$lng/_admin': {
+      id: '/$lng/_admin'
+      path: ''
+      fullPath: '/$lng'
+      preLoaderRoute: typeof LngAdminRouteRouteImport
+      parentRoute: typeof LngRouteRoute
     }
     '/auth/renew': {
       id: '/auth/renew'
@@ -326,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoutesOauthGoogleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$lng/_admin/admin/renew': {
+      id: '/$lng/_admin/admin/renew'
+      path: '/admin/renew'
+      fullPath: '/$lng/admin/renew'
+      preLoaderRoute: typeof LngAdminAdminRenewRouteImport
+      parentRoute: typeof LngAdminRouteRoute
+    }
     '/routes/lti/deep-link/activities': {
       id: '/routes/lti/deep-link/activities'
       path: '/routes/lti/deep-link/activities'
@@ -336,8 +369,32 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface LngAdminRouteRouteChildren {
+  LngAdminAdminRenewRoute: typeof LngAdminAdminRenewRoute
+}
+
+const LngAdminRouteRouteChildren: LngAdminRouteRouteChildren = {
+  LngAdminAdminRenewRoute: LngAdminAdminRenewRoute,
+}
+
+const LngAdminRouteRouteWithChildren = LngAdminRouteRoute._addFileChildren(
+  LngAdminRouteRouteChildren,
+)
+
+interface LngRouteRouteChildren {
+  LngAdminRouteRoute: typeof LngAdminRouteRouteWithChildren
+}
+
+const LngRouteRouteChildren: LngRouteRouteChildren = {
+  LngAdminRouteRoute: LngAdminRouteRouteWithChildren,
+}
+
+const LngRouteRouteWithChildren = LngRouteRoute._addFileChildren(
+  LngRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
-  AdminRenewRoute: AdminRenewRoute,
+  LngRouteRoute: LngRouteRouteWithChildren,
   AuthRenewRoute: AuthRenewRoute,
   RoutesElbStatusRoute: RoutesElbStatusRoute,
   RoutesKeepAliveRoute: RoutesKeepAliveRoute,

@@ -1,6 +1,7 @@
 import handler, { createServerEntry } from '@tanstack/react-start/server-entry'
 
 import { getServerConfig } from '@/config'
+import { negotiateLocaleRedirect } from '@/i18n/server-locale-redirect'
 import { createEntryHandler } from '@/lib/entry'
 import { findPublicEnvDrift } from '@/lib/env-drift'
 import { getServerLogger } from '@/lib/server-logger'
@@ -23,7 +24,8 @@ if (drift.length > 0) {
 }
 
 export default createServerEntry({
-  fetch: createEntryHandler({ mode: config.deployment.mode, logger }, async (request) =>
-    handler.fetch(request)
+  fetch: createEntryHandler(
+    { mode: config.deployment.mode, logger, negotiateLocale: negotiateLocaleRedirect },
+    async (request) => handler.fetch(request)
   ),
 })

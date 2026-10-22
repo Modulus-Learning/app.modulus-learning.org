@@ -7,7 +7,7 @@ import { Alert, Button, Input, Label, LoaderEllipsis, Tabs } from '@infonomic/ui
 import { useForm } from 'react-hook-form'
 
 import { LangLink } from '@/i18n/components/lang-link'
-import { useTheme } from '@/ui/theme/provider'
+import { useTheme } from '@/ui/theme/provider-base'
 import { getErrorText, hasAnyErrors, hasErrors } from '@/utils/utils.forms'
 import { adminRoleCreateSchema } from '../@types'
 import { createAdminRole } from '../create'

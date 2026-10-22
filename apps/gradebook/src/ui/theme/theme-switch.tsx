@@ -5,7 +5,7 @@ import type React from 'react'
 import { LightIcon, MoonIcon } from '@infonomic/uikit/react'
 import cx from 'clsx'
 
-import { useTheme } from './provider'
+import { useTheme } from './provider-base'
 import { Theme } from './utils'
 
 import './theme-switch.css'

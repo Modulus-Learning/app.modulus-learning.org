@@ -34,6 +34,11 @@ import type { Principal, SessionDomain } from '@/lib/session/principal'
  * | `adminSurfaceMiddleware`    | admin    | none required                | no               |
  * | `appSessionMiddleware`      | frontend | valid user session required  | yes              |
  * | `adminSessionMiddleware`    | admin    | valid admin session required | yes              |
+ * | `neutralMiddleware`         | any      | none required                | no               |
+ *
+ * `neutralMiddleware` is for the few functions every surface needs (the
+ * language preference, the root public config); the convention test limits it
+ * to an allowlist.
  *
  * Sign-in, renewal and sign-out use the surface-only middleware, so an expired
  * session can reach them and renewal can never recurse into the boundary.
@@ -120,6 +125,9 @@ const adminContext = createMiddleware({ type: 'function' })
     const core: AdminRequestContext = (await serverHalf()).adminCoreContext(context.session)
     return next({ context: { core } })
   })
+
+/** Served on every surface; allowlisted uses only (see the convention test). */
+export const neutralMiddleware = createMiddleware({ type: 'function' }).server(({ next }) => next())
 
 /** Frontend surface, no session required: public reads, learner sign-in/up, renewal, sign-out. */
 export const frontendSurfaceMiddleware = frontendSurface
