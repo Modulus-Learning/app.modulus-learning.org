@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { location, request, serves } from './client'
+import { location, request, serves, TARGET } from './client'
 
 describe.runIf(serves('frontend'))('learner pages', () => {
   test.each(['/', '/sign-in', '/sign-up', '/about', '/docs'])('GET %s → 200 html', async (path) => {
@@ -52,9 +52,11 @@ describe.runIf(serves('admin'))('admin pages', () => {
     expect(location(response)).toBe('/admin/sign-in?callbackUrl=%2Fadmin')
   })
 
-  // Recorded, not asserted: `withAdminAuth` recognises only an unprefixed
-  // `/admin/sign-in`, so `/es/admin/sign-in` is itself redirected to
-  // `/es/admin/sign-in?callbackUrl=…` — an apparent redirect loop for
-  // non-default-locale admins. To be confirmed and fixed by decision.
-  test.todo('GET /es/admin/sign-in (apparent redirect loop; undecided)')
+  // Next's `withAdminAuth` recognises only an unprefixed `/admin/sign-in`, so
+  // `/es/admin/sign-in` redirects to itself with a callbackUrl — a loop for
+  // non-default-locale admins. Start keeps sign-in outside `_authed` (fixed).
+  test.runIf(TARGET === 'start')('GET /es/admin/sign-in → 200 html (Next loops)', async () => {
+    const response = await request('/es/admin/sign-in')
+    expect(response.status).toBe(200)
+  })
 })

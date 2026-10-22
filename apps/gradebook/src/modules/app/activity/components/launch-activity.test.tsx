@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
+vi.mock('@/framework', () => ({
   useRouter: () => ({ replace: mocks.replace }),
 }))
 vi.mock('@infonomic/uikit/react', () => ({
