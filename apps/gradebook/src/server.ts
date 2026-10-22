@@ -1,18 +1,29 @@
 import handler, { createServerEntry } from '@tanstack/react-start/server-entry'
 
+import { getServerConfig } from '@/config'
+import { createEntryHandler } from '@/lib/entry'
 import { findPublicEnvDrift } from '@/lib/env-drift'
+import { getServerLogger } from '@/lib/server-logger'
 
 // TanStack Start server entry: the lowest app-owned request chokepoint, run on
-// the original, un-rewritten request before the router. Task 5 adds the
-// request scope, access logging, deployment-mode gate and redirects here.
+// the original, un-rewritten request before the router. Everything below runs
+// once per process; the per-request pipeline lives in `@/lib/entry`.
+
+// Validate the whole server configuration at boot, so a misconfigured instance
+// fails to start rather than failing on its first request.
+const config = getServerConfig()
+const logger = getServerLogger()
 
 const drift = findPublicEnvDrift()
 if (drift.length > 0) {
-  console.warn(
-    `Runtime values differ from the client build for ${drift.join(', ')}; the browser keeps the build-time values. Rebuild to change them.`
+  logger.warn(
+    { keys: drift },
+    'runtime values differ from the client build; the browser keeps the build-time values until a rebuild'
   )
 }
 
 export default createServerEntry({
-  fetch: (request) => handler.fetch(request),
+  fetch: createEntryHandler({ mode: config.deployment.mode, logger }, async (request) =>
+    handler.fetch(request)
+  ),
 })

@@ -31,10 +31,24 @@ export const getDeploymentMode = (): DeploymentMode => {
 export type RouteClass = 'admin' | 'frontend' | 'neutral'
 
 /**
- * Health / infrastructure endpoints (load-balancer probes, keep-alive) that
- * every deployment mode must keep serving regardless of which surface it hosts.
+ * Paths every deployment mode must keep serving regardless of which surface it
+ * hosts:
+ * - health / infrastructure endpoints (load-balancer probes, keep-alive);
+ * - TanStack Start server functions (`/_serverFn`), whose opaque URLs cannot be
+ *   classified by path — each one is gated by its surface-tagged factory
+ *   instead (see `@/lib/server-fn`);
+ * - built and static assets (`/_build`, `/fonts`) and the analytics proxy
+ *   (`/modules`), which the Next proxy matcher excluded and which carry no
+ *   surface of their own.
  */
-const NEUTRAL_API_PREFIXES = ['/routes/keep-alive', '/routes/elb-status']
+const NEUTRAL_API_PREFIXES = [
+  '/routes/keep-alive',
+  '/routes/elb-status',
+  '/_serverFn',
+  '/_build',
+  '/fonts',
+  '/modules',
+]
 
 const hasPrefix = (pathname: string, prefix: string) =>
   pathname === prefix || pathname.startsWith(`${prefix}/`)
