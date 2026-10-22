@@ -62,11 +62,9 @@ FROM base AS build
 
 WORKDIR /app
 
-# Likely only required here during build - but also included in the
-# final stage below
-ENV NEXT_TELEMETRY_DISABLED=1
 ENV TURBO_TELEMETRY_DISABLED=1
-ENV NODE_OPTIONS="--max-old-space-size=6144"
+# A local `vite build` peaks near 2 GB resident; 3 GB of heap leaves headroom.
+ENV NODE_OPTIONS="--max-old-space-size=3072"
 
 COPY --from=deps /app/apps/gradebook/node_modules /app/apps/gradebook/node_modules
 COPY --from=deps /app/packages/core/node_modules /app/packages/core/node_modules
@@ -80,8 +78,11 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 # Setup pnpm and global tools in a separate layer to reduce peak memory during build
 RUN corepack enable pnpm
 
-# Run build
-RUN pnpm run build
+# Run build: core `tsc`, then the gradebook's TanStack Start build into
+# apps/gradebook/.output. The client bundle inlines the public VITE_* values
+# from the committed apps/gradebook/.env; .env.local never enters the image.
+# TODO(Task 18): becomes `pnpm run build` once `build` is the Start build.
+RUN pnpm -F @modulus-learning/core build && pnpm -F @modulus-learning/gradebook build:start
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # final
@@ -92,7 +93,6 @@ RUN pnpm run build
 # but the code hasn't changed.
 FROM base
 
-ARG IMAGE_VOLUME
 ARG APP_VOLUME
 ARG VERSION
 
@@ -102,17 +102,15 @@ LABEL io.infonomic.name="modulus_web" \
       io.infonomic.description="Modulus website app container."
 
 ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
 ENV TURBO_TELEMETRY_DISABLED=1
-ENV NEW_RELIC_NO_CONFIG_FILE=true
-ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true \
-NEW_RELIC_LOG=stdout
+# Nitro's graceful close: in-flight HTTP gets 25 s after SIGTERM, inside the
+# app's job drain (SHUTDOWN_DRAIN_SECONDS) and supervisord's stopwaitsecs.
+ENV SERVER_SHUTDOWN_TIMEOUT=25
 
 RUN set -eux; \
   mkdir -p /app; \
   mkdir -p /app/node_modules/.cache; \
   mkdir -p /app/apps/gradebook; \
-  mkdir -p /app/apps/gradebook/.next/cache/images; \
   mkdir -p /app/packages/core; \
   mkdir -p /var/run/nginx-cache; \
   chown -R nginx:nginx /app;  \
@@ -135,15 +133,13 @@ COPY --from=production-deps /app/node_modules /app/node_modules
 COPY --from=build --chown=nginx:nginx /app/packages/core/dist /app/packages/core/dist
 COPY --from=build --chown=nginx:nginx /app/packages/core/package.json /app/packages/core/package.json
 
-# main app
+# main app: the Nitro server bundle and its public assets (.output), plus the
+# production node_modules its externals (React and friends) resolve from. Docs
+# content is bundled into .output, so src/content is not copied.
 COPY --from=production-deps --chown=nginx:nginx /app/apps/gradebook/node_modules /app/apps/gradebook/node_modules
-COPY --from=build --chown=nginx:nginx /app/apps/gradebook/.next/standalone/apps/gradebook/.next /app/apps/gradebook/.next
-COPY --from=build --chown=nginx:nginx /app/apps/gradebook/.next/standalone/apps/gradebook/package.json /app/apps/gradebook/package.json
-COPY --from=build --chown=nginx:nginx /app/apps/gradebook/.next/standalone/apps/gradebook/server.js /app/apps/gradebook/server.js
-COPY --from=build --chown=nginx:nginx /app/apps/gradebook/.next/static /app/apps/gradebook/.next/static
-COPY --from=build --chown=nginx:nginx /app/apps/gradebook/public /app/apps/gradebook/public
+COPY --from=build --chown=nginx:nginx /app/apps/gradebook/.output /app/apps/gradebook/.output
+COPY --from=build --chown=nginx:nginx /app/apps/gradebook/package.json /app/apps/gradebook/package.json
 COPY --from=build --chown=nginx:nginx /app/apps/gradebook/email-templates /app/apps/gradebook/email-templates
-COPY --from=build --chown=nginx:nginx /app/apps/gradebook/src/content /app/apps/gradebook/src/content
 
 # Root package.json and files
 COPY --from=build /app/package.json /app/package.json
@@ -153,8 +149,6 @@ COPY --from=build /app/turbo.json /app/turbo.json
 
 COPY _docker/gradebook/start-nginx.sh /app/start-nginx.sh
 COPY _docker/gradebook/start-node.sh /app/start-node.sh
-
-VOLUME ${IMAGE_VOLUME}
 
 EXPOSE 8000
 

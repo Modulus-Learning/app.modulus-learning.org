@@ -1,16 +1,22 @@
-# fly.toml app configuration file generated for modulus-restless-snowflake-2677 on 2024-07-09T19:01:05+07:00
+# Fly.io configuration for the Modulus gradebook FRONTEND instance.
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 # FRONTEND (learner / LTI) deployment. Serves the public, learner and LTI launch
 # surface only; the admin surface is blocked and background jobs do NOT run here
 # (see DEPLOYMENT_MODE / JOB_QUEUE_ENABLED below). The admin surface and the
-# background workers are served by the companion fly-gradebook-backend.toml app.
+# background workers are served by the companion fly-gradebook-admin.toml app.
 # Both apps run the SAME image -- the deployment mode is purely an env switch.
+# Only variables a frontend instance needs are listed: the admin cookies belong
+# to the admin instance.
+#
+# Shutdown: no background jobs run here, so Nitro closes in-flight HTTP within
+# SERVER_SHUTDOWN_TIMEOUT (25 s on the image), inside kill_timeout (30 s).
 # See docs/DEPLOYMENT.md.
 
 app = 'modulus-restless-snowflake-2677'
 primary_region = 'sin'
+kill_timeout = 30
 swap_size_mb = 512
 
 [build]
@@ -18,7 +24,6 @@ dockerfile = '_docker/gradebook/production/Dockerfile'
 
 [build.args]
 APP_VOLUME = '/app/storage'
-IMAGE_VOLUME = '/app/apps/gradebook/.next/cache/images'
 
 [deploy]
 strategy = 'rolling'
@@ -45,16 +50,6 @@ USER_REFRESH_COOKIE_NAME = 'user_refresh'
 USER_REFRESH_COOKIE_SAME_SITE = 'none'
 USER_REFRESH_COOKIE_HTTP_ONLY = 'true'
 USER_REFRESH_COOKIE_SECURE = 'true'
-
-ADMIN_SESSION_COOKIE_NAME = 'admin_session'
-ADMIN_SESSION_COOKIE_SAME_SITE = 'lax'
-ADMIN_SESSION_COOKIE_HTTP_ONLY = 'true'
-ADMIN_SESSION_COOKIE_SECURE = 'true'
-
-ADMIN_REFRESH_COOKIE_NAME = 'admin_refresh'
-ADMIN_REFRESH_COOKIE_SAME_SITE = 'lax'
-ADMIN_REFRESH_COOKIE_HTTP_ONLY = 'true'
-ADMIN_REFRESH_COOKIE_SECURE = 'true'
 
 FLASH_COOKIE_NAME = 'flash'
 FLASH_COOKIE_SAME_SITE = 'lax'
@@ -93,9 +88,6 @@ OAUTH_GOOGLE_CLIENT_ID = '1033625618297-l355umo309knrgmgn4d1r665knsc9fti.apps.go
 OAUTH_GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/auth'
 OAUTH_GOOGLE_ACCESS_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 OAUTH_GOOGLE_RETURN_URL = 'https://app.modulus-learning.org/routes/oauth/google'
-
-NEW_RELIC_APP_NAME = 'Modulus Website'
-NEW_RELIC_ERROR_COLLECTOR_EXPECTED_ERROR_CODES = '401'
 
 # @modulus/core configuration -- expect changes here
 # POSTGRES_CONNECTION_STRING in fly secrets

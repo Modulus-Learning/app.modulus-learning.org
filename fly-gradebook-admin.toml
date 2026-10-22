@@ -1,34 +1,37 @@
-# Fly.io configuration for the Modulus gradebook BACKEND deployment.
+# Fly.io configuration for the Modulus gradebook ADMIN instance.
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
-# BACKEND (admin + background jobs) deployment. Serves the administrative surface
+# The Fly app keeps its original name, `modulus-gradebook-backend`: Fly app names
+# cannot be changed in place. Everywhere the repo controls the name it is the
+# "admin instance" (DEPLOYMENT_MODE=admin).
+#
+# ADMIN (admin + background jobs) deployment. Serves the administrative surface
 # only -- the public/learner and LTI surface is blocked (404) -- and runs the
-# background workers (LTI score-submission). The learner/LTI surface is served by
-# the companion fly-gradebook-frontend.toml app. See docs/DEPLOYMENT.md.
+# background workers (LTI score submission, housekeeping). The learner/LTI
+# surface is served by the companion fly-gradebook-frontend.toml app. See
+# docs/DEPLOYMENT.md.
 #
 # SAME IMAGE, both apps. DEPLOYMENT_MODE / JOB_QUEUE_ENABLED and all server-side
 # config are read at RUNTIME from process.env, so this app and the frontend app
-# deploy the identical image; the mode is purely an env switch.
+# deploy the identical image; the mode is purely an env switch. Only variables
+# an admin instance needs are listed: the learner cookies, API base URL,
+# reCAPTCHA and OAuth settings belong to the frontend.
 #
-# Build-time caveat (VITE_*): Next.js inlines VITE_* into the CLIENT
-# bundle at `next build` from apps/gradebook/.env.public, so the client-baked
-# VITE_PUBLIC_SERVER_URL is always the frontend origin and CANNOT vary by
-# runtime env on a shared image. That is harmless here: the only client code that
-# reads publicServerUrl is on the frontend/LTI surface (activities + LTI deep-link
-# forms), which this admin backend blocks (404) and never serves.
+# Public config reaches the browser from the server at runtime (the root
+# loader), so VITE_PUBLIC_SERVER_URL below is correct for this instance's own
+# origin even though both apps share one client build.
 #
-# What DOES matter at runtime: getServerConfig().publicServerUrl is read live by
-# withAdminSession, which self-fetches `${publicServerUrl}/routes/admin/refresh`
-# to refresh admin tokens. That must resolve to THIS app's own origin, so the
-# runtime server URL values below point at the admin subdomain. (/routes/admin is
-# 404 on the frontend, so leaving them at the frontend origin would break admin
-# token refresh.)
+# Shutdown: kill_timeout (90 s) outlasts supervisord's stopwaitsecs (80 s),
+# which outlasts the app's SHUTDOWN_DRAIN_SECONDS (70 s), which outlasts a
+# score submission's request timeout (60 s). A rolling deploy therefore lets an
+# in-flight submission finish. See docs/DEPLOYMENT.md.
 #
-# This admin backend serves https://admin.modulus-learning.org -- you must add the
-# DNS record and a Fly certificate for that subdomain.
+# This admin instance serves https://admin.modulus-learning.org -- you must add
+# the DNS record and a Fly certificate for that subdomain.
 app = 'modulus-gradebook-backend'
 primary_region = 'sin'
+kill_timeout = 90
 swap_size_mb = 512
 
 [build]
@@ -36,7 +39,6 @@ dockerfile = '_docker/gradebook/production/Dockerfile'
 
 [build.args]
 APP_VOLUME = '/app/storage'
-IMAGE_VOLUME = '/app/apps/gradebook/.next/cache/images'
 
 [deploy]
 strategy = 'rolling'
@@ -47,27 +49,13 @@ PORT = '3000'
 DEPLOYMENT_MODE = 'admin'
 JOB_QUEUE_ENABLED = 'true'
 
-# VITE_SITE_NAME / DESCRIPTION / CSP are build-time inlined (see header) and
-# identical across both apps.
 VITE_SITE_NAME = 'MODULUS'
 VITE_SITE_DESCRIPTION = 'Modulus - an open source educational analytics system for distributed learning content.'
-# Runtime value = this backend's own origin (used server-side by the admin token
-# refresh self-fetch). The client-baked value remains the frontend origin but is
-# inert here (no admin client reads it) -- see header.
+# This instance's own origin (see header).
 VITE_PUBLIC_SERVER_URL = 'https://admin.modulus-learning.org'
 VITE_CSP_ENABLED = 'false'
 DATA_REQUEST_CACHING = 'true'
 ANALYTICS_ENABLED = 'true'
-
-USER_SESSION_COOKIE_NAME = 'user_session'
-USER_SESSION_COOKIE_SAME_SITE = 'none'
-USER_SESSION_COOKIE_HTTP_ONLY = 'true'
-USER_SESSION_COOKIE_SECURE = 'true'
-
-USER_REFRESH_COOKIE_NAME = 'user_refresh'
-USER_REFRESH_COOKIE_SAME_SITE = 'none'
-USER_REFRESH_COOKIE_HTTP_ONLY = 'true'
-USER_REFRESH_COOKIE_SECURE = 'true'
 
 ADMIN_SESSION_COOKIE_NAME = 'admin_session'
 ADMIN_SESSION_COOKIE_SAME_SITE = 'lax'
@@ -84,17 +72,12 @@ FLASH_COOKIE_SAME_SITE = 'lax'
 FLASH_COOKIE_HTTP_ONLY = 'true'
 FLASH_COOKIE_SECURE = 'true'
 
-API_BASE_URL = 'https://admin.modulus-learning.org/routes'
 API_JWT_PUBLIC_KEY = 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF0WUtmS3JFYnpqcEYxSERXZkUxTAoxYnBiRmNPZkRDc2VBZnhIVzVSY2JGVHpENGNkT1JvYU5BcmZ0VWR1QnVCcjBZdnRrc0Z1RjBMdG1NZ0ZPQW1mCmUrbURJUHA3RCtYZFdQOU1kOTB5Ui9jSkF0bHJ6U2g0MUxaeEkwTWtHeW9kLzcwOEZFZmZtb3QyWURtMElsSzQKN3E3V2M0WVNMZ1I3cUljNkh2dkd0cFZkTjM5dmVaeWM5NVE3REhwWDYrRllhcWlyYzR0VUZ3RzYzMkp1dmZINApVY1VqQTdJRTBTeTRWd3dtWS8xRHMvWTVQc0cyQWNHWkU4aWg1Q0srRVNGckdEemFraHpmTElOR05vcDE5VHd3Ci9iTEQ1VUR4WGVwTnFwYjlYNHg1NWNsakUvSmhzb3Y3eElsWURKTmhNUTFRSngxSk0vem4yVk1JQXgydlg1TmQKWlFJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=='
 # JWT issuer/audience are kept IDENTICAL to the frontend (same signing key), so
 # tokens stay interchangeable across both apps -- they are opaque claim strings
 # that need only match between mint and verify, not the serving origin.
 API_JWT_ISSUER = 'https://app.modulus-learning.org'
 API_JWT_AUDIENCE = 'https://app.modulus-learning.org'
-
-VITE_RECAPTCHA_ENABLED = 'true'
-VITE_RECAPTCHA_MANDATORY = 'true'
-VITE_RECAPTCHA_SITE_KEY = '6LcsQL0ZAAAAALwsX4c-YK-oe76-BhPjYU3iQArK'
 
 SYSTEM_EMAIL_FROM_ADDRESS = 'Modulus Learning <info@infonomic.io>'
 CONTACT_SUBMISSION_FROM_ADDRESS = 'Modulus Learning <info@infonomic.io>'
@@ -109,24 +92,6 @@ S3_ACCESS_KEY_ID = 'AKIA3NCF7XCVBH2HXICF'
 S3_BUCKET = 'origin.modulus-learning.org'
 S3_CDN_DOMAIN = 'https://cdn.modulus-learning.org'
 
-# OAuth / LTI launch flows live on the FRONTEND; these return/redirect URLs point
-# at the frontend domain by design. They are inert on the admin backend (the
-# score-submission worker uses the LTI_JWKS keys + DB for passback, not these),
-# but core config validation requires them to be present.
-OAUTH_GITHUB_CLIENT_ID = 'Ov23lih9WiC1jEIBqi6S'
-OAUTH_GITHUB_AUTH_URL = 'https://github.com/login/oauth/authorize'
-OAUTH_GITHUB_ACCESS_TOKEN_URL = 'https://github.com/login/oauth/access_token'
-OAUTH_GITHUB_USER_URL = 'https://api.github.com/user'
-OAUTH_GITHUB_RETURN_URL = 'https://app.modulus-learning.org/routes/oauth/github'
-
-OAUTH_GOOGLE_CLIENT_ID = '1033625618297-l355umo309knrgmgn4d1r665knsc9fti.apps.googleusercontent.com'
-OAUTH_GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/auth'
-OAUTH_GOOGLE_ACCESS_TOKEN_URL = 'https://oauth2.googleapis.com/token'
-OAUTH_GOOGLE_RETURN_URL = 'https://app.modulus-learning.org/routes/oauth/google'
-
-NEW_RELIC_APP_NAME = 'Modulus Website'
-NEW_RELIC_ERROR_COLLECTOR_EXPECTED_ERROR_CODES = '401'
-
 # @modulus/core configuration -- expect changes here
 # POSTGRES_CONNECTION_STRING in fly secrets
 LTI_REDIRECT_URI = 'https://app.modulus-learning.org/routes/lti/launch'
@@ -139,15 +104,15 @@ SERVER_BASE_URL = 'https://admin.modulus-learning.org'
 API_JWT_ACCESS_TOKEN_EXPIRES_IN = 600
 API_JWT_REFRESH_TOKEN_EXPIRES_IN = 2592000
 
-# SINGLE MACHINE ONLY. This backend runs the background workers (LTI score
+# SINGLE MACHINE ONLY. This instance runs the background workers (LTI score
 # submission), so it must be exactly one always-running instance:
 #   - auto_stop_machines = false: never stop the machine on idle HTTP traffic --
 #     it would also stop the background workers.
 #   - auto_start_machines = false: never auto-start additional machines.
 #   - min_machines_running = 1: keep the one machine running.
 # Fly does not cap machine count from this file, and `fly deploy` on an app with an
-# [http_service] creates a 2-machine HA pair BY DEFAULT. The backend deploy passes
-# `--ha=false` (see scripts/fly-deploy-gradebook-backend.sh) to create just one.
+# [http_service] creates a 2-machine HA pair BY DEFAULT. The admin deploy passes
+# `--ha=false` (see scripts/fly-deploy-gradebook-admin.sh) to create just one.
 # Operationally also keep a single region (primary_region above) and verify with
 # `fly scale show` / `fly scale count 1` -- never `fly machine clone` this app.
 [http_service]

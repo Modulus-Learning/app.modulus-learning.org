@@ -2,7 +2,11 @@ services:
   app:
     image: 783978313898.dkr.ecr.ap-southeast-1.amazonaws.com/modulus:app-0.1.0
     container_name: modulus_app
-    env_file: ./apps/gradebook/.env
+    # .env holds the committed public values; .env.local the local secrets.
+    env_file:
+      - ./apps/gradebook/.env
+      - path: ./apps/gradebook/.env.local
+        required: false
     ports:
       - 80:8000
     extra_hosts:

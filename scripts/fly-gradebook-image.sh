@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Shared build/deploy helpers for the Modulus gradebook Fly.io deploys.
-# Sourced by fly-deploy-gradebook-{frontend,backend}.sh and fly-deploy-gradebook.sh
+# Sourced by fly-deploy-gradebook-{frontend,admin}.sh and fly-deploy-gradebook.sh
 # -- not meant to be run directly.
 #
-# Build-once / deploy-twice: the frontend (DEPLOYMENT_MODE=frontend) and backend
+# Build-once / deploy-twice: the frontend (DEPLOYMENT_MODE=frontend) and admin
 # (DEPLOYMENT_MODE=admin) apps run the SAME image; the mode is purely a runtime env
 # switch (see docs/DEPLOYMENT.md). build_image() builds a single local image; both
 # deploys retag that identical image into each app's Fly registry namespace and
@@ -43,7 +43,6 @@ build_image() {
       --file _docker/gradebook/production/Dockerfile \
       --build-arg APP_VOLUME=/app/storage \
       --build-arg VERSION="${VERSION}" \
-      --build-arg IMAGE_VOLUME=/app/apps/gradebook/.next/cache/images \
       --tag "${IMAGE_TAG}" \
       . )
 }
