@@ -7,7 +7,7 @@ vi.mock('@infonomic/uikit/react', () => ({
   LoaderRing: () => createElement('span', { 'data-loader': true }),
 }))
 
-vi.mock('@/ui/theme/provider', () => ({
+vi.mock('@/ui/theme/provider-base', () => ({
   useTheme: () => ({ theme: 'light' }),
 }))
 

@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({ preview: vi.fn(), edit: vi.fn(), delete: vi.fn
 vi.mock('../preview', () => ({ previewAllowlistImpact: mocks.preview }))
 vi.mock('../edit', () => ({ editAllowlistRule: mocks.edit }))
 vi.mock('../delete', () => ({ deleteAllowlistRule: mocks.delete }))
-vi.mock('@/ui/theme/provider', () => ({ useTheme: () => ({ theme: 'light' }) }))
+vi.mock('@/ui/theme/provider-base', () => ({ useTheme: () => ({ theme: 'light' }) }))
 vi.mock('@/i18n/components/lang-link', () => ({
   LangLink: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
 }))
