@@ -29,10 +29,10 @@ PORT = '3000'
 DEPLOYMENT_MODE = 'frontend'
 JOB_QUEUE_ENABLED = 'false'
 
-NEXT_PUBLIC_SITE_NAME = 'MODULUS'
-NEXT_PUBLIC_SITE_DESCRIPTION = 'Modulus - an open source educational analytics system for distributed learning content.'
-NEXT_PUBLIC_PUBLIC_SERVER_URL = 'https://app.modulus-learning.org'
-NEXT_PUBLIC_CSP_ENABLED = 'false'
+VITE_SITE_NAME = 'MODULUS'
+VITE_SITE_DESCRIPTION = 'Modulus - an open source educational analytics system for distributed learning content.'
+VITE_PUBLIC_SERVER_URL = 'https://app.modulus-learning.org'
+VITE_CSP_ENABLED = 'false'
 DATA_REQUEST_CACHING = 'true'
 ANALYTICS_ENABLED = 'true'
 
@@ -66,9 +66,9 @@ API_JWT_PUBLIC_KEY = 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRz
 API_JWT_ISSUER = 'https://app.modulus-learning.org'
 API_JWT_AUDIENCE = 'https://app.modulus-learning.org'
 
-NEXT_PUBLIC_RECAPTCHA_ENABLED = 'true'
-NEXT_PUBLIC_RECAPTCHA_MANDATORY = 'true'
-NEXT_PUBLIC_RECAPTCHA_SITE_KEY = '6LcsQL0ZAAAAALwsX4c-YK-oe76-BhPjYU3iQArK'
+VITE_RECAPTCHA_ENABLED = 'true'
+VITE_RECAPTCHA_MANDATORY = 'true'
+VITE_RECAPTCHA_SITE_KEY = '6LcsQL0ZAAAAALwsX4c-YK-oe76-BhPjYU3iQArK'
 
 SYSTEM_EMAIL_FROM_ADDRESS = 'Modulus Learning <info@infonomic.io>'
 CONTACT_SUBMISSION_FROM_ADDRESS = 'Modulus Learning <info@infonomic.io>'

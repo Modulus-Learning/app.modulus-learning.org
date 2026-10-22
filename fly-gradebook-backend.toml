@@ -11,9 +11,9 @@
 # config are read at RUNTIME from process.env, so this app and the frontend app
 # deploy the identical image; the mode is purely an env switch.
 #
-# Build-time caveat (NEXT_PUBLIC_*): Next.js inlines NEXT_PUBLIC_* into the CLIENT
+# Build-time caveat (VITE_*): Next.js inlines VITE_* into the CLIENT
 # bundle at `next build` from apps/gradebook/.env.public, so the client-baked
-# NEXT_PUBLIC_PUBLIC_SERVER_URL is always the frontend origin and CANNOT vary by
+# VITE_PUBLIC_SERVER_URL is always the frontend origin and CANNOT vary by
 # runtime env on a shared image. That is harmless here: the only client code that
 # reads publicServerUrl is on the frontend/LTI surface (activities + LTI deep-link
 # forms), which this admin backend blocks (404) and never serves.
@@ -47,15 +47,15 @@ PORT = '3000'
 DEPLOYMENT_MODE = 'admin'
 JOB_QUEUE_ENABLED = 'true'
 
-# NEXT_PUBLIC_SITE_NAME / DESCRIPTION / CSP are build-time inlined (see header) and
+# VITE_SITE_NAME / DESCRIPTION / CSP are build-time inlined (see header) and
 # identical across both apps.
-NEXT_PUBLIC_SITE_NAME = 'MODULUS'
-NEXT_PUBLIC_SITE_DESCRIPTION = 'Modulus - an open source educational analytics system for distributed learning content.'
+VITE_SITE_NAME = 'MODULUS'
+VITE_SITE_DESCRIPTION = 'Modulus - an open source educational analytics system for distributed learning content.'
 # Runtime value = this backend's own origin (used server-side by the admin token
 # refresh self-fetch). The client-baked value remains the frontend origin but is
 # inert here (no admin client reads it) -- see header.
-NEXT_PUBLIC_PUBLIC_SERVER_URL = 'https://admin.modulus-learning.org'
-NEXT_PUBLIC_CSP_ENABLED = 'false'
+VITE_PUBLIC_SERVER_URL = 'https://admin.modulus-learning.org'
+VITE_CSP_ENABLED = 'false'
 DATA_REQUEST_CACHING = 'true'
 ANALYTICS_ENABLED = 'true'
 
@@ -92,9 +92,9 @@ API_JWT_PUBLIC_KEY = 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRz
 API_JWT_ISSUER = 'https://app.modulus-learning.org'
 API_JWT_AUDIENCE = 'https://app.modulus-learning.org'
 
-NEXT_PUBLIC_RECAPTCHA_ENABLED = 'true'
-NEXT_PUBLIC_RECAPTCHA_MANDATORY = 'true'
-NEXT_PUBLIC_RECAPTCHA_SITE_KEY = '6LcsQL0ZAAAAALwsX4c-YK-oe76-BhPjYU3iQArK'
+VITE_RECAPTCHA_ENABLED = 'true'
+VITE_RECAPTCHA_MANDATORY = 'true'
+VITE_RECAPTCHA_SITE_KEY = '6LcsQL0ZAAAAALwsX4c-YK-oe76-BhPjYU3iQArK'
 
 SYSTEM_EMAIL_FROM_ADDRESS = 'Modulus Learning <info@infonomic.io>'
 CONTACT_SUBMISSION_FROM_ADDRESS = 'Modulus Learning <info@infonomic.io>'

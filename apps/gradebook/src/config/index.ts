@@ -2,12 +2,10 @@ import { base64Schema, booleanSchema, requireIfEnabled, urlSchema } from '@infon
 import { z } from 'zod'
 
 /**
- * Server configuration schema and functions. Note that these
- * values are ONLY available on the server and NOT available
- * at build time and therefore not available to the browser.
- * Values here are populated via the projects's .env file
- * which is NOT committed to the project's Git repo and
- * CAN include secrets.
+ * Server configuration schema and functions. These values are ONLY available
+ * on the server and are read from `process.env` at runtime. Secrets live in
+ * `.env.local`, which is NOT committed; the committed `.env` holds only public,
+ * commit-safe values (the `VITE_*` keys).
  */
 const cookieSchema = z.object({
   name: z.string(),
@@ -248,10 +246,10 @@ export const parseServerConfig = (env: ServerEnv = process.env): ServerConfig =>
 
 const readServerEnv = (env: ServerEnv) => ({
   port: env.PORT,
-  siteName: env.NEXT_PUBLIC_SITE_NAME,
-  siteDescription: env.NEXT_PUBLIC_SITE_DESCRIPTION,
-  publicServerUrl: env.NEXT_PUBLIC_PUBLIC_SERVER_URL,
-  cspEnabled: env.NEXT_PUBLIC_CSP_ENABLED,
+  siteName: env.VITE_SITE_NAME,
+  siteDescription: env.VITE_SITE_DESCRIPTION,
+  publicServerUrl: env.VITE_PUBLIC_SERVER_URL,
+  cspEnabled: env.VITE_CSP_ENABLED,
   dataRequestCaching: env.DATA_REQUEST_CACHING,
   analyticsEnabled: env.ANALYTICS_ENABLED,
   sessionSecret: env.SESSION_SECRET,
@@ -296,9 +294,9 @@ const readServerEnv = (env: ServerEnv) => ({
     },
   },
   recaptcha: {
-    enabled: env.NEXT_PUBLIC_RECAPTCHA_ENABLED,
-    mandatory: env.NEXT_PUBLIC_RECAPTCHA_MANDATORY,
-    siteKey: env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
+    enabled: env.VITE_RECAPTCHA_ENABLED,
+    mandatory: env.VITE_RECAPTCHA_MANDATORY,
+    siteKey: env.VITE_RECAPTCHA_SITE_KEY,
     secretKey: env.RECAPTCHA_SECRET_KEY,
     projectID: env.GOOGLE_APPLICATION_PROJECT_ID,
   },
@@ -364,13 +362,11 @@ export const getServerConfig = (): ServerConfig => {
 }
 
 /**
- * Public configuration schema and functions. Note that these
- * values are populated via .env.public and NEXT_PUBLIC_... vars
- * which are available at 'build time', and are compiled into
- * the Next.js client application - and therefore shipped to
- * the browser. .env.public is also committed to the project's
- * Git repo - and so it's essential that these values
- * DO NOT contain secrets.
+ * Public configuration schema and functions. These values come from the
+ * `VITE_*` keys in the committed `.env`, are compiled into the client bundle
+ * (Vite inlines `import.meta.env.VITE_*`; the Next app forwards them through
+ * the `env` option in `next.config.ts`) and are therefore shipped to the
+ * browser. They must never contain secrets.
  */
 const publicSchema = z.object({
   siteName: z.string(),
@@ -390,14 +386,14 @@ export type PublicConfig = z.infer<typeof publicSchema>
 
 const initPublicConfig = () =>
   publicSchema.parse({
-    siteName: process.env.NEXT_PUBLIC_SITE_NAME,
-    siteDescription: process.env.NEXT_PUBLIC_SITE_DESCRIPTION,
-    publicServerUrl: process.env.NEXT_PUBLIC_PUBLIC_SERVER_URL,
-    cspEnabled: process.env.NEXT_PUBLIC_CSP_ENABLED,
+    siteName: process.env.VITE_SITE_NAME,
+    siteDescription: process.env.VITE_SITE_DESCRIPTION,
+    publicServerUrl: process.env.VITE_PUBLIC_SERVER_URL,
+    cspEnabled: process.env.VITE_CSP_ENABLED,
     recaptcha: {
-      enabled: process.env.NEXT_PUBLIC_RECAPTCHA_ENABLED,
-      mandatory: process.env.NEXT_PUBLIC_RECAPTCHA_MANDATORY,
-      siteKey: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
+      enabled: process.env.VITE_RECAPTCHA_ENABLED,
+      mandatory: process.env.VITE_RECAPTCHA_MANDATORY,
+      siteKey: process.env.VITE_RECAPTCHA_SITE_KEY,
     },
   })
 

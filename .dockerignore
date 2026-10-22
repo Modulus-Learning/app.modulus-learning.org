@@ -5,7 +5,7 @@
 **/.dockerignore
 **/.env
 **/.env.*
-!**/.env.public
+!apps/gradebook/.env
 **/.git
 **/.gitignore
 **/.project
@@ -35,6 +35,9 @@ node_modules
 
 # Apps
 apps/gradebook/.next
+apps/gradebook/.output
+apps/gradebook/.nitro
+apps/gradebook/.tanstack
 apps/gradebook/.turbo
 apps/agent-demo/react/dist
 
