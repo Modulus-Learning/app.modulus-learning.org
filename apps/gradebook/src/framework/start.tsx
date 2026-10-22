@@ -102,6 +102,26 @@ export function useLangNavigation(lng: Locale) {
   return { navigate, getHref }
 }
 
+/** Interface-language switcher, as the Next `useLanguageSwitcher` hook exposes it. */
+export function useLanguageSwitcher({ initialLocale }: { initialLocale: Locale }) {
+  const router = useTanStackRouter()
+  const pathname = usePathname()
+  const switchLanguage = (lng: Locale) => {
+    void (async () => {
+      await setLanguageFn({ data: { lng } })
+      const clean = pathWithoutLocale(pathname)
+      const path = lng === i18nConfig.defaultLocale ? clean : `/${lng}${clean === '/' ? '' : clean}`
+      await router.navigate({ href: `${path}${window.location.search}` })
+    })()
+  }
+  return {
+    switchLanguage,
+    currentLocale: initialLocale,
+    status: 'idle' as 'success' | 'failed' | 'idle',
+    message: undefined as string | undefined,
+  }
+}
+
 export interface LangLinkProps {
   href: string
   lng?: Locale
@@ -219,4 +239,65 @@ export function Image({
       {...rest}
     />
   )
+}
+
+/*
+ * Session actions, shaped like the Next server actions the shared forms pass to
+ * `useActionState` — `(prevState, formData) => Promise<state>`. Each runs inside
+ * the session coordination queue, tells other tabs on success, and navigates
+ * with a full page load so the server renders the new session.
+ */
+
+type UserSignInState = import('@/modules/app/session/@types').SignInFormState
+type AdminSignInState = import('@/modules/admin/session/@types').SignInFormState
+
+const completeSignIn = async <TState,>(
+  domain: 'user' | 'admin',
+  run: () => Promise<{ state: TState; redirectTo?: string }>
+): Promise<TState> => {
+  const { coordinateAuthAction, notifySessionAction } = await import('@/lib/session/coordination')
+  return coordinateAuthAction(domain, async () => {
+    const { state, redirectTo } = await run()
+    if (redirectTo != null) {
+      notifySessionAction(domain)
+      window.location.assign(redirectTo)
+    }
+    return state
+  })
+}
+
+const completeSignOut = async (
+  domain: 'user' | 'admin',
+  run: () => Promise<{ redirectTo: string }>
+): Promise<string> => {
+  const { coordinateAuthAction, notifySessionAction } = await import('@/lib/session/coordination')
+  return coordinateAuthAction(domain, async () => {
+    const { redirectTo } = await run()
+    notifySessionAction(domain)
+    window.location.assign(redirectTo)
+    return ''
+  })
+}
+
+export async function signIn(_prev: UserSignInState, formData: FormData): Promise<UserSignInState> {
+  const { signInUserFn } = await import('@/modules/app/session/sign-in')
+  return completeSignIn('user', () => signInUserFn({ data: formData }))
+}
+
+export async function signOut(): Promise<string> {
+  const { signOutUserFn } = await import('@/modules/app/session/sign-out')
+  return completeSignOut('user', () => signOutUserFn())
+}
+
+export async function adminSignIn(
+  _prev: AdminSignInState,
+  formData: FormData
+): Promise<AdminSignInState> {
+  const { signInAdminFn } = await import('@/modules/admin/session/sign-in')
+  return completeSignIn('admin', () => signInAdminFn({ data: formData }))
+}
+
+export async function adminSignOut(): Promise<string> {
+  const { signOutAdminFn } = await import('@/modules/admin/session/sign-out')
+  return completeSignOut('admin', () => signOutAdminFn())
 }

@@ -11,9 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LngRouteRouteImport } from './routes/$lng/route'
 import { Route as LngAdminRouteRouteImport } from './routes/$lng/_admin/route'
+import { Route as LngPublicRouteRouteImport } from './routes/$lng/_public/route'
 import { Route as AuthRenewRouteImport } from './routes/auth/renew'
 import { Route as RoutesElbStatusRouteImport } from './routes/routes/elb-status'
 import { Route as RoutesKeepAliveRouteImport } from './routes/routes/keep-alive'
+import { Route as LngPublicIndexRouteImport } from './routes/$lng/_public/index'
+import { Route as LngPublicSplatRouteImport } from './routes/$lng/_public/$'
+import { Route as LngPublicAboutRouteImport } from './routes/$lng/_public/about'
 import { Route as RoutesAgentActivityRouteImport } from './routes/routes/agent/activity'
 import { Route as RoutesAgentAuthorizeRouteImport } from './routes/routes/agent/authorize'
 import { Route as RoutesAgentTokenRouteImport } from './routes/routes/agent/token'
@@ -25,6 +29,8 @@ import { Route as RoutesLtiRegisterRouteImport } from './routes/routes/lti/regis
 import { Route as RoutesOauthGithubRouteImport } from './routes/routes/oauth/github'
 import { Route as RoutesOauthGoogleRouteImport } from './routes/routes/oauth/google'
 import { Route as LngAdminAdminRenewRouteImport } from './routes/$lng/_admin/admin/renew'
+import { Route as LngPublicDocsIndexRouteImport } from './routes/$lng/_public/docs/index'
+import { Route as LngPublicDocsSlugRouteImport } from './routes/$lng/_public/docs/$slug'
 import { Route as RoutesLtiDeepLinkActivitiesRouteImport } from './routes/routes/lti/deep-link/activities'
 
 const LngRouteRoute = LngRouteRouteImport.update({
@@ -34,6 +40,10 @@ const LngRouteRoute = LngRouteRouteImport.update({
 } as any)
 const LngAdminRouteRoute = LngAdminRouteRouteImport.update({
   id: '/_admin',
+  getParentRoute: () => LngRouteRoute,
+} as any)
+const LngPublicRouteRoute = LngPublicRouteRouteImport.update({
+  id: '/_public',
   getParentRoute: () => LngRouteRoute,
 } as any)
 const AuthRenewRoute = AuthRenewRouteImport.update({
@@ -50,6 +60,21 @@ const RoutesKeepAliveRoute = RoutesKeepAliveRouteImport.update({
   id: '/routes/keep-alive',
   path: '/routes/keep-alive',
   getParentRoute: () => rootRouteImport,
+} as any)
+const LngPublicIndexRoute = LngPublicIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LngPublicRouteRoute,
+} as any)
+const LngPublicSplatRoute = LngPublicSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => LngPublicRouteRoute,
+} as any)
+const LngPublicAboutRoute = LngPublicAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => LngPublicRouteRoute,
 } as any)
 const RoutesAgentActivityRoute = RoutesAgentActivityRouteImport.update({
   id: '/routes/agent/activity',
@@ -106,6 +131,16 @@ const LngAdminAdminRenewRoute = LngAdminAdminRenewRouteImport.update({
   path: '/admin/renew',
   getParentRoute: () => LngAdminRouteRoute,
 } as any)
+const LngPublicDocsIndexRoute = LngPublicDocsIndexRouteImport.update({
+  id: '/docs/',
+  path: '/docs/',
+  getParentRoute: () => LngPublicRouteRoute,
+} as any)
+const LngPublicDocsSlugRoute = LngPublicDocsSlugRouteImport.update({
+  id: '/docs/$slug',
+  path: '/docs/$slug',
+  getParentRoute: () => LngPublicRouteRoute,
+} as any)
 const RoutesLtiDeepLinkActivitiesRoute =
   RoutesLtiDeepLinkActivitiesRouteImport.update({
     id: '/routes/lti/deep-link/activities',
@@ -118,6 +153,8 @@ export interface FileRoutesByFullPath {
   '/auth/renew': typeof AuthRenewRoute
   '/routes/elb-status': typeof RoutesElbStatusRoute
   '/routes/keep-alive': typeof RoutesKeepAliveRoute
+  '/$lng/$': typeof LngPublicSplatRoute
+  '/$lng/about': typeof LngPublicAboutRoute
   '/routes/agent/activity': typeof RoutesAgentActivityRoute
   '/routes/agent/authorize': typeof RoutesAgentAuthorizeRoute
   '/routes/agent/token': typeof RoutesAgentTokenRoute
@@ -128,14 +165,19 @@ export interface FileRoutesByFullPath {
   '/routes/lti/register': typeof RoutesLtiRegisterRoute
   '/routes/oauth/github': typeof RoutesOauthGithubRoute
   '/routes/oauth/google': typeof RoutesOauthGoogleRoute
+  '/$lng/': typeof LngPublicIndexRoute
   '/$lng/admin/renew': typeof LngAdminAdminRenewRoute
+  '/$lng/docs/$slug': typeof LngPublicDocsSlugRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
+  '/$lng/docs/': typeof LngPublicDocsIndexRoute
 }
 export interface FileRoutesByTo {
-  '/$lng': typeof LngRouteRouteWithChildren
+  '/$lng': typeof LngPublicIndexRoute
   '/auth/renew': typeof AuthRenewRoute
   '/routes/elb-status': typeof RoutesElbStatusRoute
   '/routes/keep-alive': typeof RoutesKeepAliveRoute
+  '/$lng/$': typeof LngPublicSplatRoute
+  '/$lng/about': typeof LngPublicAboutRoute
   '/routes/agent/activity': typeof RoutesAgentActivityRoute
   '/routes/agent/authorize': typeof RoutesAgentAuthorizeRoute
   '/routes/agent/token': typeof RoutesAgentTokenRoute
@@ -147,15 +189,20 @@ export interface FileRoutesByTo {
   '/routes/oauth/github': typeof RoutesOauthGithubRoute
   '/routes/oauth/google': typeof RoutesOauthGoogleRoute
   '/$lng/admin/renew': typeof LngAdminAdminRenewRoute
+  '/$lng/docs/$slug': typeof LngPublicDocsSlugRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
+  '/$lng/docs': typeof LngPublicDocsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/$lng': typeof LngRouteRouteWithChildren
   '/$lng/_admin': typeof LngAdminRouteRouteWithChildren
+  '/$lng/_public': typeof LngPublicRouteRouteWithChildren
   '/auth/renew': typeof AuthRenewRoute
   '/routes/elb-status': typeof RoutesElbStatusRoute
   '/routes/keep-alive': typeof RoutesKeepAliveRoute
+  '/$lng/_public/$': typeof LngPublicSplatRoute
+  '/$lng/_public/about': typeof LngPublicAboutRoute
   '/routes/agent/activity': typeof RoutesAgentActivityRoute
   '/routes/agent/authorize': typeof RoutesAgentAuthorizeRoute
   '/routes/agent/token': typeof RoutesAgentTokenRoute
@@ -166,8 +213,11 @@ export interface FileRoutesById {
   '/routes/lti/register': typeof RoutesLtiRegisterRoute
   '/routes/oauth/github': typeof RoutesOauthGithubRoute
   '/routes/oauth/google': typeof RoutesOauthGoogleRoute
+  '/$lng/_public/': typeof LngPublicIndexRoute
   '/$lng/_admin/admin/renew': typeof LngAdminAdminRenewRoute
+  '/$lng/_public/docs/$slug': typeof LngPublicDocsSlugRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
+  '/$lng/_public/docs/': typeof LngPublicDocsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -176,6 +226,8 @@ export interface FileRouteTypes {
     | '/auth/renew'
     | '/routes/elb-status'
     | '/routes/keep-alive'
+    | '/$lng/$'
+    | '/$lng/about'
     | '/routes/agent/activity'
     | '/routes/agent/authorize'
     | '/routes/agent/token'
@@ -186,14 +238,19 @@ export interface FileRouteTypes {
     | '/routes/lti/register'
     | '/routes/oauth/github'
     | '/routes/oauth/google'
+    | '/$lng/'
     | '/$lng/admin/renew'
+    | '/$lng/docs/$slug'
     | '/routes/lti/deep-link/activities'
+    | '/$lng/docs/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/$lng'
     | '/auth/renew'
     | '/routes/elb-status'
     | '/routes/keep-alive'
+    | '/$lng/$'
+    | '/$lng/about'
     | '/routes/agent/activity'
     | '/routes/agent/authorize'
     | '/routes/agent/token'
@@ -205,14 +262,19 @@ export interface FileRouteTypes {
     | '/routes/oauth/github'
     | '/routes/oauth/google'
     | '/$lng/admin/renew'
+    | '/$lng/docs/$slug'
     | '/routes/lti/deep-link/activities'
+    | '/$lng/docs'
   id:
     | '__root__'
     | '/$lng'
     | '/$lng/_admin'
+    | '/$lng/_public'
     | '/auth/renew'
     | '/routes/elb-status'
     | '/routes/keep-alive'
+    | '/$lng/_public/$'
+    | '/$lng/_public/about'
     | '/routes/agent/activity'
     | '/routes/agent/authorize'
     | '/routes/agent/token'
@@ -223,8 +285,11 @@ export interface FileRouteTypes {
     | '/routes/lti/register'
     | '/routes/oauth/github'
     | '/routes/oauth/google'
+    | '/$lng/_public/'
     | '/$lng/_admin/admin/renew'
+    | '/$lng/_public/docs/$slug'
     | '/routes/lti/deep-link/activities'
+    | '/$lng/_public/docs/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -261,6 +326,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LngAdminRouteRouteImport
       parentRoute: typeof LngRouteRoute
     }
+    '/$lng/_public': {
+      id: '/$lng/_public'
+      path: ''
+      fullPath: '/$lng'
+      preLoaderRoute: typeof LngPublicRouteRouteImport
+      parentRoute: typeof LngRouteRoute
+    }
     '/auth/renew': {
       id: '/auth/renew'
       path: '/auth/renew'
@@ -281,6 +353,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/routes/keep-alive'
       preLoaderRoute: typeof RoutesKeepAliveRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/$lng/_public/': {
+      id: '/$lng/_public/'
+      path: '/'
+      fullPath: '/$lng/'
+      preLoaderRoute: typeof LngPublicIndexRouteImport
+      parentRoute: typeof LngPublicRouteRoute
+    }
+    '/$lng/_public/$': {
+      id: '/$lng/_public/$'
+      path: '/$'
+      fullPath: '/$lng/$'
+      preLoaderRoute: typeof LngPublicSplatRouteImport
+      parentRoute: typeof LngPublicRouteRoute
+    }
+    '/$lng/_public/about': {
+      id: '/$lng/_public/about'
+      path: '/about'
+      fullPath: '/$lng/about'
+      preLoaderRoute: typeof LngPublicAboutRouteImport
+      parentRoute: typeof LngPublicRouteRoute
     }
     '/routes/agent/activity': {
       id: '/routes/agent/activity'
@@ -359,6 +452,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LngAdminAdminRenewRouteImport
       parentRoute: typeof LngAdminRouteRoute
     }
+    '/$lng/_public/docs/': {
+      id: '/$lng/_public/docs/'
+      path: '/docs'
+      fullPath: '/$lng/docs/'
+      preLoaderRoute: typeof LngPublicDocsIndexRouteImport
+      parentRoute: typeof LngPublicRouteRoute
+    }
+    '/$lng/_public/docs/$slug': {
+      id: '/$lng/_public/docs/$slug'
+      path: '/docs/$slug'
+      fullPath: '/$lng/docs/$slug'
+      preLoaderRoute: typeof LngPublicDocsSlugRouteImport
+      parentRoute: typeof LngPublicRouteRoute
+    }
     '/routes/lti/deep-link/activities': {
       id: '/routes/lti/deep-link/activities'
       path: '/routes/lti/deep-link/activities'
@@ -381,12 +488,34 @@ const LngAdminRouteRouteWithChildren = LngAdminRouteRoute._addFileChildren(
   LngAdminRouteRouteChildren,
 )
 
+interface LngPublicRouteRouteChildren {
+  LngPublicSplatRoute: typeof LngPublicSplatRoute
+  LngPublicAboutRoute: typeof LngPublicAboutRoute
+  LngPublicIndexRoute: typeof LngPublicIndexRoute
+  LngPublicDocsSlugRoute: typeof LngPublicDocsSlugRoute
+  LngPublicDocsIndexRoute: typeof LngPublicDocsIndexRoute
+}
+
+const LngPublicRouteRouteChildren: LngPublicRouteRouteChildren = {
+  LngPublicSplatRoute: LngPublicSplatRoute,
+  LngPublicAboutRoute: LngPublicAboutRoute,
+  LngPublicIndexRoute: LngPublicIndexRoute,
+  LngPublicDocsSlugRoute: LngPublicDocsSlugRoute,
+  LngPublicDocsIndexRoute: LngPublicDocsIndexRoute,
+}
+
+const LngPublicRouteRouteWithChildren = LngPublicRouteRoute._addFileChildren(
+  LngPublicRouteRouteChildren,
+)
+
 interface LngRouteRouteChildren {
   LngAdminRouteRoute: typeof LngAdminRouteRouteWithChildren
+  LngPublicRouteRoute: typeof LngPublicRouteRouteWithChildren
 }
 
 const LngRouteRouteChildren: LngRouteRouteChildren = {
   LngAdminRouteRoute: LngAdminRouteRouteWithChildren,
+  LngPublicRouteRoute: LngPublicRouteRouteWithChildren,
 }
 
 const LngRouteRouteWithChildren = LngRouteRoute._addFileChildren(

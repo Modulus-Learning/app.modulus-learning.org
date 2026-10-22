@@ -4,9 +4,8 @@ import { type FormEvent, startTransition, useActionState, useState } from 'react
 
 import { Alert, Button, Card, Checkbox, Input, LoaderEllipsis } from '@infonomic/uikit/react'
 
-import { LangLink, useSearchParams } from '@/framework'
+import { LangLink, adminSignIn as signIn, useSearchParams } from '@/framework'
 import { useTranslations } from '@/i18n/client'
-import { signIn } from '@/modules/admin/session/password-auth'
 import { signInSchema } from '../@types'
 import type { Locale } from '@/i18n/i18n-config'
 import type { SignInFormState } from '../@types'

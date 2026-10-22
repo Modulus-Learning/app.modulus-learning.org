@@ -17,3 +17,9 @@ export { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 export { LangLink, type LangLinkProps } from '@/i18n/components/lang-link'
 export { useLangNavigation } from '@/i18n/hooks/use-lang-navigation'
+export { useLanguageSwitcher } from '@/i18n/hooks/use-languag-switcher'
+export {
+  signIn as adminSignIn,
+  signOut as adminSignOut,
+} from '@/modules/admin/session/password-auth'
+export { signIn, signOut } from '@/modules/app/session/password-auth'

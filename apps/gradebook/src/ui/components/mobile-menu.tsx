@@ -4,12 +4,11 @@ import { Accordion, HomeIcon } from '@infonomic/uikit/react'
 import cx from 'clsx'
 import { useSwipeable } from 'react-swipeable'
 
-import { Image, useLangNavigation, usePathname } from '@/framework'
+import { Image, LangLink, useLangNavigation, usePathname } from '@/framework'
 import { t } from '@/i18n/migrate-t'
 import { pathWithoutLocale } from '@/i18n/utils'
 import logo from '@/images/infonomic-type-logo-web-white.svg'
 import menuRocket from '@/images/menu-rocket.svg'
-import { LangLink } from '../../i18n/components/lang-link'
 import type { Locale } from '@/i18n/i18n-config'
 
 import './mobile-menu.css'

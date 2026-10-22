@@ -4,8 +4,8 @@ import { useActionState } from 'react'
 
 import { Button } from '@infonomic/uikit/react'
 
+import { signOut } from '@/framework'
 import { useTranslations } from '@/i18n/client'
-import { signOut } from '@/modules/app/session/password-auth'
 
 const initialState = ''
 

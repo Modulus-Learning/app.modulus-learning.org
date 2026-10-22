@@ -3,7 +3,7 @@
 import { CheckIcon, Dropdown as DropdownMenu, GlobeIcon } from '@infonomic/uikit/react'
 import cx from 'clsx'
 
-import { useLanguageSwitcher } from '@/i18n/hooks/use-languag-switcher'
+import { useLanguageSwitcher } from '@/framework'
 import { interfaceLanguageMap as languageMap } from '@/i18n/language-map'
 import type { Locale } from '../i18n-config'
 

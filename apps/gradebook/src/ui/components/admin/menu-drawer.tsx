@@ -6,8 +6,7 @@ import { ActivityIcon, HomeIcon, RolesIcon, UsersIcon } from '@infonomic/uikit/r
 import cx from 'clsx'
 import { useSwipeable } from 'react-swipeable'
 
-import { usePathname } from '@/framework'
-import { LangLink } from '@/i18n/components/lang-link.tsx'
+import { LangLink, usePathname } from '@/framework'
 import { useAdminMenu } from './menu-provider.tsx'
 import type { Locale } from '@/i18n/i18n-config.ts'
 

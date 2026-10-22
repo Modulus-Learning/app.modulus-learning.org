@@ -1,7 +1,7 @@
 import { twMerge } from 'tailwind-merge'
 
+import { LangLink } from '@/framework'
 import { truncate } from '@/utils/utils.general.ts'
-import { LangLink } from '../../i18n/components/lang-link'
 import type { Locale } from '@/i18n/i18n-config'
 
 interface Breadcrumb {

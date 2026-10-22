@@ -16,11 +16,10 @@ import {
 } from '@infonomic/uikit/react'
 import cx from 'clsx'
 
-import { LangLink, useSearchParams } from '@/framework'
+import { LangLink, signIn, useSearchParams } from '@/framework'
 import { useTranslations } from '@/i18n/client'
 import { startGithubOAuthFlow } from '@/modules/app/session/oauth-github'
 import { startGoogleOAuthFlow } from '@/modules/app/session/oauth-google'
-import { signIn } from '@/modules/app/session/password-auth'
 import { signInSchema } from '../@types'
 import type { Locale } from '@/i18n/i18n-config'
 import type { GitHubFormState, GoogleFormState, SignInFormState } from '../@types'
