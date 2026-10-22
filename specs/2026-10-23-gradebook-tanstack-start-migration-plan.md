@@ -375,9 +375,14 @@ configured. Current weaknesses, each with its fix:
      no jobs and finishes well inside that window.
    - **Fly:** `kill_timeout = 90` in the admin toml and `30` in the frontend toml.
      `kill_signal` stays at its default; supervisord forwards `TERM` to Node.
-   - **Nitro:** Task 1 establishes whether Nitro's node preset installs its own
-     signal handling or shutdown timeout. Ours must run first or be wired through
-     it, never race it.
+   - **Nitro (Task 1 finding):** the node preset delegates to srvx's
+     `gracefulShutdownPlugin`. On `SIGINT`/`SIGTERM` it closes the HTTP server and
+     waits up to `SERVER_SHUTDOWN_TIMEOUT` seconds (default **5**), then force-closes
+     connections. It does **not** call `process.exit`. So our own signal handler
+     runs alongside it: HTTP stops accepting work while the job drain proceeds,
+     and our handler owns process exit, after `StopHandle` resolves or at the hard
+     deadline. Set `SERVER_SHUTDOWN_TIMEOUT=25` on the image so in-flight HTTP
+     requests get a fair close well inside the job drain window.
 
    The stated guarantee becomes: **a rolling deploy lets an in-flight submission
    finish within its request timeout; if the hard deadline is ever hit, the
@@ -585,9 +590,12 @@ middleware now would mean writing the session layer twice.
     one renewal attempt. After that it shows the chromeless "session unavailable"
     state with an "open in new tab" link (`target="_blank"`, same URL) — never a
     redirect loop, and never a top-frame navigation.
-  - The iframe renewal prototype runs in the **Task 1 spike** under Chrome and
-    Safari default and strict settings. Task 21 repeats it against the finished
-    app.
+  - The iframe prototype ran in the Task 1 spike under headless Chrome
+    (see Spike Findings). **Safari was not tested** — there is no Safari
+    automation here, and no Canvas instance; the Canvas run happens on another
+    installation (Task 21). Task 21 also reruns the committed harness
+    (`apps/gradebook/spike-harness/` on `spike/tanstack`, to be moved into the
+    branch as a test fixture in Task 7) against the finished app.
 - **The agent is out of scope.** Agent bearer tokens, PKCE and `renew_after`
   are a separate flow (`getCoreAgentRequestContext`) and stay as they are.
 
@@ -632,7 +640,7 @@ on Byline's `SessionProvider` contract. This plan leaves the host ready for it.
 | `_docker/gradebook/production/Dockerfile` | `build` stage runs `pnpm run build` (turbo: core `tsc` then `vite build`) and keeps `apps/gradebook/.output`. Final stage copies `.output/`, `package.json`, `email-templates/`, production `node_modules` (root + gradebook, for externals), `packages/core/{dist,package.json}` + its prod `node_modules`. Remove `.next/standalone`, `.next/static`, `src/content` copy (docs become bundled), `NEXT_TELEMETRY_DISABLED`, and the `IMAGE_VOLUME` (`.next/cache/images`) volume + arg. Reassess the 6 GB build heap. |
 | `_docker/gradebook/production/Dockerfile-ubuntu` | Same edits, or delete if unused — decide in Task 19. |
 | `_docker/gradebook/start-node.sh` | `exec node --max-old-space-size=… .output/server/index.mjs` from `/app/apps/gradebook`; drop the Fly/prisma boilerplate comments, `NEW_RELIC_APP_NAME` and the `-r newrelic` line. Dockerfile drops its `NEW_RELIC_*` `ENV` lines. |
-| `_docker/gradebook/nginx/nginx.conf` | Update the long-cache static location from `^/(build/\|fonts/)` to the Vite asset prefix and `/fonts/`; optionally serve `.output/public` directly from nginx. Log formats: `$request` → `$request_method $uri $server_protocol`, drop `$http_referer`, `$loggable` map keyed on `$uri` (see Request Logging). `/elb-status`, plausible proxy and `@nodejs` are unchanged. |
+| `_docker/gradebook/nginx/nginx.conf` | Update the long-cache static location from `^/(build/\|fonts/)` to `^/(_build/\|fonts/)`; optionally serve `.output/public` directly from nginx. Log formats: `$request` → `$request_method $uri $server_protocol`, drop `$http_referer`, `$loggable` map keyed on `$uri` (see Request Logging). `/elb-status`, plausible proxy and `@nodejs` are unchanged. |
 | `_docker/gradebook/supervisord.conf` | node `stopwaitsecs` 10 → 80 (shutdown deadline chain, Deployment Modes item 5). |
 | `_docker/gradebook/production/docker-compose.yml`, `build-prod.sh` | Env file and image name check; no structural change expected. |
 | `.dockerignore` | Replace `apps/gradebook/.next` with `.output`, `.nitro`, `.tanstack`. |
@@ -650,11 +658,18 @@ on Byline's `SessionProvider` contract. This plan leaves the host ready for it.
   `rolldownConfig.external` for `react`, `react-dom`, `pino`, native and
   `__dirname`-dependent packages). FORRU learned the react-singleton and
   google-gax `__dirname` failures in production. Adopt those fixes up front.
-- **Public env follows FORRU's `VITE_*` convention**, with one divergence: the
-  public server URL reaches the client at runtime, because Modulus deploys one
-  image under two origins. Vite does not load `.env.public` by default, so
-  `vite.config.ts` loads it explicitly with `dotenv` before `.env`. That keeps
-  the existing file name and its "committed, no secrets" meaning.
+- **Env files follow the TanStack Start / FORRU convention.** The committed
+  `apps/gradebook/.env` holds only public, commit-safe values (the `VITE_*` keys
+  and non-secret defaults). The gitignored `apps/gradebook/.env.local` holds
+  every secret. `.env.public` is folded into `.env` and deleted. Vite loads both
+  natively. Next also reads `.env` and `.env.local` natively during the
+  transition, so the manual `dotenv` loading in `next.config.ts` goes away. The
+  production `start` script runs `node --env-file=.env.local …` locally; Fly
+  supplies env in deployment. One divergence from FORRU stays: the public server
+  URL reaches the client at runtime, because Modulus deploys one image under two
+  origins.
+- **`@infonomic/uikit` stays.** It is the 1:1 sibling of `@byline/ui`, so no UI
+  kit change is part of this migration.
 - **New Relic is dropped.** Remove the `newrelic` dependency, the
   `NEW_RELIC_*` `ENV` lines in the Dockerfile, the `NEW_RELIC_*` vars in both Fly
   tomls, and the commented `-r newrelic` line in `start-node.sh`.
@@ -713,6 +728,8 @@ T3 contract suite (vs Next) ─────────────────�
 ## Phase 0 — Groundwork
 
 ### Task 1 — Spike: confirm framework capabilities
+
+**Done 2026-10-23** — see [Spike Findings](#spike-findings). Original scope:
 
 Throwaway branch work, findings recorded at the end of this spec:
 
@@ -777,11 +794,38 @@ existing behaviour that looks wrong rather than fixing it here.
   to the versions FORRU runs. **Remove** only what neither app uses: `newrelic`,
   `pino-http`. `next`, `@next/env`, `@tailwindcss/postcss`, `postcss.config.js`,
   `autoprefixer` and `cssnano` stay until Task 18.
-- Env rename `NEXT_PUBLIC_*` → `VITE_*` across `config/index.ts`, `.env.public`,
-  `.env.example` and both Fly tomls. `vite.config.ts` loads `.env.public` then
-  `.env` with `dotenv`. `next.config.ts` forwards the client-visible `VITE_*`
-  values through its `env` option, so the Next app keeps working until Task 18.
-  Add the boot-time baked-vs-runtime `VITE_*` drift warning.
+- Env rename `NEXT_PUBLIC_*` → `VITE_*` across `config/index.ts`, `.env.example`
+  and both Fly tomls. `next.config.ts` drops its manual `dotenv` loading and
+  forwards the client-visible `VITE_*` values through its `env` option, so the
+  Next app keeps working until Task 18. Add the boot-time baked-vs-runtime
+  `VITE_*` drift warning.
+- **Env file split** — in this order, because the current `apps/gradebook/.env`
+  holds secrets and is about to stop being ignored:
+  1. Copy the developer's `apps/gradebook/.env` to `.env.local`, which is
+     already ignored by `.env*.local`. Confirm with
+     `git check-ignore apps/gradebook/.env.local`.
+  2. Rewrite `apps/gradebook/.env` with only public values: the `.env.public`
+     keys renamed to `VITE_*`, plus non-secret defaults. Delete `.env.public`.
+  3. Guard check: `.env` contains no key matching
+     `SECRET|PRIVATE|PASSWORD|TOKEN|CONNECTION_STRING|CLIENT_SECRET|SMTP_USER|ACCESS_KEY`.
+     A node test enforces the same rule, so a future secret cannot slip into
+     the committed file.
+  4. Only then un-ignore it: `!.env` in `apps/gradebook/.gitignore` (which
+     overrides the root `.env` rule). Update `.dockerignore` so
+     `apps/gradebook/.env` enters the build context and `.env.local` never does.
+  5. `.env.example` becomes the template for `.env.local` (secrets only).
+     `CLAUDE.md` and the README setup steps say "copy `.env.example` to
+     `.env.local`".
+
+  `packages/core/.env` is untouched; core is not a Vite app.
+- `.gitignore`: add `/.output/`, `/.nitro/`, `/.tanstack/` (the spike's first
+  commit attempt staged `.output/`). `biome.jsonc`: ignore `routeTree.gen.ts`
+  and the build output directories.
+- `vite.config.ts` carries the spike's proven settings: `css.postcss.plugins: []`
+  (Next keeps `postcss.config.js` until Task 18; Vite uses `@tailwindcss/vite`),
+  `build.assetsDir: '_build'`, native modules in `ssr.external` and in Nitro's
+  `rolldownConfig.external`, and React externalised by **pattern**
+  (`/^react(-dom)?(\/.*)?$/`), not by name.
 - Add `vite.config.ts` (FORRU shape, minus Byline specifics), `src/server.ts`,
   `src/start.ts`, `src/router.tsx`, `src/client.tsx`, minimal `__root.tsx`.
 - `tsconfig.json`: keep the `next` plugin and `.next` includes; add
@@ -1057,7 +1101,7 @@ on framework dependency") in TanStack terms. Update `docs/ARCHITECTURE.md` §7,
 | `/assets` collision between `public/assets` and Vite output | `build.assetsDir = '_build'` |
 | Large surface (60 pages, 45 action modules) stalls mid-port | handlers first so the critical path works early; each phase leaves a bootable app |
 | A replayed mutation runs as the wrong account or runs twice | replay only on the pre-handler `renew` signal with a matching principal; never on handler, network or ambiguous outcomes (Task 7 tests) |
-| Renewal loops or dead-ends inside the Canvas iframe | `_renewed=1` URL guard, terminal/transient outcomes, feature-detected storage with in-memory fallback, iframe prototype in the Task 1 spike |
+| Renewal loops or dead-ends inside the Canvas iframe | `_renewed=1` URL guard, terminal/transient outcomes, feature-detected storage with in-memory fallback; spike confirmed the blocked-cookie path is real in Chrome (Spike Findings 9, Open Question A) |
 | An admin instance cannot boot without learner-side credentials | per-mode boot test of host config **and** `initCore()` (Task 2) |
 | A deploy kills a passback mid-flight | deadline chain app < supervisord < Fly; termination test (Task 19) |
 | Credentials leak into edge logs | nginx logs `$uri` without the query, no referer; edge log check (Task 19) |
@@ -1065,7 +1109,23 @@ on framework dependency") in TanStack terms. Update `docs/ARCHITECTURE.md` §7,
 
 ## Open Questions
 
-None outstanding. Resolved 2026-10-23:
+Outstanding (need the human; work proceeds around them):
+
+A. **Partitioned (CHIPS) learner cookies.** The spike showed that with
+   third-party cookies blocked, Chrome drops the `SameSite=None` learner cookie
+   inside the cross-site frame, so the LTI learner session cannot work today
+   under that setting. A `Partitioned` cookie survives. Adding `Partitioned` to
+   the learner session/refresh cookies (and the LTI state cookie) would make
+   Canvas launches work under third-party-cookie blocking. It also changes the
+   cookie attributes Non-Negotiable Contract 3 freezes, and it scopes the
+   session to the Canvas top-level site, which is the desired behaviour for LTI
+   but must be confirmed for direct visits. Until decided, attributes stay
+   byte-for-byte, and the bounded "session unavailable" state is the designed
+   outcome. Recommendation: adopt `Partitioned` for the learner cookies as a
+   separate, small follow-up after Task 8, tested on the Canvas installation.
+B. **Safari behaviour** is untested (no Safari automation, no Canvas here).
+
+Resolved 2026-10-23:
 
 1. **Mode naming** — keep `admin`, no `backend` alias; repo files renamed to
    `admin`, Fly app name unchanged (Deployment Modes).
@@ -1080,4 +1140,19 @@ None outstanding. Resolved 2026-10-23:
 
 ## Spike Findings
 
-_To be filled in by Task 1._
+Recorded 2026-10-23. Spike branch `spike/tanstack` (`4c50a7b`), off
+`feat/tanstack` at `b6f93c7`. The spike code is throwaway, except the iframe
+harness, which Task 7 reuses.
+
+| # | Question | Finding | Spec consequence |
+|---|---|---|---|
+| 1 | Next and Start in one package | `next build`, `vite build`, `typecheck` (`next typegen && tsc`) and both vitest modes all green with `vite.config.ts`, `src/{server,start,router,client}.tsx`, `src/routes/**` and `routeTree.gen.ts` present. Two traps: Vite picks up Next's `postcss.config.js` (fixed with `css.postcss.plugins: []`), and Next fails on stale `.next/dev/types` from an old dev run (cleared by deleting `.next`; not a Start issue). `next build` also needs a fresh `packages/core/dist` — turbo's `^build` handles it, but a filtered build does not. | Task 4 bullets on `vite.config.ts`, `.gitignore`, `biome.jsonc`; run `pnpm -F @modulus-learning/core build` before a filtered gradebook build |
+| 2 | React instances in SSR | Externalising `'react'`/`'react-dom'` by name left `react-dom/server` bundled, so SSR crashed with `dispatcher.getOwner is not a function` (two Reacts). A pattern `/^react(-dom)?(\/.*)?$/` fixes it. | Task 4 `vite.config.ts` |
+| 3 | Server entry vs POST bodies | The gate in `createServerEntry.fetch` reads only the URL; an LTI-style form POST reached the handler with its body intact, and in `DEPLOYMENT_MODE=admin` the same POST returned 404 without the body being read. | Confirms Deployment Modes item 1 |
+| 4 | Multiple `Set-Cookie` + 303 | A `server.handlers.POST` returning `new Response(null, { status: 303, headers })` with three appended `Set-Cookie` headers (`SameSite=None; Secure; HttpOnly`, and one `Path=/routes/lti/launch; Max-Age=0`) is emitted verbatim. | Confirms Task 8 approach for `lti/launch` |
+| 5 | Native modules from `.output` | `argon2` and `bcrypt` hash and verify from the built server when listed in `ssr.external` and Nitro `rolldownConfig.external`. | Task 4 externals list |
+| 6 | Build output layout | `build.assetsDir: '_build'` puts hashed assets at `/_build/…`, leaving `public/assets/` intact in `.output/public/assets/`. Tailwind v4 + uikit CSS compiles via `@tailwindcss/vite` (165 KB, utilities present). | Confirms the `_build` decision; nginx long-cache location is `/_build/` |
+| 7 | Nitro shutdown | srvx `gracefulShutdownPlugin`: closes HTTP on `SIGINT`/`SIGTERM`, `SERVER_SHUTDOWN_TIMEOUT` default 5 s, never calls `process.exit`. A built server exited about 1 s after `TERM` when idle. | Deployment Modes item 5 updated |
+| 8 | CSP nonce | Router option `ssr: { nonce }` is consumed by `HeadContent`, `Scripts` and `ScriptOnce`; the client reads the nonce from `<meta property="csp-nonce">`. Per-request: `getRouter()` runs per request on the server, so it can read the nonce from the AsyncLocalStorage request scope; `EarlyThemeDetector` should render through `ScriptOnce`. | Task 5 CSP item is implementable; no gap |
+| 9 | Cross-site iframe (headless Chrome 155) | Parent on `127.0.0.1:3200`, tool on `localhost:3100`. **Default:** Web Locks, BroadcastChannel and sessionStorage all `ok`; `SameSite=None; Secure; HttpOnly` cookie set and returned. **Third-party cookies blocked** (`--test-third-party-cookie-phaseout`): all three APIs still `ok` (partitioned), but the `SameSite=None` cookie is **not** returned. A `Partitioned` cookie **is** returned. Headless `--virtual-time-budget` cut async probes short, so the harness reports via `sendBeacon` to the server instead. | Open Question A; the coordination fallbacks remain required (other browsers and policies may deny storage); the blocked-cookie bounded state is a real path |
+| 10 | Unanswered | Safari (all settings); a real Canvas launch. | Open Question B; Task 21 on the Canvas installation |
