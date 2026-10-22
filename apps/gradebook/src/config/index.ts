@@ -9,267 +9,356 @@ import { z } from 'zod'
  * which is NOT committed to the project's Git repo and
  * CAN include secrets.
  */
-const serverSchema = z
-  .object({
-    port: z.coerce.number().int(),
-    siteName: z.string(),
-    siteDescription: z.string(),
-    publicServerUrl: urlSchema,
-    cspEnabled: booleanSchema(),
-    dataRequestCaching: booleanSchema(),
-    analyticsEnabled: booleanSchema(),
-    sessionSecret: z.string(),
-    cookies: z.object({
-      adminSession: z.object({
-        name: z.string(),
-        sameSite: z.enum(['strict', 'lax', 'none']),
-        httpOnly: booleanSchema(),
-        secure: booleanSchema(),
-      }),
-      adminRefresh: z.object({
-        name: z.string(),
-        sameSite: z.enum(['strict', 'lax', 'none']),
-        httpOnly: booleanSchema(),
-        secure: booleanSchema(),
-      }),
-      userSession: z.object({
-        name: z.string(),
-        sameSite: z.enum(['strict', 'lax', 'none']),
-        httpOnly: booleanSchema(),
-        secure: booleanSchema(),
-      }),
-      userRefresh: z.object({
-        name: z.string(),
-        sameSite: z.enum(['strict', 'lax', 'none']),
-        httpOnly: booleanSchema(),
-        secure: booleanSchema(),
-      }),
-      flash: z.object({
-        name: z.string(),
-        sameSite: z.enum(['strict', 'lax', 'none']),
-        httpOnly: booleanSchema(),
-        secure: booleanSchema(),
-      }),
+const cookieSchema = z.object({
+  name: z.string(),
+  sameSite: z.enum(['strict', 'lax', 'none']),
+  httpOnly: booleanSchema(),
+  secure: booleanSchema(),
+})
+
+const deploymentModeSchema = z.enum(['all-in-one', 'frontend', 'admin']).default('all-in-one')
+
+type Mode = z.infer<typeof deploymentModeSchema>
+
+/**
+ * Settings only the learner/LTI (frontend) surface reads. An `admin` instance
+ * neither validates nor exposes them.
+ */
+const frontendSections = {
+  userSession: cookieSchema,
+  userRefresh: cookieSchema,
+  api: z.object({
+    baseUrl: urlSchema,
+    jwt: z.object({
+      publicKey: base64Schema.transform((val) => val.toString('utf-8')),
+      issuer: z.string(),
+      audience: z.string(),
     }),
-    api: z.object({
-      baseUrl: urlSchema,
-      jwt: z.object({
-        publicKey: base64Schema.transform((val) => val.toString('utf-8')),
-        issuer: z.string(),
-        audience: z.string(),
+  }),
+  recaptcha: z
+    .object({
+      enabled: booleanSchema(),
+      mandatory: booleanSchema(),
+      siteKey: z.string().optional(), // Initially optional
+      projectID: z.string().optional(), // Initially optional
+      secretKey: z.string().optional(), // Initially optional
+    })
+    .superRefine(requireIfEnabled(['siteKey', 'secretKey'], 'enabled')),
+  oauth: z.object({
+    github: z.object({
+      client_id: z.string(),
+      client_secret: z.string(),
+      auth_url: z.string(),
+      access_token_url: z.string(),
+      user_url: z.string(),
+      return_url: z.string(),
+    }),
+    google: z.object({
+      client_id: z.string(),
+      client_secret: z.string(),
+      auth_url: z.string(),
+      access_token_url: z.string(),
+      return_url: z.string(),
+    }),
+  }),
+  lti: z.object({
+    /**
+     * Whether a verified LTI resource-link launch shows the interstitial
+     * before redirecting to the activity.
+     *
+     * - `never`  — redirect straight to the activity (default).
+     * - `always` — show the interstitial.
+     *
+     * An enum rather than a boolean so that a future `first-launch` mode can
+     * be added without a breaking configuration change.
+     */
+    launchInterstitial: z.enum(['never', 'always']).default('never'),
+  }),
+}
+
+/**
+ * Settings only the admin surface reads. A `frontend` instance neither
+ * validates nor exposes them.
+ */
+const adminSections = {
+  adminSession: cookieSchema,
+  adminRefresh: cookieSchema,
+}
+
+type SectionName = keyof typeof frontendSections | keyof typeof adminSections
+
+const surfaceOf = (section: SectionName): 'frontend' | 'admin' =>
+  section in frontendSections ? 'frontend' : 'admin'
+
+/**
+ * Stand-in for a section the current deployment mode does not serve. Any
+ * property read throws, so code that reaches the other surface's settings
+ * fails loudly instead of running with missing configuration.
+ */
+const unservedSection = (path: string, mode: Mode): unknown =>
+  new Proxy(
+    {},
+    {
+      get(_target, property) {
+        if (typeof property === 'symbol' || property === 'then' || property === 'toJSON') {
+          return undefined
+        }
+        throw new Error(
+          `${path}.${property} is not configured: DEPLOYMENT_MODE=${mode} does not serve the ${surfaceOf(path.split('.').pop() as SectionName)} surface.`
+        )
+      },
+    }
+  )
+
+// The unserved branch is typed as the section's own schema so that every mode
+// yields the same `ServerConfig` type: consumers on the served surface need no
+// narrowing, and the stand-in throws if the other surface touches it.
+const section = <T extends z.ZodTypeAny>(
+  name: SectionName,
+  path: string,
+  schema: T,
+  mode: Mode
+): T =>
+  mode === 'all-in-one' || surfaceOf(name) === mode
+    ? schema
+    : (z.unknown().transform(() => unservedSection(path, mode)) as unknown as T)
+
+/**
+ * Builds the server schema for one deployment mode. Settings common to every
+ * mode are always required. Each surface's own settings are required only when
+ * the mode serves that surface; otherwise they are not validated and are
+ * replaced by a stand-in that throws on access (see `unservedSection`).
+ */
+const buildServerSchema = (mode: Mode) =>
+  z
+    .object({
+      port: z.coerce.number().int(),
+      siteName: z.string(),
+      siteDescription: z.string(),
+      publicServerUrl: urlSchema,
+      cspEnabled: booleanSchema(),
+      dataRequestCaching: booleanSchema(),
+      analyticsEnabled: booleanSchema(),
+      sessionSecret: z.string(),
+      cookies: z.object({
+        adminSession: section(
+          'adminSession',
+          'cookies.adminSession',
+          adminSections.adminSession,
+          mode
+        ),
+        adminRefresh: section(
+          'adminRefresh',
+          'cookies.adminRefresh',
+          adminSections.adminRefresh,
+          mode
+        ),
+        userSession: section(
+          'userSession',
+          'cookies.userSession',
+          frontendSections.userSession,
+          mode
+        ),
+        userRefresh: section(
+          'userRefresh',
+          'cookies.userRefresh',
+          frontendSections.userRefresh,
+          mode
+        ),
+        flash: cookieSchema,
       }),
-    }),
-    recaptcha: z
-      .object({
-        enabled: booleanSchema(),
-        mandatory: booleanSchema(),
-        siteKey: z.string().optional(), // Initially optional
-        projectID: z.string().optional(), // Initially optional
-        secretKey: z.string().optional(), // Initially optional
-      })
-      .superRefine(requireIfEnabled(['siteKey', 'secretKey'], 'enabled')),
-    log: z.object({
-      level: z.string().optional(),
-      pretty: booleanSchema(),
-    }),
-    email: z.object({
-      systemEmailFromAddress: z.string(),
-      contactSubmissionFromAddress: z.string(),
-      templateDirectory: z.string().optional(),
-      transport: z.object({
-        host: z.string(),
-        port: z.coerce.number().int(),
-        secure: booleanSchema(),
-        auth: z.object({
-          user: z.string().optional(),
-          pass: z.string().optional(),
+      api: section('api', 'api', frontendSections.api, mode),
+      recaptcha: section('recaptcha', 'recaptcha', frontendSections.recaptcha, mode),
+      log: z.object({
+        level: z.string().optional(),
+        pretty: booleanSchema(),
+      }),
+      email: z.object({
+        systemEmailFromAddress: z.string(),
+        contactSubmissionFromAddress: z.string(),
+        templateDirectory: z.string().optional(),
+        transport: z.object({
+          host: z.string(),
+          port: z.coerce.number().int(),
+          secure: booleanSchema(),
+          auth: z.object({
+            user: z.string().optional(),
+            pass: z.string().optional(),
+          }),
         }),
       }),
-    }),
-    jobQueue: z.object({
-      enabled: booleanSchema(true),
-    }),
-    /**
-     * Selects which surfaces of the application this instance serves. See
-     * `@/lib/deployment-mode` and `proxy.ts` for how the mode gates routes.
-     *
-     * - `all-in-one` — frontend, admin, and (per JOB_QUEUE_ENABLED) background
-     *   jobs all run in a single process.
-     * - `frontend` — only the public/learner + LTI surface; the admin surface is
-     *   blocked and background jobs are forbidden (see the superRefine below).
-     * - `admin` — only the admin surface; all frontend + LTI routes are blocked.
-     *   Background jobs run (per JOB_QUEUE_ENABLED).
-     */
-    deployment: z.object({
-      mode: z.enum(['all-in-one', 'frontend', 'admin']).default('all-in-one'),
-    }),
-    lti: z.object({
+      jobQueue: z.object({
+        enabled: booleanSchema(true),
+      }),
       /**
-       * Whether a verified LTI resource-link launch shows the interstitial
-       * before redirecting to the activity.
+       * Selects which surfaces of the application this instance serves. See
+       * `@/lib/deployment-mode` and `proxy.ts` for how the mode gates routes.
        *
-       * - `never`  — redirect straight to the activity (default).
-       * - `always` — show the interstitial.
-       *
-       * An enum rather than a boolean so that a future `first-launch` mode can
-       * be added without a breaking configuration change.
+       * - `all-in-one` — frontend, admin, and (per JOB_QUEUE_ENABLED) background
+       *   jobs all run in a single process. Every section is required.
+       * - `frontend` — only the public/learner + LTI surface; admin settings are
+       *   not required, and background jobs are forbidden (see the superRefine
+       *   below).
+       * - `admin` — only the admin surface; learner cookie, API, reCAPTCHA,
+       *   OAuth and LTI settings are not required. Background jobs run (per
+       *   JOB_QUEUE_ENABLED).
        */
-      launchInterstitial: z.enum(['never', 'always']).default('never'),
-    }),
-    s3: z.object({
-      accessKey: z.string(),
-      secretKey: z.string(),
-      bucket: z.string(),
-      cdnDomain: z.string(),
-    }),
-    oauth: z.object({
-      github: z.object({
-        client_id: z.string(),
-        client_secret: z.string(),
-        auth_url: z.string(),
-        access_token_url: z.string(),
-        user_url: z.string(),
-        return_url: z.string(),
+      deployment: z.object({
+        mode: deploymentModeSchema,
       }),
-      google: z.object({
-        client_id: z.string(),
-        client_secret: z.string(),
-        auth_url: z.string(),
-        access_token_url: z.string(),
-        return_url: z.string(),
+      lti: section('lti', 'lti', frontendSections.lti, mode),
+      s3: z.object({
+        accessKey: z.string(),
+        secretKey: z.string(),
+        bucket: z.string(),
+        cdnDomain: z.string(),
       }),
-    }),
-  })
-  .superRefine((config, ctx) => {
-    // A frontend-only instance must never run background jobs (e.g. the LTI
-    // score-submission worker). Fail fast at boot rather than silently starting
-    // them or silently ignoring an operator's JOB_QUEUE_ENABLED=true.
-    if (config.deployment.mode === 'frontend' && config.jobQueue.enabled) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['jobQueue', 'enabled'],
-        message:
-          "DEPLOYMENT_MODE=frontend requires JOB_QUEUE_ENABLED=false (background jobs are only run by 'admin' or 'all-in-one' instances).",
-      })
-    }
-  })
+      oauth: section('oauth', 'oauth', frontendSections.oauth, mode),
+    })
+    .superRefine((config, ctx) => {
+      // A frontend-only instance must never run background jobs (e.g. the LTI
+      // score-submission worker). Fail fast at boot rather than silently starting
+      // them or silently ignoring an operator's JOB_QUEUE_ENABLED=true.
+      if (config.deployment.mode === 'frontend' && config.jobQueue.enabled) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['jobQueue', 'enabled'],
+          message:
+            "DEPLOYMENT_MODE=frontend requires JOB_QUEUE_ENABLED=false (background jobs are only run by 'admin' or 'all-in-one' instances).",
+        })
+      }
+    })
+
+/** The full shape, as validated in `all-in-one` mode. */
+const serverSchema = buildServerSchema('all-in-one')
 
 type ServerConfig = z.infer<typeof serverSchema>
 
-const initServerConfig = (): ServerConfig =>
-  serverSchema.parse({
-    port: process.env.PORT,
-    siteName: process.env.NEXT_PUBLIC_SITE_NAME,
-    siteDescription: process.env.NEXT_PUBLIC_SITE_DESCRIPTION,
-    publicServerUrl: process.env.NEXT_PUBLIC_PUBLIC_SERVER_URL,
-    cspEnabled: process.env.NEXT_PUBLIC_CSP_ENABLED,
-    dataRequestCaching: process.env.DATA_REQUEST_CACHING,
-    analyticsEnabled: process.env.ANALYTICS_ENABLED,
-    sessionSecret: process.env.SESSION_SECRET,
-    cookies: {
-      adminSession: {
-        name: process.env.ADMIN_SESSION_COOKIE_NAME,
-        sameSite: process.env.ADMIN_SESSION_COOKIE_SAME_SITE,
-        httpOnly: process.env.ADMIN_SESSION_COOKIE_HTTP_ONLY,
-        secure: process.env.ADMIN_SESSION_COOKIE_SECURE,
-      },
-      adminRefresh: {
-        name: process.env.ADMIN_REFRESH_COOKIE_NAME,
-        sameSite: process.env.ADMIN_REFRESH_COOKIE_SAME_SITE,
-        httpOnly: process.env.ADMIN_REFRESH_COOKIE_HTTP_ONLY,
-        secure: process.env.ADMIN_REFRESH_COOKIE_SECURE,
-      },
-      userSession: {
-        name: process.env.USER_SESSION_COOKIE_NAME,
-        sameSite: process.env.USER_SESSION_COOKIE_SAME_SITE,
-        httpOnly: process.env.USER_SESSION_COOKIE_HTTP_ONLY,
-        secure: process.env.USER_SESSION_COOKIE_SECURE,
-      },
-      userRefresh: {
-        name: process.env.USER_REFRESH_COOKIE_NAME,
-        sameSite: process.env.USER_REFRESH_COOKIE_SAME_SITE,
-        httpOnly: process.env.USER_REFRESH_COOKIE_HTTP_ONLY,
-        secure: process.env.USER_REFRESH_COOKIE_SECURE,
-      },
-      flash: {
-        name: process.env.FLASH_COOKIE_NAME,
-        sameSite: process.env.FLASH_COOKIE_SAME_SITE,
-        httpOnly: process.env.FLASH_COOKIE_HTTP_ONLY,
-        secure: process.env.FLASH_COOKIE_SECURE,
-      },
+type ServerEnv = Record<string, string | undefined>
+
+/**
+ * Parse server configuration from an environment for the deployment mode it
+ * names. Exported for tests; application code uses `getServerConfig()`.
+ */
+export const parseServerConfig = (env: ServerEnv = process.env): ServerConfig => {
+  // Resolve the mode first: it decides which sections the schema requires.
+  const mode = deploymentModeSchema.parse(env.DEPLOYMENT_MODE)
+  return buildServerSchema(mode).parse(readServerEnv(env)) as ServerConfig
+}
+
+const readServerEnv = (env: ServerEnv) => ({
+  port: env.PORT,
+  siteName: env.NEXT_PUBLIC_SITE_NAME,
+  siteDescription: env.NEXT_PUBLIC_SITE_DESCRIPTION,
+  publicServerUrl: env.NEXT_PUBLIC_PUBLIC_SERVER_URL,
+  cspEnabled: env.NEXT_PUBLIC_CSP_ENABLED,
+  dataRequestCaching: env.DATA_REQUEST_CACHING,
+  analyticsEnabled: env.ANALYTICS_ENABLED,
+  sessionSecret: env.SESSION_SECRET,
+  cookies: {
+    adminSession: {
+      name: env.ADMIN_SESSION_COOKIE_NAME,
+      sameSite: env.ADMIN_SESSION_COOKIE_SAME_SITE,
+      httpOnly: env.ADMIN_SESSION_COOKIE_HTTP_ONLY,
+      secure: env.ADMIN_SESSION_COOKIE_SECURE,
     },
-    api: {
-      baseUrl: process.env.API_BASE_URL,
-      jwt: {
-        publicKey: process.env.API_JWT_PUBLIC_KEY,
-        issuer: process.env.API_JWT_ISSUER,
-        audience: process.env.API_JWT_AUDIENCE,
-      },
+    adminRefresh: {
+      name: env.ADMIN_REFRESH_COOKIE_NAME,
+      sameSite: env.ADMIN_REFRESH_COOKIE_SAME_SITE,
+      httpOnly: env.ADMIN_REFRESH_COOKIE_HTTP_ONLY,
+      secure: env.ADMIN_REFRESH_COOKIE_SECURE,
     },
-    recaptcha: {
-      enabled: process.env.NEXT_PUBLIC_RECAPTCHA_ENABLED,
-      mandatory: process.env.NEXT_PUBLIC_RECAPTCHA_MANDATORY,
-      siteKey: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
-      secretKey: process.env.RECAPTCHA_SECRET_KEY,
-      projectID: process.env.GOOGLE_APPLICATION_PROJECT_ID,
+    userSession: {
+      name: env.USER_SESSION_COOKIE_NAME,
+      sameSite: env.USER_SESSION_COOKIE_SAME_SITE,
+      httpOnly: env.USER_SESSION_COOKIE_HTTP_ONLY,
+      secure: env.USER_SESSION_COOKIE_SECURE,
     },
-    log: {
-      level: process.env.LOG_LEVEL ?? 'info',
-      pretty: process.env.LOG_PRETTY,
+    userRefresh: {
+      name: env.USER_REFRESH_COOKIE_NAME,
+      sameSite: env.USER_REFRESH_COOKIE_SAME_SITE,
+      httpOnly: env.USER_REFRESH_COOKIE_HTTP_ONLY,
+      secure: env.USER_REFRESH_COOKIE_SECURE,
     },
-    email: {
-      templateDirectory: 'email-templates',
-      systemEmailFromAddress: process.env.SYSTEM_EMAIL_FROM_ADDRESS,
-      contactSubmissionFromAddress: process.env.CONTACT_SUBMISSION_FROM_ADDRESS,
-      transport: {
-        host: process.env.SMTP_HOST,
-        port: process.env.SMTP_PORT,
-        secure: process.env.SMTP_SECURE,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASSWORD,
-        },
-      },
+    flash: {
+      name: env.FLASH_COOKIE_NAME,
+      sameSite: env.FLASH_COOKIE_SAME_SITE,
+      httpOnly: env.FLASH_COOKIE_HTTP_ONLY,
+      secure: env.FLASH_COOKIE_SECURE,
     },
-    jobQueue: {
-      enabled: process.env.JOB_QUEUE_ENABLED,
+  },
+  api: {
+    baseUrl: env.API_BASE_URL,
+    jwt: {
+      publicKey: env.API_JWT_PUBLIC_KEY,
+      issuer: env.API_JWT_ISSUER,
+      audience: env.API_JWT_AUDIENCE,
     },
-    s3: {
-      accessKey: process.env.S3_ACCESS_KEY_ID,
-      secretKey: process.env.S3_SECRET_ACCESS_KEY,
-      bucket: process.env.S3_BUCKET,
-      cdnDomain: process.env.S3_CDN_DOMAIN,
-    },
-    oauth: {
-      github: {
-        client_id: process.env.OAUTH_GITHUB_CLIENT_ID,
-        client_secret: process.env.OAUTH_GITHUB_CLIENT_SECRET,
-        auth_url: process.env.OAUTH_GITHUB_AUTH_URL,
-        access_token_url: process.env.OAUTH_GITHUB_ACCESS_TOKEN_URL,
-        user_url: process.env.OAUTH_GITHUB_USER_URL,
-        return_url: process.env.OAUTH_GITHUB_RETURN_URL,
-      },
-      google: {
-        client_id: process.env.OAUTH_GOOGLE_CLIENT_ID,
-        client_secret: process.env.OAUTH_GOOGLE_CLIENT_SECRET,
-        auth_url: process.env.OAUTH_GOOGLE_AUTH_URL,
-        access_token_url: process.env.OAUTH_GOOGLE_ACCESS_TOKEN_URL,
-        return_url: process.env.OAUTH_GOOGLE_RETURN_URL,
+  },
+  recaptcha: {
+    enabled: env.NEXT_PUBLIC_RECAPTCHA_ENABLED,
+    mandatory: env.NEXT_PUBLIC_RECAPTCHA_MANDATORY,
+    siteKey: env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
+    secretKey: env.RECAPTCHA_SECRET_KEY,
+    projectID: env.GOOGLE_APPLICATION_PROJECT_ID,
+  },
+  log: {
+    level: env.LOG_LEVEL ?? 'info',
+    pretty: env.LOG_PRETTY,
+  },
+  email: {
+    templateDirectory: 'email-templates',
+    systemEmailFromAddress: env.SYSTEM_EMAIL_FROM_ADDRESS,
+    contactSubmissionFromAddress: env.CONTACT_SUBMISSION_FROM_ADDRESS,
+    transport: {
+      host: env.SMTP_HOST,
+      port: env.SMTP_PORT,
+      secure: env.SMTP_SECURE,
+      auth: {
+        user: env.SMTP_USER,
+        pass: env.SMTP_PASSWORD,
       },
     },
-    deployment: {
-      mode: process.env.DEPLOYMENT_MODE,
+  },
+  jobQueue: {
+    enabled: env.JOB_QUEUE_ENABLED,
+  },
+  s3: {
+    accessKey: env.S3_ACCESS_KEY_ID,
+    secretKey: env.S3_SECRET_ACCESS_KEY,
+    bucket: env.S3_BUCKET,
+    cdnDomain: env.S3_CDN_DOMAIN,
+  },
+  oauth: {
+    github: {
+      client_id: env.OAUTH_GITHUB_CLIENT_ID,
+      client_secret: env.OAUTH_GITHUB_CLIENT_SECRET,
+      auth_url: env.OAUTH_GITHUB_AUTH_URL,
+      access_token_url: env.OAUTH_GITHUB_ACCESS_TOKEN_URL,
+      user_url: env.OAUTH_GITHUB_USER_URL,
+      return_url: env.OAUTH_GITHUB_RETURN_URL,
     },
-    lti: {
-      launchInterstitial: process.env.LTI_LAUNCH_INTERSTITIAL,
+    google: {
+      client_id: env.OAUTH_GOOGLE_CLIENT_ID,
+      client_secret: env.OAUTH_GOOGLE_CLIENT_SECRET,
+      auth_url: env.OAUTH_GOOGLE_AUTH_URL,
+      access_token_url: env.OAUTH_GOOGLE_ACCESS_TOKEN_URL,
+      return_url: env.OAUTH_GOOGLE_RETURN_URL,
     },
-  })
+  },
+  deployment: {
+    mode: env.DEPLOYMENT_MODE,
+  },
+  lti: {
+    launchInterstitial: env.LTI_LAUNCH_INTERSTITIAL,
+  },
+})
 
 let cachedServerConfig: ServerConfig
 
 export const getServerConfig = (): ServerConfig => {
   if (cachedServerConfig == null) {
-    cachedServerConfig = initServerConfig()
+    cachedServerConfig = parseServerConfig()
   }
   return cachedServerConfig
 }

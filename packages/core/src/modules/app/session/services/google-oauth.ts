@@ -2,7 +2,7 @@ import { google } from 'googleapis'
 import { v7 as uuidv7 } from 'uuid'
 
 import { BaseService } from '@/lib/base-service.js'
-import { ERR_NOT_FOUND, ERR_UNAUTHORIZED } from '@/lib/errors.js'
+import { ERR_NOT_FOUND, ERR_UNAUTHORIZED, ERR_UNHANDLED } from '@/lib/errors.js'
 import {
   ERR_ACCOUNT_NOT_LINKED,
   ERR_NO_OTHER_SIGN_IN,
@@ -206,9 +206,13 @@ export class GoogleSignInService extends BaseService {
   }
 
   private async getGoogleUserInfo(tokens: GoogleTokens): Promise<GoogleUserInfo> {
+    const config = this.config.oauth?.google
+    if (config == null) {
+      throw ERR_UNHANDLED({ message: 'google oauth is not configured on this instance' }).log(
+        this.logger
+      )
+    }
     try {
-      const config = this.config.oauth.google
-
       const oauth2Client = new google.auth.OAuth2({
         clientId: config.client_id,
         clientSecret: config.client_secret,

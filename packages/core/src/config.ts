@@ -7,6 +7,13 @@ export interface UrlBuilder {
   dashboardUrl: string
 }
 
+/** True when any leaf of a (possibly nested) plain object is defined. */
+const hasAnyDefinedLeaf = (value: unknown): boolean => {
+  if (value == null) return false
+  if (typeof value !== 'object') return true
+  return Object.values(value).some(hasAnyDefinedLeaf)
+}
+
 export const configSchema = z.object({
   server: z.object({
     host: z.string(),
@@ -78,18 +85,27 @@ export const configSchema = z.object({
       platform_reconcile_interval_seconds: z.coerce.number().default(60),
     }),
   }),
-  oauth: z.object({
-    google: z.object({
-      client_id: z.string(),
-      client_secret: z.string(),
-      auth_url: z.string(),
-      access_token_url: z.string(),
-      return_url: z.string(),
-    }),
-    github: z.object({
-      user_url: z.string(),
-    }),
-  }),
+  // Optional so that an instance which never serves learner sign-in (for
+  // example DEPLOYMENT_MODE=admin) can start without OAuth credentials. When
+  // any OAuth variable is supplied the whole section is validated; the sign-in
+  // services fail with a configuration error if invoked while it is absent.
+  oauth: z.preprocess(
+    (value) => (hasAnyDefinedLeaf(value) ? value : undefined),
+    z
+      .object({
+        google: z.object({
+          client_id: z.string(),
+          client_secret: z.string(),
+          auth_url: z.string(),
+          access_token_url: z.string(),
+          return_url: z.string(),
+        }),
+        github: z.object({
+          user_url: z.string(),
+        }),
+      })
+      .optional()
+  ),
   recaptcha: z.object({
     secret_key: z.string().optional(),
     mandatory: booleanSchema(false),

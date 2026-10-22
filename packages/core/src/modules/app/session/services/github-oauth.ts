@@ -1,7 +1,7 @@
 import { v7 as uuidv7 } from 'uuid'
 
 import { BaseService, method } from '@/lib/base-service.js'
-import { ERR_NOT_FOUND, ERR_UNAUTHORIZED } from '@/lib/errors.js'
+import { ERR_NOT_FOUND, ERR_UNAUTHORIZED, ERR_UNHANDLED } from '@/lib/errors.js'
 import {
   ERR_ACCOUNT_NOT_LINKED,
   ERR_NO_OTHER_SIGN_IN,
@@ -218,10 +218,21 @@ export class GithubSignInService extends BaseService {
     return this.tokenIssuer.createTokens(toSignInResult(updatedUser, abilities))
   }
 
+  private githubUserUrl(): string {
+    const userUrl = this.config.oauth?.github.user_url
+    if (userUrl == null) {
+      throw ERR_UNHANDLED({ message: 'github oauth is not configured on this instance' }).log(
+        this.logger
+      )
+    }
+    return userUrl
+  }
+
   @method
   private async getGithubUserInfo(tokens: GithubTokens): Promise<GithubUserInfo> {
+    const userUrl = this.githubUserUrl()
     try {
-      const response = await fetch(this.config.oauth.github.user_url, {
+      const response = await fetch(userUrl, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${tokens.access_token}`,
@@ -259,8 +270,9 @@ export class GithubSignInService extends BaseService {
   }
 
   private async getGithubPrimaryEmail(tokens: GithubTokens): Promise<string> {
+    const userUrl = this.githubUserUrl()
     try {
-      const response = await fetch(`${this.config.oauth.github.user_url}/emails`, {
+      const response = await fetch(`${userUrl}/emails`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${tokens.access_token}`,
