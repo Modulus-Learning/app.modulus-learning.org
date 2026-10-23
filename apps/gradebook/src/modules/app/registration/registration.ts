@@ -1,13 +1,6 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { redirect } from 'next/navigation'
-
-import { z } from 'zod'
-
-import { getCoreCommands, getCoreRequestContext } from '@/core-adapter'
-import { safeCallbackPath } from '@/lib/safe-redirect'
-import { setUserSession } from '../session/storage'
-import { registrationStep1Schema, registrationStep2Schema, registrationStep3Schema } from './@types'
+import { frontendSurfaceMiddleware } from '@/lib/server-fn'
 import type {
   RegistrationStep1FormState,
   RegistrationStep2FormState,
@@ -15,146 +8,47 @@ import type {
 } from './@types'
 
 /**
- * registrationStep1
- *
- * @param _prevState
- * @param formData
- * @returns
+ * The registration forms' `(prevState, formData)` actions, which they pass to
+ * `useActionState`, implemented over surface-gated server functions.
  */
+
+const step1Fn = createServerFn({ method: 'POST' })
+  .middleware([frontendSurfaceMiddleware])
+  .validator((data: FormData) => data)
+  .handler(async ({ data }) => (await import('./registration.server')).step1(data))
+
+const step2Fn = createServerFn({ method: 'POST' })
+  .middleware([frontendSurfaceMiddleware])
+  .validator((data: FormData) => data)
+  .handler(async ({ data }) => (await import('./registration.server')).step2(data))
+
+const step3Fn = createServerFn({ method: 'POST' })
+  .middleware([frontendSurfaceMiddleware])
+  .validator((data: FormData) => data)
+  .handler(async ({ data }) => (await import('./registration.server')).step3(data))
+
 export const registrationStep1 = async (
   _prevState: RegistrationStep1FormState,
   formData: FormData
-): Promise<RegistrationStep1FormState> => {
-  // TODO: Logging
+): Promise<RegistrationStep1FormState> => step1Fn({ data: formData })
 
-  const validationResult = registrationStep1Schema.safeParse({
-    email: formData.get('email'),
-    full_name: formData.get('full_name'),
-    agree_to_terms: formData.get('agree_to_terms'),
-  })
-
-  if (validationResult.success === false) {
-    return {
-      errors: z.flattenError(validationResult.error).fieldErrors,
-      message: 'Missing or invalid fields in form.',
-      status: 'failed',
-    }
-  }
-
-  const core = await getCoreCommands()
-  const ctx = await getCoreRequestContext()
-  const result = await core.app.registration.preRegister(ctx, {
-    email: validationResult.data.email,
-    full_name: validationResult.data.full_name,
-    agreed_to_terms: validationResult.data.agree_to_terms === 'on',
-  })
-
-  if (result.ok) {
-    return {
-      errors: {},
-      message: 'Next step...',
-      data: result.data,
-      status: 'success',
-    }
-  }
-
-  // TODO: Customize the response here based on result.error.code?
-  return {
-    errors: {},
-    message: 'There was an error submitting your details.',
-    status: 'failed',
-  }
-}
-
-/**
- * registrationStep2
- * @param _prevState
- * @param formData
- * @returns
- */
 export const registrationStep2 = async (
   _prevState: RegistrationStep2FormState,
   formData: FormData
-): Promise<RegistrationStep2FormState> => {
-  // TODO: Logging
+): Promise<RegistrationStep2FormState> => step2Fn({ data: formData })
 
-  const validationResult = registrationStep2Schema.safeParse({
-    id: formData.get('id'),
-    verification_code: formData.get('verification_code'),
-  })
-
-  if (validationResult.success === false) {
-    return {
-      errors: z.flattenError(validationResult.error).fieldErrors,
-      message: 'Missing or invalid fields in form.',
-      status: 'failed',
-    }
-  }
-
-  const core = await getCoreCommands()
-  const ctx = await getCoreRequestContext()
-  const result = await core.app.registration.verifyEmail(ctx, validationResult.data)
-
-  if (result.ok) {
-    return {
-      errors: {},
-      message: 'Next step...',
-      data: result.data,
-      status: 'success',
-    }
-  }
-
-  // TODO: Customize the response here based on result.error.code?
-  return {
-    errors: {},
-    message: 'There was an error submitting your verification code.',
-    status: 'failed',
-  }
-}
-
-/**
- * registrationStep3
- *
- * @param _prevState
- * @param formData
- * @returns
- */
+/** On success the new learner session is installed; navigate with a full load (coordinated). */
 export const registrationStep3 = async (
   _prevState: RegistrationStep3FormState,
   formData: FormData
 ): Promise<RegistrationStep3FormState> => {
-  // TODO: Logging
-
-  const validationResult = registrationStep3Schema.safeParse({
-    id: formData.get('id'),
-    password: formData.get('password'),
-    confirm_password: formData.get('confirm_password'),
-    callback_url: formData.get('callback_url'),
-  })
-
-  if (validationResult.success === false) {
-    return {
-      errors: z.flattenError(validationResult.error).fieldErrors,
-      message: 'Missing or invalid fields in form.',
-      status: 'failed',
+  const { coordinateAuthAction, notifySessionAction } = await import('@/lib/session/coordination')
+  return coordinateAuthAction('user', async () => {
+    const { state, redirectTo } = await step3Fn({ data: formData })
+    if (redirectTo != null) {
+      notifySessionAction('user')
+      window.location.assign(redirectTo)
     }
-  }
-
-  const core = await getCoreCommands()
-  const ctx = await getCoreRequestContext()
-  const result = await core.app.registration.register(ctx, {
-    id: validationResult.data.id,
-    password: validationResult.data.password,
+    return state
   })
-
-  if (!result.ok) {
-    return {
-      errors: {},
-      message: 'There was an error submitting your password.',
-      status: 'failed',
-    }
-  }
-
-  await setUserSession(result.data)
-  return redirect(safeCallbackPath(validationResult.data.callback_url, '/?m=welcome'))
 }

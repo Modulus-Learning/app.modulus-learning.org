@@ -1,12 +1,11 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 
 import tailwindcss from '@tailwindcss/vite'
 import viteReact from '@vitejs/plugin-react'
 import { nitro } from 'nitro/vite'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig } from 'vite'
 
 // Packages that load native binaries, are CJS-only, or locate files through
 // `__dirname` must stay external so Node resolves them at runtime. Each needs
@@ -21,30 +20,6 @@ const nativeExternals = [
   'google-gax',
 ]
 
-// Host overrides (spec: Execution Rules → shared components). During the
-// migration a module `x.ts` may have a sibling `x.start.ts` with the same
-// exports, implemented for this host (typically server-function wrappers in
-// place of a Next server action). Every import of `x` in this build resolves
-// to the sibling; the Next host and the test suite keep the original. The
-// `host-override-convention` test keeps the exports in step.
-const srcDir = fileURLToPath(new URL('./src/', import.meta.url))
-const hostOverrides = (): Plugin => ({
-  name: 'modulus:host-overrides',
-  enforce: 'pre',
-  async resolveId(source, importer, options) {
-    if (importer == null || source.includes('.start')) return null
-    const resolved = await this.resolve(source, importer, { ...options, skipSelf: true })
-    if (resolved == null || resolved.external || !resolved.id.startsWith(srcDir)) return null
-    const match = resolved.id.match(/^(.*)\.(ts|tsx)(\?.*)?$/)
-    if (match == null) return null
-    for (const ext of ['ts', 'tsx']) {
-      const override = `${match[1]}.start.${ext}`
-      if (override !== importer && existsSync(override)) return `${override}${match[3] ?? ''}`
-    }
-    return null
-  },
-})
-
 // `devlti:start` serves HTTPS on the LTI dev host, as Canvas will not launch
 // against plain HTTP. The certs are local-only (see CLAUDE.md).
 const https =
@@ -56,12 +31,6 @@ export default defineConfig({
   server: { port: 3000, https },
   resolve: {
     tsconfigPaths: true,
-    // Shared components import their navigation and image primitives from
-    // `@/framework`; the Next host resolves that to `src/framework/index.ts`
-    // (tsconfig paths), this host to the TanStack implementation.
-    alias: {
-      '@/framework': fileURLToPath(new URL('./src/framework/start.tsx', import.meta.url)),
-    },
   },
   // Next owns postcss.config.js until Task 18; Vite uses @tailwindcss/vite and
   // must not run the PostCSS Tailwind plugin a second time.
@@ -71,7 +40,6 @@ export default defineConfig({
   ssr: { external: nativeExternals },
   optimizeDeps: { exclude: nativeExternals },
   plugins: [
-    hostOverrides(),
     nitro({
       preset: 'node',
       // Boot the app (config validation, jobs, shutdown handlers) at process

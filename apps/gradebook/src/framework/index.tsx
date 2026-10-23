@@ -12,10 +12,11 @@ import { setLanguageFn } from '@/i18n/set-language-fn'
 import { localeFromPath, pathWithoutLocale } from '@/i18n/utils'
 
 /**
- * TanStack Start implementation of the framework adapter (see `./index.ts`).
- * Signatures match the Next exports the shared components use; behaviour
- * follows the Next host's URL rules (visible URLs carry a locale prefix only
- * for non-default locales).
+ * The navigation and image primitives the shared components use (`Link`,
+ * `Image`, `useRouter`, `usePathname`, …), over TanStack Router. Their
+ * signatures follow the Next APIs the components were written against, so the
+ * migration left the components unchanged; visible URLs carry a locale prefix
+ * only for non-default locales.
  */
 
 /** The visible (public) pathname: the router's internal path minus the default locale. */

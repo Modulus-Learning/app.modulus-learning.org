@@ -8,16 +8,19 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
 }))
 
-vi.mock('@/core-adapter', () => ({
-  getCoreCommands: mocks.getCoreCommands,
-  getCoreUserRequestContext: mocks.getCoreUserRequestContext,
-}))
-vi.mock('@/lib/logger', () => ({
-  getLogger: () => ({ error: mocks.loggerError }),
-}))
-
-import { deepLinking } from './deep-linking-action'
+import { runDeepLinking } from './deep-linking.logic'
 import type { DeepLinkingFormState } from '../@types'
+
+// The form action's server handler passes the verified session's core context
+// to `runDeepLinking`; these cases cover its mapping of core outcomes onto the
+// form state.
+const deepLinking = async (_prevState: DeepLinkingFormState, formData: FormData) =>
+  runDeepLinking({
+    core: await mocks.getCoreCommands(),
+    ctx: await mocks.getCoreUserRequestContext(),
+    log: { error: mocks.loggerError },
+    formData,
+  })
 
 const IDLE: DeepLinkingFormState = { status: 'idle' }
 

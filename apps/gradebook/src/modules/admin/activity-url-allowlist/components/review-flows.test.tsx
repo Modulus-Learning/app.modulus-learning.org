@@ -10,8 +10,12 @@ vi.mock('../preview', () => ({ previewAllowlistImpact: mocks.preview }))
 vi.mock('../edit', () => ({ editAllowlistRule: mocks.edit }))
 vi.mock('../delete', () => ({ deleteAllowlistRule: mocks.delete }))
 vi.mock('@/ui/theme/provider-base', () => ({ useTheme: () => ({ theme: 'light' }) }))
-vi.mock('@/i18n/components/lang-link', () => ({
+vi.mock('@/framework', () => ({
   LangLink: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+  Link: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+  usePathname: () => '/admin/activities',
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
 }))
 vi.mock('@infonomic/uikit/react', () => {
   const box = ({ children }: { children?: ReactNode }) => <div>{children}</div>
