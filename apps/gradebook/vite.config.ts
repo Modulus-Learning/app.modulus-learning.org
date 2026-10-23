@@ -105,6 +105,9 @@ export default defineConfig({
     nextShims(),
     nitro({
       preset: 'node',
+      // Boot the app (config validation, jobs, shutdown handlers) at process
+      // start rather than on the first request; see the plugin.
+      plugins: ['./src/nitro/eager-boot.ts'],
       // React must be external by pattern: externalising only 'react' and
       // 'react-dom' leaves subpaths such as react-dom/server bundled, and SSR
       // then runs two React instances ("dispatcher.getOwner is not a function").
