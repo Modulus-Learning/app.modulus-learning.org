@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'vitest'
 
-import { argumentList, requireSession, surfaceGate } from './server-fn-guards'
+import {
+  argumentList,
+  requireSession,
+  requiresExpectedPrincipal,
+  surfaceGate,
+} from './server-fn-guards'
 
 describe('surfaceGate', () => {
   test('all-in-one serves both surfaces', () => {
@@ -44,5 +49,20 @@ describe('argumentList', () => {
     }
     expect(thrown).toBeInstanceOf(Response)
     expect((thrown as Response).status).toBe(400)
+  })
+})
+
+describe('requiresExpectedPrincipal', () => {
+  test('a remote server-function call must name its principal', () => {
+    expect(requiresExpectedPrincipal('serverFn')).toBe(true)
+  })
+
+  test('so must a call from a route handler, or with no request scope', () => {
+    expect(requiresExpectedPrincipal('handler')).toBe(true)
+    expect(requiresExpectedPrincipal(undefined)).toBe(true)
+  })
+
+  test('an in-process call during a page render is exempt', () => {
+    expect(requiresExpectedPrincipal('ssr')).toBe(false)
   })
 })

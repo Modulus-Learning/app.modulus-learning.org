@@ -3,7 +3,7 @@ import { removeResponseHeader } from '@tanstack/react-start/server'
 import { getServerConfig } from '@/config'
 import { toAdminRequestContext, toUserRequestContext } from '@/lib/core/instance'
 import { currentRequestId, getRequestScope } from '@/lib/request-scope'
-import { type Surface, surfaceGate } from '@/lib/server-fn-guards'
+import { requiresExpectedPrincipal, type Surface, surfaceGate } from '@/lib/server-fn-guards'
 import { BOUNDARY_HEADER, boundaryDecision, boundaryResponse } from '@/lib/session/boundary'
 import { getAdminSessionState, getUserSessionState } from '@/lib/session/context'
 import { type Principal, principalOf, type SessionDomain } from '@/lib/session/principal'
@@ -26,17 +26,14 @@ export const enforceSurface = (surface: Surface): void => {
  */
 export const enforceSession = async (
   domain: SessionDomain,
-  expected: Principal | null | undefined,
-  method: string
+  expected: Principal | null | undefined
 ) => {
   const state = domain === 'user' ? await getUserSessionState() : await getAdminSessionState()
   const decision = boundaryDecision({
     state: state as typeof state & { status: string },
     principalOf: (session: { user: { id: string } }) => principalOf(domain, session),
     expected,
-    // Remote calls and non-GET calls must name their page's principal; a
-    // server function run during SSR has no page yet.
-    requiresExpected: getRequestScope()?.log.handlerType === 'serverFn' || method !== 'GET',
+    requiresExpected: requiresExpectedPrincipal(getRequestScope()?.log.handlerType),
   })
   if (decision.action !== 'continue') throw boundaryResponse(decision.action)
   return { session: decision.session, principal: decision.principal }

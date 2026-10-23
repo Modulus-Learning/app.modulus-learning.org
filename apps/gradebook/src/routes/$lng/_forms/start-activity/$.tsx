@@ -1,13 +1,20 @@
-import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
 import { DEFAULT_SCOPE_ID } from '@modulus-learning/core'
 
 import { usePathname } from '@/framework'
+import { localeOutputRewrite } from '@/i18n/locale-rewrite'
+import { ssrRecoveryHref } from '@/lib/session/bootstrap'
+import { renewInBrowser } from '@/lib/session/browser-renewal'
+import { resolveGuardedSession } from '@/lib/session/route-guard'
+import { SessionGuardError } from '@/lib/session/session-retry'
 import { StartActivity } from '@/modules/app/activity/components/start-activity'
 import { extractActivityLaunchParameters } from '@/modules/app/activity/launch-url'
 import { startActivityFn } from '@/modules/app/activity/start-activity-fn'
+import { getUserSessionFn } from '@/modules/app/session/session-state'
 import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import type { StartActivityResult } from '@/modules/app/activity/@types'
 
 const formsLayout = getRouteApi('/$lng/_forms')
 
@@ -26,6 +33,25 @@ export const Route = createFileRoute('/$lng/_forms/start-activity/$')({
     if (!activityCode || !destinationURL) {
       return { go, destinationURL: null, result: null }
     }
+
+    // Anonymous and renewable sessions are decided here, before the business
+    // function runs (review R5): an anonymous visitor gets `needs_user`; an
+    // expired session renews — through the bootstrap on a server render.
+    const decision = await resolveGuardedSession({
+      domain: 'user',
+      load: () => getUserSessionFn(),
+      renew: () => renewInBrowser('user'),
+      isServer: typeof window === 'undefined',
+    })
+    if (decision.kind === 'ssr-recovery') {
+      const visible = localeOutputRewrite(new URL(location.href, 'http://internal'))
+      throw redirect({ href: ssrRecoveryHref('user', `${visible.pathname}${visible.search}`) })
+    }
+    if (decision.kind === 'anonymous') {
+      const result: StartActivityResult = { status: 'needs_user', message: 'Needs user.' }
+      return { go, destinationURL, result }
+    }
+
     const result = await startActivityFn({
       data: {
         activity_code: activityCode,
@@ -35,6 +61,7 @@ export const Route = createFileRoute('/$lng/_forms/start-activity/$')({
     })
     return { go, destinationURL, result }
   },
+  errorComponent: SessionGuardError,
   component: StartActivityPage,
 })
 

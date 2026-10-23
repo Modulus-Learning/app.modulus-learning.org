@@ -204,3 +204,19 @@ export const callFormFn = async (
 }
 
 export const BOUNDARY_HEADER = 'x-modulus-auth-boundary'
+
+/** A real password sign-in for the seeded learner; returns the issued pair. */
+export const signInLearner = async () => {
+  const form = new FormData()
+  form.set('email', LEARNER.email)
+  form.set('password', LEARNER.password)
+  form.set('callback_url', '')
+  const response = await callFormFn('signInUserFn', form, undefined)
+  const session = setCookieNamed(response, 'user_session')
+  const refresh = setCookieNamed(response, 'user_refresh')
+  if (session == null || refresh == null) throw new Error('signInLearner: no cookie pair')
+  return { response, session: cookieValue(session), refresh: cookieValue(refresh) }
+}
+
+/** An access-token `exp` one minute in the past. */
+export const expiredAt = () => Math.floor(Date.now() / 1000) - 60

@@ -35,3 +35,15 @@ export const argumentList =
     }
     return data as TArgs
   }
+
+/**
+ * Whether a session-gated server function must name its page's expected
+ * principal. Every call that arrives over HTTP as a server-function request
+ * does — reads and mutations alike — so a page cannot act for an account it
+ * was not rendered for. The one exemption is an in-process call made while
+ * the server renders a page (`ssr`): there is no remote caller and no page
+ * yet, and it acts on that request's own session. An unknown request kind
+ * (no request scope) requires it.
+ */
+export const requiresExpectedPrincipal = (handlerType: string | undefined): boolean =>
+  handlerType !== 'ssr'

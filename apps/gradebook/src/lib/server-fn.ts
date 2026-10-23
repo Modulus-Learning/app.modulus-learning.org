@@ -90,13 +90,9 @@ const sessionBoundary = <TSession>(
           }),
       })
     })
-    .server(async ({ next, context, method }) => {
+    .server(async ({ next, context }) => {
       const server = await serverHalf()
-      const { session, principal } = await server.enforceSession(
-        domain,
-        context.expectedPrincipal,
-        method
-      )
+      const { session, principal } = await server.enforceSession(domain, context.expectedPrincipal)
       try {
         const result = await next({
           context: { session: session as TSession, principal },
