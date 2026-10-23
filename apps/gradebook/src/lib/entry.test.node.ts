@@ -207,7 +207,7 @@ describe('server entry: access log coverage', () => {
 describe('server entry: in-flight tracking', () => {
   const logger: EntryLogger = { info: () => {}, warn: () => {}, error: () => {} }
 
-  test('a request counts as in flight until its handler settles', async () => {
+  test('a request stays in flight until its body has been sent (review R6)', async () => {
     const inFlight = createInFlightTracker()
     let release: (response: Response) => void = () => {}
     const handle = createEntryHandler(
@@ -217,7 +217,55 @@ describe('server entry: in-flight tracking', () => {
     const pending = handle(get('/about'))
     expect(inFlight.count).toBe(1)
     release(new Response('ok'))
-    await pending
+    const response = await pending
+    expect(inFlight.count, 'handler returned, body not yet sent').toBe(1)
+    expect(await response.text()).toBe('ok')
+    expect(inFlight.count).toBe(0)
+  })
+
+  test('a streamed body settles only after its last chunk', async () => {
+    const inFlight = createInFlightTracker()
+    let push: (chunk: string | null) => void = () => {}
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder()
+        push = (chunk) =>
+          chunk == null ? controller.close() : controller.enqueue(encoder.encode(chunk))
+      },
+    })
+    const handle = createEntryHandler(
+      { mode: 'all-in-one', logger, inFlight },
+      async () => new Response(stream)
+    )
+    const reader = (await handle(get('/about'))).body?.getReader()
+    push('first')
+    await reader?.read()
+    expect(inFlight.count).toBe(1)
+    push(null)
+    await reader?.read()
+    expect(inFlight.count).toBe(0)
+  })
+
+  test('a client disconnect (cancelled body) settles', async () => {
+    const inFlight = createInFlightTracker()
+    const stream = new ReadableStream<Uint8Array>({ pull: () => new Promise(() => {}) })
+    const handle = createEntryHandler(
+      { mode: 'all-in-one', logger, inFlight },
+      async () => new Response(stream)
+    )
+    const response = await handle(get('/about'))
+    expect(inFlight.count).toBe(1)
+    await response.body?.cancel()
+    expect(inFlight.count).toBe(0)
+  })
+
+  test('a response without a body settles at once', async () => {
+    const inFlight = createInFlightTracker()
+    const handle = createEntryHandler(
+      { mode: 'all-in-one', logger, inFlight },
+      async () => new Response(null, { status: 204 })
+    )
+    await handle(get('/about'))
     expect(inFlight.count).toBe(0)
   })
 

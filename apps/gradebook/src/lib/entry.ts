@@ -55,17 +55,57 @@ export const createEntryHandler =
         response = await route(request, url, options, next)
       } catch (error) {
         if (!(error instanceof Response)) {
+          settle?.()
           log(options, scope, request.method, url.pathname, 500)
           throw error
         }
         response = error
-      } finally {
-        settle?.()
       }
       log(options, scope, request.method, url.pathname, response.status)
-      return relativeSameOriginRedirect(response, url)
+      return settleWithBody(relativeSameOriginRedirect(response, url), settle)
     })
   }
+
+/**
+ * Keeps a request in flight until its response body has been sent: the body
+ * is re-wrapped so the request settles when the stream ends, errors, or is
+ * cancelled (a client disconnect). A response without a body settles at once.
+ * Shutdown waits on this (see `@/lib/shutdown`), so an exit never cuts off a
+ * streamed render.
+ */
+export const settleWithBody = (response: Response, settle?: () => void): Response => {
+  if (settle == null) return response
+  if (response.body == null) {
+    settle()
+    return response
+  }
+  const reader = response.body.getReader()
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read()
+        if (done) {
+          settle()
+          controller.close()
+        } else {
+          controller.enqueue(value)
+        }
+      } catch (error) {
+        settle()
+        controller.error(error)
+      }
+    },
+    cancel(reason) {
+      settle()
+      return reader.cancel(reason)
+    },
+  })
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
+}
 
 /**
  * Rewrites a redirect to this request's own origin into a relative Location.

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
+import { createEntryHandler } from './entry'
 import {
   createInFlightTracker,
   createShutdown,
@@ -155,5 +156,48 @@ describe('drainDeadlineWarning', () => {
 
   test('a drain deadline inside the request timeout plus margin warns', () => {
     expect(drainDeadlineWarning(65, 60)).toMatch(/SHUTDOWN_DRAIN_SECONDS \(65\)/)
+  })
+})
+
+describe('shutdown with a streamed response in flight (review R6)', () => {
+  // The two pieces `src/server.ts` wires together: the entry pipeline's tracker
+  // and the shutdown sequence. The jobs stop at once; exit must still wait for
+  // the slow body to finish sending.
+  test('exits only after the last chunk of an outstanding body', async () => {
+    const inFlight = createInFlightTracker()
+    let finish: () => void = () => {}
+    const encoder = new TextEncoder()
+    const slowBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('<html>'))
+        finish = () => {
+          controller.enqueue(encoder.encode('</html>'))
+          controller.close()
+        }
+      },
+    })
+    const handle = createEntryHandler(
+      { mode: 'all-in-one', logger: { info() {}, warn() {}, error() {} }, inFlight },
+      async () => new Response(slowBody)
+    )
+    const reader = (await handle(new Request('https://modulus.test/about'))).body?.getReader()
+    await reader?.read()
+
+    const exit = vi.fn()
+    const done = createShutdown({
+      stopJobs: () => Promise.resolve(),
+      inFlight,
+      deadlineMs: 70_000,
+      logger: logger(),
+      exit,
+    })('SIGTERM')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(exit, 'jobs stopped, body still streaming').not.toHaveBeenCalled()
+
+    finish()
+    await reader?.read()
+    await reader?.read()
+    await done
+    expect(exit).toHaveBeenCalledExactlyOnceWith(0)
   })
 })

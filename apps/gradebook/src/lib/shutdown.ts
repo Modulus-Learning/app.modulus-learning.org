@@ -18,9 +18,9 @@ export interface ShutdownLogger {
 }
 
 /**
- * Counts requests the entry pipeline is still handling. A request settles when
- * its handler returns a `Response`; the tail of a streamed body is left to
- * Nitro's own close (`SERVER_SHUTDOWN_TIMEOUT`).
+ * Counts requests the entry pipeline is still handling. A request settles once
+ * its response body has been sent, failed or been cancelled (see
+ * `settleWithBody` in `@/lib/entry`), so exit never cuts off a streamed body.
  */
 export interface InFlightTracker {
   /** Marks a request as started; call the returned function when it settles. */
