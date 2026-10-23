@@ -1123,7 +1123,11 @@ A. **Partitioned (CHIPS) learner cookies.** The spike showed that with
    byte-for-byte, and the bounded "session unavailable" state is the designed
    outcome. Recommendation: adopt `Partitioned` for the learner cookies as a
    separate, small follow-up after Task 8, tested on the Canvas installation.
+   **Status (2026-10-23):** raised for the user and their partner to decide as
+   GitHub issue #10; attributes stay unchanged until then.
 B. **Safari behaviour** is untested (no Safari automation, no Canvas here).
+   **Decided (2026-10-23):** the user and their partner test Safari manually;
+   Task 21 records the result.
 
 Resolved 2026-10-23:
 
@@ -1138,7 +1142,7 @@ Resolved 2026-10-23:
 5. **Public env names** — `NEXT_PUBLIC_*` → `VITE_*`, no fallback window; the
    public server URL is delivered at runtime.
 
-## Implementation Notes (Tasks 3–19, 2026-10-23)
+## Implementation Notes (Tasks 3–19 and review revision, 2026-10-23)
 
 Recorded while the checkpoint 1 review was pending; the work sits on
 `wip/tanstack-next`, stacked on `feat/tanstack` and rebased if review asks for
@@ -1248,11 +1252,68 @@ changes.
   and `/fonts` get a one-year cache header and fall through to Node. Verified
   on a local arm64 image: the contract suite passes through nginx in all three
   modes, `docker stop` drains and exits 0, and an agent `authorize` query string
-  reaches neither the nginx nor the pino log. **Not run:** the termination test
-  against a slow mock LTI platform. It needs a working database, and the local
-  `modulus` credentials currently fail (port 5432 is held by another project's
-  container).
-
+  reaches neither the nginx nor the pino log. The termination test is recorded
+  under the review revision below.
+- **Review revision (consolidated review, findings R1–R7):**
+  - *R1:* bridged reads were POST calls, which the principal check refused
+    during SSR. The 24 read modules are now native GET server functions
+    (literal `createServerFn`, session gate, `argumentList` validator; the
+    handler runs the original read in-process) and left `ACTION_REGISTRY`, so
+    no read can travel the POST bridge. The principal rule is now
+    `requiresExpectedPrincipal` (`server-fn-guards.ts`): every call that
+    arrives over HTTP as a server-function request must name its page's
+    principal, reads and mutations alike; only an in-process call during the
+    page's own server render is exempt. The request kind is recorded
+    server-side and cannot be claimed by a client. The bridge refuses a
+    malformed envelope with a 400 before loading any module.
+  - *Session HTTP suite:* `pnpm -F @modulus-learning/gradebook test:session`
+    boots the built server with the synthetic fixture env (CSP on), seeds the
+    `*_test` database (a learner with a password, an admin, the standard roles,
+    an LTI platform) and runs a mock platform JWKS. It covers signed-in pages
+    for both domains, remote principal enforcement (missing, mismatched,
+    malformed, unknown module, cross-surface), password sign-in and renewal
+    cookie pairs (every raw `Set-Cookie`), the renew signal, a full successful
+    LTI 1.3 launch (state cookie set and cleared, learner pair issued, replay
+    refused), the LTI business functions (R5) and CSP headers (R4). It needs
+    `pnpm build:start` first and is not yet part of `pnpm run ci`.
+  - *R2:* the Web Locks fallback runs only when the lock was refused before the
+    callback started; a started auth action is never re-run.
+  - *R3:* the protected layouts share `resolveGuardedSession`
+    (`lib/session/route-guard.ts`); a transient renewal failure throws
+    `SessionRenewalUnavailable` and the layout's `errorComponent` shows the
+    manual retry (the same view as the bootstrap page). A router-level jsdom
+    test drives client navigation through transient, retry and terminal.
+  - *R4:* `/lti/*`, `/agent/*` and `/auth/renew` carry no CSP, as Next excluded
+    `/lti` and `/agent` from its CSP layer; every other page keeps its policy.
+  - *R5:* the deep-link submission and start-activity run behind
+    `appSessionMiddleware` and act on the verified `context.core`.
+    `/lti/deep-link` and the start-activity loader decide anonymous and
+    renewable sessions first (`resolveGuardedSession`), and the deep-link page
+    registers its principal with `SessionIdentity`. The deep-link form maps the
+    boundary outcomes back onto its form states.
+  - *R6:* a request stays in flight until its response body has been sent,
+    errored or been cancelled (`settleWithBody` in `lib/entry.ts`), so exit
+    never cuts off a streamed render.
+  - *R7:* nginx is rooted at `.output/public`, so `/robots.txt` and the
+    favicons resolve and `/_build` and `/fonts` are served by nginx. The
+    contract suite checks `/robots.txt`, and is run through nginx as well.
+  - *Eager boot (found by the termination test):* Nitro loaded the renderer —
+    and `src/server.ts` — on the first request, so an admin instance started no
+    jobs until something requested a page, and configuration was not validated
+    at boot. A Nitro plugin (`src/nitro/eager-boot.ts`) now sends one internal
+    request at process start; in production a failed boot exits the process.
+    It releases the response body, or the drain would wait for it (R6).
+  - *Termination test (Task 19), local arm64 image, admin mode, disposable
+    `modulus_term_test` database, slow mock platform:* (1) platform answers in
+    20 s, `docker stop -t 90` 2.6 s into the submission: the drain waited, the
+    score was recorded and the lease released, node exited 0 after 19 s.
+    (2) platform slower than the drain (`SHUTDOWN_DRAIN_SECONDS=30`, request
+    timeout 100 s, lease 45 s): the boot warning fired, node exited 1 at the
+    deadline (31 s) with the lease still held, and a fresh instance reclaimed
+    the line item after the lease expired and completed it (21 s). The re-sent
+    score carries a newer AGS `timestamp` and the same `scoreGiven`, so a
+    platform that processed the aborted send accepts it as an update, not a
+    duplicate.
 ## Spike Findings
 
 Recorded 2026-10-23. Spike branch `spike/tanstack` (`4c50a7b`), off
