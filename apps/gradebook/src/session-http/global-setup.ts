@@ -99,9 +99,9 @@ const seed = async (databaseUrl: string, platformBase: string) => {
       [LEARNER.id, LEARNER.email, LEARNER.fullName, await argon2.hash(LEARNER.password)]
     )
     await db.query(
-      `INSERT INTO admin_users (id, email, given_name, family_name, is_enabled, is_email_verified)
-       VALUES ($1, $2, $3, $4, true, true)`,
-      [ADMIN.id, ADMIN.email, ADMIN.givenName, ADMIN.familyName]
+      `INSERT INTO admin_users (id, email, given_name, family_name, password, is_enabled, is_email_verified)
+       VALUES ($1, $2, $3, $4, $5, true, true)`,
+      [ADMIN.id, ADMIN.email, ADMIN.givenName, ADMIN.familyName, await argon2.hash(ADMIN.password)]
     )
     await db.query(
       `INSERT INTO lti_platforms (id, issuer, name, client_id, authorization_endpoint, token_endpoint, jwks_uri, authorization_server)

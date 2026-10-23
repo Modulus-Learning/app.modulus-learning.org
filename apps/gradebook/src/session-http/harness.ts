@@ -27,6 +27,7 @@ export const ADMIN = {
   email: 'admin@session.test',
   givenName: 'Synthetic',
   familyName: 'Admin',
+  password: 'Synthetic-Admin-1',
 }
 export const PLATFORM = {
   issuer: 'https://platform.session.test',
@@ -110,17 +111,20 @@ export const learnerToken = (expiresIn?: string | number) =>
     expiresIn
   )
 
-export const adminToken = () =>
-  accessToken({
-    user: {
-      id: ADMIN.id,
-      given_name: ADMIN.givenName,
-      family_name: ADMIN.familyName,
-      email: ADMIN.email,
+export const adminToken = (expiresIn?: string | number) =>
+  accessToken(
+    {
+      user: {
+        id: ADMIN.id,
+        given_name: ADMIN.givenName,
+        family_name: ADMIN.familyName,
+        email: ADMIN.email,
+      },
+      abilities: ADMIN_ABILITIES,
+      provider: 'admin_session',
     },
-    abilities: ADMIN_ABILITIES,
-    provider: 'admin_session',
-  })
+    expiresIn
+  )
 
 /**
  * A server function's opaque id, read from the built server bundle by the
