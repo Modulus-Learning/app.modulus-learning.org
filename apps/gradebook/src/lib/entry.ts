@@ -48,6 +48,9 @@ export const createEntryHandler =
   (request: Request): Promise<Response> => {
     const scope = createRequestScope()
     const settle = options.inFlight?.begin()
+    // On Node, the request settles when its HTTP response is fully written (or
+    // the connection closes) — the transport, not the handler, decides.
+    const transportSettled = settle != null && settleOnTransport(request, settle)
     return runInRequestScope(scope, async () => {
       const url = new URL(request.url)
       let response: Response
@@ -55,23 +58,51 @@ export const createEntryHandler =
         response = await route(request, url, options, next)
       } catch (error) {
         if (!(error instanceof Response)) {
-          settle?.()
+          if (!transportSettled) settle?.()
           log(options, scope, request.method, url.pathname, 500)
           throw error
         }
         response = error
       }
       log(options, scope, request.method, url.pathname, response.status)
-      return settleWithBody(relativeSameOriginRedirect(response, url), settle)
+      const rewritten = relativeSameOriginRedirect(response, url)
+      return transportSettled ? rewritten : settleWithBody(rewritten, settle)
     })
   }
 
+/** The Node.js response srvx attaches to each request it creates, if any. */
+type NodeResponseLike = {
+  closed?: boolean
+  once(event: 'close', listener: () => void): unknown
+}
+
+const nodeResponseOf = (request: Request): NodeResponseLike | null => {
+  const res = (request as { runtime?: { node?: { res?: Partial<NodeResponseLike> } } }).runtime
+    ?.node?.res
+  return res != null && typeof res.once === 'function' ? (res as NodeResponseLike) : null
+}
+
 /**
- * Keeps a request in flight until its response body has been sent: the body
- * is re-wrapped so the request settles when the stream ends, errors, or is
- * cancelled (a client disconnect). A response without a body settles at once.
- * Shutdown waits on this (see `@/lib/shutdown`), so an exit never cuts off a
- * streamed render.
+ * Settles the request when its Node.js response closes: `close` fires after
+ * the last buffered byte has been flushed to the socket, or when the client
+ * disconnects. This holds under backpressure — a stream can reach its end
+ * while the adapter is still writing — and covers bodyless responses too.
+ * Returns false when no Node response is attached (an internal request, a
+ * test), so the caller falls back to tracking the body.
+ */
+export const settleOnTransport = (request: Request, settle: () => void): boolean => {
+  const res = nodeResponseOf(request)
+  if (res == null) return false
+  if (res.closed) settle()
+  else res.once('close', settle)
+  return true
+}
+
+/**
+ * The fallback for a request with no Node response attached (an internal
+ * request, a test): the body is re-wrapped so the request settles when the
+ * stream ends, errors, or is cancelled. A response without a body settles at
+ * once. Real HTTP requests use `settleOnTransport` instead.
  */
 export const settleWithBody = (response: Response, settle?: () => void): Response => {
   if (settle == null) return response

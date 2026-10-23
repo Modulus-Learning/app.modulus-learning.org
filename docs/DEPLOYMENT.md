@@ -252,8 +252,9 @@ instance that runs jobs therefore owns its own exit. On `SIGTERM` or `SIGINT`
 1. the workers stop claiming new line items, and the core stop handle is awaited
    until in-flight submissions finish;
 2. the process waits for requests it is still answering — a request counts as
-   in flight until its response body has been sent, so a streamed page is never
-   cut off;
+   in flight until its HTTP response has been fully written to the socket (or the
+   client has disconnected), so a response is never cut off, even when the
+   client reads slowly;
 3. the process exits 0 — or, if the drain is still running at
    `SHUTDOWN_DRAIN_SECONDS`, logs the unfinished work and exits 1.
 

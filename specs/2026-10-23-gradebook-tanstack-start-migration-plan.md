@@ -1314,6 +1314,17 @@ changes.
     score carries a newer AGS `timestamp` and the same `scoreGiven`, so a
     platform that processed the aborted send accepts it as an update, not a
     duplicate.
+- **R6, second pass (review of `5c7d9e8`):** settling on the body stream's end
+  was still too early under backpressure — srvx's Node adapter can be writing
+  buffered bytes after the stream reports done. A request served over HTTP now
+  settles on its Node response's `close` event (`settleOnTransport` in
+  `lib/entry.ts`; srvx attaches the response as `request.runtime.node.res`),
+  which fires after the last byte is flushed or on disconnect, and covers
+  bodyless responses. A request with no Node response (the eager-boot warm-up)
+  keeps the body-tracking fallback. `shutdown-drain.test.node.ts` runs the
+  production entry and shutdown behind srvx's real adapter in a child process,
+  stalls the client while SIGTERM arrives, and asserts the full 8 MiB arrives and
+  the process exits 0; it fails 3/3 on the previous code.
 - **R8 (session-changed interstitial):** `SessionIdentity` renders a blocking
   dialog when the coordination state is flagged — by a cross-tab sign-in/out
   notice or a server `changed` answer — making the rest of the page `inert` and

@@ -19,8 +19,9 @@ export interface ShutdownLogger {
 
 /**
  * Counts requests the entry pipeline is still handling. A request settles once
- * its response body has been sent, failed or been cancelled (see
- * `settleWithBody` in `@/lib/entry`), so exit never cuts off a streamed body.
+ * its HTTP response has been fully written to the socket or its connection has
+ * closed (`settleOnTransport` in `@/lib/entry`), so exit never cuts off a
+ * response — streamed, backpressured or bodyless.
  */
 export interface InFlightTracker {
   /** Marks a request as started; call the returned function when it settles. */
