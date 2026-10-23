@@ -20,7 +20,7 @@ const nativeExternals = [
   'google-gax',
 ]
 
-// `devlti:start` serves HTTPS on the LTI dev host, as Canvas will not launch
+// `devlti` serves HTTPS on the LTI dev host, as Canvas will not launch
 // against plain HTTP. The certs are local-only (see CLAUDE.md).
 const https =
   process.env.DEV_HTTPS === 'true'
@@ -32,8 +32,7 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
-  // Next owns postcss.config.js until Task 18; Vite uses @tailwindcss/vite and
-  // must not run the PostCSS Tailwind plugin a second time.
+  // Tailwind runs through @tailwindcss/vite; no PostCSS config is picked up.
   css: { postcss: { plugins: [] } },
   // `public/assets/` already exists, so hashed build assets go to `/_build/`.
   build: { assetsDir: '_build' },

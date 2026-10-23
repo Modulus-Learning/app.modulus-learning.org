@@ -5,7 +5,7 @@
     "build": {
       "cache": false,
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "build/**"]
+      "outputs": ["dist/**", "build/**", ".output/**"]
     },
     "dev": {
       "cache": false,
@@ -17,10 +17,6 @@
       "cache": false,
       "outputs": [],
       "env": ["NODE_ENV"],
-      "persistent": true
-    },
-    "devturbo": {
-      "cache": false,
       "persistent": true
     },
     "dev:seed": {

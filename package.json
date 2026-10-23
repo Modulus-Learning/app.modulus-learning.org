@@ -11,7 +11,6 @@
     "storybook": "turbo run storybook",
     "dev": "turbo run dev",
     "devlti": "turbo run devlti",
-    "devturbo": "turbo run devturbo",
     "dev:seed": "turbo run dev:seed",
     "db:init": "pnpm --filter @modulus-learning/core db:init",
     "db:init:test": "pnpm --filter @modulus-learning/core db:init:test",

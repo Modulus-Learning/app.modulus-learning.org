@@ -134,7 +134,7 @@ const waitForServer = async (url: string, server: ChildProcess) => {
 
 export default async function setup(project: TestProject) {
   if (!existsSync(join(GRADEBOOK, '.output/server/index.mjs'))) {
-    throw new Error('session suite: build first (pnpm build:start)')
+    throw new Error('session suite: build first (pnpm build)')
   }
 
   // Mock LTI platform: only the JWKS endpoint is fetched by the server.

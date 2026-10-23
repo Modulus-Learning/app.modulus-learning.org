@@ -6,7 +6,8 @@ import { defineConfig } from 'vitest/config'
  * is not part of `pnpm test`. Point it at a server with:
  *
  *   CONTRACT_BASE_URL  default http://localhost:3000
- *   CONTRACT_TARGET    next | start — selects the deliberate-change expectations
+ *   CONTRACT_TARGET    start (default) | next — `next` selects the removed Next
+ *                      app's recorded expectations
  *   CONTRACT_MODE      all-in-one | frontend | admin — must match the server's
  *                      DEPLOYMENT_MODE
  */

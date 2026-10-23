@@ -34,5 +34,4 @@ docker build \
   --file Dockerfile \
   --build-arg APP_VOLUME=/app/storage \
   --build-arg VERSION=$VERSION \
-  --build-arg IMAGE_VOLUME=/app/apps/next/.next/cache/images \
   --tag 783978313898.dkr.ecr.ap-southeast-1.amazonaws.com/modulus:app-$VERSION ../../../

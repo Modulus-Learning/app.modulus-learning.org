@@ -11,7 +11,6 @@ node_modules
 # testing
 coverage
 
-.next/
 out/
 build
 dist

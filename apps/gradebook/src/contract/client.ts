@@ -3,9 +3,11 @@
  *
  * The suite pins the externally visible behaviour of the gradebook: status
  * codes, `Location`, `Set-Cookie` attributes, CORS headers and JSON shapes, per
- * deployment mode. It is written against the Next app and must pass unchanged
- * against the TanStack Start app, except for the deliberate changes declared
- * with `byTarget` (spec: Legacy Session Endpoints; Internationalisation).
+ * deployment mode. It was written against the Next app and run against both
+ * hosts during the migration; Next has since been removed. The `next`
+ * expectations in `byTarget` and `TARGET === 'start'` guards remain as the
+ * record of each deliberate change (spec: Legacy Session Endpoints;
+ * Internationalisation). The default target is `start`.
  */
 
 export type Target = 'next' | 'start'
@@ -15,7 +17,7 @@ export const BASE_URL = (process.env.CONTRACT_BASE_URL ?? 'http://localhost:3000
   /\/$/,
   ''
 )
-export const TARGET = (process.env.CONTRACT_TARGET ?? 'next') as Target
+export const TARGET = (process.env.CONTRACT_TARGET ?? 'start') as Target
 export const MODE = (process.env.CONTRACT_MODE ?? 'all-in-one') as Mode
 
 /** Whether the server under test serves a surface in the current mode. */

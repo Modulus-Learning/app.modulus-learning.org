@@ -21,8 +21,13 @@ import { annotateRequest, getRequestScope } from '@/lib/request-scope'
  * credentials (spec: Authentication And Sessions).
  */
 
+// Browsers send `Sec-Fetch-Site`, which Start checks first. Without it, Start
+// falls back to comparing `Origin` with the request URL, which behind nginx
+// and a TLS edge is `http://` and the proxied host; compare with the public
+// origin the instance is configured to serve instead.
 const csrfMiddleware = createCsrfMiddleware({
   filter: (ctx) => ctx.handlerType === 'serverFn',
+  origin: (origin) => origin === new URL(getServerConfig().publicServerUrl).origin,
 })
 
 const requestKindMiddleware = createMiddleware().server(

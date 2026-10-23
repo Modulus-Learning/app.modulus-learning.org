@@ -78,11 +78,10 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 # Setup pnpm and global tools in a separate layer to reduce peak memory during build
 RUN corepack enable pnpm
 
-# Run build: core `tsc`, then the gradebook's TanStack Start build into
+# Run build (turbo): core `tsc`, then the gradebook's TanStack Start build into
 # apps/gradebook/.output. The client bundle inlines the public VITE_* values
 # from the committed apps/gradebook/.env; .env.local never enters the image.
-# TODO(Task 18): becomes `pnpm run build` once `build` is the Start build.
-RUN pnpm -F @modulus-learning/core build && pnpm -F @modulus-learning/gradebook build:start
+RUN pnpm run build
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # final

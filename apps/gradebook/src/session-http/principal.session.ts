@@ -163,3 +163,24 @@ describe('native POST mutation, called remotely', () => {
     expect(response.status).toBe(401)
   })
 })
+
+describe('CSRF origin fallback (no Sec-Fetch-Site)', () => {
+  // Start checks `Sec-Fetch-Site` first; without it, `Origin` must equal the
+  // configured public origin (the fixture's https://modulus.test), not the
+  // proxied request URL.
+  const call = async (origin: string) => {
+    const { serverFnId, request } = await import('./harness')
+    const response = await request(`/_serverFn/${serverFnId('getUserSessionFn')}`, {
+      headers: { 'x-tsr-serverFn': 'true', origin },
+    })
+    return response.status
+  }
+
+  test('the configured public origin is allowed', async () => {
+    expect(await call('https://modulus.test')).toBe(200)
+  })
+
+  test('any other origin is refused', async () => {
+    expect(await call('http://127.0.0.1')).toBe(403)
+  })
+})

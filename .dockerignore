@@ -34,7 +34,6 @@ node_modules
 **/.turbo
 
 # Apps
-apps/gradebook/.next
 apps/gradebook/.output
 apps/gradebook/.nitro
 apps/gradebook/.tanstack

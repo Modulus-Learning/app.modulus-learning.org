@@ -41,7 +41,7 @@
               ":URL:",
               ":BLANK_LINE:",
               ["react"],
-              ["next/**", "@tanstack/**"],
+              ["@tanstack/**"],
               ":BLANK_LINE:",
               ":PACKAGE:",
               ":BLANK_LINE:",
@@ -73,7 +73,24 @@
         "noUnusedTemplateLiteral": "error",
         "useNumberNamespace": "error",
         "noInferrableTypes": "error",
-        "noUselessElse": "error"
+        "noUselessElse": "error",
+        // The gradebook runs on TanStack Start; Next was removed in the
+        // migration (specs/2026-10-23-gradebook-tanstack-start-migration-plan.md).
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "next": "Next.js was removed; use TanStack Start / @tanstack/react-router.",
+              "react-cookie": "Read cookies on the server (@/lib/server-request)."
+            },
+            "patterns": [
+              {
+                "group": ["next/*"],
+                "message": "Next.js was removed; use TanStack Start / @tanstack/react-router."
+              }
+            ]
+          }
+        }
       },
       "suspicious": {
         "noExplicitAny": "off",
