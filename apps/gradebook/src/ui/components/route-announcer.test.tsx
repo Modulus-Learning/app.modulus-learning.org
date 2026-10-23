@@ -1,4 +1,4 @@
-import { act, createElement } from 'react'
+import { act, createElement, useEffect } from 'react'
 import {
   createMemoryHistory,
   createRootRoute,
@@ -26,6 +26,8 @@ afterEach(() => {
   document.title = ''
 })
 
+let finishSlow: () => void = () => {}
+
 const setup = () => {
   const rootRoute = createRootRoute({
     component: () =>
@@ -41,8 +43,21 @@ const setup = () => {
     path: '/about',
     component: () => createElement('h1', null, 'About Modulus'),
   })
+  // Review R9: a destination whose loader is still pending, and whose title is
+  // set only when it renders.
+  const slow = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/slow',
+    loader: () => new Promise<void>((resolve) => (finishSlow = resolve)),
+    component: () => {
+      useEffect(() => {
+        document.title = 'Slow destination'
+      }, [])
+      return createElement('h1', null, 'Slow destination')
+    },
+  })
   return createRouter({
-    routeTree: rootRoute.addChildren([home, about]),
+    routeTree: rootRoute.addChildren([home, about, slow]),
     history: createMemoryHistory({ initialEntries: ['/'] }),
   })
 }
@@ -90,5 +105,33 @@ describe('RouteAnnouncer', () => {
     })
     await settle()
     expect(announcement()?.textContent).toBe('About Modulus')
+  })
+
+  test('a slow destination is announced only once it has rendered (R9)', async () => {
+    const router = setup()
+    await mount(router)
+    document.title = 'Home title'
+    let navigation: Promise<unknown> = Promise.resolve()
+    await act(async () => {
+      navigation = router.navigate({ href: '/slow' })
+    })
+    await settle()
+    expect(announcement()?.textContent, 'nothing while the loader is pending').toBe('')
+    await act(async () => {
+      finishSlow()
+      await navigation
+    })
+    await settle()
+    expect(announcement()?.textContent).toBe('Slow destination')
+  })
+
+  test('a query-only change is not announced', async () => {
+    const router = setup()
+    await mount(router)
+    await act(async () => {
+      await router.navigate({ href: '/?page=2' })
+    })
+    await settle()
+    expect(announcement()?.textContent).toBe('')
   })
 })
