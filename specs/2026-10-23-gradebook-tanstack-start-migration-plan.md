@@ -1142,7 +1142,7 @@ Resolved 2026-10-23:
 5. **Public env names** — `NEXT_PUBLIC_*` → `VITE_*`, no fallback window; the
    public server URL is delivered at runtime.
 
-## Implementation Notes (Tasks 3–20 and review revision, 2026-10-23)
+## Implementation Notes (Tasks 3–21 and review revisions, 2026-10-23)
 
 Recorded while the checkpoint 1 review was pending; the work sits on
 `wip/tanstack-next`, stacked on `feat/tanstack` and rebased if review asks for
@@ -1367,6 +1367,43 @@ changes.
   `docs/ACCESSIBILITY-AUDIT.md` is a dated audit of the Next host and is left as
   written; its route-announcer findings need re-checking on Start. `pnpm run ci`
   now ends with `pnpm test:session`.
+
+- **Task 21 (end-to-end verification), automated parts:**
+  - *CI:* `pnpm run ci` green, including the session suite.
+  - *Agent flow* (the protocol the agent demo drives): new session-suite cases
+    run authorize → token (PKCE S256) → `set-progress` / `get-progress` against
+    the built app. A wrong verifier is refused and spends the code. The demo UI
+    itself was not clicked through (it needs a browser session against a content
+    page).
+  - *Admin explicit renewal:* new session-suite cases cover admin password
+    sign-in (`SameSite=Lax` pair), renewal from the refresh cookie (new pair, no
+    self-fetch — the former `/routes/admin/refresh` no longer exists), a wrong
+    password, and an invalid refresh cookie clearing nothing.
+  - *Split topology:* `frontend` and `admin` containers from the final image
+    against one database. `elb-status` names each mode, jobs on admin only; the
+    contract suite in each mode passes concurrently (covering cross-surface
+    404s); a seeded score is submitted by the admin worker to the mock platform,
+    and the frontend logs no job start; admin sign-in and renewal work on the
+    admin instance and return 404 on the frontend instance; both exit 0 on
+    `docker stop`.
+  - *Cross-site iframe launch in headless Chrome* (replacing the spike harness,
+    whose probe routes never existed in the app): a parent page on 127.0.0.1
+    auto-submits an OIDC login into an iframe of the app on localhost, and a mock
+    platform posts the signed launch back, with CSP on. With third-party cookies
+    allowed, login → launch → `/dashboard` renders authenticated (200). With
+    them blocked, Chrome drops the launch-scoped LTI **state** cookie, so the
+    launch fails at state verification and lands on the bounded `/lti/error`
+    page — before the session cookies matter. Issue #10's `Partitioned` option
+    must therefore cover the state cookie as well as the learner pair.
+  - *Accessibility spot check:* Next's built-in route announcer has no TanStack
+    equivalent, so client navigation was not announced (audit finding 9).
+    `RouteAnnouncer` in the root document restores it, with jsdom router tests.
+    The rendered HTML confirms that findings 2, 4, 6 and 27 carry over and that
+    30 is now resolved; 7 and 8 need a screen reader. The audit document carries
+    a note to that effect.
+  - *Manual, not done here:* Canvas launches (resource link, deep link,
+    interstitial `always` / `never`) and Safari, by the human's decision;
+    Lighthouse was not run.
 
 ## Spike Findings
 
