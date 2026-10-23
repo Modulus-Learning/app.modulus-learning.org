@@ -16,6 +16,7 @@ import { ProgressBarProvider } from '@/context/progress-bar-provider'
 import { i18nConfig, type Locale } from '@/i18n/i18n-config'
 import { getRootConfigFn } from '@/lib/public-config'
 import { ConsoleCredit } from '@/ui/components/console-credit'
+import { RouteAnnouncer } from '@/ui/components/route-announcer'
 import { EarlyThemeDetector } from '@/ui/theme/early-theme-detector'
 import { ThemeProviderBase } from '@/ui/theme/provider-base'
 
@@ -125,6 +126,7 @@ function RootDocument({
       </head>
       <body className={chromeless ? 'bg-gray-50 not-dark light' : 'bg-white dark:bg-canvas-900'}>
         {children}
+        <RouteAnnouncer />
         <ConsoleCredit />
         <Scripts />
       </body>

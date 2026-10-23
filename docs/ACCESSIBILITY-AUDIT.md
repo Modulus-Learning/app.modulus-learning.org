@@ -15,6 +15,22 @@ Its purpose is twofold: to plan the work internally, and to serve as the
 artifact we return to the auditor — with items marked **Resolved** as we
 complete and verify them.
 
+:::note[Audited on the Next.js host]
+The audit, and the findings below, were recorded when the gradebook ran on
+Next.js 16. The gradebook now runs on TanStack Start. Two things changed for
+these findings:
+
+- **Finding 9** relied on Next.js's built-in route announcer, which TanStack
+  Start does not provide. The root document now renders `RouteAnnouncer`
+  (`apps/gradebook/src/ui/components/route-announcer.tsx`), which reads the new
+  page's title into an assertive live region after each client navigation.
+- An HTML-level spot check of the TanStack Start pages confirmed that the fixes
+  for findings 2, 4, 6 and 27 carry over (the shared components are unchanged),
+  and that the three sign-in forms (finding 30) are now named. Findings 7 and 8
+  are rendered by the same shared components as before and need confirming with
+  a screen reader.
+:::
+
 :::note[Where fixes live]
 A significant share of the findings are not in the gradebook app itself but in
 the shared **`@infonomic/uikit`** component library (the `Search`, `Select`,
