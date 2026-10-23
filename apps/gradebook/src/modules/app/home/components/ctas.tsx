@@ -1,5 +1,3 @@
-'use client'
-
 import { Button } from '@infonomic/uikit/react'
 
 import { LangLink } from '@/framework'

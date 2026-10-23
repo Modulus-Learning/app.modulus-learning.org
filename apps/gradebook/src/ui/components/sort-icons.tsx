@@ -1,5 +1,3 @@
-'use client'
-
 import React from 'react'
 
 // Ascending sort icon (A-Z with down arrow)

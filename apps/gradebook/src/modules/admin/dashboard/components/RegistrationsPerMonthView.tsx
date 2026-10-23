@@ -1,5 +1,3 @@
-'use client'
-
 import { Card, Select } from '@infonomic/uikit/react'
 
 import { useLangNavigation, useSearchParams } from '@/framework'

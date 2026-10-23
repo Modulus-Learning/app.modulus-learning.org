@@ -1,5 +1,3 @@
-'use client'
-
 import './gradient.css'
 
 export function GradientGlow() {

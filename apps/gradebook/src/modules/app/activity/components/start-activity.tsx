@@ -1,5 +1,3 @@
-'use client'
-
 import type React from 'react'
 
 import { LaunchActivity } from './launch-activity'

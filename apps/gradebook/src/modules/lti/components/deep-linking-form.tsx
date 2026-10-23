@@ -1,5 +1,3 @@
-'use client'
-
 import type React from 'react'
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 

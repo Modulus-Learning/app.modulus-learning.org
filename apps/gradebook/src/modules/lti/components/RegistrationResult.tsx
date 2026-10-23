@@ -1,5 +1,3 @@
-'use client'
-
 // This message must be posted at the end of the dynamic registration process.
 // The platform admin's browser will be displaying our dynamic registration page
 // inside an iframe (or a separate browser tab), and this message tells the

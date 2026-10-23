@@ -1,5 +1,3 @@
-'use client'
-
 import { startTransition, useActionState, useState } from 'react'
 
 import { Alert, Button } from '@infonomic/uikit/react'

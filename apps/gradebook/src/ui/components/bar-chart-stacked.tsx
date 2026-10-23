@@ -1,5 +1,3 @@
-'use client'
-
 import { LoaderRing } from '@infonomic/uikit/react'
 import type { TooltipContentProps } from 'recharts'
 import {

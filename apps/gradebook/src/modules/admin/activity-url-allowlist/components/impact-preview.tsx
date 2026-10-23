@@ -1,5 +1,3 @@
-'use client'
-
 import { startTransition, useActionState } from 'react'
 
 import { Button, LoaderEllipsis } from '@infonomic/uikit/react'

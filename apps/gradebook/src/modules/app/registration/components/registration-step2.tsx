@@ -1,5 +1,3 @@
-'use client'
-
 import { type FormEvent, startTransition, useActionState, useEffect, useState } from 'react'
 
 import { Alert, Button, Card, Input, LoaderEllipsis } from '@infonomic/uikit/react'

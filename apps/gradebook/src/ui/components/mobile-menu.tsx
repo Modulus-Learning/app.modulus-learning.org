@@ -1,5 +1,3 @@
-'use client'
-
 import { Accordion, HomeIcon } from '@infonomic/uikit/react'
 import cx from 'clsx'
 import { useSwipeable } from 'react-swipeable'

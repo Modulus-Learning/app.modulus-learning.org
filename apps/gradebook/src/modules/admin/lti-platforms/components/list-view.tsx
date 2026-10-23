@@ -1,5 +1,3 @@
-'use client'
-
 import { useEffect, useState } from 'react'
 
 import { Container, IconButton, LoaderRing, PlusIcon, Section, Table } from '@infonomic/uikit/react'

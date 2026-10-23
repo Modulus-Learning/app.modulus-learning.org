@@ -1,5 +1,3 @@
-'use client'
-
 import { Card, InfoIcon } from '@infonomic/uikit/react'
 
 import { AccessibleBarChart } from '@/ui/components/bar-chart'

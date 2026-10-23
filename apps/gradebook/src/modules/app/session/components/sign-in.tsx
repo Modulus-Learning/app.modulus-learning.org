@@ -1,5 +1,3 @@
-'use client'
-
 import type React from 'react'
 import type { FormEvent } from 'react'
 import { startTransition, useActionState, useState } from 'react'

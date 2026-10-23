@@ -1,5 +1,3 @@
-'use client'
-
 import type React from 'react'
 
 import { ActivityIcon, HomeIcon, RolesIcon, UsersIcon } from '@infonomic/uikit/react'

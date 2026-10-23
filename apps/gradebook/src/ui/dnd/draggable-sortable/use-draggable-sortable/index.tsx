@@ -1,5 +1,3 @@
-'use client'
-
 /**
  *
  * Copyright (c) Payload CMS, LLC info@payloadcms.com

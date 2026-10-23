@@ -1,5 +1,3 @@
-'use client'
-
 import type React from 'react'
 
 import { Button } from '@infonomic/uikit/react'

@@ -1,5 +1,3 @@
-'use client'
-
 import {
   DeleteIcon,
   Dropdown as DropdownMenu,

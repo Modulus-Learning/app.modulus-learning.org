@@ -1,5 +1,3 @@
-'use client'
-
 import type { ChangeEvent } from 'react'
 import { startTransition, useActionState, useId, useState } from 'react'
 

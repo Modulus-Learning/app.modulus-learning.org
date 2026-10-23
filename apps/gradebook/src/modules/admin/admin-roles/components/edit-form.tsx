@@ -1,5 +1,3 @@
-'use client'
-
 import { startTransition, useActionState, useEffect, useState } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'

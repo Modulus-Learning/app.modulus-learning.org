@@ -1,5 +1,3 @@
-'use client'
-
 import type { PaginationProps } from '@infonomic/uikit/react'
 import {
   ChevronLeftDoubleIcon,

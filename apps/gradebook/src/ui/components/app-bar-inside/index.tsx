@@ -1,5 +1,3 @@
-'use client'
-
 import { forwardRef, Suspense, useEffect, useState } from 'react'
 
 import cx from 'clsx'

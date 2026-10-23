@@ -1,5 +1,3 @@
-'use client'
-
 import type React from 'react'
 
 import { SignIn } from '@/modules/app/session/components/sign-in'

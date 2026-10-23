@@ -1,5 +1,3 @@
-'use client'
-
 import { useActionState } from 'react'
 
 import { Button } from '@infonomic/uikit/react'

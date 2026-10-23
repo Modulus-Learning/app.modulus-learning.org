@@ -1,5 +1,3 @@
-'use client'
-
 import { createContext, type ReactNode, useContext, useEffect, useOptimistic, useRef } from 'react'
 
 import { domAnimation, LazyMotion, m, useMotionTemplate, useSpring } from 'motion/react'

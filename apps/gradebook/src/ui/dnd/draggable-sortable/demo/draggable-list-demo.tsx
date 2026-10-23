@@ -1,5 +1,3 @@
-'use client'
-
 import { useState } from 'react'
 
 import { Card, GripperVerticalIcon } from '@infonomic/uikit/react'

@@ -1,5 +1,3 @@
-'use client'
-
 import { CheckIcon, Dropdown as DropdownMenu, GlobeIcon } from '@infonomic/uikit/react'
 import cx from 'clsx'
 

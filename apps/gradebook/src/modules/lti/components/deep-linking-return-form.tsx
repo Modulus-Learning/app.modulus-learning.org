@@ -1,5 +1,3 @@
-'use client'
-
 import { useEffect, useRef } from 'react'
 
 export function DeepLinkingReturnForm({ jwt, return_url }: { jwt: string; return_url: string }) {

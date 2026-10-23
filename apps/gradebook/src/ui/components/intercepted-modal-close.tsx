@@ -1,5 +1,3 @@
-'use client'
-
 import { Button, CloseIcon } from '@infonomic/uikit/react'
 
 import { useRouter } from '@/framework'
