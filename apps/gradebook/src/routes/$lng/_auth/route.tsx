@@ -7,7 +7,9 @@ import { localeOutputRewrite } from '@/i18n/locale-rewrite'
 import { pageHead } from '@/lib/head'
 import { ssrRecoveryHref } from '@/lib/session/bootstrap'
 import { renewInBrowser } from '@/lib/session/browser-renewal'
+import { resolveGuardedSession } from '@/lib/session/route-guard'
 import { SessionIdentity } from '@/lib/session/session-identity'
+import { SessionGuardError } from '@/lib/session/session-retry'
 import { UserSessionProvider } from '@/modules/app/session/provider'
 import { getUserSessionFn } from '@/modules/app/session/session-state'
 import { AppBarInside } from '@/ui/components/app-bar-inside'
@@ -37,28 +39,29 @@ export const Route = createFileRoute('/$lng/_auth')({
     const clean =
       localePrefix && path.startsWith(localePrefix) ? path.slice(localePrefix.length) || '/' : path
 
-    let snapshot = await getUserSessionFn()
-    if (snapshot.session == null && snapshot.renewable) {
-      if (typeof window === 'undefined') {
-        throw redirect({ href: ssrRecoveryHref('user', `${path}${visible.search}`) })
-      }
-      const outcome = await renewInBrowser('user')
-      if (outcome.status === 'renewed' || outcome.status === 'unchanged') {
-        snapshot = await getUserSessionFn()
-      }
+    const decision = await resolveGuardedSession({
+      domain: 'user',
+      load: () => getUserSessionFn(),
+      renew: () => renewInBrowser('user'),
+      isServer: typeof window === 'undefined',
+    })
+    if (decision.kind === 'ssr-recovery') {
+      throw redirect({ href: ssrRecoveryHref('user', `${path}${visible.search}`) })
     }
 
     const required = REQUIRED_ABILITY.find(([pattern]) => pattern.test(clean))?.[1]
-    if (snapshot.session == null) {
+    if (decision.kind === 'anonymous') {
       throw redirect({
         href: `${localePrefix}/sign-in?callbackUrl=${encodeURIComponent(path)}`,
       })
     }
-    if (required != null && !snapshot.session.abilities.includes(required)) {
+    if (required != null && !decision.session.abilities.includes(required)) {
       throw redirect({ href: localePrefix || '/' })
     }
-    return { session: snapshot.session }
+    return { session: decision.session }
   },
+  // A transient renewal failure: manual retry, not sign-in (review R3).
+  errorComponent: SessionGuardError,
   loader: ({ context }) => ({ session: context.session }),
   head: ({ matches }) =>
     pageHead({ title: 'Dashboard', description: 'Dashboard home...' }, matches),

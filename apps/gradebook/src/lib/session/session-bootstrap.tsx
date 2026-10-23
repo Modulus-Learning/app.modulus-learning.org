@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { type BootstrapStep, bootstrapStep } from './bootstrap'
 import { renewInBrowser } from './browser-renewal'
+import { SessionRetryView } from './session-retry'
 import type { SessionDomain } from './principal'
 import type { RenewalOutcome } from './renewal'
 
@@ -62,15 +63,7 @@ export function SessionBootstrap({
   }
 
   if (step?.kind === 'retry') {
-    return (
-      <main className="p-8" role="alert">
-        <h1 className="text-xl font-semibold">We couldn't restore your session</h1>
-        <p className="mt-2">Check your connection and try again.</p>
-        <button type="button" className="mt-4 underline" onClick={() => void attempt()}>
-          Try again
-        </button>
-      </main>
-    )
+    return <SessionRetryView onRetry={() => void attempt()} />
   }
 
   return (

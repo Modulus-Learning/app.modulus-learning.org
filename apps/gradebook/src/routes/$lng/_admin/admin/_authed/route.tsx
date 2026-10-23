@@ -7,6 +7,8 @@ import { localeOutputRewrite } from '@/i18n/locale-rewrite'
 import { pageHead } from '@/lib/head'
 import { ssrRecoveryHref } from '@/lib/session/bootstrap'
 import { renewInBrowser } from '@/lib/session/browser-renewal'
+import { resolveGuardedSession } from '@/lib/session/route-guard'
+import { SessionGuardError } from '@/lib/session/session-retry'
 import { getAdminSessionFn } from '@/modules/admin/session/session-state'
 import { AdminAppBar } from '@/ui/components/admin/admin-app-bar'
 import { Content } from '@/ui/components/admin/content'
@@ -26,29 +28,30 @@ export const Route = createFileRoute('/$lng/_admin/admin/_authed')({
     const visible = localeOutputRewrite(new URL(location.href, 'http://internal'))
     const localePrefix = params.lng === i18nConfig.defaultLocale ? '' : `/${params.lng}`
 
-    let snapshot = await getAdminSessionFn()
-    if (snapshot.session == null && snapshot.renewable) {
-      if (typeof window === 'undefined') {
-        throw redirect({
-          href: ssrRecoveryHref('admin', `${visible.pathname}${visible.search}`),
-        })
-      }
-      const outcome = await renewInBrowser('admin')
-      if (outcome.status === 'renewed' || outcome.status === 'unchanged') {
-        snapshot = await getAdminSessionFn()
-      }
+    const decision = await resolveGuardedSession({
+      domain: 'admin',
+      load: () => getAdminSessionFn(),
+      renew: () => renewInBrowser('admin'),
+      isServer: typeof window === 'undefined',
+    })
+    if (decision.kind === 'ssr-recovery') {
+      throw redirect({
+        href: ssrRecoveryHref('admin', `${visible.pathname}${visible.search}`),
+      })
     }
 
-    if (snapshot.session == null) {
+    if (decision.kind === 'anonymous') {
       throw redirect({
         href: `${localePrefix}/admin/sign-in?callbackUrl=${encodeURIComponent(visible.pathname)}`,
       })
     }
-    if (!snapshot.session.abilities?.includes('access_admin')) {
+    if (!decision.session.abilities?.includes('access_admin')) {
       throw redirect({ href: localePrefix || '/' })
     }
-    return { adminSession: snapshot.session }
+    return { adminSession: decision.session }
   },
+  // A transient renewal failure: manual retry, not sign-in (review R3).
+  errorComponent: SessionGuardError,
   head: ({ matches }) => pageHead({ title: 'Admin', path: '/admin' }, matches),
   component: AdminLayout,
   notFoundComponent: () => (
