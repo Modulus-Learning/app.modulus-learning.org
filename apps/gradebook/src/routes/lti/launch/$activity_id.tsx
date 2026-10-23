@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { DEFAULT_SCOPE_ID } from '@modulus-learning/core'
 import { z } from 'zod'
 
+import { DEFAULT_SCOPE_ID } from '@/lib/default-scope'
 import { getActivityLaunchViewFn } from '@/modules/app/activity/activity-launch-view-fn'
 import { buildActivityLaunchUrl } from '@/modules/app/activity/launch-url'
 import { getUserSessionFn } from '@/modules/app/session/session-state'

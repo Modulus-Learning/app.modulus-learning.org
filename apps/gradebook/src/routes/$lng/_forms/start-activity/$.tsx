@@ -1,10 +1,10 @@
 import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-import { DEFAULT_SCOPE_ID } from '@modulus-learning/core'
 
 import { usePathname } from '@/framework'
 import { localeOutputRewrite } from '@/i18n/locale-rewrite'
+import { DEFAULT_SCOPE_ID } from '@/lib/default-scope'
 import { ssrRecoveryHref } from '@/lib/session/bootstrap'
 import { renewInBrowser } from '@/lib/session/browser-renewal'
 import { resolveGuardedSession } from '@/lib/session/route-guard'
