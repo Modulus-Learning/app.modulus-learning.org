@@ -22,7 +22,7 @@
     "build": "rm -rf dist && rolldown -c",
     "dev": "rm -rf dist && rolldown -c -w",
     "devlti": "rm -rf dist && rolldown -c -w",
-    "lint": "biome check --write --unsafe --diagnostic-level=error",
+    "lint": "biome check --write --diagnostic-level=error",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --mode=jsdom && vitest run --mode=node --passWithNoTests",
     "test:jsdom": "vitest run --mode=jsdom",

@@ -27,7 +27,8 @@
       "cache": false
     },
     "lint": {
-      "outputs": []
+      "outputs": [],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.jsonc"]
     },
     "typecheck": {
       "dependsOn": ["^build"],

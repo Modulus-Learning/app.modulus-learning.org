@@ -62,7 +62,7 @@ Root scripts run through turbo across all packages:
 pnpm build        pnpm lint        pnpm typecheck        pnpm test
 ```
 
-`pnpm lint` runs Biome with `--write --unsafe`, so it **modifies files**. A
+`pnpm lint` runs Biome with `--write` (safe fixes only, never `--unsafe`), so it **modifies files**. A
 `lint-staged` pre-commit hook runs `biome check --write` on staged files.
 `pnpm lint:check` is the read-only lint gate used by CI. `pnpm run ci` runs that
 gate, typechecking, all unit tests, the database integration suite, and the

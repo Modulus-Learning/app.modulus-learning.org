@@ -23,7 +23,7 @@
     "dev": "chokidar 'src/**/*' -c 'npm-run-all build'",
     "devlti": "chokidar 'src/**/*' -c 'npm-run-all build'",
     "build": "tsc -p tsconfig.json && tsc-alias",
-    "lint": "biome check --write --unsafe --diagnostic-level=error",
+    "lint": "biome check --write --diagnostic-level=error",
     "typecheck": "tsc --noEmit",
     "test": "LOG_LEVEL=off tsx --test $(find src -name \"*.test.ts\")",
     "test:integration": "LOG_LEVEL=off tsx --test --test-concurrency=1 $(find src -name \"*.itest.ts\")",

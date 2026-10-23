@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "lint": "biome check --write --unsafe --diagnostic-level=error",
+    "lint": "biome check --write --diagnostic-level=error",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },

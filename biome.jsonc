@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -14,7 +14,8 @@
       "!**/routeTree.gen.ts",
       "!**/.output",
       "!**/.nitro",
-      "!**/.tanstack"
+      "!**/.tanstack",
+      "!**/pnpm-lock.yaml"
     ]
   },
   "formatter": {
@@ -57,7 +58,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "correctness": {
         "noUnusedVariables": "warn",
         "useUniqueElementIds": "off"
@@ -123,6 +124,10 @@
       "trailingCommas": "none"
     }
   },
+  // Biome 2.6 formats Markdown and YAML by default; its Markdown output pads
+  // tables and rewrites front matter, so both are left alone.
+  "markdown": { "formatter": { "enabled": false }, "linter": { "enabled": false } },
+  "yaml": { "formatter": { "enabled": false }, "linter": { "enabled": false } },
   "css": {
     "parser": {
       "cssModules": true

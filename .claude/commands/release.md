@@ -139,7 +139,7 @@ it completes:
 ## Step 5 — Lint
 
 `pnpm lint` (`turbo run lint --continue`; each package runs
-`biome check --write --unsafe`). If it fails on unrelated issues, stop and surface
+`biome check --write`). If it fails on unrelated issues, stop and surface
 the output. If only the bumped `CHANGELOG.md` / `package.json` got reformatted,
 continue.
 

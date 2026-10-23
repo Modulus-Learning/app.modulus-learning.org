@@ -1,4 +1,5 @@
 ---
+
 title: "Introduction"
 path: "introduction"
 summary: "An assignment-grade database designed to track progress on Ximera assignments using time-series data and latest page-state snapshots. Helping instructors understand their assignments."
@@ -20,7 +21,7 @@ Modulus is an attempt to fill that gap. It is not an LMS, or a student informati
 
 ## How it fits with Ximera
 
-Ximera — "Interactive, Mathematics, Education, Resources, for All" — is an open-source interactive mathematics learning platform. Modulus is built on the assumption that Ximera is doing its job well: presenting content, accepting learner input. Modulus acts as  both an analytics system, and the integration layer between Ximera and OSU's institutional LMS via LTI 1.3.
+Ximera — "Interactive, Mathematics, Education, Resources, for All" — is an open-source interactive mathematics learning platform. Modulus is built on the assumption that Ximera is doing its job well: presenting content, accepting learner input. Modulus acts as both an analytics system, and the integration layer between Ximera and OSU's institutional LMS via LTI 1.3.
 Modulus does not replace any part of Ximera. It listens, records, and presents what it has recorded. Both projects share a commitment to open educational resources, and Modulus is intended to be useful to the existing Ximera community rather than to redirect it.
 
 ## Design principles
@@ -31,4 +32,5 @@ Stay out of the way. Learners interact with Ximera the way they always have, thr
 Be deployable. The project is designed to be installed with minimal configuration, and to be safe to run as a public instance. It targets WCAG 2.1 AA accessibility standards.
 Be honest about scope. Modulus is one component in a larger ecosystem. It does not aim to be a complete platform.
 ## Status
+
 The codebase is available now. Full documentation and deployment guides are still being written, and the project should be considered early in its lifecycle. Feedback, issues, and contributions are welcome through the GitHub repository.

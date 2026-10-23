@@ -152,7 +152,7 @@ export function AdminUsersListView({ data, lng }: { data: AdminUsersResponse; ln
     return Array.from({ length: value }).map((_, index) => (
       <div
         key={`empty-row-${
-          // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
+          // biome-ignore lint/suspicious/noArrayIndexKey: static placeholder rows that never reorder
           index
         }`}
         className="h-[32px] border-none"
