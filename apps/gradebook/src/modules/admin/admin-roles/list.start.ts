@@ -1,10 +1,22 @@
-import { bridgeAction } from '@/lib/action-bridge'
+import { createServerFn } from '@tanstack/react-start'
+
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
 import type * as Original from './list'
 
-// TanStack Start override of `./list.ts`: bridged to the original on the
-// server (see `@/lib/action-bridge`). Generated stubs; keep the names in step.
+// TanStack Start override of `./list.ts`: a native GET server function behind
+// the admin session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the original read unchanged.
 
-export const listAdminRoles = bridgeAction<
-  Parameters<typeof Original.listAdminRoles>,
-  Awaited<ReturnType<typeof Original.listAdminRoles>>
->('admin', 'admin/admin-roles/list', 'listAdminRoles')
+type Args = Parameters<typeof Original.listAdminRoles>
+
+const listAdminRolesFn = createServerFn({ method: 'GET' })
+  .middleware([adminSessionMiddleware])
+  .validator(argumentList<Args>(1))
+  .handler(async ({ data }) => {
+    const { listAdminRoles } = await import('./list.ts?original')
+    return listAdminRoles(...data)
+  })
+
+export const listAdminRoles = (...args: Args) => listAdminRolesFn({ data: args })

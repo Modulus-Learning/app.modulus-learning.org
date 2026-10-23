@@ -21,3 +21,17 @@ export const surfaceGate = (mode: DeploymentMode, surface: Surface): Response | 
  */
 export const requireSession = <TSession>(state: SessionState<TSession>): Response | null =>
   state.status === 'valid' ? null : new Response('Unauthorized', { status: 401 })
+
+/**
+ * Validator for a server function that carries a positional argument list
+ * (the native read functions keep their modules' original signatures). Anything
+ * but an array of at most `max` items is refused with a 400 before the handler.
+ */
+export const argumentList =
+  <TArgs extends unknown[]>(max: number) =>
+  (data: unknown): TArgs => {
+    if (!Array.isArray(data) || data.length > max) {
+      throw new Response('Bad Request', { status: 400 })
+    }
+    return data as TArgs
+  }

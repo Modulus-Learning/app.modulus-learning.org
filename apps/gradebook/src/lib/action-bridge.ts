@@ -25,19 +25,43 @@ type BridgeOutcome = { kind: 'result'; value: unknown } | { kind: 'redirect'; ur
 
 const FORM_PLACEHOLDER = '__modulus_form__'
 
+const badRequest = () => new Response('Bad Request', { status: 400 })
+
+/**
+ * Reads the bridge envelope out of the form, refusing anything malformed with
+ * a 400 before a module is loaded: the key and export must be strings and the
+ * arguments a JSON array.
+ */
+export const readEnvelope = (form: unknown): { key: string; name: string; args: unknown[] } => {
+  if (!(form instanceof FormData)) throw badRequest()
+  const key = form.get('__key')
+  const name = form.get('__export')
+  const rawArgs = form.get('__args')
+  if (typeof key !== 'string' || typeof name !== 'string' || typeof rawArgs !== 'string') {
+    throw badRequest()
+  }
+  let args: unknown
+  try {
+    args = JSON.parse(rawArgs)
+  } catch {
+    throw badRequest()
+  }
+  if (!Array.isArray(args)) throw badRequest()
+  return { key, name, args }
+}
+
 const runBridged = async (surface: 'app' | 'admin', form: FormData): Promise<BridgeOutcome> => {
   const [{ ACTION_REGISTRY }, { ShimRedirect }] = await Promise.all([
     import('./action-registry.server'),
     import('./next-shims/navigation'),
   ])
-  const key = String(form.get('__key'))
-  const name = String(form.get('__export'))
+  const { key, name, args: rawArgs } = readEnvelope(form)
   const entry = ACTION_REGISTRY[key]
   if (entry == null || entry.surface !== surface) {
     throw new Response('Not Found', { status: 404 })
   }
   const module = await entry.load()
-  const action = module[name]
+  const action = Object.hasOwn(module, name) ? module[name] : undefined
   if (typeof action !== 'function') throw new Response('Not Found', { status: 404 })
 
   // Rebuild the argument list: the FormData argument (if any) is this form,
@@ -46,9 +70,7 @@ const runBridged = async (surface: 'app' | 'admin', form: FormData): Promise<Bri
   for (const [field, value] of form.entries()) {
     if (!field.startsWith('__')) payload.append(field, value)
   }
-  const args = (JSON.parse(String(form.get('__args'))) as unknown[]).map((arg) =>
-    arg === FORM_PLACEHOLDER ? payload : arg
-  )
+  const args = rawArgs.map((arg) => (arg === FORM_PLACEHOLDER ? payload : arg))
 
   try {
     return { kind: 'result', value: await (action as (...a: unknown[]) => unknown)(...args) }
@@ -60,12 +82,18 @@ const runBridged = async (surface: 'app' | 'admin', form: FormData): Promise<Bri
 
 const invokeAppAction = createServerFn({ method: 'POST' })
   .middleware([appSessionMiddleware])
-  .validator((data: FormData) => data)
+  .validator((data: FormData) => {
+    readEnvelope(data)
+    return data
+  })
   .handler(({ data }) => runBridged('app', data) as Promise<never>)
 
 const invokeAdminAction = createServerFn({ method: 'POST' })
   .middleware([adminSessionMiddleware])
-  .validator((data: FormData) => data)
+  .validator((data: FormData) => {
+    readEnvelope(data)
+    return data
+  })
   .handler(({ data }) => runBridged('admin', data) as Promise<never>)
 
 /** A client stub with the original action's signature. */

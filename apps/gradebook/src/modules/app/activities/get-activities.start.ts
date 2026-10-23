@@ -1,10 +1,22 @@
-import { bridgeAction } from '@/lib/action-bridge'
+import { createServerFn } from '@tanstack/react-start'
+
+import { appSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
 import type * as Original from './get-activities'
 
-// TanStack Start override of `./get-activities.ts`: bridged to the original on the
-// server (see `@/lib/action-bridge`). Generated stubs; keep the names in step.
+// TanStack Start override of `./get-activities.ts`: a native GET server function behind
+// the app session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the original read unchanged.
 
-export const getActivities = bridgeAction<
-  Parameters<typeof Original.getActivities>,
-  Awaited<ReturnType<typeof Original.getActivities>>
->('app', 'app/activities/get-activities', 'getActivities')
+type Args = Parameters<typeof Original.getActivities>
+
+const getActivitiesFn = createServerFn({ method: 'GET' })
+  .middleware([appSessionMiddleware])
+  .validator(argumentList<Args>(1))
+  .handler(async ({ data }) => {
+    const { getActivities } = await import('./get-activities.ts?original')
+    return getActivities(...data)
+  })
+
+export const getActivities = (...args: Args) => getActivitiesFn({ data: args })

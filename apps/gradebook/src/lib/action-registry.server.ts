@@ -27,10 +27,6 @@ export const ACTION_REGISTRY: Record<
     surface: 'app',
     load: () => import('@/modules/app/account/set-password.ts?original'),
   },
-  'app/account/get-account': {
-    surface: 'app',
-    load: () => import('@/modules/app/account/get-account.ts?original'),
-  },
   'app/activities/add-activity-code-member': {
     surface: 'app',
     load: () => import('@/modules/app/activities/add-activity-code-member.ts?original'),
@@ -42,10 +38,6 @@ export const ACTION_REGISTRY: Record<
   'app/activities/delete-activity-code': {
     surface: 'app',
     load: () => import('@/modules/app/activities/delete-activity-code.ts?original'),
-  },
-  'app/activities/list-activity-code-members': {
-    surface: 'app',
-    load: () => import('@/modules/app/activities/list-activity-code-members.ts?original'),
   },
   'app/activities/remove-activity-code-member': {
     surface: 'app',
@@ -63,22 +55,6 @@ export const ACTION_REGISTRY: Record<
     surface: 'app',
     load: () => import('@/modules/app/activities/update-activity-code.ts?original'),
   },
-  'app/activities/get-activities': {
-    surface: 'app',
-    load: () => import('@/modules/app/activities/get-activities.ts?original'),
-  },
-  'app/activities/get-activity-code': {
-    surface: 'app',
-    load: () => import('@/modules/app/activities/get-activity-code.ts?original'),
-  },
-  'app/activities/get-activity-codes': {
-    surface: 'app',
-    load: () => import('@/modules/app/activities/get-activity-codes.ts?original'),
-  },
-  'app/activities/get-progress': {
-    surface: 'app',
-    load: () => import('@/modules/app/activities/get-progress.ts?original'),
-  },
   'admin/account/change-email': {
     surface: 'admin',
     load: () => import('@/modules/admin/account/change-email.ts?original'),
@@ -91,10 +67,6 @@ export const ACTION_REGISTRY: Record<
     surface: 'admin',
     load: () => import('@/modules/admin/account/edit-full-name.ts?original'),
   },
-  'admin/account/get-account': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/account/get-account.ts?original'),
-  },
   'admin/activity-url-allowlist/create': {
     surface: 'admin',
     load: () => import('@/modules/admin/activity-url-allowlist/create.ts?original'),
@@ -106,14 +78,6 @@ export const ACTION_REGISTRY: Record<
   'admin/activity-url-allowlist/edit': {
     surface: 'admin',
     load: () => import('@/modules/admin/activity-url-allowlist/edit.ts?original'),
-  },
-  'admin/activity-url-allowlist/get': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/activity-url-allowlist/get.ts?original'),
-  },
-  'admin/activity-url-allowlist/list': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/activity-url-allowlist/list.ts?original'),
   },
   'admin/activity-url-allowlist/preview': {
     surface: 'admin',
@@ -130,14 +94,6 @@ export const ACTION_REGISTRY: Record<
   'admin/admin-roles/edit': {
     surface: 'admin',
     load: () => import('@/modules/admin/admin-roles/edit.ts?original'),
-  },
-  'admin/admin-roles/get': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/admin-roles/get.ts?original'),
-  },
-  'admin/admin-roles/list': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/admin-roles/list.ts?original'),
   },
   'admin/admin-roles/order': {
     surface: 'admin',
@@ -159,34 +115,6 @@ export const ACTION_REGISTRY: Record<
     surface: 'admin',
     load: () => import('@/modules/admin/admin-users/edit.ts?original'),
   },
-  'admin/admin-users/get': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/admin-users/get.ts?original'),
-  },
-  'admin/admin-users/list': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/admin-users/list.ts?original'),
-  },
-  'admin/dashboard/getMonthlyActiveUsers': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/dashboard/getMonthlyActiveUsers.ts?original'),
-  },
-  'admin/dashboard/getNewVsReturningUser': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/dashboard/getNewVsReturningUser.ts?original'),
-  },
-  'admin/dashboard/getRegistrationsPerDay': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/dashboard/getRegistrationsPerDay.ts?original'),
-  },
-  'admin/dashboard/getRegistrationsPerMonth': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/dashboard/getRegistrationsPerMonth.ts?original'),
-  },
-  'admin/dashboard/getTotalRegisteredUsers': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/dashboard/getTotalRegisteredUsers.ts?original'),
-  },
   'admin/lti-platforms/create': {
     surface: 'admin',
     load: () => import('@/modules/admin/lti-platforms/create.ts?original'),
@@ -194,14 +122,6 @@ export const ACTION_REGISTRY: Record<
   'admin/lti-platforms/generate-canvas-config': {
     surface: 'admin',
     load: () => import('@/modules/admin/lti-platforms/generate-canvas-config.ts?original'),
-  },
-  'admin/lti-platforms/get': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/lti-platforms/get.ts?original'),
-  },
-  'admin/lti-platforms/list': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/lti-platforms/list.ts?original'),
   },
   'admin/roles/create': {
     surface: 'admin',
@@ -214,14 +134,6 @@ export const ACTION_REGISTRY: Record<
   'admin/roles/edit': {
     surface: 'admin',
     load: () => import('@/modules/admin/roles/edit.ts?original'),
-  },
-  'admin/roles/get': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/roles/get.ts?original'),
-  },
-  'admin/roles/list': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/roles/list.ts?original'),
   },
   'admin/roles/order': {
     surface: 'admin',
@@ -242,13 +154,5 @@ export const ACTION_REGISTRY: Record<
   'admin/users/edit': {
     surface: 'admin',
     load: () => import('@/modules/admin/users/edit.ts?original'),
-  },
-  'admin/users/get': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/users/get.ts?original'),
-  },
-  'admin/users/list': {
-    surface: 'admin',
-    load: () => import('@/modules/admin/users/list.ts?original'),
   },
 }
