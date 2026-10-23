@@ -166,6 +166,8 @@ export default async function setup(project: TestProject) {
     PORT: String(port),
     HOST: '127.0.0.1',
     JOB_QUEUE_ENABLED: 'false',
+    // CSP on, so the suite also proves the supported CSP configuration (R4).
+    VITE_CSP_ENABLED: 'true',
     LOG_LEVEL: 'warn',
     NODE_ENV: 'production',
     PATH: process.env.PATH ?? '',

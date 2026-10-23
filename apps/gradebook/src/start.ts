@@ -52,9 +52,12 @@ const flashMiddleware = createMiddleware().server(({ next, handlerType }) => {
 const cspMiddleware = createMiddleware().server(({ next, pathname, handlerType }) => {
   if (handlerType === 'router' && getServerConfig().cspEnabled) {
     const nonce = generateNonce()
-    const scope = getRequestScope()
-    if (scope != null) scope.nonce = nonce
-    setResponseHeader('Content-Security-Policy', cspHeaderFor(pathname, nonce))
+    const header = cspHeaderFor(pathname, nonce)
+    if (header != null) {
+      const scope = getRequestScope()
+      if (scope != null) scope.nonce = nonce
+      setResponseHeader('Content-Security-Policy', header)
+    }
   }
   return next()
 })

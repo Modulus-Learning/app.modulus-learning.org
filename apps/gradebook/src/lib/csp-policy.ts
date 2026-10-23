@@ -9,7 +9,19 @@ const STRICT_PATH = new RegExp(`^(\\/[a-zA-Z]{2})?\\/(${STRICT_SEGMENTS.join('|'
 
 export const isStrictCspPath = (pathname: string): boolean => STRICT_PATH.test(pathname)
 
-export const cspHeaderFor = (pathname: string, nonce: string): string =>
-  isStrictCspPath(pathname) ? getCSPHeaderStrict(nonce) : getCSPHeaderRelaxed()
+// Pages an LMS frames: the chromeless LTI and agent pages, and the learner
+// session bootstrap that runs inside the same iframe. Both policies forbid
+// framing (`frame-ancestors 'none'`) and LMS form targets (`form-action
+// 'self'`), so these pages get no policy at all — as the Next proxy matcher
+// excluded `/lti` and `/agent` from its CSP layer.
+const FRAMED_PATH = /^\/(lti|agent)(\/.*)?$|^\/auth\/renew\/?$/
+
+export const isFramedPath = (pathname: string): boolean => FRAMED_PATH.test(pathname)
+
+/** The page's CSP header, or null for a framed page that must carry none. */
+export const cspHeaderFor = (pathname: string, nonce: string): string | null => {
+  if (isFramedPath(pathname)) return null
+  return isStrictCspPath(pathname) ? getCSPHeaderStrict(nonce) : getCSPHeaderRelaxed()
+}
 
 export const generateNonce = (): string => Buffer.from(crypto.randomUUID()).toString('base64')
