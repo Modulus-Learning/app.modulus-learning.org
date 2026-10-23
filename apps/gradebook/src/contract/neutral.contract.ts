@@ -10,6 +10,15 @@ describe('neutral surface', () => {
     expect(await response.json()).toMatchObject({ status: 'okay' })
   })
 
+  // Served from the public assets: by Nitro directly, or by nginx's exact-match
+  // location in the image (review R7) — run this suite through nginx too.
+  test('GET /robots.txt → 200 text/plain', async () => {
+    const response = await request('/robots.txt')
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toMatch(/text\/plain/)
+    expect(await response.text()).toContain('User-agent')
+  })
+
   // Start adds the instance's mode and jobs flag (spec: Deployment Modes item 6).
   test.runIf(TARGET === 'start')('GET /routes/elb-status names the mode', async () => {
     const body = await (await request('/routes/elb-status')).json()
