@@ -1,15 +1,18 @@
 ---
 title: "Deployment Modes"
 path: "deployment"
-summary: "How a single gradebook build is deployed in one of three runtime modes — all-in-one, frontend-only, or admin-only — via DEPLOYMENT_MODE: what each mode serves, the route surfaces and where they are gated, the background-jobs switch, the LTI launch-interstitial switch, and the rule that a frontend instance may never run jobs."
+summary: "How a single gradebook build is deployed in one of three runtime modes — all-in-one, frontend-only, or admin-only — via DEPLOYMENT_MODE: what each mode serves, the route surfaces and the two points where they are gated, the background-jobs switch, graceful shutdown and the deadline chain around it, the LTI launch-interstitial switch, and the rule that a frontend instance may never run jobs."
 ---
 
 # Deployment Modes
 
 Modulus is a [single-instance, in-process system](./ARCHITECTURE.md#3-single-instance-no-separate-api-server):
-the `apps/gradebook` host calls `initCore` once and holds the result as a
-as a runtime service registry serving the learner/LTI frontend, the admin backend, and the background workers from one process and one Postgres database. For a "right-size" installation that is the whole story — one container, `DEPLOYMENT_MODE`
-left at its default, done.
+the `apps/gradebook` host — a [TanStack Start](https://tanstack.com/start)
+application served by Nitro's Node server — calls `initCore` once and holds the
+result as a runtime service registry serving the learner/LTI frontend, the admin
+backend, and the background workers from one process and one Postgres database.
+For a "right-size" installation that is the whole story — one container,
+`DEPLOYMENT_MODE` left at its default, done.
 
 The same build can also be split across separate instances when an operator
 wants to isolate the public surface from the administrative one, or scale them
@@ -18,7 +21,7 @@ surfaces a given instance serves. **It does not change what is built** — every
 instance ships the same code; the mode only gates, at runtime, which routes that
 instance will answer.
 
-## The three modes
+## The Three Modes
 
 | Mode | Frontend surface | Admin surface | Background jobs |
 | --- | --- | --- | --- |
@@ -51,6 +54,7 @@ Three environment variables, all read by the host config in
 | `DEPLOYMENT_MODE` | `all-in-one` \| `frontend` \| `admin` | `all-in-one` | Which surfaces this instance serves. |
 | `JOB_QUEUE_ENABLED` | `true` \| `false` | `true` | Whether this instance starts the background workers. |
 | `LTI_LAUNCH_INTERSTITIAL` | `never` \| `always` | `never` | Whether a verified LTI launch shows the interstitial before the activity. |
+| `SHUTDOWN_DRAIN_SECONDS` | integer | `70` | Hard deadline for the shutdown drain on an instance that runs jobs (see [Graceful Shutdown](#graceful-shutdown)). |
 
 Example deployments:
 
@@ -71,7 +75,31 @@ JOB_QUEUE_ENABLED=true
 Configuration is validated at boot by the Zod schema in
 `config/index.ts`; an invalid `DEPLOYMENT_MODE`, an invalid
 `LTI_LAUNCH_INTERSTITIAL`, or an illegal frontend/jobs combination, fails fast
-(the process does not start) rather than misbehaving silently.
+(the process exits) rather than misbehaving silently.
+
+The schema is also **mode-aware**: settings that only one surface uses — the
+learner and admin cookie names, the API and reCAPTCHA settings, OAuth, the LTI
+host settings — are required only on an instance that serves that surface. On
+any other instance they are not validated, and reading one throws, naming the
+setting and the mode. `apps/gradebook/src/config/fixtures/mode-env.ts` is the
+single statement of the environment each mode needs; the Fly tomls follow it.
+
+### Boot
+
+Nitro loads the application lazily, on its first request. So that configuration
+is validated and background jobs start when the process starts — not when the
+first visitor arrives — a Nitro runtime plugin
+(`apps/gradebook/src/nitro/eager-boot.ts`) sends one internal request through the
+app at startup. In production a failed boot exits the process, so the supervisor
+restarts it instead of serving errors. The boot logs one line naming the
+instance:
+
+```json
+{"mode":"admin","jobs":true,"surfaces":["admin"],"msg":"gradebook starting"}
+```
+
+`GET /routes/elb-status` reports the same facts to a load balancer or an
+operator: `{"status":"okay","mode":"admin","jobs":true}`.
 
 ## Launch Interstitial
 
@@ -108,72 +136,92 @@ the interstitial only on a learner's first launch of an activity, for example �
 can be added later without a breaking configuration change. Only `never` and
 `always` are implemented today.
 
-## Route surfaces and where they are gated
+## Route Surfaces and Where They Are Gated
 
-Every request path is classified into one of three surfaces by the pure,
-edge-safe helper in `apps/gradebook/src/lib/deployment-mode.ts`
-(`classifyRoute` / `isRouteAllowed`). The classifier strips any leading locale
-segment first, so `/admin` and `/es/admin` classify identically.
+Every request path is classified into one of three surfaces by the pure helper
+in `apps/gradebook/src/lib/deployment-mode.ts` (`classifyRoute` /
+`isRouteAllowed`). The classifier strips any leading locale segment first, so
+`/admin` and `/es/admin` classify identically.
 
-| Surface | Page routes | API routes (`/routes/*`) |
+| Surface | Page routes | Server routes (`/routes/*`) |
 | --- | --- | --- |
-| **Admin** | `/admin/*` | `/routes/admin/*` |
-| **Frontend** | the public/learner UI (`/`, `/dashboard`, `/account`, `/sign-in`, `/sign-up`, `/start-activity`, `/about`, `/docs`), and the LTI launch/deep-link pages under `/lti/*` | `/routes/{lti,auth,oauth,agent}/*` |
-| **Neutral** | — | `/routes/keep-alive`, `/routes/elb-status` |
+| **Admin** | `/admin/*` (including the admin renewal page `/admin/renew`) | `/routes/admin/*` |
+| **Frontend** | the public/learner UI (`/`, `/dashboard`, `/account`, `/sign-in`, `/sign-up`, `/start-activity`, `/about`, `/docs`), the learner renewal page `/auth/renew`, and the chromeless LTI and agent pages under `/lti/*` and `/agent/*` | `/routes/{lti,auth,oauth,agent}/*` |
+| **Neutral** | — | `/routes/keep-alive`, `/routes/elb-status`, plus the server-function endpoint `/_serverFn/*` and static assets (`/_build`, `/fonts`, `/modules`) |
 
-**Neutral** routes are health and load-balancer endpoints; they stay reachable
-in every mode so that probes succeed regardless of which surface an instance
-hosts.
+**Neutral** paths stay reachable in every mode: health probes must succeed
+whichever surface an instance hosts, and assets carry no surface of their own.
+Server functions are the exception that needs a second gate, described below.
 
-Gating happens in two places, by design:
+Gating happens in two places, each covering what the other cannot see:
 
-1. **The proxy (primary gate).** `withDeploymentMode`
-   (`src/middleware/withDeploymentMode.ts`) is the first layer in the proxy chain
-   (`src/proxy.ts`). It runs ahead of any session, CSP, or i18n work and returns
-   404 for any route the current mode does not serve. Because it sits at the top
-   level of the chain — above the `isNotApiRoute` filter that skips the UI layers
-   for `/routes/*` — it covers **all matched page routes and every `/routes/*`
-   API handler**.
+1. **The server entry (paths).** `apps/gradebook/src/server.ts` wraps TanStack
+   Start's handler in the request pipeline of `apps/gradebook/src/lib/entry.ts`,
+   the lowest point in the app that sees every request — before the router,
+   before any session, CSP or locale work. A path the mode does not serve gets a
+   plain 404 there:
 
-2. **Layout guards (defense in depth).** The proxy `matcher` deliberately
-   excludes `/lti/*` so the chromeless LTI pages keep their i18n-free handling.
-   Those pages are therefore gated by `assertSurfaceServed('frontend')` in
-   `src/app/lti/layout.tsx` instead. The admin layout
-   (`src/app/[lng]/(admin)/layout.tsx`) carries the matching
-   `assertSurfaceServed('admin')` as a backup, so the block stays authoritative
-   even for requests (server actions, RSC) that do not traverse the matcher
-   identically. The guard helper lives in `src/lib/deployment-mode-guard.ts`.
+   ```ts
+   // apps/gradebook/src/lib/entry.ts
+   // An admin instance has no learner home page; send the apex to sign-in.
+   if (mode === 'admin' && pathWithoutLocale(url.pathname) === '/') {
+     return Response.redirect(new URL('/admin/sign-in', url), 307)
+   }
 
-   Two details make this guard correct: it reads the mode via `getDeploymentMode()`
-   (just the `DEPLOYMENT_MODE` env var, not the full secret-bearing config) so it is
-   safe during static prerendering; and the `/lti` segment is marked
-   `export const dynamic = 'force-dynamic'` so it renders per request — otherwise it
-   could be prerendered as static HTML (mode `all-in-one`) and served on an
-   admin-only instance, bypassing the gate.
+   // The gate reads only the URL, so a blocked request's body is never read.
+   if (!isRouteAllowed(mode, url.pathname)) {
+     return notFound()
+   }
+   ```
 
-:::note[Note on the matcher] 
-The API route handlers live under `/routes` (not `/api`), so they are **not** excluded from the proxy matcher — only `/lti` and static assets are. The proxy runs on `/routes/*`; the `isNotApiRoute` filter merely skips the *UI* layers for them, while top-level layers like `withDeploymentMode` still apply.
-:::
+   This covers every page and every `/routes/*` handler, including the
+   chromeless LTI pages.
 
-## Background jobs
+2. **Server functions (surface middleware).** Pages call the server through
+   server functions — `createServerFn(...)` handlers that Start serves at opaque
+   `/_serverFn/<id>` URLs. A path cannot say which surface such a call belongs
+   to, so the gate travels with the function: the first middleware of every
+   server function names its surface, and refuses with a 404 on an instance that
+   does not serve it.
+
+   | Middleware | Surface | Session | Renewal boundary |
+   | --- | --- | --- | --- |
+   | `frontendSurfaceMiddleware` | frontend | none required | no |
+   | `adminSurfaceMiddleware` | admin | none required | no |
+   | `appSessionMiddleware` | frontend | valid learner session | yes |
+   | `adminSessionMiddleware` | admin | valid admin session | yes |
+   | `neutralMiddleware` | any | none required | no |
+
+   The middleware lives in `apps/gradebook/src/lib/server-fn.ts`. A convention
+   test (`server-fn-convention.test.node.ts`) fails the build if any server
+   function's first middleware is not one of these, and limits
+   `neutralMiddleware` to an allowlist. The session columns are described in
+   [Authentication & Authorization](./AUTHN-AUTHZ.md).
+
+Both gates read the mode from the validated configuration, so an instance
+cannot serve a surface its configuration does not describe.
+
+## Background Jobs
 
 Background work runs in-process. `initCore` returns a `startBackgroundJobs()`
-handle (`packages/core/src/core.ts`) that the host invokes from
-`apps/gradebook/src/instrumentation.ts` — today this drives the LTI
-score-submission worker
-(`packages/core/src/workers/score-submission.ts`).
-
-The host only starts the workers when **both** conditions hold:
+handle (`packages/core/src/core.ts`) that drives the LTI score-submission worker
+(`packages/core/src/workers/score-submission.ts`) and the housekeeping worker.
+The server entry starts it, once per process, only when **both** conditions hold:
 
 ```ts
-const backgroundJobsEnabled =
-  config.jobQueue.enabled && config.deployment.mode !== 'frontend'
+// apps/gradebook/src/lib/deployment-mode.ts
+export const backgroundJobsEnabled = (config: {
+  jobQueue: { enabled: boolean }
+  deployment: { mode: DeploymentMode }
+}): boolean => config.jobQueue.enabled && config.deployment.mode !== 'frontend'
 ```
 
 So `JOB_QUEUE_ENABLED` remains the operator's on/off switch, but a `frontend`
-instance never starts the workers regardless of its value.
+instance never starts the workers regardless of its value. Jobs start without
+blocking the server: HTTP comes up while core initialises, and a failed start is
+logged.
 
-## The frontend / jobs rule
+## The Frontend / Jobs Rule
 
 `frontend` mode and background jobs are **mutually exclusive**, and the
 constraint is enforced at boot rather than left to convention. The server config
@@ -190,31 +238,57 @@ instance quietly running workers, or an operator's `JOB_QUEUE_ENABLED=true`
 being ignored) into an immediate, visible boot failure.
 
 The two-layer treatment is intentional: the `superRefine` makes the bad config
-impossible to run, and the derived `backgroundJobsEnabled` check in
-`instrumentation.ts` documents and re-enforces the coupling at the call site.
+impossible to run, and `backgroundJobsEnabled` re-enforces the coupling at the
+call site in `server.ts`.
 
-## A note on framework dependency
+## Graceful Shutdown
 
-The gating described here is implemented on **Next.js middleware**. The proxy
-(`src/proxy.ts`) is the Next.js 16 global middleware — Next 16 renamed
-`middleware.ts` to `proxy.ts` — and the primary deployment-mode gate
-(`withDeploymentMode`) is a layer in that chain, with the matcher and its `/lti`
-exclusion being Next-specific mechanics. The layout guards
-(`assertSurfaceServed`) rely on the Next App Router's `notFound()`.
+A rolling deploy stops an instance while it may be in the middle of a score
+submission, which can legitimately take up to its request timeout
+(`LTI_SCORE_SUBMISSION_REQUEST_TIMEOUT_SECONDS`, 60 seconds by default). An
+instance that runs jobs therefore owns its own exit. On `SIGTERM` or `SIGINT`
+(`apps/gradebook/src/lib/shutdown.ts`):
 
-Core itself has no dependency on any of this: `DEPLOYMENT_MODE`, the route
-classifier (`src/lib/deployment-mode.ts`), and the background-jobs coupling are
-plain configuration and pure functions. It is only the *enforcement points* —
-the middleware chain and the App Router layouts — that are Next-specific.
+1. the workers stop claiming new line items, and the core stop handle is awaited
+   until in-flight submissions finish;
+2. the process waits for requests it is still answering — a request counts as
+   in flight until its response body has been sent, so a streamed page is never
+   cut off;
+3. the process exits 0 — or, if the drain is still running at
+   `SHUTDOWN_DRAIN_SECONDS`, logs the unfinished work and exits 1.
 
-This matters because a migration to **TanStack Start** is under evaluation (see
-[Architecture → Portability](./ARCHITECTURE.md#7-portability-framework-and-deployment)).
-That migration would touch the host's request-handling layer — the equivalent of
-the proxy chain and the surface guards — but not the mode model itself: the same
-three modes, the same surface classification, and the same frontend/jobs rule
-would carry over, re-expressed in whatever request lifecycle the new framework
-provides. **This document will be updated as that work is considered**, to
-describe the gating mechanism in framework-current terms.
+Nitro closes the HTTP server in parallel, giving open connections
+`SERVER_SHUTDOWN_TIMEOUT` seconds (25 on the image). An instance that runs no jobs
+leaves shutdown entirely to Nitro.
+
+Each layer around the process outlasts the one inside it, so the guarantee holds
+end to end:
+
+| Layer | Setting | Value |
+| --- | --- | --- |
+| Score submission | request timeout | 60 s |
+| App | `SHUTDOWN_DRAIN_SECONDS` | 70 s |
+| supervisord | node `stopwaitsecs` | 80 s |
+| Fly | `kill_timeout` (admin / frontend) | 90 s / 30 s |
+
+**The guarantee:** a rolling deploy lets an in-flight submission finish within
+its request timeout. If the hard deadline is ever reached, the unfinished line
+item stays leased and another worker reclaims it once the lease expires; the
+re-sent score carries a newer AGS `timestamp` and the same value, so the platform
+treats it as an update rather than a duplicate. Boot logs a warning when
+`SHUTDOWN_DRAIN_SECONDS` leaves less than ten seconds beyond the request timeout.
+
+## Instance Naming on Fly
+
+The repository runs two Fly apps from one image: `fly-gradebook-frontend.toml`
+(`DEPLOYMENT_MODE=frontend`) and `fly-gradebook-admin.toml`
+(`DEPLOYMENT_MODE=admin`, jobs on, a single machine). The admin instance's Fly app
+keeps its original name, `modulus-gradebook-backend`, because Fly app names cannot
+be changed in place; everywhere the repository controls the name it is the
+*admin* instance. Each toml lists only the variables its mode needs. The deploy
+scripts are `scripts/fly-deploy-gradebook-frontend.sh`,
+`scripts/fly-deploy-gradebook-admin.sh`, and `scripts/fly-deploy-gradebook.sh`
+(both, building the image once).
 
 ---
 
@@ -225,5 +299,7 @@ describe the gating mechanism in framework-current terms.
   the frontend and admin surfaces.
 - [Core Composition](./CORE-COMPOSITION.md) — how `initCore` assembles the graph
   and exposes `startBackgroundJobs()`.
+- [Authentication & Authorization](./AUTHN-AUTHZ.md) — the sessions and the
+  renewal boundary behind the session middleware in the server-function gate.
 - [LTI](./LTI.md) — the launch and score-passback flows that the frontend surface
   and the background workers serve.

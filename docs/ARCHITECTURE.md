@@ -13,7 +13,7 @@ here and described in more depth in the matching reference document under
 Modulus is a pnpm + Turborepo monorepo. Almost everything that matters lives in
 one package, `packages/core`, which holds all business logic, data access, and
 services behind class contracts. The applications around it —
-[`apps/gradebook`](#3-single-instance-no-separate-api-server) (the Next.js host)
+[`apps/gradebook`](#3-single-instance-no-separate-api-server) (the TanStack Start host)
 and [`apps/agent`](./AGENT.md) (the browser instrumentation client) — are
 deliberately thin. If you understand how core is composed and how applications
 talk to it, you understand the shape of the whole system.
@@ -178,23 +178,23 @@ seam everything else in this document is organised around.
 ## 3. Single-Instance, No Separate API Server
 
 Core is a library, not a service. The host application calls `initCore` once,
-in-process, and holds the result as a singleton. The Next.js gradebook does
-exactly this:
+in-process, and holds the result as a singleton. The gradebook does exactly this:
 
 ```ts
-// apps/gradebook/src/core-adapter.ts (excerpt)
-export const getCoreInstance = (): Promise<CoreInstance> => {
+// apps/gradebook/src/lib/core/instance.ts (excerpt)
+export const getCoreInstance = (logger: Logger): Promise<CoreInstance> => {
   if (coreInstancePromise == null) {
+    const { publicServerUrl } = getServerConfig()
     coreInstancePromise = initCore({
-      pinoLogger: getLogger(),
+      pinoLogger: logger,
       urlBuilder: { /* baseUrl, ltiLaunchUrl, dashboardUrl, … */ },
     })
   }
   return coreInstancePromise
 }
 
-export const getCoreCommands = async (): Promise<CoreCommands> =>
-  (await getCoreInstance()).commands
+export const getCoreCommands = async (logger: Logger): Promise<CoreCommands> =>
+  (await getCoreInstance(logger)).commands
 ```
 
 There is **no separate API server**. Route handlers in `apps/gradebook` are thin:
@@ -293,10 +293,14 @@ deep the call goes.
 Two future moves are explicitly enabled by the contract boundary above, and both
 are worth keeping in mind when reading any subsystem doc.
 
-**Framework portability.** The gradebook runs on Next.js 16 today, but core has
-no dependency on Next — it is a plain library driven through `initCore` and the
-commands facade. A migration to TanStack Start (under evaluation) would touch the
-host app's route handlers and `core-adapter.ts`, not core itself.
+**Framework portability.** Core has no dependency on the host framework — it is a
+plain library driven through `initCore` and the commands facade. The gradebook
+has already exercised this: it moved from Next.js 16 to TanStack Start by
+replacing the host's route handlers, pages, request pipeline and core adapter.
+The only change to core was to make its OAuth configuration optional, so that an
+instance serving only the admin surface need not carry OAuth settings. The
+migration plan and its decisions are recorded in
+`specs/2026-10-23-gradebook-tanstack-start-migration-plan.md`.
 
 **The remote connector (planned).** For larger or distributed deployments, the
 plan is to let core talk to an external API instead of running everything

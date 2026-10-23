@@ -8,7 +8,7 @@
     "dev": "vite dev",
     "devlti": "cross-env DEV_HTTPS=true NODE_OPTIONS=--use-openssl-ca vite dev --host modulus.infonomic.local",
     "build": "vite build",
-    "start": "node --env-file-if-exists=.env.local .output/server/index.mjs",
+    "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local .output/server/index.mjs",
     "lint": "biome check --write --unsafe --diagnostic-level=error",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --mode=jsdom && vitest run --mode=node --passWithNoTests",

@@ -59,9 +59,10 @@ snapshot. Includes the migration and seed story.
 ### [Authentication & Authorization](./AUTHN-AUTHZ.md) — Available
 How Modulus answers *who are you?* and *what may you do?* for its three actor
 types — learners, administrators, and instrumentation agents. Covers the JWT
-layer, per-actor sessions and token refresh, ability-based authorization, and
-the agent's OAuth 2.0 + PKCE flow, with a worked login-to-authorized-call path
-for each actor.
+layer, per-actor sessions and token refresh, the host's verification-only
+sessions with explicit renewal and the expected-principal check,
+ability-based authorization, and the agent's OAuth 2.0 + PKCE flow, with a
+worked login-to-authorized-call path for each actor.
 
 ### [LTI](./LTI.md) — Available
 Modulus as an LTI 1.3 tool: OIDC login initiation, resource-link launch,
@@ -93,13 +94,14 @@ page-state snapshots are stored and retrieved, and how scoring flows from agent
 ingestion through to LTI passback.
 
 ### Gradebook — Planned
-The host application: its app-router layout, how route handlers delegate into
-core, the in-repo docs renderer, internationalization, and the instructor-facing
-gradebook and reporting views.
+The host application: its TanStack Start route tree and request pipeline, how
+server functions and server routes delegate into core, the in-repo docs renderer,
+internationalization, and the instructor-facing gradebook and reporting views.
 
 ### Internationalization — Planned
-The locale strategy: the localized route segment, the i18n middleware, and how
-translations are authored.
+The locale strategy: the required `$lng` route segment, the router's URL rewrite
+that keeps the default locale out of visible URLs, the server entry's locale
+negotiation, and how translations are authored.
 
 ### Email — Planned
 The email layer: templates, the mailer implementations, and the flows that send
@@ -120,9 +122,10 @@ environment configuration, and running the app in development.
 ### [Deployment](./DEPLOYMENT.md) — Available
 The three runtime deployment modes — all-in-one, frontend-only, and admin-only —
 selected via `DEPLOYMENT_MODE`: what each mode serves, how route surfaces are
-classified and gated (the proxy gate plus the LTI/admin layout guards), the
-background-jobs switch, the LTI launch-interstitial switch, and the rule that a
-frontend instance may never run jobs.
+classified and gated (the server-entry path gate plus the server-function
+surface middleware), the background-jobs switch and eager boot, graceful
+shutdown and its deadline chain, the LTI launch-interstitial switch, and the
+rule that a frontend instance may never run jobs.
 
 ### [Database Migration](./DATABASE-MIGRATION.md) — Available
 Moving the shared gradebook database between Neon projects with a rehearsed
@@ -144,8 +147,9 @@ The accessibility posture and conformance statement (VPAT) for the application.
 
 ### [Testing Strategy](./TESTING.md) — Available
 The unit and integration test boundaries, file naming and runtime conventions,
-dedicated PostgreSQL test database lifecycle, fixture responsibilities, local
-commands, and the minimum pull-request CI gate.
+dedicated PostgreSQL test database lifecycle, the gradebook's HTTP-level session
+and route-contract suites, fixture responsibilities, local commands, and the
+minimum pull-request CI gate.
 
 ### Contributing, Governance & License — Planned
 How to contribute, the project's governance model, and licensing. Some of these

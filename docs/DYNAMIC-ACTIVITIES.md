@@ -301,10 +301,10 @@ Mirrors the existing `lti-platforms` admin module end to end.
 - `seeds/03_admin_permissions.ts`: grant `site-config:manage` (Manager role).
 
 **Gradebook**
-- New `modules/admin/activity-policy/` (server actions `list/create/update/delete`,
+- New `modules/admin/activity-policy/` (server functions `list/create/update/delete`,
   `@types/`, `components/`), templated on `modules/admin/lti-platforms/`
-  (`create.ts` shows the flash-cookie + redirect pattern).
-- Fill in `(admin)/admin/(auth)/activities/page.tsx` to render the list + form.
+  (`create.server.ts` shows the flash-cookie + redirect pattern).
+- Fill in `src/routes/$lng/_admin/admin/_authed/activities/index.tsx` to render the list + form.
 
 **Docs**
 - Save this file; add a pointer in `docs/DOCUMENTATION-PLAN.md`; add a short
@@ -401,7 +401,7 @@ editing.
 - `lib/utils.ts` — `createCommand` enforces declared abilities via `assertAdminAbilities` (~:158–167).
 - `lib/auth.ts` — `hasAbility` (~:9) / assert (~:14).
 - `modules/admin/lti-platforms/commands.ts` — `abilities: ['lti-platforms:create']` declaration pattern (~:42).
-- `apps/gradebook/src/middleware/withAdminAuth.ts` — `access_admin` route gate (~:22).
+- `apps/gradebook/src/routes/$lng/_admin/admin/_authed/route.tsx` — `access_admin` route gate (the layout's `beforeLoad`).
 
 ### Admin module template (mirror `lti-platforms`)
 - Core: `modules/admin/lti-platforms/{services/lti-platforms.ts, commands.ts, repository.ts, schemas.ts, utils.ts, errors.ts}`.

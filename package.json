@@ -19,12 +19,13 @@
     "typecheck": "turbo run typecheck --continue",
     "test": "turbo run test",
     "test:integration": "turbo run test:integration --concurrency=1",
-    "ci": "pnpm lint:check && pnpm typecheck && pnpm test && pnpm test:integration",
+    "ci": "pnpm lint:check && pnpm typecheck && pnpm test && pnpm test:integration && pnpm test:session",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "version-packages": "changeset version",
     "release:tag": "turbo run build --filter=@modulus-learning/agent && changeset tag",
     "release:npm": "turbo run build --filter=@modulus-learning/agent && changeset publish",
-    "prepare": "simple-git-hooks || true"
+    "prepare": "simple-git-hooks || true",
+    "test:session": "turbo run build --filter=@modulus-learning/gradebook && pnpm -F @modulus-learning/gradebook test:session"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged"

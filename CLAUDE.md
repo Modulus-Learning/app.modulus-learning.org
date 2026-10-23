@@ -24,7 +24,7 @@ pnpm + Turborepo monorepo. Node >=22.13, pnpm 11.10.0, TypeScript 6.
 | Path | Package | Published? | What it is |
 |---|---|---|---|
 | `packages/core` | `@modulus-learning/core` | private | All business logic, data access, and services behind class contracts. Almost everything that matters lives here. |
-| `apps/gradebook` | `@modulus-learning/gradebook` | private | The Next.js host app. Deliberately thin — route handlers resolve a context and call a core command. |
+| `apps/gradebook` | `@modulus-learning/gradebook` | private | The TanStack Start host app (Vite + Nitro). Deliberately thin — server routes and server functions resolve a context and call a core command. |
 | `apps/agent` | `@modulus-learning/agent` | **public on npm** | The browser instrumentation library embedded in Ximera pages. The only released artefact. |
 | `apps/agent-demo` | — | — | `react/` and `vanilla/` demo consumers of the agent. |
 
@@ -41,11 +41,15 @@ cd postgres && ./postgres.sh up        # Postgres on 5432 (docker compose wrappe
 pnpm dev                               # all packages via turbo
 ```
 
-`apps/gradebook` needs `.env` (see `.env.example`); `packages/core` needs its own
-`.env` — its tests load it directly. The gradebook runs on port 3000.
+`apps/gradebook/.env` is committed and holds only public `VITE_*` values. Put
+everything secret in a gitignored `apps/gradebook/.env.local` (copy the
+variables from `.env.example`); never add a secret to `.env`. `packages/core`
+needs its own `.env` — its tests load it directly. The gradebook runs on port
+3000; `pnpm --filter @modulus-learning/gradebook start` serves the built
+`.output/` with `.env` and then `.env.local` loaded, as `vite dev` does.
 
 For LTI work use `pnpm --filter @modulus-learning/gradebook devlti`, which serves
-HTTPS on the host `modulus.infonomic.local` — Canvas will not launch against
+HTTPS (Vite, `DEV_HTTPS=true`) on the host `modulus.infonomic.local` — Canvas will not launch against
 plain HTTP. It expects a local keypair at `apps/gradebook/certs/local.key` and
 `local.crt`; that directory is not in the repo, so generate the certs and add the
 host to `/etc/hosts` before the script will start.
@@ -61,14 +65,16 @@ pnpm build        pnpm lint        pnpm typecheck        pnpm test
 `pnpm lint` runs Biome with `--write --unsafe`, so it **modifies files**. A
 `lint-staged` pre-commit hook runs `biome check --write` on staged files.
 `pnpm lint:check` is the read-only lint gate used by CI. `pnpm run ci` runs that
-gate, typechecking, all unit tests, and the database integration suite.
+gate, typechecking, all unit tests, the database integration suite, and the
+gradebook's session HTTP suite (`pnpm test:session`, which builds the gradebook
+first).
 
 ### Tests differ per package — check before you run
 
 | Package | Runner |
 |---|---|
 | `packages/core` | `node:test` via `tsx` — **not vitest** |
-| `apps/gradebook` | vitest (jsdom and node modes, both in `pnpm test`) |
+| `apps/gradebook` | vitest (jsdom and node modes, both in `pnpm test`); plus the HTTP suites below |
 | `apps/agent` | vitest (jsdom and node modes, both in `pnpm test`) |
 
 ```sh
@@ -76,6 +82,8 @@ pnpm -F @modulus-learning/core test              # *.test.ts
 pnpm -F @modulus-learning/core test:integration  # *.itest.ts — needs modulus_test
 pnpm -F @modulus-learning/core test:one <path>   # single file
 pnpm -F @modulus-learning/gradebook exec vitest run --mode=jsdom <path>
+pnpm -F @modulus-learning/gradebook test:session   # built server over HTTP; needs modulus_test
+pnpm -F @modulus-learning/gradebook test:contract  # against a server you start (CONTRACT_BASE_URL, CONTRACT_MODE)
 pnpm -F @modulus-learning/agent exec vitest run <path>
 ```
 
@@ -136,6 +144,15 @@ refuse a database name that does not end in `_test`.
   A `frontend` instance must never run background jobs — config validation
   rejects `DEPLOYMENT_MODE=frontend` with `JOB_QUEUE_ENABLED=true`, because the
   LTI score-passback worker may only run on `admin` or `all-in-one`.
+- **Every server function's first middleware is its gate.** Server functions run
+  at opaque `/_serverFn/<id>` URLs that the path-based mode gate cannot classify,
+  so each `createServerFn(...)` starts with one of the middlewares in
+  `apps/gradebook/src/lib/server-fn.ts`; a convention test enforces it. Start's
+  compiler only recognises a literal `createServerFn(...).handler(...)`, so do not
+  wrap it in a factory. Keep server-only imports in `*.server.ts` modules loaded
+  with a dynamic `import()` from the handler.
+- **No Next.js.** The gradebook was migrated from Next.js 16; Biome rejects any
+  `next` or `next/*` import.
 - **This repository is public.** OSU, Canvas, and Ximera are named openly in the
   docs and are not secrets. Never commit or publish learner or instructor PII,
   LTI client/deployment IDs, keys or tokens, internal OSU hostnames, or

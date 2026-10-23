@@ -98,8 +98,8 @@ the command layer; the real multi-activity behaviour is Phase 2.
 ### Decisions (locked)
 
 1. **Single RPC endpoint.** Collapse the two routes into one
-   `POST /routes/agent/activity` — the App Router handler at
-   `apps/gradebook/src/app/routes/agent/activity/route.ts` — dispatching on an
+   `POST /routes/agent/activity` — the server route at
+   `apps/gradebook/src/routes/routes/agent/activity.ts` — dispatching on an
    `op` discriminator. This is the cleanest "route according to the incoming
    request," and leaves room to batch progress + page-state in one call later.
 2. **Author config via a per-route hook.** A lesson route calls a hook
@@ -111,7 +111,7 @@ the command layer; the real multi-activity behaviour is Phase 2.
 ### The unified endpoint
 
 ```
-POST /routes/agent/activity        // route.ts (App Router handler)
+POST /routes/agent/activity        // routes/routes/agent/activity.ts (server route)
   { op: 'get-progress',   urls?: string[] }
   { op: 'set-progress',   progress_for_current_page: number,
                           increments_for_other_pages: [{ url: string, factor: number }] }

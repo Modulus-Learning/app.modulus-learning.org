@@ -7,9 +7,9 @@ This is the monorepo for the Modulus project. Modulus is a learning platform mon
 
 ### Core Architectural Philosophy
 
-NOTE: Our Gradebook application is currently hosted within Next.js 16. One of our design goals is to make Modulus easy to install on 'right-size' infrastructure — from self-hosted to cloud services. While we are still evaluating [Tanstack Start](https://tanstack.com/start/latest), it's highly likely that we'll migrate to Tanstack Start in the near future. Our key architectural principle below makes this possible with minimal effort.
+NOTE: Our Gradebook application is hosted on [TanStack Start](https://tanstack.com/start/latest), having moved from Next.js 16. One of our design goals is to make Modulus easy to install on 'right-size' infrastructure — from self-hosted to cloud services, and the key architectural principle below is what made that move possible without changes to core's business logic.
 
-The key architectural principle is that `packages/core` exposes all business logic, data access, and services through **class contracts (interfaces)** resolved via a DI registry (`AsyncRegistry`). The consuming application (currently Next.js) uses core directly in-process, leveraging the framework's **native routing system** — there is no separate API server. API routes in `apps/gradebook` are thin route handlers that delegate to core services.
+The key architectural principle is that `packages/core` exposes all business logic, data access, and services through **class contracts (interfaces)** resolved via a DI registry (`AsyncRegistry`). The consuming application (the TanStack Start gradebook) uses core directly in-process, leveraging the framework's **native routing system** — there is no separate API server. Server routes and server functions in `apps/gradebook` are thin handlers that delegate to core services.
 
 This design enables **single-instance deploys** for smaller installations where the web app and backend logic run in the same process, which is a unique and important aspect of the project.
 
@@ -26,7 +26,7 @@ This means consuming applications can swap between local (in-process) and remote
 
 - `/apps/agent`: Modulus Client Agent - for 'instrumenting' Modulus-aware curriculum content. This application will include a working example of Modulus-aware content.
 - `/apps/agent-demo`: Modulus Client Agent demos - with plain HTML/CSS/JS and React versions.
-- `/apps/gradebook`: Modulus Gradebook - a [Next.js 16](https://nextjs.org/docs/app) application for the frontend and admin grade book application.
+- `/apps/gradebook`: Modulus Gradebook - a [TanStack Start](https://tanstack.com/start/latest) application for the frontend and admin grade book application.
 - `/packages/core`: the core Modulus learning module and package.
 
 
@@ -41,7 +41,7 @@ This means consuming applications can swap between local (in-process) and remote
 Get started by running
 
 1. `pnpm install` from the root of the monorepo.
-2. Create `/apps/gradebook/.env` based on `/apps/gradebook/.env.example` (contact current maintainers for 'secrets')
+2. Create `/apps/gradebook/.env.local` based on `/apps/gradebook/.env.example` (contact current maintainers for 'secrets'). The committed `/apps/gradebook/.env` holds only public `VITE_*` values; secrets belong in `.env.local`, which is gitignored.
 3. `pnpm build` - from the root
 4. `pnpm dev`- to start all dev servers
 

@@ -1,7 +1,7 @@
 ---
 title: "Testing Strategy"
 path: "testing-strategy"
-summary: "The baseline Modulus testing strategy — suite boundaries, runtime modes, database isolation, local commands, fixture responsibilities, and the minimum continuous-integration gate."
+summary: "The baseline Modulus testing strategy — suite boundaries, runtime modes, database isolation, the gradebook's HTTP-level session and route-contract suites, local commands, fixture responsibilities, and the minimum continuous-integration gate."
 ---
 
 # Testing Strategy
@@ -21,6 +21,8 @@ the same commands.
 | Core integration | `*.itest.ts` | Node.js `node:test` through `tsx` | PostgreSQL 18 `_test` database |
 | App browser unit | `*.test.ts` / `*.test.tsx` | Vitest `jsdom` mode | None |
 | App server unit | `*.test.node.ts` / `*.test.node.tsx` | Vitest `node` mode | None |
+| Gradebook session HTTP | `src/session-http/*.session.ts` | Vitest, against the built server | PostgreSQL 18 `_test` database |
+| Gradebook route contract | `src/contract/*.contract.ts` | Vitest, against a running server | A running gradebook instance |
 
 Core remains on `node:test` during this baseline phase. Moving it to Vitest
 would change mechanics without improving the isolation model and would create
@@ -30,6 +32,51 @@ browser globals, and browser tests do not inherit Node-only assumptions.
 
 `pnpm test` runs every unit mode and never starts or modifies a database.
 `pnpm test:integration` runs database-backed tests separately and serially.
+
+### The Gradebook's HTTP Suites
+
+Two suites test the gradebook over HTTP rather than through its modules, because
+the behaviour they protect — cookies, redirects, the session boundary, deployment
+modes — only exists once a request has passed through the whole server.
+
+**The session suite** (`pnpm test:session`) builds the gradebook, then its global
+setup (`apps/gradebook/src/session-http/global-setup.ts`) boots the built server
+itself with a synthetic environment: the throwaway keys of
+`apps/gradebook/src/config/fixtures/mode-env.ts`, no developer env file, jobs off
+and CSP on. It seeds the `_test` database with one learner, one admin, the
+standard roles and one LTI platform, and serves that platform's signing keys from
+an in-process mock. Every identity is synthetic. The suite covers:
+
+- signed-in server rendering for learner and admin pages;
+- the renewal boundary and expected-principal checks on server functions —
+  missing, mismatched, malformed and cross-domain calls;
+- password sign-in and renewal, asserting each raw `Set-Cookie` header;
+- a complete LTI 1.3 launch: login initiation, the state cookie, the signed
+  launch, the learner session cookies, and a refused replay;
+- the CSP headers of ordinary and LMS-framed pages.
+
+Server functions are called the way the browser calls them, at their opaque
+`/_serverFn/<id>` URLs; `serverFnId` in `src/session-http/harness.ts` reads the id
+from the built bundle by the function's name and fails if the name is missing or
+ambiguous.
+
+**The route-contract suite** (`pnpm -F @modulus-learning/gradebook test:contract`)
+pins the gradebook's externally visible behaviour — status codes, `Location`,
+`Set-Cookie` attributes, CORS headers and JSON shapes — per deployment mode,
+against a server you start yourself:
+
+```sh
+cd apps/gradebook
+pnpm build
+DEPLOYMENT_MODE=frontend JOB_QUEUE_ENABLED=false pnpm start &
+CONTRACT_BASE_URL=http://localhost:3000 CONTRACT_MODE=frontend pnpm test:contract
+```
+
+`CONTRACT_MODE` must match the server's `DEPLOYMENT_MODE`. The suite was written
+against the former Next.js host and run against both hosts during the migration;
+its `next` expectations remain as the record of each deliberate change. Run it
+through the production image's nginx as well when you change the Docker or nginx
+configuration.
 
 ## Test database lifecycle
 
@@ -118,7 +165,8 @@ It runs, in order:
 1. `pnpm lint:check` — read-only Biome validation of TypeScript sources;
 2. `pnpm typecheck`;
 3. `pnpm test` — all unit modes;
-4. `pnpm test:integration` — serialized PostgreSQL integration tests.
+4. `pnpm test:integration` — serialized PostgreSQL integration tests;
+5. `pnpm test:session` — the gradebook build and its session HTTP suite.
 
 The GitHub Actions workflow calls this same aggregate command on every pull
 request and on pushes to `develop` and `main`. Runs for the same ref cancel older
@@ -147,7 +195,9 @@ The next useful improvements are:
    harnesses as core boundaries stabilize;
 3. add migration boot and schema-drift checks if committed migrations diverge
    from the Drizzle schema source;
-4. introduce HTTP or browser-level tests only for stable public workflows;
+4. extend HTTP-level coverage only for stable public workflows, and add browser
+   tests where behaviour depends on a real browser (LMS iframes, storage
+   partitioning, Safari);
 5. add coverage reporting after the suite is broad enough that a threshold
    measures regressions rather than initial test-writing progress.
 

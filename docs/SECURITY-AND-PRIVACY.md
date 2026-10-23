@@ -229,9 +229,9 @@ flagged directly in the code:
   `javascript:` and `data:` destinations, and a value `new URL()` cannot parse,
   sending those to a Modulus error page instead. The rejected value does not reach
   that page, and the safety there is structural rather than a matter of what the
-  page renders: Next serializes the request URL and its query string into the
-  served HTML's RSC flight payload, so the route redirects with a fixed slug and
-  never with the rejected URI. None of that closes the redirect. Leaving it open
+  page renders: the route redirects with a fixed slug and never with the rejected
+  URI, and the error page admits only its closed slug union. None of that closes
+  the redirect. Leaving it open
   is an accepted risk, not an oversight: closing the bounce means replacing it
   with a Modulus page and a return link, and session expiry is the common path
   through this endpoint and today resolves with no learner action at all. See

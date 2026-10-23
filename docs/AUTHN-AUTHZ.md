@@ -77,9 +77,9 @@ Two things follow from this design:
    [LTI](./LTI.md).
 2. **Verification is decoupled from the full core graph.** A small standalone
    registry (`public/tokens.ts`, exported as `@modulus-learning/core/tokens`)
-   composes just the three verifiers, so a host can validate a token — e.g. in
-   edge middleware — without a database pool or the full service graph. This is
-   what `getCoreTokenVerifiers` uses in the host adapter.
+   composes just the three verifiers, so a host can validate a token without a
+   database pool or the full service graph. The gradebook's session readers use
+   it through `getCoreTokenVerifiers` (`apps/gradebook/src/lib/core/instance.ts`).
 
 ## Sessions & Token Refresh
 
@@ -128,6 +128,108 @@ A structurally identical, separate implementation: password sign-in only, the
 refresh payload keys on `admin_user_id` (not `user_id`), and the access payload
 carries the `provider: 'admin_session'` discriminator plus the admin's
 name/email. Admin and learner sessions share no tables and no token shapes.
+
+## Host Sessions: Verification and Explicit Renewal
+
+The gradebook keeps each session in two `HttpOnly` cookies — a short-lived access
+token and a refresh token — and treats them under one rule: **handling a request
+only ever verifies; renewing is a separate, explicit call.** No page render,
+loader or server function refreshes a token as a side effect.
+
+### Verification
+
+Every request classifies the session for each domain (learner and admin) from its
+cookies alone (`apps/gradebook/src/lib/session/state.ts`):
+
+```ts
+// apps/gradebook/src/lib/session/state.ts
+export type SessionState<TSession> =
+  | { status: 'valid'; session: TSession; expiresAtMs: number }
+  | { status: 'renewable' }
+  | { status: 'anonymous' }
+```
+
+`renewable` means the access token is missing or expired but a refresh cookie is
+present. Nothing is written in response to it.
+
+### Renewal
+
+Renewal is a dedicated server function per domain — `renewUserSession`
+(`modules/app/session/renew.ts`) and `renewAdminSession`
+(`modules/admin/session/renew.ts`). It calls `TokenRefreshService` and, on
+success, writes the new cookie pair. Its outcome tells the browser what happened:
+
+```ts
+// apps/gradebook/src/lib/session/renewal.ts
+export type RenewalOutcome =
+  | { status: 'unchanged' | 'renewed'; principal: Principal }
+  | { status: 'terminal' | 'transient' }
+```
+
+`terminal` means the refresh token is no longer usable (the next step is sign-in);
+`transient` means the attempt failed for a reason worth retrying, such as a
+network error. **A failed renewal never clears cookies**; only a sign-out does.
+
+The browser coordinates renewals (`lib/session/coordination.ts`): one renewal per
+domain at a time in each tab, extended across tabs with Web Locks where the
+browser offers them, and sign-in and sign-out notices broadcast to other tabs
+with `BroadcastChannel`. Each mechanism is feature-detected and degrades to the
+in-tab queue, which matters inside an LMS iframe where storage may be partitioned
+or denied.
+
+Renewal happens in three places:
+
+- **On client navigation** into a protected layout, its guard renews in the
+  browser before deciding. A `terminal` outcome sends the user to sign-in; a
+  `transient` one shows a manual retry instead of signing them out.
+- **On a server render** of a protected page with a renewable session, the
+  server cannot renew on the browser's behalf, so it redirects to a small
+  bootstrap page — `/auth/renew` (learner) or `/admin/renew` — which renews in the
+  browser and returns to the page. A `_renewed=1` marker stops a loop.
+- **On a server-function call** that meets an expired session — the renewal
+  boundary, next.
+
+### The Renewal Boundary
+
+The session middleware (`appSessionMiddleware`, `adminSessionMiddleware`) verifies
+the session *before* the server function's handler runs, and answers in one of
+three ways without running it:
+
+| Answer | Status | When |
+| --- | --- | --- |
+| `renew` | 401, `x-modulus-auth-boundary: renew` | the session is renewable |
+| `changed` | 409, `x-modulus-auth-boundary: changed` | the verified user is not the user the page expects |
+| `unauthorized` | 401 | there is no session |
+
+On a `renew` answer the browser renews once and replays the call — only if the
+renewed user is the same one the page expects. Because the handler did not run,
+the replay cannot repeat a mutation.
+
+### The Expected Principal
+
+A page records the user it was rendered for — the **principal**, `{ domain,
+userId }` — from its own loader data (`SessionIdentity`,
+`lib/session/session-identity.tsx`), and every session-gated server-function call
+from that page sends it. Every call that arrives over HTTP must name it, reads
+and mutations alike; the only exemption is an in-process call made while the
+server renders the page itself, which has no page yet and acts on its own
+request's session:
+
+```ts
+// apps/gradebook/src/lib/server-fn-guards.ts
+export const requiresExpectedPrincipal = (handlerType: string | undefined): boolean =>
+  handlerType !== 'ssr'
+```
+
+The request kind is recorded server-side by the request middleware; a client
+cannot claim it. This closes the case where a form opens under one account,
+another tab signs in as a second account, and the first form's submission would
+otherwise run as the second.
+
+When a page learns that its session changed — a `changed` answer, or a sign-in or
+sign-out notice from another tab — `SessionIdentity` shows a blocking dialog that
+makes the page inert and offers a reload. A reload is a plain request for the
+page; nothing is resubmitted.
 
 ## Authorization: Abilities
 
@@ -353,11 +455,12 @@ that answers `200`, picks its copy from a closed slug union
 (`invalid_request` | `server_error`, defaulting to `server_error` for an unknown
 or absent slug so an outage never blames the learner's course link), and
 **reflects no caller-supplied value into the DOM**. The value that brought a
-learner there is by definition one that failed validation. Not rendering it is
-necessary but not sufficient: Next serializes the request URL, query string
-included, into the RSC flight payload of the served HTML, so the route redirects
-with a fixed slug and never with the rejected URI. The diagnosis stays in the
-route's server log.
+learner there is by definition one that failed validation. The protection is
+structural rather than a matter of what the page renders: the route redirects
+with a fixed slug and never with the rejected URI, so the value does not appear
+in the error page's URL at all, and the page's search schema admits only its
+closed slug union — any other `code` is redirected away to the page without it.
+The diagnosis stays in the route's server log.
 
 **A denied registration returns `unauthorized_client`, never `access_denied`.**
 The agent maps `access_denied` to `status: 'expired'` and prompts the learner to
@@ -385,22 +488,42 @@ see [AGENT](./AGENT.md).
 
 Core is auth-mechanism-agnostic: it consumes a `RequestContext` and never reads a
 cookie or header itself ([ARCHITECTURE → Single-instance](./ARCHITECTURE.md#3-single-instance-no-separate-api-server)).
-The Next.js host builds each context in `apps/gradebook/src/core-adapter.ts`:
+The TanStack Start host builds each context in
+`apps/gradebook/src/lib/core/start-adapter.ts`:
 
-- `getCoreUserRequestContext()` reads the user session and builds
+- `getCoreUserRequestContext()` verifies the learner session and builds
   `UserAuth(id, abilities)`.
-- `getCoreAdminRequestContext()` does the same for the admin session; the
-  `withAdminAuth` middleware guards admin routes.
+- `getCoreAdminRequestContext()` does the same for the admin session.
 - `getCoreAgentRequestContext(request)` parses the `Authorization: Bearer` header,
   verifies it with the agent verifier, and builds `AgentAuth`.
 
-Refresh and OAuth/agent endpoints live under `app/routes/` (`auth/refresh`,
-`auth/session`, `admin/refresh`, `oauth/{google,github}`, `agent/authorize`,
-`agent/token`), each a thin handler over the corresponding command.
+A session-gated server function receives its context from the middleware as
+`context.core`, built from the session the boundary has just verified. The
+protected layouts (`src/routes/$lng/_auth/route.tsx` and
+`src/routes/$lng/_admin/admin/_authed/route.tsx`) guard pages with the same
+verification and add the ability checks: `access_dashboard` or
+`account:read_own` for the learner area, `access_admin` for the admin area. The
+modules' server code (`*.server.ts`) reaches the same adapter through
+`@/core-adapter`.
+
+The OAuth and agent endpoints are server routes under `src/routes/routes/`
+(`oauth/{google,github}`, `agent/authorize`, `agent/token`, `agent/activity`),
+each a thin handler over the corresponding command. `GET /routes/auth/session`
+reports the learner session for compatibility. The former `auth/refresh` and
+`admin/refresh` endpoints are retired: renewal is the explicit server function
+described in [Host Sessions](#host-sessions-verification-and-explicit-renewal).
 
 ## Honest Notes & Open Questions
 
 Flagged in the code, worth knowing before relying on these paths:
+
+- **Learner sessions under third-party-cookie blocking.** The learner cookies are
+  `SameSite=None; Secure` so that they work inside the LMS iframe. A browser that
+  blocks third-party cookies drops them there, and the learner reaches the
+  bounded "session unavailable" state rather than a working session. Adding the
+  `Partitioned` attribute (CHIPS) would keep them, at the cost of separating the
+  LMS-framed session from a direct visit; the decision is open as GitHub issue
+  #10. Safari has not been tested in the iframe.
 
 - **Failed-login throttling is not yet enforced.** `users.failed_login_attempts`
   exists and outcomes are recorded to `user_logins`, but lockout/back-off on
