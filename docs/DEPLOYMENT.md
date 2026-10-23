@@ -46,7 +46,7 @@ instance reveals nothing about the learner/LTI surface, and vice versa.
 
 ## Configuration
 
-Three environment variables, all read by the host config in
+Four environment variables, all read by the host config in
 `apps/gradebook/src/config/index.ts`:
 
 | Variable | Values | Default | Purpose |
@@ -193,8 +193,9 @@ Gating happens in two places, each covering what the other cannot see:
    | `neutralMiddleware` | any | none required | no |
 
    The middleware lives in `apps/gradebook/src/lib/server-fn.ts`. A convention
-   test (`server-fn-convention.test.node.ts`) fails the build if any server
-   function's first middleware is not one of these, and limits
+   test (`server-fn-convention.test.node.ts`) fails the test suite — and so the
+   `pnpm run ci` gate — if any server function's first middleware is not one of
+   these, and limits
    `neutralMiddleware` to an allowlist. The session columns are described in
    [Authentication & Authorization](./AUTHN-AUTHZ.md).
 
@@ -253,8 +254,9 @@ instance that runs jobs therefore owns its own exit. On `SIGTERM` or `SIGINT`
    until in-flight submissions finish;
 2. the process waits for requests it is still answering — a request counts as
    in flight until its HTTP response has been fully written to the socket (or the
-   client has disconnected), so a response is never cut off, even when the
-   client reads slowly;
+   client has disconnected), so a response is not cut off by the process exiting,
+   even when the client reads slowly — within the hard deadline in step 3, and
+   within Nitro's own `SERVER_SHUTDOWN_TIMEOUT` for open connections;
 3. the process exits 0 — or, if the drain is still running at
    `SHUTDOWN_DRAIN_SECONDS`, logs the unfinished work and exits 1.
 
