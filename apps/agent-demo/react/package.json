@@ -13,22 +13,22 @@
   "dependencies": {
     "@infonomic/uikit": "^6.8.2",
     "@modulus-learning/agent": "workspace:*",
-    "@tanstack/react-router": "^1.170.29",
+    "@tanstack/react-router": "^1.170.46",
     "clsx": "^2.1.1",
     "jwt-decode": "^4.0.0",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
-    "@tanstack/router-plugin": "^1.168.32",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
-    "@vitejs/plugin-react": "^6.0.5",
-    "autoprefixer": "^10.5.4",
-    "postcss": "^8.5.26",
+    "@tanstack/router-plugin": "^1.168.48",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.31",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1"
+    "vite": "^8.3.5"
   }
 }
