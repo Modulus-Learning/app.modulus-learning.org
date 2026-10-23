@@ -1,40 +1,26 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
-import { getLogger } from '@/lib/logger'
-import type { ActivityCodeMember } from './@types'
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { appSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './add-activity-code-member.server'
 
-export async function addActivityCodeMember(
-  activity_code_id: string,
-  user_id: string
-): Promise<{ members: ActivityCodeMember[]; error?: string }> {
-  const logger = getLogger()
+// Form-action server functions behind the learner session gate: the logic is
+// in `./add-activity-code-member.server.ts`; see `@/lib/server-action` for the envelope.
 
-  const userAuth = await getCoreUserRequestContext()
-  if (userAuth == null) {
-    return { members: [], error: 'Not logged in.' }
-  }
-
-  const core = await getCoreCommands()
-  const result = await core.app.activities.addActivityCodeMember(userAuth, {
-    activity_code_id,
-    user_id,
+const addActivityCodeMemberFn = createServerFn({ method: 'POST' })
+  .middleware([appSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./add-activity-code-member.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() =>
+      logic.addActivityCodeMember(...(data as Parameters<typeof Logic.addActivityCodeMember>))
+    )
   })
-  if (!result.ok) {
-    logger.error({
-      activities: {
-        status: 'failed',
-        message: 'error in addActivityCodeMember',
-        method: 'addActivityCodeMember',
-        error: result.error,
-      },
-    })
-    const reason =
-      result.error?.code === 'ERR_USER_NOT_INSTRUCTOR'
-        ? 'Only instructors can be added as members.'
-        : 'There was an error adding the member.'
-    return { members: [], error: reason }
-  }
 
-  return { members: result.data }
-}
+export const addActivityCodeMember = async (
+  ...args: Parameters<typeof Logic.addActivityCodeMember>
+): Promise<Awaited<ReturnType<typeof Logic.addActivityCodeMember>>> =>
+  followOutcome(await addActivityCodeMemberFn({ data: actionEnvelope(args) }))

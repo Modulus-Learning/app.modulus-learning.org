@@ -1,29 +1,22 @@
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import type { Locale } from '@/i18n/i18n-config'
-import type { AllowlistRuleResponse } from './@types'
+import { createServerFn } from '@tanstack/react-start'
 
-/**
- * Resolves one rule from the list.
- *
- * There is no read-one command: the rule set is small and administrator-only,
- * and adding a command for the edit page would widen the API surface for no
- * gain.
- */
-export async function getAllowlistRule(
-  id: string,
-  _locale: Locale
-): Promise<AllowlistRuleResponse> {
-  const adminAuth = await getCoreAdminRequestContext()
-  if (adminAuth == null) {
-    return { rule: null }
-  }
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
+import type * as Original from './get.server'
 
-  const core = await getCoreCommands()
-  const result = await core.admin.activityUrlAllowlist.listAllowlistRules(adminAuth)
+// A native GET server function behind
+// the admin session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the read in `./get.server.ts`.
 
-  if (result.ok) {
-    return { rule: result.data.rules.find((rule) => rule.id === id) ?? null }
-  }
+type Args = Parameters<typeof Original.getAllowlistRule>
 
-  return { rule: null }
-}
+const getAllowlistRuleFn = createServerFn({ method: 'GET' })
+  .middleware([adminSessionMiddleware])
+  .validator(argumentList<Args>(2))
+  .handler(async ({ data }) => {
+    const { getAllowlistRule } = await import('./get.server')
+    return getAllowlistRule(...data)
+  })
+
+export const getAllowlistRule = (...args: Args) => getAllowlistRuleFn({ data: args })

@@ -1,36 +1,26 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
-import { getLogger } from '@/lib/logger'
-import type { InstructorSearchResult } from './@types'
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { appSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './search-instructors.server'
 
-export async function searchInstructors(
-  activity_code_id: string,
-  query: string
-): Promise<{ results: InstructorSearchResult[] }> {
-  const logger = getLogger()
+// Form-action server functions behind the learner session gate: the logic is
+// in `./search-instructors.server.ts`; see `@/lib/server-action` for the envelope.
 
-  const userAuth = await getCoreUserRequestContext()
-  if (userAuth == null) {
-    throw new Error('Unauthenticated')
-  }
-
-  const core = await getCoreCommands()
-  const result = await core.app.activities.searchInstructors(userAuth, {
-    activity_code_id,
-    query,
+const searchInstructorsFn = createServerFn({ method: 'POST' })
+  .middleware([appSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./search-instructors.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() =>
+      logic.searchInstructors(...(data as Parameters<typeof Logic.searchInstructors>))
+    )
   })
-  if (!result.ok) {
-    logger.error({
-      activities: {
-        status: 'failed',
-        message: 'error in searchInstructors',
-        method: 'searchInstructors',
-        error: result.error,
-      },
-    })
-    return { results: [] }
-  }
 
-  return { results: result.data }
-}
+export const searchInstructors = async (
+  ...args: Parameters<typeof Logic.searchInstructors>
+): Promise<Awaited<ReturnType<typeof Logic.searchInstructors>>> =>
+  followOutcome(await searchInstructorsFn({ data: actionEnvelope(args) }))

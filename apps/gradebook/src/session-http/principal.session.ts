@@ -71,7 +71,10 @@ describe('native GET read, called remotely', () => {
     const response = await callGetFn(
       'listUsersFn',
       {
-        data: ['en', { page: 1, page_size: 10, order: 'created_at', desc: true }],
+        data: [
+          'en',
+          { page: 1, page_size: 10, order: 'created_at', desc: true, role: 'all', query: '' },
+        ],
         context: { expectedPrincipal: admin },
       },
       `admin_session=${await adminToken()}`
@@ -80,24 +83,21 @@ describe('native GET read, called remotely', () => {
   })
 })
 
-describe('bridged POST mutation, called remotely', () => {
-  const envelope = (fields: Record<string, string>) => {
+describe('native POST mutation, called remotely', () => {
+  // `createActivityCode` (learner) and `createRole` (admin): form actions whose
+  // arguments travel as one FormData envelope (see `@/lib/server-action`).
+  const envelope = (fields: Record<string, string>, args = '[null,"__modulus_form__"]') => {
     const form = new FormData()
     for (const [name, value] of Object.entries(fields)) form.set(name, value)
+    form.set('__args', args)
     return form
   }
-  const editFullName = () =>
-    envelope({
-      __key: 'app/account/edit-full-name',
-      __export: 'editFullName',
-      __args: '[null,"__modulus_form__"]',
-      full_name: 'Changed By A Forged Call',
-    })
+  const createActivityCode = () => envelope({ name: 'Forged code', description: 'forged' })
 
   test('without an expected principal → 409 changed', async () => {
     const response = await callFormFn(
-      'invokeAppAction',
-      editFullName(),
+      'createActivityCodeFn',
+      createActivityCode(),
       undefined,
       `user_session=${await learnerToken()}`
     )
@@ -107,8 +107,8 @@ describe('bridged POST mutation, called remotely', () => {
 
   test('naming a different user → 409 changed', async () => {
     const response = await callFormFn(
-      'invokeAppAction',
-      editFullName(),
+      'createActivityCodeFn',
+      createActivityCode(),
       { expectedPrincipal: { domain: 'user', userId: ADMIN.id } },
       `user_session=${await learnerToken()}`
     )
@@ -118,31 +118,48 @@ describe('bridged POST mutation, called remotely', () => {
 
   test('a malformed envelope → 400', async () => {
     const response = await callFormFn(
-      'invokeAppAction',
-      envelope({ __key: 'app/account/edit-full-name', __export: 'editFullName', __args: '{' }),
+      'createActivityCodeFn',
+      envelope({ name: 'x' }, '{'),
       { expectedPrincipal: learner },
       `user_session=${await learnerToken()}`
     )
     expect(response.status).toBe(400)
   })
 
-  test('a module outside the allowlist → 404', async () => {
+  test('an admin mutation with only a learner session → 401', async () => {
     const response = await callFormFn(
-      'invokeAppAction',
-      envelope({ __key: 'app/not-a-module', __export: 'run', __args: '[]' }),
+      'createRoleFn',
+      envelope({ name: 'Forged', machine_name: 'forged' }),
       { expectedPrincipal: learner },
       `user_session=${await learnerToken()}`
     )
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(401)
   })
 
-  test('a learner module through the admin bridge → 404', async () => {
+  test('an admin mutation with the admin principal runs and ends with its redirect', async () => {
     const response = await callFormFn(
-      'invokeAdminAction',
-      editFullName(),
+      'createRoleFn',
+      envelope({
+        name: 'Session Suite Role',
+        machine_name: 'session_suite_role',
+        description: 'created by the session suite',
+      }),
       { expectedPrincipal: admin },
       `admin_session=${await adminToken()}`
     )
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(200)
+    const body = await response.text()
+    expect(body).toContain('redirect')
+    expect(body).toContain('/admin/roles')
+  })
+
+  test('a learner mutation with only an admin session → 401', async () => {
+    const response = await callFormFn(
+      'createActivityCodeFn',
+      createActivityCode(),
+      { expectedPrincipal: admin },
+      `admin_session=${await adminToken()}`
+    )
+    expect(response.status).toBe(401)
   })
 })

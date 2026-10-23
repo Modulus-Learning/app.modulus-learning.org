@@ -1,36 +1,26 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
-import { getLogger } from '@/lib/logger'
-import type { ActivityCodeMember } from './@types'
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { appSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './remove-activity-code-member.server'
 
-export async function removeActivityCodeMember(
-  activity_code_id: string,
-  user_id: string
-): Promise<{ members: ActivityCodeMember[]; error?: string }> {
-  const logger = getLogger()
+// Form-action server functions behind the learner session gate: the logic is
+// in `./remove-activity-code-member.server.ts`; see `@/lib/server-action` for the envelope.
 
-  const userAuth = await getCoreUserRequestContext()
-  if (userAuth == null) {
-    return { members: [], error: 'Not logged in.' }
-  }
-
-  const core = await getCoreCommands()
-  const result = await core.app.activities.removeActivityCodeMember(userAuth, {
-    activity_code_id,
-    user_id,
+const removeActivityCodeMemberFn = createServerFn({ method: 'POST' })
+  .middleware([appSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./remove-activity-code-member.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() =>
+      logic.removeActivityCodeMember(...(data as Parameters<typeof Logic.removeActivityCodeMember>))
+    )
   })
-  if (!result.ok) {
-    logger.error({
-      activities: {
-        status: 'failed',
-        message: 'error in removeActivityCodeMember',
-        method: 'removeActivityCodeMember',
-        error: result.error,
-      },
-    })
-    return { members: [], error: 'There was an error removing the member.' }
-  }
 
-  return { members: result.data }
-}
+export const removeActivityCodeMember = async (
+  ...args: Parameters<typeof Logic.removeActivityCodeMember>
+): Promise<Awaited<ReturnType<typeof Logic.removeActivityCodeMember>>> =>
+  followOutcome(await removeActivityCodeMemberFn({ data: actionEnvelope(args) }))

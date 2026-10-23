@@ -15,11 +15,11 @@ vi.mock('@/core-adapter', () => ({
 vi.mock('@/lib/logger', () => ({
   getLogger: () => ({ error: mocks.loggerError }),
 }))
-vi.mock('next/navigation', () => ({
+vi.mock('@/lib/server-request', () => ({
   redirect: mocks.redirect,
 }))
 
-import { createActivityCode } from './create-activity-code'
+import { createActivityCode } from './create-activity-code.server'
 import { readRejectedUrls, rejectedUrlsMessage } from './rejected-urls'
 import type { ActivityCodeFormState } from './@types'
 

@@ -1,80 +1,24 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './create.server'
 
-import { z } from 'zod'
+// Form-action server functions behind the admin session gate: the logic is
+// in `./create.server.ts`; see `@/lib/server-action` for the envelope.
 
-import { getServerConfig } from '@/config'
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import { type UserFormState, userCreateSchema } from './@types'
-
-export async function createUser(
-  _prevState: UserFormState,
-  formData: FormData
-): Promise<UserFormState> {
-  const adminAuth = await getCoreAdminRequestContext()
-  if (adminAuth == null) {
-    return {
-      errors: {},
-      message: 'Not logged in.',
-      status: 'failed',
-    }
-  }
-
-  const validatedFields = userCreateSchema.safeParse({
-    full_name: formData.get('full_name'),
-    email: formData.get('email'),
-    password: formData.get('password'),
-    roles: formData.get('roles'),
-    send_welcome: formData.get('send_welcome'),
+const createUserFn = createServerFn({ method: 'POST' })
+  .middleware([adminSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./create.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() => logic.createUser(...(data as Parameters<typeof Logic.createUser>)))
   })
 
-  // If form validation fails, return errors early. Otherwise, continue...
-  if (validatedFields.success === false) {
-    return {
-      errors: z.flattenError(validatedFields.error).fieldErrors,
-      message: 'Unable to create user.',
-      status: 'failed',
-    }
-  }
-
-  const { full_name, email, password, roles, send_welcome } = validatedFields.data
-
-  const core = await getCoreCommands()
-  const result = await core.admin.users.createUser(adminAuth, {
-    full_name,
-    email,
-    password,
-    roles: roles.split(','),
-    send_welcome,
-  })
-
-  if (result.ok) {
-    const config = getServerConfig()
-    const cookieJar = await cookies()
-    cookieJar.set(config.cookies.flash.name, `User Created::${full_name} created successfully.`, {
-      path: '/', // Adjust the path as needed
-      httpOnly: config.cookies.flash.httpOnly,
-      secure: config.cookies.flash.secure,
-      sameSite: config.cookies.flash.sameSite,
-      maxAge: 0,
-    })
-
-    redirect('/admin/users')
-  }
-
-  if (result.error.code === 'ERR_USER_EMAIL_CONFLICT') {
-    return {
-      errors: { email: ['Email address is in use.'] },
-      message: 'An email address for this user already exists.',
-      status: 'failed',
-    }
-  }
-
-  return {
-    errors: {},
-    message: 'Failed to create user.',
-    status: 'failed',
-  }
-}
+export const createUser = async (
+  ...args: Parameters<typeof Logic.createUser>
+): Promise<Awaited<ReturnType<typeof Logic.createUser>>> =>
+  followOutcome(await createUserFn({ data: actionEnvelope(args) }))

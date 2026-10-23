@@ -1,68 +1,26 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './delete.server'
 
-import { getServerConfig } from '@/config'
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import { type AllowlistRuleDeleteState, allowlistRuleDeleteSchema } from './@types'
+// Form-action server functions behind the admin session gate: the logic is
+// in `./delete.server.ts`; see `@/lib/server-action` for the envelope.
 
-/**
- * Deletes a rule.
- *
- * This withdraws the base URL from future admissions and does nothing else. No
- * activity is removed, no association is dropped, and nothing already
- * registered stops working.
- */
-export async function deleteAllowlistRule(
-  _prevState: AllowlistRuleDeleteState,
-  formData: FormData
-): Promise<AllowlistRuleDeleteState> {
-  const adminAuth = await getCoreAdminRequestContext()
-  if (adminAuth == null) {
-    return {
-      message: 'Not logged in.',
-      status: 'failed',
-    }
-  }
-
-  const validationResult = allowlistRuleDeleteSchema.safeParse({
-    id: formData.get('id'),
-    base_url: formData.get('base_url'),
+const deleteAllowlistRuleFn = createServerFn({ method: 'POST' })
+  .middleware([adminSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./delete.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() =>
+      logic.deleteAllowlistRule(...(data as Parameters<typeof Logic.deleteAllowlistRule>))
+    )
   })
 
-  if (validationResult.success === false) {
-    return {
-      message: 'Unable to delete allowlist rule.',
-      status: 'failed',
-    }
-  }
-
-  const { id, base_url } = validationResult.data
-
-  const core = await getCoreCommands()
-  const result = await core.admin.activityUrlAllowlist.deleteAllowlistRule(adminAuth, { id })
-
-  if (result.ok) {
-    const config = getServerConfig()
-    const cookieJar = await cookies()
-    cookieJar.set(
-      config.cookies.flash.name,
-      `Allowlist Rule Deleted::${base_url} removed from the allowlist. Existing activities are unaffected.`,
-      {
-        path: '/',
-        httpOnly: config.cookies.flash.httpOnly,
-        secure: config.cookies.flash.secure,
-        sameSite: config.cookies.flash.sameSite,
-        maxAge: 0,
-      }
-    )
-
-    redirect('/admin/activities')
-  }
-
-  return {
-    message: 'Allowlist rule delete failed.',
-    status: 'failed',
-  }
-}
+export const deleteAllowlistRule = async (
+  ...args: Parameters<typeof Logic.deleteAllowlistRule>
+): Promise<Awaited<ReturnType<typeof Logic.deleteAllowlistRule>>> =>
+  followOutcome(await deleteAllowlistRuleFn({ data: actionEnvelope(args) }))

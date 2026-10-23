@@ -1,40 +1,22 @@
-import type z from 'zod'
+import { createServerFn } from '@tanstack/react-start'
 
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import type { Locale } from '@/i18n/i18n-config'
-import type { UsersResponse, validateSearchParamsSchema } from './@types'
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
+import type * as Original from './list.server'
 
-// TODO: consider a response object with status and message
-// so that we can communicate more than 'noFound' in the UI.
-const notOkayResponse = {
-  users: [],
-  meta: {
-    total: 0,
-    page: 0,
-    page_size: 10,
-    total_pages: 0,
-    role: 'all',
-    query: '',
-    order: 'created_at',
-    desc: true,
-  },
-}
+// A native GET server function behind
+// the admin session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the read in `./list.server.ts`.
 
-export async function listUsers(
-  _locale: Locale,
-  params: z.infer<typeof validateSearchParamsSchema>
-): Promise<UsersResponse> {
-  const adminAuth = await getCoreAdminRequestContext()
-  if (adminAuth == null) {
-    return notOkayResponse
-  }
+type Args = Parameters<typeof Original.listUsers>
 
-  const core = await getCoreCommands()
-  const result = await core.admin.users.listUsers(adminAuth, params)
+const listUsersFn = createServerFn({ method: 'GET' })
+  .middleware([adminSessionMiddleware])
+  .validator(argumentList<Args>(2))
+  .handler(async ({ data }) => {
+    const { listUsers } = await import('./list.server')
+    return listUsers(...data)
+  })
 
-  if (result.ok) {
-    return result.data
-  }
-
-  return notOkayResponse
-}
+export const listUsers = (...args: Args) => listUsersFn({ data: args })

@@ -1,27 +1,22 @@
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import type { RegistrationsPerDay } from './@types'
+import { createServerFn } from '@tanstack/react-start'
 
-const notOkayResponse: RegistrationsPerDay = {
-  data: [],
-  meta: { year: 0, month: 0 },
-  included: { years: [], months: [] },
-}
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
+import type * as Original from './getRegistrationsPerDay.server'
 
-export async function getRegistrationsPerDay(
-  year: number | undefined,
-  month: number | undefined
-): Promise<RegistrationsPerDay> {
-  const auth = await getCoreAdminRequestContext()
-  if (auth == null) {
-    return notOkayResponse
-  }
+// A native GET server function behind
+// the admin session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the read in `./getRegistrationsPerDay.server.ts`.
 
-  const core = await getCoreCommands()
-  const result = await core.admin.reports.getRegistrationsPerDay(auth, { year, month })
+type Args = Parameters<typeof Original.getRegistrationsPerDay>
 
-  if (result.ok) {
-    return result.data
-  }
+const getRegistrationsPerDayFn = createServerFn({ method: 'GET' })
+  .middleware([adminSessionMiddleware])
+  .validator(argumentList<Args>(2))
+  .handler(async ({ data }) => {
+    const { getRegistrationsPerDay } = await import('./getRegistrationsPerDay.server')
+    return getRegistrationsPerDay(...data)
+  })
 
-  return notOkayResponse
-}
+export const getRegistrationsPerDay = (...args: Args) => getRegistrationsPerDayFn({ data: args })

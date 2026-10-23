@@ -1,22 +1,22 @@
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import type { TotalRegisteredUsers } from './@types'
+import { createServerFn } from '@tanstack/react-start'
 
-const notOkayResponse: TotalRegisteredUsers = {
-  total: 0,
-}
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
+import type * as Original from './getTotalRegisteredUsers.server'
 
-export async function getTotalRegisteredUsers(): Promise<TotalRegisteredUsers> {
-  const auth = await getCoreAdminRequestContext()
-  if (auth == null) {
-    return notOkayResponse
-  }
+// A native GET server function behind
+// the admin session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the read in `./getTotalRegisteredUsers.server.ts`.
 
-  const core = await getCoreCommands()
-  const result = await core.admin.reports.getTotalRegisteredUsers(auth)
+type Args = Parameters<typeof Original.getTotalRegisteredUsers>
 
-  if (result.ok) {
-    return result.data
-  }
+const getTotalRegisteredUsersFn = createServerFn({ method: 'GET' })
+  .middleware([adminSessionMiddleware])
+  .validator(argumentList<Args>(0))
+  .handler(async ({ data }) => {
+    const { getTotalRegisteredUsers } = await import('./getTotalRegisteredUsers.server')
+    return getTotalRegisteredUsers(...data)
+  })
 
-  return notOkayResponse
-}
+export const getTotalRegisteredUsers = (...args: Args) => getTotalRegisteredUsersFn({ data: args })

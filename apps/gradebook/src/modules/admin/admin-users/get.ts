@@ -1,28 +1,22 @@
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import type { Locale } from '@/i18n/i18n-config'
-import type { AdminUserResponse } from './@types'
+import { createServerFn } from '@tanstack/react-start'
 
-// TODO: consider a response object with status and message
-// so that we can communicate more than 'noFound' in the UI.
-const notOkayResponse = {
-  user: null,
-  included: {
-    roles: [],
-  },
-}
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
+import type * as Original from './get.server'
 
-export async function getAdminUser(id: string, _locale: Locale): Promise<AdminUserResponse> {
-  const adminAuth = await getCoreAdminRequestContext()
-  if (adminAuth == null) {
-    return notOkayResponse
-  }
+// A native GET server function behind
+// the admin session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the read in `./get.server.ts`.
 
-  const core = await getCoreCommands()
-  const result = await core.admin.adminUsers.getAdminUser(adminAuth, { id })
+type Args = Parameters<typeof Original.getAdminUser>
 
-  if (result.ok) {
-    return result.data
-  }
+const getAdminUserFn = createServerFn({ method: 'GET' })
+  .middleware([adminSessionMiddleware])
+  .validator(argumentList<Args>(2))
+  .handler(async ({ data }) => {
+    const { getAdminUser } = await import('./get.server')
+    return getAdminUser(...data)
+  })
 
-  return notOkayResponse
-}
+export const getAdminUser = (...args: Args) => getAdminUserFn({ data: args })

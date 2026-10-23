@@ -1,25 +1,22 @@
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import type { Locale } from '@/i18n/i18n-config'
-import type { AllowlistRulesResponse } from './@types'
+import { createServerFn } from '@tanstack/react-start'
 
-export async function listAllowlistRules(_locale: Locale): Promise<AllowlistRulesResponse> {
-  const adminAuth = await getCoreAdminRequestContext()
-  if (adminAuth == null) {
-    return { status: 'failed', message: 'Not logged in.' }
-  }
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
+import type * as Original from './list.server'
 
-  const core = await getCoreCommands()
-  const result = await core.admin.activityUrlAllowlist.listAllowlistRules(adminAuth)
+// A native GET server function behind
+// the admin session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the read in `./list.server.ts`.
 
-  if (result.ok) {
-    return { status: 'success', rules: result.data.rules }
-  }
+type Args = Parameters<typeof Original.listAllowlistRules>
 
-  return {
-    status: 'failed',
-    message:
-      result.error.code === 'ERR_FORBIDDEN'
-        ? 'You do not have permission to view the activity URL allowlist.'
-        : 'Unable to load the activity URL allowlist. Please try again.',
-  }
-}
+const listAllowlistRulesFn = createServerFn({ method: 'GET' })
+  .middleware([adminSessionMiddleware])
+  .validator(argumentList<Args>(1))
+  .handler(async ({ data }) => {
+    const { listAllowlistRules } = await import('./list.server')
+    return listAllowlistRules(...data)
+  })
+
+export const listAllowlistRules = (...args: Args) => listAllowlistRulesFn({ data: args })

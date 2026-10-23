@@ -1,31 +1,26 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { redirect } from 'next/navigation'
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { appSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './delete-activity-code.server'
 
-import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
-import { getLogger } from '@/lib/logger'
+// Form-action server functions behind the learner session gate: the logic is
+// in `./delete-activity-code.server.ts`; see `@/lib/server-action` for the envelope.
 
-export async function deleteActivityCode(activity_code_id: string): Promise<{ error?: string }> {
-  const logger = getLogger()
+const deleteActivityCodeFn = createServerFn({ method: 'POST' })
+  .middleware([appSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./delete-activity-code.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() =>
+      logic.deleteActivityCode(...(data as Parameters<typeof Logic.deleteActivityCode>))
+    )
+  })
 
-  const userAuth = await getCoreUserRequestContext()
-  if (userAuth == null) {
-    return { error: 'Not logged in.' }
-  }
-
-  const core = await getCoreCommands()
-  const result = await core.app.activities.deleteActivityCode(userAuth, activity_code_id)
-  if (!result.ok) {
-    logger.error({
-      activities: {
-        status: 'failed',
-        message: 'error in deleteActivityCode',
-        method: 'deleteActivityCode',
-        error: result.error,
-      },
-    })
-    return { error: 'There was an error deleting the activity code.' }
-  }
-
-  redirect('/dashboard')
-}
+export const deleteActivityCode = async (
+  ...args: Parameters<typeof Logic.deleteActivityCode>
+): Promise<Awaited<ReturnType<typeof Logic.deleteActivityCode>>> =>
+  followOutcome(await deleteActivityCodeFn({ data: actionEnvelope(args) }))

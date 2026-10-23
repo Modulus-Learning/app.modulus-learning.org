@@ -1,25 +1,22 @@
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import type { Locale } from '@/i18n/i18n-config'
-import type { LtiPlatformResponse } from './@types'
+import { createServerFn } from '@tanstack/react-start'
 
-// TODO: consider a response object with status and message
-// so that we can communicate more than 'noFound' in the UI.
-const notOkayResponse = {
-  platform: null,
-}
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
+import type * as Original from './get.server'
 
-export async function getLtiPlatform(id: string, _locale: Locale): Promise<LtiPlatformResponse> {
-  const adminAuth = await getCoreAdminRequestContext()
-  if (adminAuth == null) {
-    return notOkayResponse
-  }
+// A native GET server function behind
+// the admin session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the read in `./get.server.ts`.
 
-  const core = await getCoreCommands()
-  const result = await core.admin.ltiPlatforms.getLtiPlatform(adminAuth, { id })
+type Args = Parameters<typeof Original.getLtiPlatform>
 
-  if (result.ok) {
-    return result.data
-  }
+const getLtiPlatformFn = createServerFn({ method: 'GET' })
+  .middleware([adminSessionMiddleware])
+  .validator(argumentList<Args>(2))
+  .handler(async ({ data }) => {
+    const { getLtiPlatform } = await import('./get.server')
+    return getLtiPlatform(...data)
+  })
 
-  return notOkayResponse
-}
+export const getLtiPlatform = (...args: Args) => getLtiPlatformFn({ data: args })

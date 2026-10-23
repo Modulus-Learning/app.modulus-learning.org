@@ -18,8 +18,8 @@ vi.mock('@/core-adapter', () => ({
   }),
 }))
 
-import { listAllowlistRules } from './list'
-import { previewAllowlistImpact } from './preview'
+import { listAllowlistRules } from './list.server'
+import { previewAllowlistImpact } from './preview.server'
 
 const ruleId = '019c2d8e-842a-7715-a323-a7e31427db2d'
 const otherId = '019c2d8e-842a-7715-a323-a7e31427db2e'

@@ -1,25 +1,26 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './generate-canvas-config.server'
 
-export interface GenerateCanvasConfigResult {
-  ok: boolean
-  config?: string
-  message?: string
-}
+// Form-action server functions behind the admin session gate: the logic is
+// in `./generate-canvas-config.server.ts`; see `@/lib/server-action` for the envelope.
 
-export async function generateCanvasConfig(): Promise<GenerateCanvasConfigResult> {
-  const adminAuth = await getCoreAdminRequestContext()
-  if (adminAuth == null) {
-    return { ok: false, message: 'Not logged in.' }
-  }
+const generateCanvasConfigFn = createServerFn({ method: 'POST' })
+  .middleware([adminSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./generate-canvas-config.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() =>
+      logic.generateCanvasConfig(...(data as Parameters<typeof Logic.generateCanvasConfig>))
+    )
+  })
 
-  const core = await getCoreCommands()
-  const result = await core.admin.ltiPlatforms.generateCanvasConfig(adminAuth, {})
-
-  if (result.ok) {
-    return { ok: true, config: result.data.config_json }
-  }
-
-  return { ok: false, message: 'Failed to generate Canvas config.' }
-}
+export const generateCanvasConfig = async (
+  ...args: Parameters<typeof Logic.generateCanvasConfig>
+): Promise<Awaited<ReturnType<typeof Logic.generateCanvasConfig>>> =>
+  followOutcome(await generateCanvasConfigFn({ data: actionEnvelope(args) }))

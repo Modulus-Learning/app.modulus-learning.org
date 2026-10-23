@@ -1,89 +1,26 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './create.server'
 
-import { z } from 'zod'
+// Form-action server functions behind the admin session gate: the logic is
+// in `./create.server.ts`; see `@/lib/server-action` for the envelope.
 
-import { getServerConfig } from '@/config'
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import { type AllowlistRuleFormState, allowlistRuleCreateSchema } from './@types'
-
-export async function createAllowlistRule(
-  _prevState: AllowlistRuleFormState,
-  formData: FormData
-): Promise<AllowlistRuleFormState> {
-  const adminAuth = await getCoreAdminRequestContext()
-  if (adminAuth == null) {
-    return {
-      errors: {},
-      message: 'Not logged in.',
-      status: 'failed',
-    }
-  }
-
-  const validatedFields = allowlistRuleCreateSchema.safeParse({
-    base_url: formData.get('base_url'),
-    description: formData.get('description'),
-  })
-
-  if (validatedFields.success === false) {
-    return {
-      errors: z.flattenError(validatedFields.error).fieldErrors,
-      message: 'Unable to create allowlist rule.',
-      status: 'failed',
-    }
-  }
-
-  const { base_url, description } = validatedFields.data
-
-  const core = await getCoreCommands()
-  const result = await core.admin.activityUrlAllowlist.createAllowlistRule(adminAuth, {
-    base_url,
-    description,
-  })
-
-  if (result.ok) {
-    // A collision is an ordinary outcome of an ordinary submission, because
-    // normalization collapses several spellings onto one base. Nothing was
-    // written, and neither case is an error: report what already exists and
-    // let the administrator decide.
-    if (result.data.status !== 'created') {
-      return {
-        errors: {},
-        existing: result.data.rule,
-        status: result.data.status,
-      }
-    }
-
-    const config = getServerConfig()
-    const cookieJar = await cookies()
-    cookieJar.set(
-      config.cookies.flash.name,
-      `Allowlist Rule Created::${result.data.rule.base_url} can now be registered.`,
-      {
-        path: '/',
-        httpOnly: config.cookies.flash.httpOnly,
-        secure: config.cookies.flash.secure,
-        sameSite: config.cookies.flash.sameSite,
-        maxAge: 0,
-      }
+const createAllowlistRuleFn = createServerFn({ method: 'POST' })
+  .middleware([adminSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./create.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() =>
+      logic.createAllowlistRule(...(data as Parameters<typeof Logic.createAllowlistRule>))
     )
+  })
 
-    redirect('/admin/activities')
-  }
-
-  if (result.error.code === 'ERR_VALIDATION') {
-    return {
-      errors: { base_url: [result.error.message] },
-      message: 'Unable to create allowlist rule.',
-      status: 'failed',
-    }
-  }
-
-  return {
-    errors: {},
-    message: 'Failed to create allowlist rule.',
-    status: 'failed',
-  }
-}
+export const createAllowlistRule = async (
+  ...args: Parameters<typeof Logic.createAllowlistRule>
+): Promise<Awaited<ReturnType<typeof Logic.createAllowlistRule>>> =>
+  followOutcome(await createAllowlistRuleFn({ data: actionEnvelope(args) }))

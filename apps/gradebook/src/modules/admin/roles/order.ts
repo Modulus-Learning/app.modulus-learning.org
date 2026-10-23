@@ -1,46 +1,24 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import { type RoleOrderState, roleOrderSchema } from './@types'
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './order.server'
 
-export async function orderRoles(
-  _prevState: RoleOrderState,
-  formData: FormData
-): Promise<RoleOrderState> {
-  const adminAuth = await getCoreAdminRequestContext()
-  if (adminAuth == null) {
-    return {
-      message: 'Not logged in.',
-      status: 'failed',
-    }
-  }
+// Form-action server functions behind the admin session gate: the logic is
+// in `./order.server.ts`; see `@/lib/server-action` for the envelope.
 
-  const validatedFields = roleOrderSchema.safeParse({
-    ids: formData.get('ids'),
+const orderRolesFn = createServerFn({ method: 'POST' })
+  .middleware([adminSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./order.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() => logic.orderRoles(...(data as Parameters<typeof Logic.orderRoles>)))
   })
 
-  // If form validation fails, return errors early. Otherwise, continue...
-  if (validatedFields.success === false) {
-    return {
-      message: 'Unable to update roles order.',
-      status: 'failed',
-    }
-  }
-
-  const { ids } = validatedFields.data
-
-  const core = await getCoreCommands()
-  const result = await core.admin.roles.updateRolesOrder(adminAuth, { ids })
-
-  if (result.ok) {
-    return {
-      message: 'Roles order has been updated.',
-      status: 'success',
-    }
-  }
-
-  return {
-    message: 'Error updating roles order.',
-    status: 'failed',
-  }
-}
+export const orderRoles = async (
+  ...args: Parameters<typeof Logic.orderRoles>
+): Promise<Awaited<ReturnType<typeof Logic.orderRoles>>> =>
+  followOutcome(await orderRolesFn({ data: actionEnvelope(args) }))

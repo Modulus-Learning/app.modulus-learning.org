@@ -1,26 +1,22 @@
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import type { NewVsReturningUsers } from './@types'
+import { createServerFn } from '@tanstack/react-start'
 
-const notOkayResponse: NewVsReturningUsers = {
-  data: [],
-  meta: { year: 0 },
-  included: { years: [] },
-}
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
+import type * as Original from './getNewVsReturningUser.server'
 
-export async function getNewVsReturningUsers(
-  year: number | undefined
-): Promise<NewVsReturningUsers> {
-  const auth = await getCoreAdminRequestContext()
-  if (auth == null) {
-    return notOkayResponse
-  }
+// A native GET server function behind
+// the admin session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the read in `./getNewVsReturningUser.server.ts`.
 
-  const core = await getCoreCommands()
-  const result = await core.admin.reports.getNewVsReturningUsers(auth, { year })
+type Args = Parameters<typeof Original.getNewVsReturningUsers>
 
-  if (result.ok) {
-    return result.data
-  }
+const getNewVsReturningUsersFn = createServerFn({ method: 'GET' })
+  .middleware([adminSessionMiddleware])
+  .validator(argumentList<Args>(1))
+  .handler(async ({ data }) => {
+    const { getNewVsReturningUsers } = await import('./getNewVsReturningUser.server')
+    return getNewVsReturningUsers(...data)
+  })
 
-  return notOkayResponse
-}
+export const getNewVsReturningUsers = (...args: Args) => getNewVsReturningUsersFn({ data: args })

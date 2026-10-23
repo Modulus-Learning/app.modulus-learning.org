@@ -1,33 +1,22 @@
-import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
-import { getLogger } from '@/lib/logger'
-import type { Activity, ActivityCode } from './@types'
+import { createServerFn } from '@tanstack/react-start'
 
-export async function getActivities(
-  id: string
-): Promise<{ activity_code: ActivityCode | null; activities: Activity[] }> {
-  const logger = getLogger()
+import { appSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
+import type * as Original from './get-activities.server'
 
-  const userAuth = await getCoreUserRequestContext()
-  if (userAuth == null) {
-    throw new Error('Unauthenticated')
-  }
+// A native GET server function behind
+// the app session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the read in `./get-activities.server.ts`.
 
-  const core = await getCoreCommands()
-  const result = await core.app.activities.getActivitiesByActivityCodeId(userAuth, id)
+type Args = Parameters<typeof Original.getActivities>
 
-  if (!result.ok) {
-    logger.error({
-      activities: {
-        status: 'failed',
-        message: 'error in getActivities',
-        method: 'getActivities',
-        error: result.error,
-      },
-    })
+const getActivitiesFn = createServerFn({ method: 'GET' })
+  .middleware([appSessionMiddleware])
+  .validator(argumentList<Args>(1))
+  .handler(async ({ data }) => {
+    const { getActivities } = await import('./get-activities.server')
+    return getActivities(...data)
+  })
 
-    // TODO: Return a failure code / status to the client?
-    return { activity_code: null, activities: [] }
-  }
-
-  return result.data
-}
+export const getActivities = (...args: Args) => getActivitiesFn({ data: args })

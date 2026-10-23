@@ -1,59 +1,22 @@
-import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
-import type { ProgressResponse } from './@types'
+import { createServerFn } from '@tanstack/react-start'
 
-// TODO: consider a response object with status and message
-// so that we can communicate more than 'noFound' in the UI.
-const notOkayResponse = {
-  progress: [],
-  included: {
-    activity_code: null,
-  },
-  meta: {
-    total: 0,
-    page: 0,
-    page_size: 10,
-    total_pages: 0,
-    query: '',
-    order: 'created_at',
-    desc: true,
-  },
-}
+import { appSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
+import type * as Original from './get-progress.server'
 
-export async function getProgress(
-  id: string,
-  searchParams: {
-    page?: string
-    page_size?: string
-    query?: string
-    order?: string
-    desc?: string
-  } = {}
-): Promise<ProgressResponse> {
-  const userAuth = await getCoreUserRequestContext()
-  if (userAuth == null) {
-    // TODO: How to handle?
-    throw new Error('Unauthenticated')
-  }
+// A native GET server function behind
+// the app session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the read in `./get-progress.server.ts`.
 
-  const core = await getCoreCommands()
-  const options = core.app.activities.getActivityProgress.schemas.input.safeParse({
-    id,
-    options: {
-      page: searchParams.page,
-      page_size: searchParams.page_size,
-      query: searchParams.query,
-      order: searchParams.order,
-      desc: searchParams.desc,
-    },
+type Args = Parameters<typeof Original.getProgress>
+
+const getProgressFn = createServerFn({ method: 'GET' })
+  .middleware([appSessionMiddleware])
+  .validator(argumentList<Args>(2))
+  .handler(async ({ data }) => {
+    const { getProgress } = await import('./get-progress.server')
+    return getProgress(...data)
   })
-  if (!options.success) {
-    throw new Error('OOPS')
-  }
 
-  const result = await core.app.activities.getActivityProgress(userAuth, options.data)
-  if (result.ok) {
-    return result.data
-  }
-
-  return notOkayResponse
-}
+export const getProgress = (...args: Args) => getProgressFn({ data: args })

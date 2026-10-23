@@ -1,33 +1,22 @@
-import { getLogger } from 'nodemailer/lib/shared'
+import { createServerFn } from '@tanstack/react-start'
 
-import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
-import type { ActivityCode } from './@types'
+import { appSessionMiddleware } from '@/lib/server-fn'
+import { argumentList } from '@/lib/server-fn-guards'
+import type * as Original from './get-activity-codes.server'
 
-// TODO: implement standard API response object, including paged list
-// responses etc.
-export async function getActivityCodes(): Promise<{ activity_codes: ActivityCode[] }> {
-  const logger = getLogger()
+// A native GET server function behind
+// the app session gate. A route loader calls it in-process during SSR; a client
+// navigation calls it remotely and must name the page's principal (see
+// `@/lib/server-fn`). The handler runs the read in `./get-activity-codes.server.ts`.
 
-  const userAuth = await getCoreUserRequestContext()
-  if (userAuth == null) {
-    throw new Error('Unauthenticated')
-  }
+type Args = Parameters<typeof Original.getActivityCodes>
 
-  const core = await getCoreCommands()
-  const result = await core.app.activities.listActivityCodes(userAuth)
-  if (!result.ok) {
-    logger.error({
-      activities: {
-        status: 'failed',
-        message: 'error in getActivityCodes',
-        method: 'getActivityCodes',
-        error: result.error,
-      },
-    })
+const getActivityCodesFn = createServerFn({ method: 'GET' })
+  .middleware([appSessionMiddleware])
+  .validator(argumentList<Args>(0))
+  .handler(async ({ data }) => {
+    const { getActivityCodes } = await import('./get-activity-codes.server')
+    return getActivityCodes(...data)
+  })
 
-    // TODO: Return a failure code / status to the client?
-    return { activity_codes: [] }
-  }
-
-  return { activity_codes: result.data }
-}
+export const getActivityCodes = (...args: Args) => getActivityCodesFn({ data: args })

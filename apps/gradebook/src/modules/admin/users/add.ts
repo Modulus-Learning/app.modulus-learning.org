@@ -1,27 +1,24 @@
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import type { Locale } from '@/i18n/i18n-config'
-import type { UserAddResponse } from './@types'
+import { createServerFn } from '@tanstack/react-start'
 
-// TODO: consider a response object with status and message
-// so that we can communicate more than 'noFound' in the UI.
-const notOkResponse = {
-  included: {
-    roles: [],
-  },
-}
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './add.server'
 
-export async function addUser(_locale: Locale): Promise<UserAddResponse> {
-  const adminAuth = await getCoreAdminRequestContext()
-  if (adminAuth == null) {
-    return notOkResponse
-  }
+// Form-action server functions behind the admin session gate: the logic is
+// in `./add.server.ts`; see `@/lib/server-action` for the envelope.
 
-  const core = await getCoreCommands()
-  const result = await core.admin.users.addUser(adminAuth)
+const addUserFn = createServerFn({ method: 'POST' })
+  .middleware([adminSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./add.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() => logic.addUser(...(data as Parameters<typeof Logic.addUser>)))
+  })
 
-  if (result.ok) {
-    return result.data
-  }
-
-  return notOkResponse
-}
+export const addUser = async (
+  ...args: Parameters<typeof Logic.addUser>
+): Promise<Awaited<ReturnType<typeof Logic.addUser>>> =>
+  followOutcome(await addUserFn({ data: actionEnvelope(args) }))

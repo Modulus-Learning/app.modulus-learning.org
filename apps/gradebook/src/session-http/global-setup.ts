@@ -89,6 +89,8 @@ const seed = async (databaseUrl: string, platformBase: string) => {
       PLATFORM.issuer,
     ])
     await db.query('DELETE FROM lti_platforms WHERE issuer = $1', [PLATFORM.issuer])
+    // The role the native-mutation test creates.
+    await db.query(`DELETE FROM roles WHERE machine_name = 'session_suite_role'`)
     await db.query('DELETE FROM users WHERE id = $1 OR email = $2', [LEARNER.id, LEARNER.email])
     await db.query('DELETE FROM admin_users WHERE id = $1 OR email = $2', [ADMIN.id, ADMIN.email])
     await db.query(

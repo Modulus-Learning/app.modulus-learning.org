@@ -1,39 +1,26 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
-import type { ActivityCodeRequestFormState } from './@types'
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { appSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './request-activity-code.server'
+
+// Form-action server functions behind the learner session gate: the logic is
+// in `./request-activity-code.server.ts`; see `@/lib/server-action` for the envelope.
+
+const requestActivityCodeFn = createServerFn({ method: 'POST' })
+  .middleware([appSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./request-activity-code.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() =>
+      logic.requestActivityCode(...(data as Parameters<typeof Logic.requestActivityCode>))
+    )
+  })
 
 export const requestActivityCode = async (
-  _prevState: ActivityCodeRequestFormState,
-  _formData: FormData
-): Promise<ActivityCodeRequestFormState> => {
-  // TODO: Logging.
-
-  const userAuth = await getCoreUserRequestContext()
-  if (userAuth == null) {
-    // TODO: Better way to handle this?  Throw an error?
-    return {
-      errors: {},
-      message: 'Not logged in.',
-      status: 'failed',
-    }
-  }
-
-  const core = await getCoreCommands()
-  const result = await core.app.activities.generateUniqueActivityCode(userAuth)
-
-  if (!result.ok) {
-    return {
-      errors: {},
-      message: 'There was an error submitting your activity code.',
-      status: 'failed',
-    }
-  }
-
-  return {
-    errors: {},
-    message: 'Activity code successfully requested.',
-    status: 'success',
-    code: result.data,
-  }
-}
+  ...args: Parameters<typeof Logic.requestActivityCode>
+): Promise<Awaited<ReturnType<typeof Logic.requestActivityCode>>> =>
+  followOutcome(await requestActivityCodeFn({ data: actionEnvelope(args) }))

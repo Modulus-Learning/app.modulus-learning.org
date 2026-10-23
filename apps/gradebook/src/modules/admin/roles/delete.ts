@@ -1,57 +1,24 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { adminSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './delete.server'
 
-import { getServerConfig } from '@/config'
-import { getCoreAdminRequestContext, getCoreCommands } from '@/core-adapter'
-import { type RoleDeleteState, roleDeleteSchema } from './@types'
+// Form-action server functions behind the admin session gate: the logic is
+// in `./delete.server.ts`; see `@/lib/server-action` for the envelope.
 
-export async function deleteRole(
-  _prevState: RoleDeleteState,
-  formData: FormData
-): Promise<RoleDeleteState> {
-  const adminAuth = await getCoreAdminRequestContext()
-  if (adminAuth == null) {
-    return {
-      message: 'Not logged in.',
-      status: 'failed',
-    }
-  }
-
-  const validationResult = roleDeleteSchema.safeParse({
-    roleId: formData.get('roleId'),
-    name: formData.get('name'),
+const deleteRoleFn = createServerFn({ method: 'POST' })
+  .middleware([adminSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./delete.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() => logic.deleteRole(...(data as Parameters<typeof Logic.deleteRole>)))
   })
 
-  if (validationResult.success === false) {
-    return {
-      message: 'Unable to delete admin role.',
-      status: 'failed',
-    }
-  }
-
-  const { roleId, name } = validationResult.data
-
-  const core = await getCoreCommands()
-  const result = await core.admin.roles.deleteRole(adminAuth, { id: roleId })
-
-  if (result.ok) {
-    const config = getServerConfig()
-    const cookieJar = await cookies()
-    cookieJar.set(config.cookies.flash.name, `Role Deleted::${name} role deleted successfully.`, {
-      path: '/', // Adjust the path as needed
-      httpOnly: config.cookies.flash.httpOnly,
-      secure: config.cookies.flash.secure,
-      sameSite: config.cookies.flash.sameSite,
-      maxAge: 0,
-    })
-
-    redirect('/admin/roles')
-  }
-
-  return {
-    message: 'Role delete failed',
-    status: 'failed',
-  }
-}
+export const deleteRole = async (
+  ...args: Parameters<typeof Logic.deleteRole>
+): Promise<Awaited<ReturnType<typeof Logic.deleteRole>>> =>
+  followOutcome(await deleteRoleFn({ data: actionEnvelope(args) }))

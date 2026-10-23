@@ -1,106 +1,26 @@
-'use server'
+import { createServerFn } from '@tanstack/react-start'
 
-import { z } from 'zod'
+import { actionEnvelope, followOutcome, readActionArgs } from '@/lib/server-action'
+import { appSessionMiddleware } from '@/lib/server-fn'
+import type * as Logic from './change-password.server'
 
-import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
-import { type ChangePasswordFormState, changePasswordSchema } from './@types'
+// Form-action server functions behind the learner session gate: the logic is
+// in `./change-password.server.ts`; see `@/lib/server-action` for the envelope.
 
-export async function changePassword(
-  _prevState: ChangePasswordFormState,
-  formData: FormData
-): Promise<ChangePasswordFormState> {
-  // TODO: Logging.
-
-  const userAuth = await getCoreUserRequestContext()
-  if (userAuth == null) {
-    return {
-      errors: {},
-      message: 'Not logged in.',
-      status: 'failed',
-    }
-  }
-
-  const validatedFields = changePasswordSchema.safeParse({
-    id: formData.get('id'),
-    vid: formData.get('vid'),
-    lng: formData.get('lng'),
-    current_password: formData.get('current_password'),
-    new_password: formData.get('new_password'),
-    confirm_password: formData.get('confirm_password'),
+const changePasswordFn = createServerFn({ method: 'POST' })
+  .middleware([appSessionMiddleware])
+  .validator((data: FormData) => readActionArgs(data))
+  .handler(async ({ data }) => {
+    const [logic, { runAction }] = await Promise.all([
+      import('./change-password.server'),
+      import('@/lib/server-action.server'),
+    ])
+    return runAction(() =>
+      logic.changePassword(...(data as Parameters<typeof Logic.changePassword>))
+    )
   })
 
-  // If form validation fails, return errors early. Otherwise, continue...
-  if (validatedFields.success === false) {
-    return {
-      errors: z.flattenError(validatedFields.error).fieldErrors,
-      message: 'Unable to update account.',
-      status: 'failed',
-    }
-  }
-
-  // TODO: lng
-  const { id, vid, lng, current_password, new_password } = validatedFields.data
-
-  const core = await getCoreCommands()
-  const result = await core.app.account.changePassword(userAuth, {
-    id,
-    vid,
-    old_password: current_password,
-    new_password,
-  })
-
-  if (result.ok) {
-    return {
-      errors: {},
-      message: 'Account updated.',
-      status: 'success',
-      response: result.data,
-    }
-  }
-
-  if (result.error.code === 'ERR_VERSION_CONFLICT') {
-    return {
-      errors: {},
-      message: 'This account is no longer up to date. Please reload the account.',
-      status: 'failed',
-    }
-  }
-
-  if (result.error.code === 'ERR_NOT_FOUND') {
-    return {
-      errors: {},
-      message: 'This account can no longer be found.',
-      status: 'failed',
-    }
-  }
-
-  if (result.error.code === 'ERR_CURRENT_PASSWORD') {
-    return {
-      errors: {},
-      message: 'This account does not currently have a password set.',
-      status: 'failed',
-    }
-  }
-
-  if (result.error.code === 'ERR_UNAUTHORIZED') {
-    return {
-      errors: {},
-      message: 'Invalid credentials.',
-      status: 'failed',
-    }
-  }
-
-  if (result.error.code === 'ERR_FORBIDDEN') {
-    return {
-      errors: {},
-      message: "You don't have permission to edit this account",
-      status: 'failed',
-    }
-  }
-
-  return {
-    errors: {},
-    message: 'Failed to update account.',
-    status: 'failed',
-  }
-}
+export const changePassword = async (
+  ...args: Parameters<typeof Logic.changePassword>
+): Promise<Awaited<ReturnType<typeof Logic.changePassword>>> =>
+  followOutcome(await changePasswordFn({ data: actionEnvelope(args) }))
