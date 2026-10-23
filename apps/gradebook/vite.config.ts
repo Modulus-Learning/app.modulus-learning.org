@@ -36,7 +36,13 @@ export default defineConfig({
   css: { postcss: { plugins: [] } },
   // `public/assets/` already exists, so hashed build assets go to `/_build/`.
   build: { assetsDir: '_build' },
-  ssr: { external: nativeExternals },
+  ssr: {
+    external: nativeExternals,
+    // `@infonomic/uikit` imports its own CSS modules. In dev, Vite leaves
+    // dependencies external to SSR and Node cannot import a `.css` file, so the
+    // package must go through Vite's pipeline (the production bundle already does).
+    noExternal: ['@infonomic/uikit'],
+  },
   optimizeDeps: { exclude: nativeExternals },
   plugins: [
     nitro({
