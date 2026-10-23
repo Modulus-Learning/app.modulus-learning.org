@@ -112,12 +112,21 @@ export const coordinateAuthAction = <T>(
     .then(async () => {
       const locks = webLocks()
       if (locks == null) return work()
+      let started = false
       try {
-        return (await locks.request(`modulus.auth.${domain}`, work)) as T
+        return (await locks.request(`modulus.auth.${domain}`, () => {
+          started = true
+          return work()
+        })) as T
       } catch (error) {
-        // A lock manager that refuses (e.g. denied storage) must not block the
-        // action; the in-tab queue still serialises this tab.
-        if (error instanceof DOMException && error.name !== 'AbortError') return work()
+        // A lock manager that refuses before granting the lock (e.g. denied
+        // storage) must not block the action; the in-tab queue still
+        // serialises this tab. Once `work` has started, its outcome is final:
+        // a failed sign-in or renewal has an unknown server-side effect and is
+        // never run a second time.
+        if (!started && error instanceof DOMException && error.name !== 'AbortError') {
+          return work()
+        }
         throw error
       }
     })

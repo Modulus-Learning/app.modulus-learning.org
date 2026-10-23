@@ -78,7 +78,20 @@ describe('coordinateAuthAction', () => {
       throw new DOMException('denied', 'SecurityError')
     })
     vi.stubGlobal('navigator', { locks: { request } })
-    expect(await coordinateAuthAction('user', async () => 'ran')).toBe('ran')
+    const work = vi.fn(async () => 'ran')
+    expect(await coordinateAuthAction('user', work)).toBe('ran')
+    expect(work).toHaveBeenCalledOnce()
+  })
+
+  test('never re-runs work that failed after the lock was granted', async () => {
+    // Review R2: a timeout inside the callback has an unknown server outcome.
+    const request = vi.fn(async (_name: string, fn: () => Promise<unknown>) => fn())
+    vi.stubGlobal('navigator', { locks: { request } })
+    const work = vi.fn(async () => {
+      throw new DOMException('synthetic callback failure', 'TimeoutError')
+    })
+    await expect(coordinateAuthAction('user', work)).rejects.toMatchObject({ name: 'TimeoutError' })
+    expect(work).toHaveBeenCalledOnce()
   })
 
   test('falls back when reading navigator.locks itself throws', async () => {
