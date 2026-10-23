@@ -1142,7 +1142,7 @@ Resolved 2026-10-23:
 5. **Public env names** — `NEXT_PUBLIC_*` → `VITE_*`, no fallback window; the
    public server URL is delivered at runtime.
 
-## Implementation Notes (Tasks 3–19 and review revision, 2026-10-23)
+## Implementation Notes (Tasks 3–20 and review revision, 2026-10-23)
 
 Recorded while the checkpoint 1 review was pending; the work sits on
 `wip/tanstack-next`, stacked on `feat/tanstack` and rebased if review asks for
@@ -1314,6 +1314,49 @@ changes.
     score carries a newer AGS `timestamp` and the same `scoreGiven`, so a
     platform that processed the aborted send accepts it as an update, not a
     duplicate.
+- **R8 (session-changed interstitial):** `SessionIdentity` renders a blocking
+  dialog when the coordination state is flagged — by a cross-tab sign-in/out
+  notice or a server `changed` answer — making the rest of the page `inert` and
+  offering a reload (a plain GET; nothing is resubmitted). Tests cover both
+  domains, both triggers, and that the server-boundary path sends exactly once.
+- **Task 18 (Next removed), in three commits:**
+  - *Native mutations:* the 36 bridged action modules became literal POST server
+    functions behind their session gate. The logic moved to `x.server.ts`
+    (`'use server'` dropped; `next/headers` / `next/navigation` replaced by the
+    app-owned `@/lib/server-request`), and `x.ts` holds the server function plus
+    a signature-preserving wrapper. `@/lib/server-action` carries the FormData
+    envelope (a 400 for anything malformed) and follows a returned redirect;
+    `server-action.server.ts` turns a thrown `redirect()` into that outcome. The
+    reads moved to the same `x.server.ts` split. The bridge, `ACTION_REGISTRY`
+    and the shims are gone. `redirect` / `notFound` are function declarations so
+    TypeScript narrows after them, as it did after Next's.
+  - *Overrides into place:* the five remaining `x.start.ts` files replaced their
+    Next twins; `framework/start.tsx` became `framework/index.tsx` (no alias),
+    and the `hostOverrides` and `nextShims` Vite plugins went with their
+    convention and parity tests.
+  - *Next deleted:* `app/`, `middleware/`, `proxy.ts`, `instrumentation.ts`, the
+    Next config, the Next-only modules reachable from no Start root (decided
+    with an import-graph walk from the Start roots, by Next markers or
+    Next-only importers — not by name), and `next`, `@next/env`, `react-cookie`,
+    `@tailwindcss/postcss`, `autoprefixer`, `cssnano`. Scripts: `dev`, `devlti`,
+    `build`, `start` (loads `.env` then `.env.local`), `typecheck` is
+    `tsc --noEmit`. Biome `noRestrictedImports` rejects `next`, `next/*` and
+    `react-cookie`. The CSRF middleware now compares a fallback `Origin` with the
+    configured public origin. The contract suite defaults to `start`.
+  - *Left in place:* about 35 files that neither host reached before or after
+    (unused hooks, the reCAPTCHA client helpers, `mailer.ts`, the dnd demo, a few
+    UI components, an unused `delete-activity-code` action) are pre-existing dead
+    code, not Next code, and are listed for a separate cleanup.
+- **Task 20 (docs):** `docs/DEPLOYMENT.md` (the two gates, boot, jobs, graceful
+  shutdown and the deadline chain, instance naming), `docs/AUTHN-AUTHZ.md` (host
+  sessions: verification, explicit renewal, the boundary, the expected principal,
+  the interstitial; host wiring), `docs/TESTING.md` (the session and contract
+  suites), plus `ARCHITECTURE`, `SECURITY-AND-PRIVACY`, `CUMMULATIVE-PROGRESS`,
+  `DYNAMIC-ACTIVITIES`, `DOCUMENTATION-PLAN`, `README.md` and `CLAUDE.md`.
+  `docs/ACCESSIBILITY-AUDIT.md` is a dated audit of the Next host and is left as
+  written; its route-announcer findings need re-checking on Start. `pnpm run ci`
+  now ends with `pnpm test:session`.
+
 ## Spike Findings
 
 Recorded 2026-10-23. Spike branch `spike/tanstack` (`4c50a7b`), off
