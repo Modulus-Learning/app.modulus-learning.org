@@ -202,6 +202,29 @@ Gating happens in two places, each covering what the other cannot see:
 Both gates read the mode from the validated configuration, so an instance
 cannot serve a surface its configuration does not describe.
 
+## Content Security Policy
+
+`VITE_CSP_ENABLED` turns on a per-request Content Security Policy
+(`apps/gradebook/src/lib/csp-policy.ts`): a strict, nonce-based policy for the
+sign-in, sign-up, start-activity, account, dashboard and admin pages, and a
+relaxed one elsewhere. Both include `frame-ancestors 'none'`. The pages an LMS
+frames — `/lti/*`, `/agent/*` and the learner renewal page `/auth/renew` — carry
+no policy, as the former Next.js host excluded `/lti` and `/agent` from its CSP
+layer. Both Fly tomls set `VITE_CSP_ENABLED=false`.
+
+:::warning[CSP on blocks a dashboard launched inside an LMS frame]
+With CSP enabled, an LTI launch whose destination is a learner page outside
+those paths — `/dashboard`, for a `view-dashboard` launch — is refused by the
+browser inside the LMS iframe, because that page sends
+`frame-ancestors 'none'`. The server answers 200 and the browser shows its own
+"refused to connect" page. This behaviour predates the TanStack Start migration.
+With CSP disabled, the dashboard displays inside the frame. A start-activity
+launch is unaffected: it leaves the frame for the activity URL, or for the
+interstitial under `/lti/*`. Which origins may frame learner pages is an open
+policy decision; see
+[Security & Privacy → Open Questions](./SECURITY-AND-PRIVACY.md#open-questions--needs-institutional-policy).
+:::
+
 ## Background Jobs
 
 Background work runs in-process. `initCore` returns a `startBackgroundJobs()`

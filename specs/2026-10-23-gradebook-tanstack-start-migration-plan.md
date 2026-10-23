@@ -1370,11 +1370,20 @@ changes.
 
 - **Task 21 (end-to-end verification), automated parts:**
   - *CI:* `pnpm run ci` green, including the session suite.
-  - *Agent flow* (the protocol the agent demo drives): new session-suite cases
-    run authorize → token (PKCE S256) → `set-progress` / `get-progress` against
-    the built app. A wrong verifier is refused and spends the code. The demo UI
-    itself was not clicked through (it needs a browser session against a content
-    page).
+  - *Agent flow:* new session-suite cases run authorize → token (PKCE S256) →
+    `set-progress` / `get-progress` against the built app; a wrong verifier is
+    refused and spends the code.
+  - *Agent demo* (`apps/agent-demo/vanilla`, the real agent client code, on its
+    Vite dev server) in headless Chrome against the built app (fixture env,
+    `SERVER_BASE_URL` and `API_BASE_URL` pointed at the app). **Interception
+    boundary:** only the agent's central-registry lookup
+    (`https://modulus-learning.org/api/registry`, hard-coded in
+    `apps/agent/src/core/auth.ts`) is answered by the harness
+    (`Fetch.fulfillRequest`, a synthetic registry listing the local server, with
+    `access-control-allow-origin: *`). A signed synthetic learner cookie stands in
+    for a sign-in. Result: authorize 307 → token 200 → preflighted
+    `/routes/agent/activity` calls 200; the page shows the authenticated learner;
+    answering a question stores `progress = 1/3`; no browser or CORS errors.
   - *Admin explicit renewal:* new session-suite cases cover admin password
     sign-in (`SameSite=Lax` pair), renewal from the refresh cookie (new pair, no
     self-fetch — the former `/routes/admin/refresh` no longer exists), a wrong
@@ -1387,17 +1396,41 @@ changes.
     admin instance and return 404 on the frontend instance; both exit 0 on
     `docker stop`.
   - *Cross-site iframe launch in headless Chrome* (replacing the spike harness,
-    whose probe routes never existed in the app): a parent page on 127.0.0.1
-    auto-submits an OIDC login into an iframe of the app on localhost, and a mock
-    platform posts the signed launch back, with CSP on. With third-party cookies
-    allowed, login → launch → `/dashboard` renders authenticated (200). With
-    them blocked, Chrome drops the launch-scoped LTI **state** cookie, so the
-    launch fails at state verification and lands on the bounded `/lti/error`
-    page — before the session cookies matter. Issue #10's `Partitioned` option
-    must therefore cover the state cookie as well as the learner pair.
+    whose probe routes never existed in the app). A parent page on 127.0.0.1
+    auto-submits an OIDC login into an iframe of the app on localhost; a mock
+    platform posts a signed `view-dashboard` launch back. Chrome is driven over
+    the DevTools protocol with site isolation off
+    (`--disable-site-isolation-trials`,
+    `--disable-features=IsolateOrigins,site-per-process`; third-party cookies
+    blocked with `--test-third-party-cookie-phaseout`), so the harness reads what
+    the frame displayed as well as the server log:
+
+    | CSP | 3p cookies | Network | Displayed in the frame |
+    |---|---|---|---|
+    | on | allowed | login 303 → launch 303 → `/dashboard` 200 | **blocked** — Chrome error page; console: framing violates `frame-ancestors 'none'` |
+    | on | blocked | login 303 → launch 303 → `/lti/error` 200 | "Launch Incomplete" (`session_expired`) |
+    | off | allowed | login 303 → launch 303 → `/dashboard` 200 | **the authenticated dashboard** ("Activity Codes") |
+    | off | blocked | login 303 → launch 303 → `/lti/error` 200 | "Launch Incomplete" (`session_expired`) |
+
+    An earlier summary claimed the dashboard rendered in the frame on the
+    strength of the 200 alone; with CSP on it does not. The CSP-on blocking
+    predates the migration (Next applied the same strict policy to `/dashboard`)
+    and, by reviewer direction, framing policy is unchanged in this migration:
+    the limitation is documented in `docs/DEPLOYMENT.md` and listed as an open
+    question in `docs/SECURITY-AND-PRIVACY.md`. With third-party cookies blocked,
+    Chrome drops the LTI **state** cookie, so issue #10's `Partitioned` option
+    must cover it as well as the learner pair — a separate decision from the
+    framing policy.
   - *Accessibility spot check:* Next's built-in route announcer has no TanStack
     equivalent, so client navigation was not announced (audit finding 9).
-    `RouteAnnouncer` in the root document restores it, with jsdom router tests.
+    `RouteAnnouncer` in the root document restores it. R9 (review of `2005b92`):
+    it first keyed off the location's pathname, which changes before a slow
+    destination loader completes, so it announced the previous page. It now
+    keys off the router's resolved location, which changes only once the
+    destination has rendered; a slow-loader regression (title set only on
+    render) fails on the previous version. In Chrome against the built app the
+    initial load is silent and client navigations announce "Modulus - About" and
+    "Modulus - Docs".
     The rendered HTML confirms that findings 2, 4, 6 and 27 carry over and that
     30 is now resolved; 7 and 8 need a screen reader. The audit document carries
     a note to that effect.

@@ -198,6 +198,18 @@ candidate area to extend.
 These require decisions or hardening before a security sign-off, and several are
 flagged directly in the code:
 
+- **Framing policy for learner pages under CSP.** With `VITE_CSP_ENABLED=true`,
+  learner pages other than the LTI, agent and renewal pages send
+  `frame-ancestors 'none'`, so a dashboard launched from an LMS cannot display
+  inside the LMS iframe ([DEPLOYMENT → Content Security Policy](./DEPLOYMENT.md#content-security-policy)).
+  Allowing it means choosing which origins may frame those pages — for example,
+  the registered platforms' origins. CSP is off in the current deployments.
+- **Learner and LTI state cookies under third-party-cookie blocking.** A separate
+  decision from the framing policy above, tracked as GitHub issue #10: whether to
+  add `Partitioned` (CHIPS) to the learner session cookies and the LTI state
+  cookie, without which a launch inside the LMS iframe fails once the browser
+  blocks third-party cookies.
+
 - **Data-retention windows.** How long `progress`, `page_state`, `user_logins`,
   and pending `registrations` / `email_change_requests` are kept is **not yet
   defined**. The schema is built to support age-based pruning; the policy is
