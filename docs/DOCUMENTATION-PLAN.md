@@ -137,6 +137,13 @@ The planned HTTP proxy layer — a thin wrapper over the core service layer with
 proxy implementations of the class contracts, swappable with the in-process
 implementations through the same dependency-injection registry.
 
+### LMS Package Extraction — Planned
+The specification is ready for contract review in
+`specs/2026-10-25-canvas-lti-package-extraction-spec.md`. It proposes separate
+Canvas and shared LTI packages, behavioural conformance suites, one selected LMS
+per installation, and foundations for a later migration between LMSs.
+Implementation and a published integration-package reference remain planned.
+
 ### [Security & Privacy](./SECURITY-AND-PRIVACY.md) — Available
 The security and privacy posture: the principle of storing as little as
 possible, the LTI identity abstraction, what data is and is not retained,
