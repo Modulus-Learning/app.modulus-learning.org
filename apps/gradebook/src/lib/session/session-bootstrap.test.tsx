@@ -6,6 +6,10 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { SessionBootstrap } from './session-bootstrap'
 import type { RenewalOutcome } from './renewal'
 
+vi.mock('@infonomic/uikit/react', () => ({
+  LoaderRing: () => createElement('span', { 'data-loader': true }),
+}))
+
 // React needs this flag to run act() outside a test renderer.
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
@@ -33,6 +37,13 @@ const render = async (renew: () => Promise<RenewalOutcome>, navigate = vi.fn()) 
   })
   return { navigate, text: () => container?.textContent ?? '' }
 }
+
+test('shows a spinner while renewing, with the status text for screen readers only', async () => {
+  await render(() => new Promise<RenewalOutcome>(() => {}))
+  const status = container?.querySelector('[role="status"]')
+  expect(status?.querySelector('[data-loader]')).not.toBeNull()
+  expect(status?.querySelector('.sr-only')?.textContent).toBe('Restoring your session…')
+})
 
 describe('SessionBootstrap', () => {
   test('renewed → navigates back to the return path with the loop-guard marker', async () => {

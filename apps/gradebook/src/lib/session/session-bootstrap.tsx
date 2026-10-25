@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { LoaderRing } from '@infonomic/uikit/react'
+
 import { type BootstrapStep, bootstrapStep } from './bootstrap'
 import { renewInBrowser } from './browser-renewal'
 import { SessionRetryView } from './session-retry'
@@ -66,9 +68,17 @@ export function SessionBootstrap({
     return <SessionRetryView onRetry={() => void attempt()} />
   }
 
+  // A spinner, as on Byline's own sign-in page while it checks or renews a
+  // session (`SessionCheckIndicator`); the text stays for screen readers.
   return (
-    <main className="p-8" aria-busy="true">
-      <p>Restoring your session…</p>
+    <main
+      className="flex min-h-screen items-center justify-center p-8 opacity-60"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <LoaderRing size={32} aria-hidden="true" />
+      <span className="sr-only">Restoring your session…</span>
     </main>
   )
 }
