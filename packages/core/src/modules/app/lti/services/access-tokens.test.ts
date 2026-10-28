@@ -112,9 +112,32 @@ describe('AccessTokenManager', () => {
     assert.ok(expiresIn >= 3_599_000 && expiresIn <= 3_601_000, String(expiresIn))
   })
 
-  it('fetches a new token on every call: tokens are never cached (current gap)', async () => {
+  it('reuses a cached token per platform until shortly before it expires', async () => {
+    const manager = createManager()
+    const first = await manager.getAccessToken(platform)
+    const second = await manager.getAccessToken(platform)
+    assert.equal(calls.length, 1)
+    assert.ok(first.ok && second.ok)
+    assert.equal(second.accessToken, first.accessToken)
+
+    await manager.getAccessToken(platformRecord('https://other.characterisation.test'))
+    assert.equal(calls.length, 2)
+  })
+
+  it('fetches again when the cached token expires within 30 seconds', async () => {
+    respond = async () =>
+      Response.json({ access_token: 'short-lived', expires_in: 20, scope: 'scope-a' })
     const manager = createManager()
     await manager.getAccessToken(platform)
+    await manager.getAccessToken(platform)
+    assert.equal(calls.length, 2)
+  })
+
+  it('fetches again after the token is invalidated', async () => {
+    const manager = createManager()
+    const first = await manager.getAccessToken(platform)
+    assert.ok(first.ok)
+    manager.invalidateAccessToken(platform, first.accessToken)
     await manager.getAccessToken(platform)
     assert.equal(calls.length, 2)
   })

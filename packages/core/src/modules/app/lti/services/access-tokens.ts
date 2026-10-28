@@ -164,6 +164,9 @@ export class AccessTokenManager extends BaseService {
       expires,
       scopes: scope.split(' '),
     }
+    // Reused until 30 seconds before it expires (see getAccessToken), or until
+    // the platform rejects it (invalidateAccessToken).
+    this.tokens[platform.id] = accessToken
 
     return {
       ok: true,
