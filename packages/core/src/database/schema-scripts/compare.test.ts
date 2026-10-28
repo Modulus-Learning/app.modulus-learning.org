@@ -26,6 +26,15 @@ describe('compareLedger', () => {
     assert.deepEqual(compareLedger([a], [a, b]), { status: 'newer', scripts: [b.name] })
   })
 
+  it('reports a database with both unknown and missing scripts as divergent', () => {
+    const c = { name: '2026-01-03-001-c.sql', checksum: 'ccc' }
+    assert.deepEqual(compareLedger([a, b], [a, c]), {
+      status: 'divergent',
+      pending: [b.name],
+      unknown: [c.name],
+    })
+  })
+
   it('reports a changed checksum before anything else', () => {
     const changed = { ...a, checksum: 'zzz' }
     assert.deepEqual(compareLedger([a, b], [changed]), { status: 'mismatch', scripts: [a.name] })

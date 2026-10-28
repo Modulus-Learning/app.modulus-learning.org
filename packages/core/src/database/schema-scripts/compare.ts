@@ -14,6 +14,7 @@ export type SchemaState =
   | { status: 'mismatch'; scripts: string[] }
   | { status: 'pending'; scripts: string[] }
   | { status: 'newer'; scripts: string[] }
+  | { status: 'divergent'; pending: string[]; unknown: string[] }
 
 /** Release script file names: `YYYY-MM-DD-NNN-<slug>.sql`. */
 export const RELEASE_SCRIPT_PATTERN = /^\d{4}-\d{2}-\d{2}-\d{3}-[a-z0-9-]+\.sql$/
@@ -35,9 +36,12 @@ export const compareLedger = (
   if (mismatched.length > 0) return { status: 'mismatch', scripts: mismatched }
 
   const pending = shipped.filter((script) => !appliedNames.has(script.name)).map((s) => s.name)
-  if (pending.length > 0) return { status: 'pending', scripts: pending }
-
   const newer = applied.filter((script) => !shippedByName.has(script.name)).map((s) => s.name)
+  // Unknown applied scripts mean the database followed a different history;
+  // applying this build's pending scripts on top of it is never safe.
+  if (pending.length > 0 && newer.length > 0)
+    return { status: 'divergent', pending, unknown: newer }
+  if (pending.length > 0) return { status: 'pending', scripts: pending }
   if (newer.length > 0) return { status: 'newer', scripts: newer }
 
   return { status: 'ok' }
@@ -58,5 +62,7 @@ export const describeSchemaState = (state: SchemaState): string => {
       return `release scripts not yet applied: ${state.scripts.join(', ')}; run \`modulus db upgrade\``
     case 'newer':
       return `database has scripts this build does not know: ${state.scripts.join(', ')}`
+    case 'divergent':
+      return `database has scripts this build does not know (${state.unknown.join(', ')}) and lacks scripts it ships (${state.pending.join(', ')}); refusing to proceed`
   }
 }
