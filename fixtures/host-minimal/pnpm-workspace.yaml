@@ -1,0 +1,6 @@
+packages: []
+allowBuilds:
+  esbuild: true
+  '@parcel/watcher': true
+  '@tailwindcss/oxide': true
+minimumReleaseAge: 0

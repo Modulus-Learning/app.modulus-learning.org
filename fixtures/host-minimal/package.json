@@ -1,0 +1,27 @@
+{
+  "name": "spike-host",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3100",
+    "build": "vite build",
+    "start": "node .output/server/index.mjs"
+  },
+  "dependencies": {
+    "@modulus-learning/host-tanstack-start": "file:../../.packed/modulus-learning-host-tanstack-start-0.11.0.tgz",
+    "@tanstack/react-router": "1.170.46",
+    "@tanstack/react-start": "1.169.4",
+    "nitro": "3.0.260903-beta",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "tailwindcss": "4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "8.3.5"
+  }
+}

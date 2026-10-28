@@ -51,3 +51,11 @@ postgres/backups
 # settings.json) is tracked; machine-local permission grants are not.
 .claude/settings.local.json
 .claude/settings.bak
+
+# Packed-install smoke test
+.packed/
+fixtures/*/.output/
+fixtures/*/.tanstack/
+fixtures/*/.nitro/
+fixtures/*/src/routeTree.gen.ts
+fixtures/*/pnpm-lock.yaml
