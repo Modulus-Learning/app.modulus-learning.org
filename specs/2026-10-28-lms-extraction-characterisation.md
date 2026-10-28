@@ -48,10 +48,36 @@ platform record — is `packages/core/src/test-support/lti.ts`.
 | 8 | **Cutoff parsing accepts any `Date.parse`-able string**, not only ISO 8601 with an offset, unlike term dates. | `launch-characterisation.test.ts` | Keep during extraction (behaviour preservation); decide in contract review whether shared LTI should be stricter. |
 | 9 | **One malformed custom claim rejects the whole launch.** | `launch-characterisation.test.ts` | Keep during extraction; the spec's TODO to validate only the claims Modulus uses belongs to shared LTI. |
 
+## Boundary Preparation (Done)
+
+The second increment followed on 2026-10-28:
+
+- **Gaps 1, 2 and 5 fixed**, each changing its characterisation test
+  deliberately: email linking refuses to re-point an account linked to a
+  different LTI identity (`ERR_LTI_IDENTITY_CONFLICT`, shown to the learner as
+  `identity_conflict`); access tokens are cached per registration until 30
+  seconds before expiry; the deployment is recorded after verification returns.
+- **The adapter contract** (`packages/core/src/lms/contract.ts`) and
+  `canvasAdapter()` (`packages/core/src/lms/canvas/`). `initCore` takes `lms`,
+  checks its contract version, and registers it; the launch, deep-linking,
+  registration, and score-submission services depend on it. Core no longer
+  constructs `HttpLtiAgsClient` or `QuotaGovernor`, interprets Canvas roles or
+  term fields, or holds the Canvas substitution variables and endpoints.
+  Rate-limit readings are opaque to core; the processor caps the adapter's
+  target at its configured maximum.
+- **Evidence that core runs without Canvas:** a synthetic adapter
+  (`test-support/lms.ts`) exercises launch, deep linking, and registration; a
+  boundary test fails when a core module imports Canvas implementation.
+
+Still in core, by design until extraction: launch verification, the OIDC
+request, token exchange, and the files the Canvas adapter wraps
+(`score-submission/ags-client.ts`, `error-classifier.ts`, `quota-governor.ts`).
+The installation binding (stored adapter id and integration-schema version) is
+part of the later operational-adoption increment.
+
 ## Next Increment
 
-Boundary preparation, inside core: define the adapter contract, inject the
-adapter through `initCore`, remove core's direct construction of the AGS client
-and quota governor, move the deployment write after verification, and apply the
-scoped email-linking policy. Gaps 1, 2, and 5 are the named behaviour changes
-in that increment; each changes its characterisation test deliberately.
+Package extraction: move shared protocol code into `packages/lti` and the Canvas
+adapter, with the files it wraps, into `packages/lms-canvas`; let the host's
+server configuration name its adapter; add both packages to the lockstep set and
+exercise the packed Canvas adapter in the smoke test.

@@ -390,10 +390,27 @@ savepoint.)
 ## Putting It Together: Initialization
 
 `initCore` (`core.ts`) composes the whole graph once and returns the facade plus
-a background-jobs handle:
+a background-jobs handle. A host passes three things core cannot know for
+itself — its configuration, the URLs it serves, and its LMS adapter:
 
 ```ts
-const registry = await createCoreRegistry(urlBuilder, config).compose({ pinoLogger })
+// packages/host-tanstack-start/src/lib/core/instance.ts (excerpt)
+initCore({
+  pinoLogger: logger,
+  config: loadCoreConfigFromEnv(process.env),
+  lms: canvasAdapter(),
+  urlBuilder: { baseUrl, ltiLaunchUrl, dashboardUrl },
+})
+```
+
+`initCore` first runs the database schema check described in
+[Deployment](./DEPLOYMENT.md#database-schema-at-release), refuses an LMS
+adapter built for a different contract version, and registers the adapter as
+the `lmsAdapter` value so every LTI service can depend on it. Then:
+
+```ts
+// packages/core/src/core.ts
+const registry = await createCoreRegistry(urlBuilder, config, lmsAdapter).compose({ pinoLogger })
 
 const commands: CoreCommands = {
   app: getAppCommands(registry.app),
@@ -405,6 +422,26 @@ const commands: CoreCommands = {
 The host holds the result as a singleton and calls commands per request — see
 [ARCHITECTURE → Single-instance](./ARCHITECTURE.md#3-single-instance-no-separate-api-server)
 and `packages/host-tanstack-start/src/core-adapter.ts`.
+
+### The LMS Adapter
+
+The `LmsAdapter` contract (`packages/core/src/lms/contract.ts`) is everything core
+needs from the one LMS an installation connects to, expressed as neutral values:
+whether a launch's roles make the user an instructor, the launch's academic
+term, the vendor's assignment-cutoff fallback, the custom fields a deep-link
+content item carries, the endpoints a registration uses, the LMS-side
+registration configuration, and a registration-bound score client with its
+concurrency pacing policy. Core applies the policy — account linking, scope
+resolution, the standard-first cutoff, the concurrency cap, retries and
+incidents — and never branches on the vendor.
+
+`canvasAdapter()` (`packages/core/src/lms/canvas/`) is the only adapter today. A
+boundary test (`packages/core/src/lms/boundary.test.ts`) fails if any core module
+outside the adapter imports Canvas implementation, and a deliberately non-Canvas
+test adapter (`packages/core/src/test-support/lms.ts`) runs the launch,
+deep-linking, and registration services without Canvas. Both prepare the
+extraction of the adapter into `@modulus-learning/lms-canvas`, described in
+`specs/2026-10-25-canvas-lti-package-extraction-spec.md`.
 
 One related composition is kept deliberately separate: **token verification**
 (`public/tokens.ts`) builds its own small `AsyncRegistry` of the three verifiers
