@@ -172,6 +172,9 @@ export default async function setup(project: TestProject) {
     VITE_CSP_ENABLED: 'true',
     LOG_LEVEL: 'warn',
     NODE_ENV: 'production',
+    // The test database is built by the Drizzle journal and has no release
+    // script ledger, so the production schema check only warns here.
+    MODULUS_SCHEMA_CHECK: 'warn',
     PATH: process.env.PATH ?? '',
   }
   const server: ChildProcess = spawn(process.execPath, ['.output/server/index.mjs'], {

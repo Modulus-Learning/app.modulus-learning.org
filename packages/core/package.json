@@ -19,6 +19,9 @@
     },
     "./package.json": "./package.json"
   },
+  "bin": {
+    "modulus": "./dist/cli/index.js"
+  },
   "files": [
     "dist"
   ],
@@ -26,7 +29,7 @@
     "clean": "rm -rf node_modules dist build .turbo",
     "dev": "chokidar 'src/**/*' -c 'npm-run-all build'",
     "devlti": "chokidar 'src/**/*' -c 'npm-run-all build'",
-    "build": "tsc -p tsconfig.json && tsc-alias",
+    "build": "tsc -p tsconfig.json && tsc-alias && node scripts/copy-sql.mjs",
     "lint": "biome check --write --diagnostic-level=error",
     "typecheck": "tsc --noEmit",
     "test": "LOG_LEVEL=off tsx --test $(find src -name \"*.test.ts\")",
@@ -39,7 +42,11 @@
     "drizzle:push": "tsc -p tsconfig.json && drizzle-kit push --config=drizzle.config.ts",
     "drizzle:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "drizzle:drop": "drizzle-kit drop --config=drizzle.config.ts",
-    "drizzle:seed": "tsx --no-warnings --env-file=.env ./src/database/seeds/index.ts"
+    "drizzle:seed": "tsx --no-warnings --env-file=.env ./src/database/seeds/index.ts",
+    "schema:baseline": "tsc -p tsconfig.json && { printf -- '-- Baseline: the complete Modulus schema for a fresh, empty database.\\n-- Generated from the Drizzle schema with `pnpm schema:baseline`; review before\\n-- committing. Applied only by `modulus db init`, which records every release\\n-- script shipped with the same build as already applied.\\n\\n'; drizzle-kit export --config drizzle.config.ts --sql; } > src/database/sql/baseline.sql",
+    "schema:manifest": "tsx scripts/schema-manifest.ts",
+    "schema:manifest:check": "tsx scripts/schema-manifest.ts --check",
+    "modulus": "tsx src/cli/index.ts"
   },
   "dependencies": {
     "@infonomic/schemas": "^2.4.0",

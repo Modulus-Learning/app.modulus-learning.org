@@ -24,6 +24,7 @@
       "!**/dist",
       "!**/node_modules",
       "!src/database/migrations",
+      "!src/database/schema-scripts/manifest.gen.ts",
       "!src/modules/lti/constants.ts"
     ]
   }

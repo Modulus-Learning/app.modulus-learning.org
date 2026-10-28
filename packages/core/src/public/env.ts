@@ -35,6 +35,9 @@ export const readCoreEnv = (env: Env) => {
     },
     postgres: {
       connectionString: env.POSTGRES_CONNECTION_STRING,
+      // Databases outside production are built by Drizzle and have no ledger.
+      schemaCheck: env.MODULUS_SCHEMA_CHECK ?? (env.NODE_ENV === 'production' ? 'enforce' : 'warn'),
+      allowNewerSchema: env.MODULUS_ALLOW_NEWER_SCHEMA,
     },
     lti: {
       redirect_uri: env.LTI_REDIRECT_URI,

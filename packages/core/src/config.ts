@@ -39,6 +39,12 @@ export const configSchema = z.object({
   }),
   postgres: z.object({
     connectionString: z.string(),
+    // Boot-time comparison of the script ledger with the shipped release
+    // scripts: refuse to start, only log, or skip.
+    schemaCheck: z.enum(['enforce', 'warn', 'off']).default('enforce'),
+    // Permit a database with release scripts this build does not know, for a
+    // deliberate rollback to an earlier build.
+    allowNewerSchema: booleanSchema(false),
   }),
   lti: z.object({
     redirect_uri: urlSchema,

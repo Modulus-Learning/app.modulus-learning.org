@@ -1,6 +1,7 @@
 import { type Logger as PinoLogger, pino } from 'pino'
 
 import { connect } from './database/index.js'
+import { checkSchema } from './database/schema-scripts/boot-check.js'
 import { DBManagerImpl, TXManagerImpl } from './lib/db-manager.js'
 import { DebugMailer, NodeMailer } from './lib/email/services/mailer.js'
 import { EmailTemplates } from './lib/email/services/templates.js'
@@ -116,6 +117,13 @@ export const initCore = async ({
   urlBuilder,
   config,
 }: InitOptions): Promise<CoreInstance> => {
+  await checkSchema({
+    connectionString: config.postgres.connectionString,
+    mode: config.postgres.schemaCheck,
+    allowNewer: config.postgres.allowNewerSchema,
+    logger: pinoLogger,
+  })
+
   const registry = await createCoreRegistry(urlBuilder, config).compose({ pinoLogger })
 
   const commands: CoreCommands = {
