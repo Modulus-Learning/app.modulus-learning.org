@@ -13,4 +13,5 @@ export const RELEASE_SCRIPTS: readonly ScriptRecord[] = [
   { name: '2026-08-14-002-migrate-activity-scopes.sql', checksum: 'a741a44fdaf28af55342a40b20fcfbedb6f6272d5da020eeb9e1adce58f05ff0' },
   { name: '2026-08-25-001-migrate-activity-code-enrollment.sql', checksum: 'e275a72e5975618ea657f13cd9cba161fea2c4f3b5f6967d8cfa6bb75d8b6a7a' },
   { name: '2026-09-09-001-migrate-activity-url-allowlist.sql', checksum: 'add5a429c0a2f3c7535327cf0316214879650bd1f14ef68a49bc45848acbd341' },
+  { name: '2026-10-28-001-rename-manager-admin-role.sql', checksum: 'f44a7d72cc2817bd477a56cc6c40095839653df1b20e06f3ac2b85084441249a' },
 ]
