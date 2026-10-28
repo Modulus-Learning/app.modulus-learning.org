@@ -2,7 +2,9 @@
 
 Date: 2026-10-28
 
-Status: Complete for the first three increments of
+Status: Characterisation and boundary preparation complete; package extraction
+staged (the packages exist, but the gate's conformance requirement and Phase B
+remain) for
 [Canvas and LTI Package Extraction](./2026-10-25-canvas-lti-package-extraction-spec.md).
 
 Document type: Record of pinned behaviour and known gaps.
@@ -75,7 +77,7 @@ request, token exchange, and the files the Canvas adapter wraps
 The installation binding (stored adapter id and integration-schema version) is
 part of the later operational-adoption increment.
 
-## Package Extraction (Done)
+## Package Extraction (Staged)
 
 The third increment followed on 2026-10-28:
 
@@ -101,10 +103,37 @@ The third increment followed on 2026-10-28:
   packed-install smoke test packs them and installs the Canvas adapter into the
   fixture from its tarball.
 
-Still in core, by design: launch verification, the OIDC request, token
-exchange, and the keystore (Phase B moves them behind the shared LTI package),
-and the installation binding (operational adoption).
+## Review Fixes
+
+A review of the staged extraction (through `6914fa6`) found three defects, now
+fixed, each with a test that fails on the previous code:
+
+| Finding | Fix | Test |
+| --- | --- | --- |
+| The production image omitted `lti` and `lms-canvas`, and `.dockerignore` (`**/sql`) dropped core's release schema scripts from the build context | Both packages are in every Dockerfile stage; `lti` ships in the runtime image for the `modulus` command; `packages/core/src/database/sql` is re-included | A local `docker build` of `_docker/gradebook/production/Dockerfile`; in the image, `lti` and core resolve and the server starts |
+| Email linking checked, then wrote unconditionally, so two concurrent launches could both link one account | `SessionMutations.linkLtiIdentity` is a conditional update: it applies only while the account is unlinked or already carries this identity; otherwise the launch is refused with `ERR_LTI_IDENTITY_CONFLICT` | `session/services/lti-sign-in.itest.ts` |
+| Cached access tokens survived a change to the registration's client id or endpoints, and the score manager kept the old processor | Token cache entries carry `registrationFingerprint` from `@modulus-learning/lti`; the reconcile loop drains and replaces a processor whose fingerprint changed and drops the cached token, and drops it too when a registration is removed | `access-tokens.test.ts`, `score-submission/manager.itest.ts` |
+
+Gap 6 is fixed with them: the platform JWKS resolver is bound to the
+registration's `jwks_uri` and replaced when it changes
+(`launch-characterisation.test.ts` — "corrected jwks_uri").
+
+## Remaining Against the Extraction Spec
+
+The staged extraction does not complete
+[the extraction spec](./2026-10-25-canvas-lti-package-extraction-spec.md):
+
+- **Phase B.** Launch verification, the OIDC authentication request, token
+  exchange, and the keystore are still in core.
+- **Conformance.** There is no `@modulus-learning/lms-conformance` suite, so the
+  package-extraction gate ("Canvas passes full conformance") is not met.
+- **Installation binding.** The persisted adapter id and integration-schema
+  version, the startup check against the configured adapter, and the binding
+  gate on email linking are not built.
+- **Gaps 3 and 4** (the absent `lti_message_hint`, the multi-audience `azp`
+  check) belong to shared LTI verification in Phase B.
 
 ## Next Increment
 
-The 0.12.0-next.0 prerelease of the extended lockstep set, then Phase B.
+The 0.12.0-next.0 prerelease of the extended lockstep set, then the
+conformance suite and Phase B.
