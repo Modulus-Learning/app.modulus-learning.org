@@ -3,6 +3,8 @@
   "version": "0.11.0",
   "private": false,
   "description": "Modulus client agent.",
+  "keywords": [],
+  "license": "MIT",
   "type": "module",
   "homepage": "https://github.com/Modulus-Learning/app.modulus-learning.org",
   "bugs": {
@@ -17,6 +19,24 @@
   "types": "./dist/core/index.d.ts",
   "module": "./dist/core/index.js",
   "main": "./dist/core/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    },
+    "./browser": {
+      "default": "./dist/browser/modulus-agent.js"
+    },
+    "./ui/vanilla": {
+      "types": "./dist/ui-vanilla/index.d.ts",
+      "import": "./dist/ui-vanilla/index.js",
+      "default": "./dist/ui-vanilla/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "clean": "rm -rf node_modules build dist .turbo",
     "build": "rm -rf dist && rolldown -c",
@@ -29,26 +49,6 @@
     "test:node": "vitest run --mode=node --passWithNoTests",
     "test:watch": "vitest --mode=jsdom"
   },
-  "files": [
-    "dist"
-  ],
-  "exports": {
-    ".": {
-      "types": "./dist/core/index.d.ts",
-      "import": "./dist/core/index.js",
-      "default": "./dist/core/index.js"
-    },
-    "./browser": {
-      "default": "./dist/browser/modulus-agent.js"
-    },
-    "./ui/vanilla": {
-      "default": "./dist/ui-vanilla/index.js",
-      "types": "./dist/ui-vanilla/index.d.ts",
-      "import": "./dist/ui-vanilla/index.js"
-    }
-  },
-  "keywords": [],
-  "author": "",
   "devDependencies": {
     "@biomejs/biome": "^2.6.2",
     "jsdom": "^30.1.3",
@@ -60,5 +60,6 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "author": ""
 }

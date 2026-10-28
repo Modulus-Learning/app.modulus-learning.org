@@ -1,8 +1,22 @@
 {
   "name": "@modulus-learning/core",
-  "version": "0.9.1",
-  "private": true,
+  "version": "0.11.0",
+  "private": false,
+  "description": "Modulus core: business logic, data access, schema scripts and the modulus command",
+  "license": "AGPL-3.0-only",
   "type": "module",
+  "homepage": "https://github.com/Modulus-Learning/app.modulus-learning.org",
+  "bugs": {
+    "url": "https://github.com/Modulus-Learning/app.modulus-learning.org/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Modulus-Learning/app.modulus-learning.org.git",
+    "directory": "packages/core"
+  },
+  "engines": {
+    "node": "^22.18.0 || ^24.11.0 || >=26.0.0"
+  },
   "sideEffects": false,
   "exports": {
     ".": {
@@ -79,5 +93,8 @@
     "tsc-alias": "^1.9.9",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

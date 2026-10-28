@@ -1,55 +1,92 @@
-# Package Changset and Release Instructions
+# Release Instructions
 
-> **NOTE: Only the local (manual) flow is available right now.** We do not have a
-> remote NPM token workflow configured at GitHub at the moment, so the auto flow in
-> Section I does **not** run. Releases must be published **locally** from your machine
-> using the manual flow in Section II (`./publish-packages.sh`). Section I is retained
-> below for reference / future re-enablement.
+Modulus publishes one **lockstep set** of packages to npm. Every package listed
+in `fixed[0]` of `.changeset/config.json` is released together at the same
+version:
 
-## I: Auto flow with GitHub action (currently DISABLED — no remote token):
+| Package | Path | Licence |
+| --- | --- | --- |
+| `@modulus-learning/agent` | `apps/agent` | MIT |
+| `@modulus-learning/core` | `packages/core` | AGPL-3.0-only |
+| `@modulus-learning/host-tanstack-start` | `packages/host-tanstack-start` | AGPL-3.0-only |
 
-NOTE: Because this repo is part of an organization (Modulus-learning) you MUST set the organization-level settings for general actions to allow pull requests for the organization AND this repo, as well as set the appropriate permissions in the release.yml workflow.
+`apps/gradebook` (this repository's own installation) and the agent demos are
+private and listed under `ignore`. The root `VERSION` file, used to tag the
+gradebook image, follows the lockstep version.
 
-NOTE: This flow will use a GitHub action to version packages based on a pending changeset in the .changeset directory, and then create a PR to be merged after manual review. Once the PR has been accepted, the action will then publish the package to NPM - currently using a token from the 58bits NPM account (expires in 20 years, and only has access to the @modulus repo).
+Releases are published **locally**, not by CI: there is no npm automation token,
+and publishing uses passkey 2FA. The `/release` command
+(`.claude/commands/release.md`) drives the whole process; this file is the
+human-facing statement of it and takes precedence if the two disagree.
 
-1. `pnpm changeset`
+## Before You Start
 
-Choose packages to version with major, minor or patch releases.
-Write a summary for the change set.
+- `npm login` with an account that can publish to `@modulus-learning`.
+- `gh auth status` for the umbrella GitHub release.
+- A clean working tree on `develop`, with `develop` and `main` up to date with
+  `origin`.
 
-2. Git commit the change set to main and push.
+## Steps
 
-3. The github action will create a pull request for the changeset
+1. **Gates.** Run the full local CI gate and the release checks:
 
-4. Manually review and accept the PR - the github action will then publish to npm.
+   ```sh
+   pnpm run ci                                              # includes pnpm check:packages
+   pnpm -F @modulus-learning/core schema:manifest:check
+   pnpm -F @modulus-learning/core schema:baseline && git diff --exit-code -- packages/core/src/database/sql/baseline.sql
+   ./scripts/packed-install.sh                              # set FIXTURE_DATABASE_URL to cover core startup
+   ```
 
-NOTE: the auto-flow GitHub action will also create a Releases entry in the repo as well as attach zipped binaries.
+   Released SQL scripts are immutable: installations record each script's
+   checksum and refuse a changed one. `/release` checks that every dated script
+   from the previous release is unchanged.
 
-IMPORTANT: It's important that everyone then git fetches, git pulls the latest from the main branch of the repo, and merges / rebases their local branches to bring them up to date with the release.
+2. **Changeset.** `pnpm changeset`, selecting every package in the set at the
+   same bump level (`/release` writes this file for you from `fixed[0]`).
 
-## II Manual flow (run locally):
+3. **Version.** `pnpm version-packages` versions the whole set to one new
+   version and updates every CHANGELOG. Update `VERSION` to match, run
+   `pnpm lint`, and commit as `chore(release): X.Y.Z` (no trailers). Push.
 
-This is the **only** active flow at the moment — there is no remote token workflow, so releases are published from your local machine.
+4. **Publish.** `./publish-packages.sh` builds the set, packs each package
+   (rewriting `workspace:*` dependencies to real versions), refuses any
+   `workspace:` leak, and publishes each tarball with `npm publish` in
+   dependency order. It then creates and pushes a per-package tag
+   (`@modulus-learning/core@X.Y.Z`, …).
 
-NOTE: you'll need to log in to NPM on the command line before starting: `npm login`
+   - `--dry-run` packs and verifies without publishing, tagging or pushing.
+   - `--no-build` reuses existing `dist/` output.
+   - `--yes` skips the confirmation prompt.
+   - The npm dist-tag follows the version: a prerelease (`X.Y.Z-next.N`)
+     publishes under `next`, anything else under `latest`. `--tag` overrides
+     it, but a prerelease is never published under `latest`.
 
-1. `pnpm changeset`
+   The script is idempotent: packages already live at the version are skipped
+   and existing tags are kept, so re-running after a partial failure finishes
+   the job. npm's registry views are CDN-cached for up to five minutes; trust
+   the script's exit status rather than an immediate `npm view`.
 
-Choose packages to version with major, minor or patch releases.
-Write a summary for the change set.
+   We use this script instead of `changeset publish` (`pnpm release:npm`)
+   because pnpm's OTP pre-check cannot complete under passkey-only 2FA, whereas
+   `npm publish` honours the bypass token in `~/.npmrc`.
 
-2. `pnpm version-packages`
+5. **Sync `main`.** Fast-forward `main` to the release commit and push.
 
-This will call changeset version, updating all package.json versions and updating release notes. It will also clear / remove the pending changeset from the .changeset directory.
+6. **Umbrella release.** Tag `vX.Y.Z` at the release commit, push it, and create
+   the GitHub release with the cycle's notes. Name any new dated release scripts
+   under **Migrations**, with the operator step (`modulus db upgrade`).
 
-Commit the resulting version bump before publishing.
+## Prereleases
 
-3. `./publish-packages.sh`
+Enter Changesets prerelease mode with `pnpm changeset pre enter next` and commit
+it. Versions then become `X.Y.Z-next.N` and publish under the `next` dist-tag.
+Run `pnpm changeset pre exit` before the stable release. Prerelease mode covers
+the whole set; an urgent stable fix during a prerelease cycle is released from a
+short-lived branch cut from the last stable tag.
 
-This builds `@modulus-learning/agent`, packs it (rewriting any `workspace:*` deps), publishes the tarball to npm via `npm publish`, then creates and pushes the `@modulus-learning/agent@<version>` git tag. It publishes via whatever account you've authenticated locally with via `npm login`.
+## The GitHub Action
 
-We use this script instead of `pnpm release:npm` (`changeset publish`) because the latter cannot publish under passkey-only 2FA — its OTP pre-check accepts only a typed numeric code and dead-ends at `ERR_PNPM_OTP_NON_INTERACTIVE`, whereas `npm publish` honours the bypass token in `~/.npmrc`.
-
-Useful flags: `--dry-run` (pack + verify only, no publish/tag/push), `--no-build` (reuse existing `dist/`), `--yes` (skip the confirmation prompt). The script is idempotent — a version already live on npm is skipped and an existing tag is not recreated, so re-running after a partial failure just finishes the job.
-
-NOTE: The manual flow will not create a Releases entry in the repo (and therefore not create any attached zip binaries).
+`.github/workflows/release.yml` runs the Changesets action on pushes to `main`.
+Without an npm token it cannot publish, and the local release commit consumes
+each changeset before `main` advances, so in practice it has nothing to do. It
+is kept for a future token-based flow.

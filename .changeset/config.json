@@ -2,10 +2,16 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [],
+  "fixed": [
+    ["@modulus-learning/agent", "@modulus-learning/core", "@modulus-learning/host-tanstack-start"]
+  ],
   "linked": [],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": []
+  "ignore": [
+    "@modulus-learning/gradebook",
+    "@modulus-learning/agent-demo-react",
+    "@modulus-learning/agent-demo-vanilla"
+  ]
 }

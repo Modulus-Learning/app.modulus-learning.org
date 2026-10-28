@@ -47,3 +47,40 @@ jobs:
       # The integration harness applies committed migrations and truncates the
       # dedicated test database between tests.
       - run: pnpm run ci
+
+  packed-install:
+    # Installs the packed packages into fixtures/host-minimal outside the
+    # workspace, as a downstream installation would, and checks client
+    # isolation, deployment-mode gating, and real core startup against a fresh
+    # database (scripts/packed-install.sh).
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: modulus
+          POSTGRES_PASSWORD: modulus
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U modulus"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      FIXTURE_DATABASE_URL: postgres://modulus:modulus@127.0.0.1:5432/modulus_fixture_test
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: psql postgres://modulus:modulus@127.0.0.1:5432/postgres -c 'CREATE DATABASE modulus_fixture_test'
+      - run: pnpm test:packed

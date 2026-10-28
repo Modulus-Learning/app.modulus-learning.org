@@ -19,13 +19,15 @@
     "typecheck": "turbo run typecheck --continue",
     "test": "turbo run test",
     "test:integration": "turbo run test:integration --concurrency=1",
-    "ci": "pnpm lint:check && pnpm typecheck && pnpm test && pnpm test:integration && pnpm test:session",
+    "ci": "pnpm lint:check && pnpm typecheck && pnpm test && pnpm test:integration && pnpm test:session && pnpm check:packages",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "version-packages": "changeset version",
     "release:tag": "turbo run build --filter=@modulus-learning/agent && changeset tag",
     "release:npm": "turbo run build --filter=@modulus-learning/agent && changeset publish",
     "prepare": "simple-git-hooks || true",
-    "test:session": "turbo run build --filter=@modulus-learning/gradebook && pnpm -F @modulus-learning/gradebook test:session"
+    "test:session": "turbo run build --filter=@modulus-learning/gradebook && pnpm -F @modulus-learning/gradebook test:session",
+    "check:packages": "./scripts/check-packages.sh",
+    "test:packed": "./scripts/packed-install.sh"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged"
@@ -34,9 +36,11 @@
     "*.{js,jsx,mjs,cjs,ts,tsx,json,jsonc}": "biome check --write --no-errors-on-unmatched --diagnostic-level=error"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@biomejs/biome": "^2.6.2",
     "@changesets/cli": "^3.0.3",
     "lint-staged": "^17.6.0",
+    "publint": "^0.3.25",
     "simple-git-hooks": "^2.14.0",
     "turbo": "^2.11.10",
     "typescript": "7.0.2"

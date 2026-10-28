@@ -23,10 +23,12 @@ pnpm + Turborepo monorepo. Node >=22.13, pnpm 11.10.0, TypeScript 6.
 
 | Path | Package | Published? | What it is |
 |---|---|---|---|
-| `packages/core` | `@modulus-learning/core` | private | All business logic, data access, and services behind class contracts. Almost everything that matters lives here. |
-| `apps/gradebook` | `@modulus-learning/gradebook` | private | The Next.js host app. Deliberately thin — route handlers resolve a context and call a core command. |
-| `apps/agent` | `@modulus-learning/agent` | **public on npm** | The browser instrumentation library embedded in Ximera pages. The only released artefact. |
+| `packages/core` | `@modulus-learning/core` | **public on npm** | All business logic, data access, and services behind class contracts, plus the schema scripts and the `modulus` command (`db`, `bootstrap`, `admin create`, `keys generate`). |
+| `packages/host-tanstack-start` | `@modulus-learning/host-tanstack-start` | **public on npm** | The TanStack Start host layer: route factories, server functions and their gates, server-entry/start/router helpers, the admin and learner UI, the Vite preset, and styles. |
+| `apps/gradebook` | `@modulus-learning/gradebook` | private | This repository's own installation and the reference host: route files that call packaged factories, plus its public pages. It imports the packages only through their public exports. |
+| `apps/agent` | `@modulus-learning/agent` | **public on npm** | The browser instrumentation library embedded in Ximera pages. |
 | `apps/agent-demo` | — | — | `react/` and `vanilla/` demo consumers of the agent. |
+| `fixtures/host-minimal` | — | — | A minimal downstream host used by `scripts/packed-install.sh`; outside the workspace. |
 
 Core exposes a single **commands facade** (`CoreCommands`, with `app` / `admin` /
 `agent` branches) assembled by a compile-time-checked DI registry. Consumers never
@@ -118,13 +120,13 @@ refuse a database name that does not end in `_test`.
 
 ## Things that bite
 
-- **Only `apps/agent` is published.** `gradebook` and `core` are `private: true`.
-  They currently share the agent's version number by coincidence; nothing keeps
-  them in step. `.changeset/config.json` has an empty `fixed` group — there is no
-  lockstep release here.
+- **The published packages release in lockstep.** `agent`, `core`, and
+  `host-tanstack-start` form `fixed[0]` in `.changeset/config.json` and always
+  share one version; `gradebook` and the demos are `ignore`d. The root `VERSION`
+  (the gradebook image tag) follows the lockstep version.
 - **Releases are published locally**, not by CI. `RELEASE-INSTRUCTIONS.md` is
   authoritative: `pnpm changeset` → `pnpm version-packages` →
-  `./publish-packages.sh`. The auto-publish GitHub Action is disabled (no npm
+  `./publish-packages.sh`, driven end to end by `/release`. The auto-publish GitHub Action is disabled (no npm
   token). `changeset publish` / `pnpm release:npm` **cannot** publish under
   passkey-only 2FA — that is why the shell script exists.
 - **CI runs on pull requests and pushes to `develop` / `main`.** The workflow
