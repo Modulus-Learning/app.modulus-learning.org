@@ -624,6 +624,24 @@ the contract. Do not generalise solely from the synthetic adapter.
 
 ## Honest Notes & Open Questions
 
+### Decisions Recorded 2026-10-28
+
+- **Packages:** `@modulus-learning/lti` and `@modulus-learning/lms-canvas` as
+  separate packages, both joining the lockstep set, with a private
+  `lms-conformance` test package. The contract stays LTI-specific.
+- **Email-based account linking:** keep automatic linking for the configured
+  Canvas registration, scoped: it never re-points an account that already has a
+  different LTI identity, and the adapter records the trust basis as
+  registration-trusted. This closes the overwrite case without stranding users
+  who first signed in with Google or GitHub. The migration-gating requirement in
+  [Migration Between LMSs](#migration-between-lmss) still applies.
+- **Order:** the installation guide and a prerelease of the current packages
+  come first; this extraction follows, and stable publication waits for it. The
+  adapter becoming a required `initCore` input is therefore a planned breaking
+  change for prerelease consumers.
+
+The remaining items below are still open.
+
 The runtime boundary, post-verification deployment write, retained issuer
 uniqueness, standard-first cutoff ownership, per-registration scheduling, and
 required launch/score baseline are now explicit design proposals above. Contract
