@@ -1,18 +1,3 @@
-import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
+import { createModulusRootRoute } from '@modulus-learning/host-tanstack-start/routes/__root.route'
 
-import appCss from '../styles.css?url'
-
-export const Route = createRootRoute({
-  head: () => ({ links: [{ rel: 'stylesheet', href: appCss }] }),
-  component: () => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <Outlet />
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
+export const Route = createModulusRootRoute({ appTitle: 'Fixture' })

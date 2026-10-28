@@ -5,7 +5,7 @@ import { GradientGlow } from '@modulus-learning/host-tanstack-start/ui/component
 
 // The loader calls a packaged, gate-wrapped server function: directly during
 // SSR, and over RPC when the browser navigates here.
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute('/$lng/')({
   loader: () => getRootConfigFn(),
   component: function Home() {
     const { publicConfig } = Route.useLoaderData()
