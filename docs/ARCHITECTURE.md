@@ -181,7 +181,7 @@ Core is a library, not a service. The host application calls `initCore` once,
 in-process, and holds the result as a singleton. The gradebook does exactly this:
 
 ```ts
-// apps/gradebook/src/lib/core/instance.ts (excerpt)
+// packages/host-tanstack-start/src/lib/core/instance.ts (excerpt)
 export const getCoreInstance = (logger: Logger): Promise<CoreInstance> => {
   if (coreInstancePromise == null) {
     const { publicServerUrl } = getServerConfig()

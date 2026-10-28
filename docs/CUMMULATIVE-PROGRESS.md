@@ -99,7 +99,7 @@ the command layer; the real multi-activity behaviour is Phase 2.
 
 1. **Single RPC endpoint.** Collapse the two routes into one
    `POST /routes/agent/activity` — the server route at
-   `apps/gradebook/src/routes/routes/agent/activity.ts` — dispatching on an
+   `packages/host-tanstack-start/src/server-routes/agent/activity.ts` — dispatching on an
    `op` discriminator. This is the cleanest "route according to the incoming
    request," and leaves room to batch progress + page-state in one call later.
 2. **Author config via a per-route hook.** A lesson route calls a hook

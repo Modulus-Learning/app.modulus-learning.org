@@ -162,7 +162,7 @@ Both modes end at the same activity URL, carrying exactly two added query
 parameters: `modulus`, the Modulus server the agent reports progress to, and
 `scope_id`. Neither mode branches on the launching user's LTI role. The
 destination is chosen by `selectLaunchDestination`
-(`apps/gradebook/src/modules/lti/launch-destination.ts`), which takes no role
+(`packages/host-tanstack-start/src/modules/lti/launch-destination.ts`), which takes no role
 argument.
 
 `scope_name` never appears in a URL in either mode. It is display-only — on the

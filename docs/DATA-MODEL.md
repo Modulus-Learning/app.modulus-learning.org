@@ -311,19 +311,55 @@ see [AGENT](./AGENT.md) and [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md).
 
 ## Migrations & Seeds
 
-- **Migrations** live in `packages/core/src/database/migrations/` as Drizzle
-  migrations (`0000_…`–`0016_…` plus the `meta/` journal), generated with
-  `pnpm drizzle:generate` and applied with `pnpm drizzle:migrate`.
-- **Historical SQL** under `database/sql/` (`modulus-deploy-YYYY-MM-DD.sql` and a
-  few targeted `migrate-*.sql` scripts) predates the Drizzle migration track and
-  is retained for reference / older deployments — it is not the current source of
-  truth.
-- **Seeds** in `database/seeds/` run in numbered order via `index.ts`
-  (`pnpm drizzle:seed`), and the ordering encodes the dependency chain: admin
-  identity (`01`–`04`) → learner identity (`05`–`08`) → activity codes and
-  activities (`09`–`10`) → enrollment (`11`) → progress (`12`). Activity/code
-  associations are seeded alongside the activities at step `10`, because the
-  reporting intersection is empty without them.
+Core owns the schema and keeps it in two forms, one for development and one for
+installations. Both live in `packages/core`, and Modulus supports PostgreSQL only.
+
+- **The Drizzle schema is the development source of truth.** It lives in
+  `packages/core/src/database/schema/`. `pnpm drizzle:generate` turns a change
+  into a journal migration under `database/migrations/` (`0000_…`–`0016_…` plus
+  the `meta/` journal), and `pnpm drizzle:migrate` applies the journal. Local
+  and test databases — including the integration harness — are built this way.
+- **Installations use reviewed SQL.** Every schema change also gets a dated
+  release script in `database/sql/`, named `YYYY-MM-DD-NNN-<slug>.sql`, which
+  mirrors one or more Drizzle migrations. Release scripts run in one
+  transaction, are idempotent, and are never edited once released: an
+  installation records each script's SHA-256 checksum and refuses a changed one.
+- **The baseline** (`database/sql/baseline.sql`) creates the complete current
+  schema in an empty database. It is generated from the Drizzle schema with
+  `pnpm -F @modulus-learning/core schema:baseline`, reviewed, and committed. A
+  database built from the baseline has the same tables, constraints, and
+  indexes as one built from the journal; only column order differs.
+- **The ledger** is the `modulus.schema_scripts` table — name, checksum, and
+  time applied — in its own `modulus` schema, which Drizzle tooling does not
+  manage. `modulus db init` creates it; `modulus db upgrade` adds to it.
+- **The manifest** (`database/schema-scripts/manifest.gen.ts`) lists the name and
+  checksum of every release script, so the boot-time check can run inside a host
+  that bundles core and cannot read the SQL files. A unit test fails when it is
+  stale; `pnpm -F @modulus-learning/core schema:manifest` regenerates it.
+
+Only the baseline and the dated release scripts ship in the published package.
+The `modulus-deploy-YYYY-MM-DD.sql` files in the same directory are `pg_dump`
+snapshots of this repository's own installation, and `refresh-collation.sql` is
+a maintenance script; neither is a migration. How the scripts are applied at
+deploy time, and what the boot check does with the ledger, is described in
+[Deployment](./DEPLOYMENT.md#database-schema-at-release).
+
+- **The production bootstrap** (`database/bootstrap/`) creates the reference
+  roles and their permissions — the admin roles Manager, User, and Guest, and
+  the app roles Everyone, Instructor, and Learner — from
+  `database/bootstrap/reference-data.ts`. It inserts only missing roles, grants
+  permissions only to roles it creates, and never changes or deletes a row, so
+  it is safe to run repeatedly. `modulus db init` runs it; `modulus bootstrap`
+  runs it on its own. `modulus admin create` adds an administrator with the
+  Manager role, because admin abilities come only from roles.
+- **Development seeds** in `database/seeds/` run in numbered order via `index.ts`
+  (`pnpm drizzle:seed`). They **delete existing data first**, so they are for
+  local and test databases only. They read the same reference data as the
+  bootstrap, and the ordering encodes the dependency chain: admin identity
+  (`01`–`04`) → learner identity (`05`–`08`) → activity codes and activities
+  (`09`–`10`) → enrollment (`11`) → progress (`12`). Activity/code associations
+  are seeded alongside the activities at step `10`, because the reporting
+  intersection is empty without them.
 - **Seeds deliberately create no `activity_url_allowlist_rules` rows.** A seeded
   database therefore allows all valid new activity URLs — activity codes, deep
   links, agent authorization and cumulative targets alike. An administrator can

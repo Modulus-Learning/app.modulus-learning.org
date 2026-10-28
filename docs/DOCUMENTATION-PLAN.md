@@ -124,8 +124,16 @@ The three runtime deployment modes — all-in-one, frontend-only, and admin-only
 selected via `DEPLOYMENT_MODE`: what each mode serves, how route surfaces are
 classified and gated (the server-entry path gate plus the server-function
 surface middleware), the background-jobs switch and eager boot, graceful
-shutdown and its deadline chain, the LTI launch-interstitial switch, and the
-rule that a frontend instance may never run jobs.
+shutdown and its deadline chain, the LTI launch-interstitial switch, the
+rule that a frontend instance may never run jobs, and how the database schema is
+applied and checked at release — the `modulus db` commands, the boot-time check,
+the Fly `release_command`, and adopting an existing database.
+
+### [Installing Modulus](./INSTALLATION.md) — Available
+How to run your own installation from the published packages inside a TanStack
+Start application: the packages and the native dependencies the application
+must declare, the Vite and Nitro configuration, the entry and route files,
+environment variables and keys, creating the database, and upgrading.
 
 ### [Database Migration](./DATABASE-MIGRATION.md) — Available
 Moving the shared gradebook database between Neon projects with a rehearsed
@@ -145,11 +153,11 @@ per installation, and foundations for a later migration between LMSs.
 Implementation and a published integration-package reference remain planned.
 
 ### Packaging and Distribution — Planned
-The specification is a draft for architectural review in
-`specs/2026-10-28-modulus-packaging-and-distribution-spec.md`. It proposes
-publishing the server packages as one lockstep set with a TanStack Start host
-package, so a downstream application can install and operate its own Modulus
-instance. An installation guide, a configuration reference, and upgrade notes
+The specification in
+`specs/2026-10-28-modulus-packaging-and-distribution-spec.md` publishes the
+server packages and the agent as one lockstep set with a TanStack Start host
+package. The packages, release machinery, and installation guide exist; the
+first prerelease, a configuration reference, and per-release upgrade notes
 remain planned.
 
 ### [Security & Privacy](./SECURITY-AND-PRIVACY.md) — Available

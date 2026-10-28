@@ -42,7 +42,7 @@ modes — only exists once a request has passed through the whole server.
 **The session suite** (`pnpm test:session`) builds the gradebook, then its global
 setup (`apps/gradebook/src/session-http/global-setup.ts`) boots the built server
 itself with a synthetic environment: the throwaway keys of
-`apps/gradebook/src/config/fixtures/mode-env.ts`, no developer env file, jobs off
+`packages/host-tanstack-start/src/config/fixtures/mode-env.ts`, no developer env file, jobs off
 and CSP on. It seeds the `_test` database with one learner, one admin, the
 standard roles and one LTI platform, and serves that platform's signing keys from
 an in-process mock. Every identity is synthetic. The suite covers:

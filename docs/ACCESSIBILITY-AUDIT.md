@@ -22,7 +22,7 @@ these findings:
 
 - **Finding 9** relied on Next.js's built-in route announcer, which TanStack
   Start does not provide. The root document now renders `RouteAnnouncer`
-  (`apps/gradebook/src/ui/components/route-announcer.tsx`), which reads the new
+  (`packages/host-tanstack-start/src/ui/components/route-announcer.tsx`), which reads the new
   page's title into an assertive live region after each client navigation.
 - An HTML-level spot check of the TanStack Start pages confirmed that the fixes
   for findings 2, 4, 6 and 27 carry over (the shared components are unchanged),

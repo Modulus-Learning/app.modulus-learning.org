@@ -79,7 +79,7 @@ Two things follow from this design:
    registry (`public/tokens.ts`, exported as `@modulus-learning/core/tokens`)
    composes just the three verifiers, so a host can validate a token without a
    database pool or the full service graph. The gradebook's session readers use
-   it through `getCoreTokenVerifiers` (`apps/gradebook/src/lib/core/instance.ts`).
+   it through `getCoreTokenVerifiers` (`packages/host-tanstack-start/src/lib/core/instance.ts`).
 
 ## Sessions & Token Refresh
 
@@ -139,10 +139,10 @@ loader or server function refreshes a token as a side effect.
 ### Verification
 
 Every request classifies the session for each domain (learner and admin) from its
-cookies alone (`apps/gradebook/src/lib/session/state.ts`):
+cookies alone (`packages/host-tanstack-start/src/lib/session/state.ts`):
 
 ```ts
-// apps/gradebook/src/lib/session/state.ts
+// packages/host-tanstack-start/src/lib/session/state.ts
 export type SessionState<TSession> =
   | { status: 'valid'; session: TSession; expiresAtMs: number }
   | { status: 'renewable' }
@@ -160,7 +160,7 @@ Renewal is a dedicated server function per domain — `renewUserSession`
 success, writes the new cookie pair. Its outcome tells the browser what happened:
 
 ```ts
-// apps/gradebook/src/lib/session/renewal.ts
+// packages/host-tanstack-start/src/lib/session/renewal.ts
 export type RenewalOutcome =
   | { status: 'unchanged' | 'renewed'; principal: Principal }
   | { status: 'terminal' | 'transient' }
@@ -216,7 +216,7 @@ server renders the page itself, which has no page yet and acts on its own
 request's session:
 
 ```ts
-// apps/gradebook/src/lib/server-fn-guards.ts
+// packages/host-tanstack-start/src/lib/server-fn-guards.ts
 export const requiresExpectedPrincipal = (handlerType: string | undefined): boolean =>
   handlerType !== 'ssr'
 ```
@@ -364,7 +364,7 @@ no email, no LMS identity, no abilities. `renew_after` (≈60s) is a hint tellin
 the agent when to refresh; the host turns a verified token into an `AgentAuth`:
 
 ```ts
-// apps/gradebook/src/core-adapter.ts (excerpt)
+// packages/host-tanstack-start/src/core-adapter.ts (excerpt)
 const result = await tokenVerifiers.agent.verifyAccessToken(bearerToken)
 if (result.status === 'valid') {
   const { activity_id, user, scope_id, renew_after } = result.payload
@@ -403,7 +403,7 @@ Three properties of that check matter here:
 
 ### The Authorization Endpoint's Branch Ordering
 
-`apps/gradebook/src/app/routes/agent/authorize/route.ts` runs four branches in a
+`packages/host-tanstack-start/src/server-routes/agent/authorize.ts` runs four branches in a
 fixed order, and the order is load-bearing:
 
 | # | Condition | Outcome |
@@ -489,7 +489,7 @@ see [AGENT](./AGENT.md).
 Core is auth-mechanism-agnostic: it consumes a `RequestContext` and never reads a
 cookie or header itself ([ARCHITECTURE → Single-instance](./ARCHITECTURE.md#3-single-instance-no-separate-api-server)).
 The TanStack Start host builds each context in
-`apps/gradebook/src/lib/core/start-adapter.ts`:
+`packages/host-tanstack-start/src/lib/core/start-adapter.ts`:
 
 - `getCoreUserRequestContext()` verifies the learner session and builds
   `UserAuth(id, abilities)`.

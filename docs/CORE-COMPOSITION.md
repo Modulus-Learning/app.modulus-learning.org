@@ -404,7 +404,7 @@ const commands: CoreCommands = {
 
 The host holds the result as a singleton and calls commands per request — see
 [ARCHITECTURE → Single-instance](./ARCHITECTURE.md#3-single-instance-no-separate-api-server)
-and `apps/gradebook/src/core-adapter.ts`.
+and `packages/host-tanstack-start/src/core-adapter.ts`.
 
 One related composition is kept deliberately separate: **token verification**
 (`public/tokens.ts`) builds its own small `AsyncRegistry` of the three verifiers

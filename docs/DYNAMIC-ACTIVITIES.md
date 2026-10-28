@@ -268,7 +268,7 @@ independently — a bad umbrella target never costs a learner their own progress
   chose one coarse ability over a per-verb `activities:*` set in anticipation of
   other site-wide settings landing under the same gate.)
 - **UI.** The existing placeholder route
-  `apps/gradebook/src/app/[lng]/(admin)/admin/(auth)/activities/page.tsx` becomes
+  `packages/host-tanstack-start/src/routes/$lng/_admin/admin/_authed/activities/index.page.tsx` becomes
   the policy manager (list + create/edit/delete rules). The `/admin/activities`
   nav entry already exists (`ui/components/admin/menu-drawer.tsx`).
 
@@ -401,7 +401,7 @@ editing.
 - `lib/utils.ts` — `createCommand` enforces declared abilities via `assertAdminAbilities` (~:158–167).
 - `lib/auth.ts` — `hasAbility` (~:9) / assert (~:14).
 - `modules/admin/lti-platforms/commands.ts` — `abilities: ['lti-platforms:create']` declaration pattern (~:42).
-- `apps/gradebook/src/routes/$lng/_admin/admin/_authed/route.tsx` — `access_admin` route gate (the layout's `beforeLoad`).
+- `packages/host-tanstack-start/src/routes/$lng/_admin/admin/_authed/route.route.tsx` — `access_admin` route gate (the layout's `beforeLoad`).
 
 ### Admin module template (mirror `lti-platforms`)
 - Core: `modules/admin/lti-platforms/{services/lti-platforms.ts, commands.ts, repository.ts, schemas.ts, utils.ts, errors.ts}`.
@@ -409,14 +409,14 @@ editing.
 - **New core module:** `modules/admin/activity-policy/` (CRUD gated by `site-config:manage`; internal **un-gated** `isAllowed(url)` + pure `isLazyCreateAllowed` matcher in `utils.ts`).
 
 ### Gradebook UI
-- Placeholder to fill: `apps/gradebook/src/app/[lng]/(admin)/admin/(auth)/activities/page.tsx`.
-- Admin auth layout: `apps/gradebook/src/app/[lng]/(admin)/admin/(auth)/layout.tsx`.
-- Server-action template: `apps/gradebook/src/modules/admin/lti-platforms/` (`list.ts`, `create.ts` shows flash-cookie + `redirect`, `get.ts`, `@types/`, `components/`).
-- Nav item already present: `apps/gradebook/src/ui/components/admin/menu-drawer.tsx` (~:66, `/admin/activities`).
+- Placeholder to fill: `packages/host-tanstack-start/src/routes/$lng/_admin/admin/_authed/activities/index.page.tsx`.
+- Admin auth layout: `packages/host-tanstack-start/src/routes/$lng/_admin/admin/_authed/route.route.tsx`.
+- Server-action template: `packages/host-tanstack-start/src/modules/admin/lti-platforms/` (`list.ts`, `create.ts` shows flash-cookie + `redirect`, `get.ts`, `@types/`, `components/`).
+- Nav item already present: `packages/host-tanstack-start/src/ui/components/admin/menu-drawer.tsx` (~:66, `/admin/activities`).
 
 ### Agent transport / DI wiring
-- Unified RPC route: `apps/gradebook/src/app/routes/agent/activity/route.ts` (dispatch on `op`).
-- Adapter helpers: `apps/gradebook/src/core-adapter` — `getCoreAgentRequestContext`, `getCoreAdminRequestContext`, `getCoreCommands`.
+- Unified RPC route: `packages/host-tanstack-start/src/server-routes/agent/activity.ts` (dispatch on `op`).
+- Adapter helpers: `packages/host-tanstack-start/src/core-adapter.ts` — `getCoreAgentRequestContext`, `getCoreAdminRequestContext`, `getCoreCommands`.
 - Token issuer: `modules/agent/auth/services/token-issuer.ts` — `createAccessToken({ user, activity })` bakes a single `activity_id` into the JWT.
 - Contract schemas: `modules/agent/activity-state/schemas.ts`.
 - Agent client (for end-to-end testing): `apps/agent/src/core/auth.ts`, `apps/agent/src/core/api-client.ts` (redirect_uri = activity URL).
