@@ -27,6 +27,11 @@
 **/values.dev.yaml
 *.md
 **/sql
+# Core's release schema scripts ship in the image: `modulus db upgrade` runs them.
+!packages/core/src/database/sql
+# Database dumps never enter the build context.
+**/*.dump
+modulus-deploy-*.sql
 npm-debug.log
 
 # Node
