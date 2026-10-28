@@ -63,6 +63,45 @@ const racingService = (parties: number) => {
   })
 }
 
+/**
+ * A sign-in service whose first identity lookup waits, after reading, until the
+ * returned `release` is called, so another launch can link the account between
+ * that launch's identity lookup and its email lookup.
+ */
+const pausedAfterIdentityLookup = () => {
+  const deps = {
+    logger: createCoreLogger({ pinoLogger: pino({ level: 'silent' }) }),
+    utils: h.utils,
+    db: h.dbManager,
+  }
+  const queries = new SessionQueries(deps)
+  let release: () => void = () => {}
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let paused = false
+  let reached: () => void = () => {}
+  const reachedPause = new Promise<void>((resolve) => {
+    reached = resolve
+  })
+  const findUserByLtiId = queries.findUserByLtiId.bind(queries)
+  queries.findUserByLtiId = async (iss: string, sub: string) => {
+    const user = await findUserByLtiId(iss, sub)
+    if (!paused) {
+      paused = true
+      reached()
+      await released
+    }
+    return user
+  }
+  const service = new LtiSignInService({
+    logger: deps.logger,
+    queries,
+    mutations: new SessionMutations(deps),
+  })
+  return { service, reachedPause, release }
+}
+
 const launch = (sub: string) => ({ iss: ISSUER, sub, name: 'Launch User', email: EMAIL })
 
 const seedUnlinkedAccount = async () => {
@@ -109,6 +148,26 @@ describe('LtiSignInService email linking (database)', () => {
       ['fulfilled', 'fulfilled']
     )
     const [row] = await h.db.select().from(users).where(eq(users.id, userId))
+    assert.equal(row?.lti_sub, 'subject-a')
+  })
+
+  it('signs in a launch whose email lookup finds the account just linked to its own identity', async () => {
+    const userId = await seedUnlinkedAccount()
+    const { service, reachedPause, release } = pausedAfterIdentityLookup()
+
+    // Launch A finds no account by identity, then pauses before its email lookup.
+    const first = service.signInLti(launch('subject-a'), false)
+    await reachedPause
+
+    // Launch B, same identity, links the account while A is paused.
+    await service.signInLti(launch('subject-a'), false)
+
+    release()
+    const result = await first
+
+    assert.equal(result.user.id, userId)
+    const [row] = await h.db.select().from(users).where(eq(users.id, userId))
+    assert.equal(row?.lti_iss, ISSUER)
     assert.equal(row?.lti_sub, 'subject-a')
   })
 })

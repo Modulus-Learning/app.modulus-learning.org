@@ -44,9 +44,15 @@ export class LtiSignInService extends BaseService {
     // identity. A signed email claim alone does not prove the account is the
     // same person's, so an existing link is never overwritten by one; the
     // launch is refused instead (a new account would collide with the email).
+    // An account already linked to this same identity is not a conflict: a
+    // concurrent launch may have linked it after the identity lookup above.
     if (user == null && credentials.email != null) {
       const byEmail = await this.queries.findUserByEmail(credentials.email)
-      if (byEmail?.lti_iss != null && byEmail.lti_sub != null) {
+      if (
+        byEmail?.lti_iss != null &&
+        byEmail.lti_sub != null &&
+        (byEmail.lti_iss !== credentials.iss || byEmail.lti_sub !== credentials.sub)
+      ) {
         this.refuseIdentityConflict(byEmail.id, credentials.iss)
       }
       user = byEmail
