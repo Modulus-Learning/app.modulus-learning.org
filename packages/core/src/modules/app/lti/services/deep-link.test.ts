@@ -7,7 +7,14 @@ import { v7 as uuidv7 } from 'uuid'
 import { UserAuth } from '@/lib/auth.js'
 import { createCoreLogger } from '@/lib/logger.js'
 import { parseAdmissibleUrl } from '@/modules/activity-registration/url-policy.js'
-import { CLAIM_DEEP_LINKING_CONTENT, CLAIM_DEPLOYMENT_ID } from '../constants.js'
+import {
+  CLAIM_DEEP_LINKING_CONTENT,
+  CLAIM_DEEP_LINKING_DATA,
+  CLAIM_DEEP_LINKING_MSG,
+  CLAIM_DEPLOYMENT_ID,
+  CLAIM_MESSAGE_TYPE,
+  CLAIM_VERSION,
+} from '../constants.js'
 import { LtiDeepLinkingService } from './deep-link.js'
 import type { UrlBuilder } from '@/config.js'
 import type { CoreError } from '@/lib/errors.js'
@@ -235,6 +242,83 @@ describe('LtiDeepLinkingService.handleDeepLink', () => {
     assert.equal(items.length, 1)
     assert.equal(result.jwt, 'signed-jwt')
     assert.equal(result.return_url, 'https://canvas.test/deep_link_return')
+  })
+  // Characterisation (Canvas extraction): Canvas expands each `$<name>` value
+  // into the launch's custom claims, so this set is what every later launch
+  // can read. Existing resource links keep the set they were created with.
+  it('requests exactly this set of Canvas substitution variables', async () => {
+    const { item } = await handle()
+    const custom = item.custom as Record<string, string>
+    const substitutions = Object.keys(custom).filter((key) => !key.startsWith('modulus_'))
+
+    assert.deepEqual(substitutions, [
+      'User.id',
+      'User.username',
+      'ActualUser.id',
+      'ActualUser.username',
+      'Context.id',
+      'Context.title',
+      'ResourceLink.id',
+      'ResourceLink.title',
+      'ResourceLink.description',
+      'ResourceLink.available.startDateTime',
+      'ResourceLink.available.endDateTime',
+      'ResourceLink.submission.startDateTime',
+      'ResourceLink.submission.endDateTime',
+      'Message.locale',
+      'Canvas.account.id',
+      'Canvas.account.name',
+      'Canvas.user.id',
+      'Canvas.user.loginId',
+      'Canvas.masqueradingUser.id',
+      'Canvas.masqueradingUser.userId',
+      'Canvas.course.id',
+      'Canvas.course.name',
+      'Canvas.course.startAt',
+      'Canvas.course.endAt',
+      'Canvas.course.gradePassbackSetting',
+      'Canvas.term.id',
+      'Canvas.term.name',
+      'Canvas.term.startAt',
+      'Canvas.term.endAt',
+      'Canvas.enrollment.enrollmentState',
+      'Canvas.module.id',
+      'Canvas.moduleItem.id',
+      'Canvas.assignment.id',
+      'Canvas.assignment.title',
+      'Canvas.assignment.description',
+      'Canvas.assignment.published',
+      'Canvas.assignment.pointsPossible',
+      'Canvas.assignment.unlockAt.iso8601',
+      'Canvas.assignment.lockAt.iso8601',
+      'Canvas.assignment.dueAt.iso8601',
+      'Canvas.assignment.allowedAttempts',
+      'Canvas.assignment.submission.studentAttempts',
+      'com.instructure.User.student_view',
+      'com.instructure.Assignment.lti.id',
+      'com.instructure.Assignment.description',
+      'com.instructure.Submission.id',
+      'com.instructure.Context.globalId',
+      'com.instructure.Context.uuid',
+      'com.instructure.contextLabel',
+      'vnd.instructure.Course.uuid',
+      'vnd.instructure.User.uuid',
+      'vnd.instructure.User.current_uuid',
+      'LineItem.resultValue.max',
+    ])
+    for (const key of substitutions) assert.equal(custom[key], `$${key}`, key)
+  })
+
+  it('signs the response as the tool to the platform, carrying its data and message', async () => {
+    const { payload } = await handle()
+
+    assert.equal(payload.iss, 'client-1')
+    assert.equal(payload.aud, 'https://canvas.test')
+    assert.equal(payload[CLAIM_MESSAGE_TYPE], 'LtiDeepLinkingResponse')
+    assert.equal(payload[CLAIM_VERSION], '1.3.0')
+    assert.equal(payload[CLAIM_DEEP_LINKING_DATA], 'opaque-platform-data')
+    assert.equal(payload[CLAIM_DEEP_LINKING_MSG], 'Assignment configured!')
+    assert.match(String(payload.nonce), /^[A-Za-z0-9_-]{40}$/)
   })
 })
 
