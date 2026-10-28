@@ -9,4 +9,4 @@ allowBuilds:
 minimumReleaseAge: 0
 # Resolve the packed core tarball instead of the registry.
 overrides:
-  '@modulus-learning/core': file:../../.packed/modulus-learning-core-0.9.1.tgz
+  '@modulus-learning/core': file:../../.packed/modulus-learning-core.tgz

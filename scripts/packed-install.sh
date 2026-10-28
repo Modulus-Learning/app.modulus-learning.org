@@ -50,6 +50,12 @@ for tgz in "$PACKED"/*.tgz; do
   fi
 done
 
+# The fixture depends on version-less tarball names, so a version bump never
+# requires editing it.
+for tgz in "$PACKED"/*-[0-9]*.tgz; do
+  cp "$tgz" "$(echo "$tgz" | sed -E 's/-[0-9][^/]*\.tgz$/.tgz/')"
+done
+
 echo "── install and build the fixture"
 cd "$FIXTURE"
 rm -rf .output
