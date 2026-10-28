@@ -214,6 +214,11 @@ export class LtiLaunchService extends BaseService {
   async handleLaunch(request: LaunchRequest): Promise<LaunchResponse> {
     const { launch, platform } = await this.validateLaunch(request)
 
+    // Record the deployment (if new) once the launch is verified. Verification
+    // itself writes only the nonce claim, so a rejected launch writes nothing
+    // else; this is the point to apply a future deployment allowlist.
+    await this.ltiMutations.upsertPlatformDeployment(launch.iss, launch[CLAIM_DEPLOYMENT_ID])
+
     const messageType = launch[CLAIM_MESSAGE_TYPE]
     const launchType = launch[CLAIM_CUSTOM].modulus_launch_type
 
@@ -484,11 +489,6 @@ export class LtiLaunchService extends BaseService {
         message: 'lti launch nonce invalid or already used',
       }).log(this.logger)
     }
-
-    // Create a platform deployment record (if one doesn't already exist).
-    // Deliberately done only after the nonce is claimed, so a rejected replay
-    // performs no writes.
-    await this.ltiMutations.upsertPlatformDeployment(issuer, launch[CLAIM_DEPLOYMENT_ID])
 
     return { launch, platform }
   }

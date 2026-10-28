@@ -287,7 +287,7 @@ describe('LTI launch characterisation', () => {
       assert.deepEqual(calls.nonces, ['launch-nonce'])
     })
 
-    it('claims the nonce, then upserts the deployment, inside verification', async () => {
+    it('claims the nonce in verification, then records the deployment before sign-in', async () => {
       const { service, calls } = createService()
       await service.handleLaunch({ id_token: await signLaunch(), issuer: ISSUER })
       assert.deepEqual(calls.order.slice(0, 3), [
