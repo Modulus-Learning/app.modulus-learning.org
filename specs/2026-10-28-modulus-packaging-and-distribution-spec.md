@@ -2,8 +2,11 @@
 
 Date: 2026-10-28
 
-Status: Direction approved with amendments. The host spike is complete (see
-Host Spike Results); packaging foundations are next on `chore/packaging`.
+Status: In progress, paused on 2026-10-28. The host spike, core readiness
+(in code), host package extraction and release machinery are done; the LMS
+extraction is staged; the first prerelease has not started. Where the work
+stands and what comes next:
+[Packaging and LMS Extraction: Handoff](./2026-10-28-packaging-and-lms-handoff.md).
 
 Revision: 2026-10-28, incorporating architectural review. The agent joins the
 lockstep set and every package starts at `0.11.0`; the host spike moves first;

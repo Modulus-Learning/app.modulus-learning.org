@@ -2,7 +2,11 @@
 
 Date: 2026-10-25
 
-Status: Ready for contract review; implementation has not started.
+Status: In progress, paused on 2026-10-28. Characterisation and boundary
+preparation are done and package extraction is staged; conformance, Phase B and
+the installation binding remain. See
+[Packaging and LMS Extraction: Handoff](./2026-10-28-packaging-and-lms-handoff.md)
+and [LMS Extraction: Characterisation](./2026-10-28-lms-extraction-characterisation.md).
 
 Revision: 2026-10-28, aligned with the companion
 [Modulus Packaging and Distribution](./2026-10-28-modulus-packaging-and-distribution-spec.md)

@@ -133,7 +133,10 @@ The staged extraction does not complete
 - **Gaps 3 and 4** (the absent `lti_message_hint`, the multi-audience `azp`
   check) belong to shared LTI verification in Phase B.
 
+The open email-linking policy questions are in
+[LTI Email Account Linking](./2026-10-28-lti-email-account-linking-analysis.md).
+
 ## Next Increment
 
-The 0.12.0-next.0 prerelease of the extended lockstep set, then the
-conformance suite and Phase B.
+Work paused here on 2026-10-28. The ordered next steps are in
+[Packaging and LMS Extraction: Handoff](./2026-10-28-packaging-and-lms-handoff.md).
