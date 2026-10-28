@@ -35,9 +35,18 @@ attw_args() {
   esac
 }
 
+# Repository-only files that must never ship: tests, test support, fixtures,
+# and the development seeds (which delete data).
+FORBIDDEN='\.(test|itest)(\.node)?\.(js|d\.ts)|/test-support/|/fixtures/|/database/seeds/'
+
 status=0
 for tgz in "$OUT"/*.tgz; do
   echo "── $(basename "$tgz")"
+  if tar -tzf "$tgz" | grep -qE "$FORBIDDEN"; then
+    echo "repository-only files in the archive:"
+    tar -tzf "$tgz" | grep -E "$FORBIDDEN" | head -20
+    status=1
+  fi
   pnpm exec publint run "$tgz" --level warning | tail -n +4 || status=1
   # shellcheck disable=SC2046
   if pnpm exec attw "$tgz" --profile esm-only $(attw_args "$tgz") >/dev/null 2>&1; then

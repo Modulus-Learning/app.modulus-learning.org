@@ -14,6 +14,7 @@
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
     "src/**/*.test.node.ts",
-    "src/**/*.test.node.tsx"
+    "src/**/*.test.node.tsx",
+    "src/**/fixtures/**"
   ]
 }

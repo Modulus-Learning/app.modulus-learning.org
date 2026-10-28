@@ -1,0 +1,12 @@
+{
+  // The published build: source only. Tests, test support and the development
+  // seeds stay in the repository; `tsconfig.json` still typechecks them.
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "src/**/*.test.ts",
+    "src/**/*.itest.ts",
+    "src/test-support/**",
+    "src/database/seeds/**"
+  ]
+}

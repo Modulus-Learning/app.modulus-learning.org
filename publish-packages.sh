@@ -221,7 +221,18 @@ ensure_tag() {
   TAGS_TO_PUSH+=("${tag}")
 }
 
-for line in "${TO_PUBLISH[@]}"; do
+# A dry run packs and verifies the whole set, whatever the registry reports;
+# skipping already-published versions applies only to a real publish.
+if [ "$DRY_RUN" -eq 1 ]; then
+  PACK_LINES=("${PKG_LINES[@]}")
+else
+  PACK_LINES=("${TO_PUBLISH[@]}")
+fi
+
+# Repository-only files that must never ship (see scripts/check-packages.sh).
+FORBIDDEN='\.(test|itest)(\.node)?\.(js|d\.ts)|/test-support/|/fixtures/|/database/seeds/'
+
+for line in "${PACK_LINES[@]}"; do
   name="$(printf '%s' "$line" | cut -f1)"
   dir="$(printf '%s' "$line" | cut -f2)"
   echo "${BOLD}── ${name} ──${RESET}"
@@ -234,6 +245,17 @@ for line in "${TO_PUBLISH[@]}"; do
     # Guard: no unrewritten workspace: deps may ship.
     if tar -xzO -f "$tgz" package/package.json | grep -q '"workspace:'; then
       echo "${RED}WORKSPACE LEAK in $tgz — refusing to publish${RESET}"; exit 1
+    fi
+    # Guard: the build output must be in the tarball (e.g. not --no-build
+    # without a prior build).
+    if ! tar -tzf "$tgz" | grep -q '^package/dist/'; then
+      echo "${RED}no dist/ in $tgz — build the package first${RESET}"; exit 1
+    fi
+    # Guard: no tests, test support, fixtures or development seeds.
+    if tar -tzf "$tgz" | grep -qE "$FORBIDDEN"; then
+      echo "${RED}repository-only files in $tgz — refusing to publish:${RESET}"
+      tar -tzf "$tgz" | grep -E "$FORBIDDEN" | head -10
+      exit 1
     fi
     if [ "$DRY_RUN" -eq 1 ]; then
       echo "  ${DIM}dry-run: packed $(basename "$tgz"), verified clean (not publishing)${RESET}"

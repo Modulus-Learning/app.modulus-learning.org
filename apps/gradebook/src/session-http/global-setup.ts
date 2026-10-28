@@ -5,10 +5,11 @@ import { createRequire } from 'node:module'
 import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
 
-import { envForMode } from '@modulus-learning/host-tanstack-start/config/fixtures/mode-env'
 import { exportJWK, exportPKCS8, generateKeyPair } from 'jose'
 import type { TestProject } from 'vitest/node'
 
+// Repository test support, not part of the published package.
+import { envForMode } from '../../../../packages/host-tanstack-start/src/config/fixtures/mode-env'
 import { ADMIN, GRADEBOOK, LEARNER, PLATFORM } from './harness'
 
 /**

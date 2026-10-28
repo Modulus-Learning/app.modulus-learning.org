@@ -7,5 +7,7 @@ const to = new URL('../dist/', import.meta.url)
 
 cpSync(from, to, {
   recursive: true,
-  filter: (source) => !/\.(ts|tsx)$/.test(source) || source.endsWith('.d.ts'),
+  // Test fixtures stay in the repository.
+  filter: (source) =>
+    !/\/fixtures(\/|$)/.test(source) && (!/\.(ts|tsx)$/.test(source) || source.endsWith('.d.ts')),
 })
