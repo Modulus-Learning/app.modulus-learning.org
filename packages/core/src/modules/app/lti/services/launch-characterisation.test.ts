@@ -4,12 +4,14 @@
  * (specs/2026-10-25-canvas-lti-package-extraction-spec.md). These tests record
  * current behaviour; a behaviour change must change them deliberately.
  */
+
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 
 import { type JWTPayload, SignJWT } from 'jose'
 import { v7 as uuidv7 } from 'uuid'
 
+import { canvasAdapter } from '@/lms/canvas/index.js'
 import {
   CLAIM_AGS_ENDPOINT,
   CLAIM_CUSTOM,
@@ -24,6 +26,11 @@ import {
 import { ErrorCodes } from '@/modules/app/lti/errors.js'
 import { LtiLaunchService } from '@/modules/app/lti/services/launch.js'
 import {
+  SYNTHETIC_DUE_FIELD,
+  SYNTHETIC_INSTRUCTOR_ROLE,
+  syntheticAdapter,
+} from '@/test-support/lms.js'
+import {
   createPlatformKeys,
   type PlatformKeys,
   platformRecord,
@@ -32,6 +39,7 @@ import {
 } from '@/test-support/lti.js'
 import type { Config } from '@/config.js'
 import type { TXManager } from '@/lib/db-manager.js'
+import type { LmsAdapter } from '@/lms/contract.js'
 import type { ActivityQueries } from '@/modules/app/activities/repository/index.js'
 import type { EnrollmentService } from '@/modules/app/activities/services/enrollment.js'
 import type {
@@ -72,10 +80,13 @@ describe('LTI launch characterisation', () => {
     await jwks.close()
   })
 
-  const createService = (options: { platformFound?: boolean; nonceClaimed?: boolean } = {}) => {
-    const { platformFound = true, nonceClaimed = true } = options
+  const createService = (
+    options: { platformFound?: boolean; nonceClaimed?: boolean; adapter?: LmsAdapter } = {}
+  ) => {
+    const { platformFound = true, nonceClaimed = true, adapter = canvasAdapter() } = options
     const calls: Calls = { order: [], nonces: [], deployments: [] }
     const service = new LtiLaunchService({
+      lmsAdapter: adapter,
       logger: silentLogger(),
       config: { server: { baseUrl: 'https://modulus.characterisation.test' } } as Config,
       tx: { withTransaction: async (fn: () => Promise<unknown>) => await fn() } as TXManager,
@@ -431,6 +442,51 @@ describe('LTI launch characterisation', () => {
     it('accepts any Date.parse-able string, not only ISO 8601 with an offset', async () => {
       const cutoff = await cutoffFor({ 'ResourceLink.available.endDateTime': '2026-12-01' })
       assert.equal(cutoff?.toISOString(), '2026-12-01T00:00:00.000Z')
+    })
+  })
+
+  describe('a non-Canvas adapter', () => {
+    const launchWith = async (options: LaunchOptions) => {
+      const { service, calls } = createService({ adapter: syntheticAdapter() })
+      const response = await service.handleLaunch({
+        id_token: await signLaunch(options),
+        issuer: ISSUER,
+      })
+      return { response, calls }
+    }
+
+    it('launches with no Canvas custom fields at all', async () => {
+      const { response } = await launchWith({ custom: {} })
+      assert.equal(response.type, 'start-activity')
+    })
+
+    it('takes instructor status from the adapter, not Canvas role names', async () => {
+      const canvasRole = await launchWith({
+        roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
+      })
+      assert.equal(canvasRole.calls.asInstructor, false)
+      const syntheticRole = await launchWith({ roles: [SYNTHETIC_INSTRUCTOR_ROLE] })
+      assert.equal(syntheticRole.calls.asInstructor, true)
+    })
+
+    it('uses the adapter cutoff fallback and ignores Canvas lockAt', async () => {
+      const { calls } = await launchWith({
+        custom: {
+          [SYNTHETIC_DUE_FIELD]: '2026-11-15T00:00:00Z',
+          'Canvas.assignment.lockAt.iso8601': '2026-10-01T00:00:00Z',
+        },
+      })
+      assert.equal(calls.reconciled?.cutoff_at?.toISOString(), '2026-11-15T00:00:00.000Z')
+    })
+
+    it('still lets the standard ResourceLink field win over the adapter fallback', async () => {
+      const { calls } = await launchWith({
+        custom: {
+          'ResourceLink.available.endDateTime': '2026-12-01T00:00:00Z',
+          [SYNTHETIC_DUE_FIELD]: '2026-11-15T00:00:00Z',
+        },
+      })
+      assert.equal(calls.reconciled?.cutoff_at?.toISOString(), '2026-12-01T00:00:00.000Z')
     })
   })
 })

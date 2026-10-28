@@ -14,7 +14,11 @@ export type PublishScoreInput = {
 
 export type PublishScoreOutcome = {
   result: SubmissionResult
-  reading?: RateLimitReading
+  /**
+   * The response's scheduling signal for the adapter's own pacing policy
+   * (for Canvas, a `RateLimitReading`). Opaque to core, which only passes it on.
+   */
+  reading?: unknown
 }
 
 /**

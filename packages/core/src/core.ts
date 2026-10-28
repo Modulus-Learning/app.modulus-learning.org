@@ -10,6 +10,7 @@ import { type CoreLogger, createCoreLogger } from './lib/logger.js'
 import { LtiKeyStore } from './lib/lti-keystore.js'
 import { AsyncRegistry } from './lib/registry.js'
 import { CoreUtils } from './lib/utils.js'
+import { assertLmsAdapter, type LmsAdapter } from './lms/contract.js'
 import { createActivityRegistrationRegistry } from './modules/activity-registration/index.js'
 import { createAdminRegistry, getAdminCommands } from './modules/admin/index.js'
 import { createAgentRegistry, getAgentCommands } from './modules/agent/index.js'
@@ -50,10 +51,11 @@ const createMailer = (deps: {
  * them reach it, and a registry nested after `app` could not be injected into
  * an app service.
  */
-const createCoreRegistry = (urlBuilder: UrlBuilder, config: Config) => {
+const createCoreRegistry = (urlBuilder: UrlBuilder, config: Config, lmsAdapter: LmsAdapter) => {
   return new AsyncRegistry()
     .addValue('config', config)
     .addValue('urlBuilder', urlBuilder)
+    .addValue('lmsAdapter', lmsAdapter)
     .addFactory('logger', createCoreLogger)
     .addFactory('jwtSign', createJwtSigner)
     .addFactory('jwtVerify', createJwtVerifier)
@@ -102,6 +104,8 @@ export type InitOptions = {
   pinoLogger?: PinoLogger
   urlBuilder: UrlBuilder
   config: Config
+  /** The installation's LMS adapter, e.g. `canvasAdapter()` from `@modulus-learning/core/lms/canvas`. */
+  lms: LmsAdapter
 }
 
 /**
@@ -116,7 +120,10 @@ export const initCore = async ({
   pinoLogger = pino({ level: 'info' }),
   urlBuilder,
   config,
+  lms,
 }: InitOptions): Promise<CoreInstance> => {
+  const lmsAdapter = assertLmsAdapter(lms)
+
   await checkSchema({
     connectionString: config.postgres.connectionString,
     mode: config.postgres.schemaCheck,
@@ -124,7 +131,7 @@ export const initCore = async ({
     logger: pinoLogger,
   })
 
-  const registry = await createCoreRegistry(urlBuilder, config).compose({ pinoLogger })
+  const registry = await createCoreRegistry(urlBuilder, config, lmsAdapter).compose({ pinoLogger })
 
   const commands: CoreCommands = {
     app: getAppCommands(registry.app),

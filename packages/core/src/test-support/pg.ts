@@ -11,6 +11,7 @@ import * as schema from '@/database/schema/index.js'
 import { DBManagerImpl, TXManagerImpl } from '@/lib/db-manager.js'
 import { createCoreLogger } from '@/lib/logger.js'
 import { CoreUtils } from '@/lib/utils.js'
+import { canvasAdapter } from '@/lms/canvas/index.js'
 import {
   ActivityUrlAllowlistMutations,
   ActivityUrlAllowlistQueries,
@@ -202,6 +203,7 @@ export async function setupTestHarness(): Promise<TestHarness> {
         activities: { queries: repos.appActivityQueries, mutations: repos.appActivityMutations },
         ltiKeyStore,
         activityRegistration: { service: activityRegistration },
+        lmsAdapter: canvasAdapter(),
       }),
     makeSubmitter: (agsClient) =>
       new LtiScoreSubmitter({

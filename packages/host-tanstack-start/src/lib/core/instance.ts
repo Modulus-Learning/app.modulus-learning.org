@@ -12,6 +12,7 @@ import {
   type UserSession,
 } from '@modulus-learning/core'
 import { loadCoreConfigFromEnv, loadTokenVerifierConfigFromEnv } from '@modulus-learning/core/env'
+import { canvasAdapter } from '@modulus-learning/core/lms/canvas'
 import { initTokenVerifiers, type TokenVerifiers } from '@modulus-learning/core/tokens'
 import type { Logger } from 'pino'
 
@@ -42,6 +43,9 @@ export const getCoreInstance = (logger: Logger): Promise<CoreInstance> => {
     global[CORE] = initCore({
       pinoLogger: logger,
       config: loadCoreConfigFromEnv(process.env),
+      // The installation's LMS. Canvas is the only adapter today; a host will
+      // name its adapter in server configuration once it is a separate package.
+      lms: canvasAdapter(),
       urlBuilder: {
         baseUrl: publicServerUrl,
         // The tool's launch endpoint, which is what an LTI resource link's

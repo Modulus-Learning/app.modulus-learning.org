@@ -6,6 +6,7 @@ import { pino } from 'pino'
 import { createCoreLogger } from '@/lib/logger.js'
 import { type FetchFn, HttpLtiAgsClient } from './ags-client.js'
 import type { Config } from '@/config.js'
+import type { RateLimitReading } from '@/modules/app/lti/score-submission/types.js'
 import type { AccessToken, AccessTokenResult } from '../types/access-token.js'
 import type { PlatformRecord } from './repository.js'
 
@@ -119,7 +120,10 @@ describe('HttpLtiAgsClient.publishScore', () => {
       scoreGiven: 0.2,
     })
     assert.deepEqual(
-      { remaining: outcome.reading?.remaining, cost: outcome.reading?.cost },
+      {
+        remaining: (outcome.reading as RateLimitReading | undefined)?.remaining,
+        cost: (outcome.reading as RateLimitReading | undefined)?.cost,
+      },
       { remaining: 120, cost: 3.5 }
     )
   })

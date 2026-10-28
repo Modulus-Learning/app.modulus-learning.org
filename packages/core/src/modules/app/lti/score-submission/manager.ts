@@ -1,6 +1,5 @@
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_NOT_FOUND } from '@/lib/errors.js'
-import { HttpLtiAgsClient } from './ags-client.js'
 import { LoggingIncidentSink } from './incident-sink.js'
 import { LtiIncidentNotifier } from './notifier.js'
 import { LtiScoreSubmissionProcessor } from './processor.js'
@@ -8,6 +7,7 @@ import { LtiScoreSubmitter } from './submitter.js'
 import type { Config } from '@/config.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
+import type { LmsAdapter } from '@/lms/contract.js'
 import type { AccessTokenManager } from '../services/access-tokens.js'
 import type {
   LtiScoreSubmissionMutations,
@@ -20,6 +20,7 @@ export class LtiScoreSubmissionManager extends BaseService {
   private queries: LtiScoreSubmissionQueries
   private mutations: LtiScoreSubmissionMutations
   private accessTokenManager: AccessTokenManager
+  private lms: LmsAdapter
   private tx: TXManager
 
   private processors: Record<string, LtiScoreSubmissionProcessor>
@@ -37,8 +38,10 @@ export class LtiScoreSubmissionManager extends BaseService {
     scoreSubmissionQueries: LtiScoreSubmissionQueries
     scoreSubmissionMutations: LtiScoreSubmissionMutations
     accessTokenManager: AccessTokenManager
+    lmsAdapter: LmsAdapter
   }) {
     super(deps.logger, 'app', 'lti')
+    this.lms = deps.lmsAdapter
     this.config = deps.config
     this.tx = deps.tx
     this.queries = deps.scoreSubmissionQueries
@@ -149,11 +152,13 @@ export class LtiScoreSubmissionManager extends BaseService {
   }
 
   private addProcessor(platform: PlatformRecord) {
-    const agsClient = new HttpLtiAgsClient({
+    // The adapter supplies the registration-bound transport and its pacing
+    // policy; core keeps claiming, fencing, retries, incidents and the cap.
+    const { client: agsClient, scheduling } = this.lms.createScoreClient({
+      registration: platform,
+      accessTokens: this.accessTokenManager,
       logger: this.logger,
       config: this.config,
-      platform,
-      accessTokenManager: this.accessTokenManager,
     })
 
     const submitter = new LtiScoreSubmitter({
@@ -167,6 +172,7 @@ export class LtiScoreSubmissionManager extends BaseService {
       logger: this.logger,
       config: this.config,
       submitter,
+      scheduling,
       mutations: this.mutations,
       queries: this.queries,
     })

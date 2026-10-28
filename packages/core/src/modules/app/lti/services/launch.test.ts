@@ -9,6 +9,7 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
 import { createCoreLogger } from '@/lib/logger.js'
+import { canvasAdapter, inspectCanvasTerm, normalizeCanvasTerm } from '@/lms/canvas/index.js'
 import {
   CLAIM_AGS_ENDPOINT,
   CLAIM_CUSTOM,
@@ -20,11 +21,7 @@ import {
   CLAIM_VERSION,
 } from '@/modules/app/lti/constants.js'
 import { ErrorCodes } from '@/modules/app/lti/errors.js'
-import {
-  LtiLaunchService,
-  normalizeCanvasTerm,
-  resolveVerifiedLaunchScope,
-} from '@/modules/app/lti/services/launch.js'
+import { LtiLaunchService, resolveVerifiedLaunchScope } from '@/modules/app/lti/services/launch.js'
 import type { Config } from '@/config.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { ActivityQueries } from '@/modules/app/activities/repository/index.js'
@@ -43,6 +40,15 @@ import type {
 import type { UserTokens } from '@/modules/app/session/schemas.js'
 import type { LtiSignInService } from '@/modules/app/session/services/lti-sign-in.js'
 import type { TokenIssuer } from '@/modules/app/session/services/token-issuer.js'
+
+// Scope resolution as a Canvas launch reaches it: the adapter inspects the
+// custom claims, then core resolves the term.
+const resolveCanvasLaunchScope = (
+  mutations: Parameters<typeof resolveVerifiedLaunchScope>[0],
+  platform_id: string,
+  custom: Parameters<typeof inspectCanvasTerm>[0],
+  options?: Parameters<typeof resolveVerifiedLaunchScope>[3]
+) => resolveVerifiedLaunchScope(mutations, platform_id, inspectCanvasTerm(custom), options)
 
 const scopeRecord = (
   values: PlatformScopeResolution,
@@ -105,7 +111,7 @@ describe('resolveVerifiedLaunchScope', () => {
 
     for (const custom of inputs) {
       let calls = 0
-      const result = await resolveVerifiedLaunchScope(
+      const result = await resolveCanvasLaunchScope(
         {
           resolvePlatformScope: async (values) => {
             calls += 1
@@ -125,7 +131,7 @@ describe('resolveVerifiedLaunchScope', () => {
     const diagnostics: unknown[] = []
     const rawTermId = 'must-not-appear-in-logs'
 
-    const result = await resolveVerifiedLaunchScope(
+    const result = await resolveCanvasLaunchScope(
       {
         resolvePlatformScope: async (values) => scopeRecord(values),
       },
@@ -171,7 +177,7 @@ describe('resolveVerifiedLaunchScope', () => {
     const calls: PlatformScopeResolution[] = []
     const diagnostics: unknown[] = []
 
-    const result = await resolveVerifiedLaunchScope(
+    const result = await resolveCanvasLaunchScope(
       {
         resolvePlatformScope: async (values) => {
           calls.push(values)
@@ -340,6 +346,7 @@ describe('LtiLaunchService.handleLaunch', () => {
     const recorders: LaunchRecorders = { enrollments: [], order: [] }
 
     const service = new LtiLaunchService({
+      lmsAdapter: canvasAdapter(),
       logger: createCoreLogger({ pinoLogger: pino({ level: 'silent' }) }),
       config: { server: { baseUrl: MODULUS_SERVER_URL } } as Config,
       tx: {

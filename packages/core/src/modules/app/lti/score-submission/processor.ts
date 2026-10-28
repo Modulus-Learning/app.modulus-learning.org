@@ -1,8 +1,8 @@
 import { BaseService, method } from '@/lib/base-service.js'
 import { IncidentTracker } from './incident-tracker.js'
-import { QuotaGovernor } from './quota-governor.js'
 import type { Config } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
+import type { SchedulingPolicy } from '@/lms/contract.js'
 import type { FailureInfo, IncidentEffect } from './incident-tracker.js'
 import type { LtiScoreSubmissionMutations, LtiScoreSubmissionQueries } from './repository.js'
 import type { LtiScoreSubmitter, SubmissionOutcome } from './submitter.js'
@@ -35,7 +35,7 @@ export class LtiScoreSubmissionProcessor extends BaseService {
   private mutations: LtiScoreSubmissionMutations
   private queries: LtiScoreSubmissionQueries
   private maxConcurrency: number
-  private governor: QuotaGovernor
+  private governor: SchedulingPolicy
   private tracker: IncidentTracker
 
   private desiredRunning = false
@@ -59,6 +59,8 @@ export class LtiScoreSubmissionProcessor extends BaseService {
     logger: CoreLogger
     config: Config
     submitter: LtiScoreSubmitter
+    /** The adapter's concurrency pacing for this registration. */
+    scheduling: SchedulingPolicy
     mutations: LtiScoreSubmissionMutations
     queries: LtiScoreSubmissionQueries
   }) {
@@ -70,12 +72,7 @@ export class LtiScoreSubmissionProcessor extends BaseService {
 
     const { score_submission } = deps.config.lti
     this.maxConcurrency = Math.max(1, score_submission.max_concurrent_submissions)
-    this.governor = new QuotaGovernor(
-      this.maxConcurrency,
-      score_submission.quota_reserve_requests,
-      score_submission.quota_window_ms,
-      score_submission.quota_ramp_interval_ms
-    )
+    this.governor = deps.scheduling
     this.tracker = new IncidentTracker(deps.submitter.issuer, deps.config, this.logger)
   }
 
@@ -153,7 +150,12 @@ export class LtiScoreSubmissionProcessor extends BaseService {
       // half_open → exactly one probe; idle → a single poller; otherwise the
       // quota governor's current allowance.
       const halfOpen = breaker.state === 'half_open'
-      const target = halfOpen ? 1 : this.idle ? 1 : this.governor.target()
+      // Core's configured cap bounds whatever the adapter's policy allows.
+      const target = halfOpen
+        ? 1
+        : this.idle
+          ? 1
+          : Math.max(1, Math.min(this.maxConcurrency, this.governor.target()))
 
       // When the queue is empty, collapse to a single poller paced at
       // idle_interval: let the pool drain to zero, sleep, then allow one probe to

@@ -6,7 +6,9 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { UserAuth } from '@/lib/auth.js'
 import { createCoreLogger } from '@/lib/logger.js'
+import { canvasAdapter } from '@/lms/canvas/index.js'
 import { parseAdmissibleUrl } from '@/modules/activity-registration/url-policy.js'
+import { syntheticAdapter } from '@/test-support/lms.js'
 import {
   CLAIM_DEEP_LINKING_CONTENT,
   CLAIM_DEEP_LINKING_DATA,
@@ -19,6 +21,7 @@ import { LtiDeepLinkingService } from './deep-link.js'
 import type { UrlBuilder } from '@/config.js'
 import type { CoreError } from '@/lib/errors.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
+import type { LmsAdapter } from '@/lms/contract.js'
 import type { ActivityRecord } from '@/modules/activity-registration/repository/index.js'
 import type { PolicySnapshot } from '@/modules/activity-registration/schemas.js'
 import type {
@@ -50,10 +53,12 @@ const createService = ({
   urlPrefix = null,
   known = [ACTIVITY_URL],
   allowedOrigins = [],
+  adapter = canvasAdapter(),
 }: {
   urlPrefix?: string | null
   known?: string[]
   allowedOrigins?: string[]
+  adapter?: LmsAdapter
 } = {}) => {
   const userId = uuidv7()
   const activityCodeId = uuidv7()
@@ -99,6 +104,7 @@ const createService = ({
   } as unknown as ActivityRegistrationService
 
   const service = new LtiDeepLinkingService({
+    lmsAdapter: adapter,
     logger,
     urlBuilder: {
       baseUrl: 'https://modulus.test',
@@ -416,5 +422,31 @@ describe('LtiDeepLinkingService activity url allowlist', () => {
 
     assert.equal(error?.code, 'ERR_ACTIVITY_URL_NOT_ALLOWED')
     assert.deepEqual(created, [])
+  })
+})
+
+describe('LtiDeepLinkingService with a non-Canvas adapter', () => {
+  it('adds no vendor custom fields when the adapter has none', async () => {
+    const { item } = await handle({ adapter: syntheticAdapter() })
+    assert.deepEqual(Object.keys(item.custom as object).sort(), [
+      'modulus_activity_code',
+      'modulus_activity_url',
+      'modulus_launch_type',
+    ])
+  })
+
+  it('never lets adapter fields overwrite the modulus resource identity', async () => {
+    const adapter = syntheticAdapter({
+      deepLinkCustomFields: () => ({
+        modulus_launch_type: 'hijacked',
+        modulus_activity_url: 'https://elsewhere.test',
+        vendor_field: '$vendor',
+      }),
+    })
+    const { item } = await handle({ adapter })
+    const custom = item.custom as Record<string, string>
+    assert.equal(custom.modulus_launch_type, 'start-activity')
+    assert.equal(custom.modulus_activity_url, ACTIVITY_URL)
+    assert.equal(custom.vendor_field, '$vendor')
   })
 })

@@ -8,6 +8,7 @@ import { lineitems } from '@/database/schema/index.js'
 import { deadResult, FakeLtiAgsClient, retryableResult, successResult } from '@/test-support/ags.js'
 import { seedLineItem, seedScenario, seedScope } from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
+import type { RateLimitReading } from '@/modules/app/lti/score-submission/types.js'
 
 let h: TestHarness
 
@@ -61,7 +62,10 @@ describe('LtiScoreSubmitter.processOne', () => {
 
     assert.equal(outcome.type, 'submitted')
     assert.equal(outcome.type === 'submitted' && outcome.leaseValid, true)
-    assert.equal(outcome.type === 'submitted' && outcome.reading?.remaining, 90)
+    assert.equal(
+      outcome.type === 'submitted' && (outcome.reading as RateLimitReading | undefined)?.remaining,
+      90
+    )
     assert.equal(fake.calls[0]?.scoreGiven, 0.5, 'published the submittable high-water mark')
 
     const row = await readLineItem(li.id)

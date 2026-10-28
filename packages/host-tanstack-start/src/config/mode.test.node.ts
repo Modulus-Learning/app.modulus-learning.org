@@ -1,5 +1,6 @@
 import { initCore } from '@modulus-learning/core'
 import { loadCoreConfigFromEnv } from '@modulus-learning/core/env'
+import { canvasAdapter } from '@modulus-learning/core/lms/canvas'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
@@ -95,6 +96,7 @@ describe('per-mode boot: host config and core initialise with only the permitted
     const core = await initCore({
       pinoLogger: pino({ level: 'silent' }),
       config: loadCoreConfigFromEnv(process.env),
+      lms: canvasAdapter(),
       urlBuilder: {
         baseUrl: config.publicServerUrl,
         ltiLaunchUrl: `${config.publicServerUrl}/routes/lti/launch`,

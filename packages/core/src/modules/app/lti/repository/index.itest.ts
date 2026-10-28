@@ -13,6 +13,7 @@ import {
   progressEvents,
   scopes,
 } from '@/database/schema/index.js'
+import { inspectCanvasTerm } from '@/lms/canvas/index.js'
 import { resolveVerifiedLaunchScope } from '@/modules/app/lti/services/launch.js'
 import {
   type Scenario,
@@ -23,6 +24,15 @@ import {
   seedScope,
 } from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
+
+// Scope resolution as a Canvas launch reaches it: the adapter inspects the
+// custom claims, then core resolves the term.
+const resolveCanvasLaunchScope = (
+  mutations: Parameters<typeof resolveVerifiedLaunchScope>[0],
+  platform_id: string,
+  custom: Parameters<typeof inspectCanvasTerm>[0],
+  options?: Parameters<typeof resolveVerifiedLaunchScope>[3]
+) => resolveVerifiedLaunchScope(mutations, platform_id, inspectCanvasTerm(custom), options)
 
 let h: TestHarness
 
@@ -120,7 +130,7 @@ describe('platform scope resolution', () => {
   it('does not mutate the sentinel when optional metadata has no usable term id', async () => {
     const scenario = await seedScenario(h.db)
 
-    const resolved = await resolveVerifiedLaunchScope(h.repos.ltiMutations, scenario.platformId, {
+    const resolved = await resolveCanvasLaunchScope(h.repos.ltiMutations, scenario.platformId, {
       'Canvas.term.name': 'Must not label the sentinel',
       'Canvas.term.startAt': '2026-08-20T00:00:00Z',
       'Canvas.term.endAt': '2026-12-15T23:59:59Z',

@@ -3,7 +3,7 @@ import type { Config } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { LtiAgsClient } from './ags-client.js'
 import type { ClaimedLineItem, LtiScoreSubmissionMutations } from './repository.js'
-import type { RateLimitReading, SubmissionResult } from './types.js'
+import type { SubmissionResult } from './types.js'
 
 /**
  * The result of a single `processOne` call, reported back to the driver
@@ -24,7 +24,7 @@ export type SubmissionOutcome =
       // Rate-limit quota headers from the response, when present (feeds the
       // driver's QuotaGovernor). Independent of `leaseValid` — the request hit
       // Canvas and consumed quota regardless of who owns the line item.
-      reading?: RateLimitReading
+      reading?: unknown
     }
 
 /**

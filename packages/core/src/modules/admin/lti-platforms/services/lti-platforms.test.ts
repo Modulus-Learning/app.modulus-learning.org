@@ -3,14 +3,18 @@
  * an issuer and the generated developer-key configuration. Both move to the
  * Canvas adapter in the extraction and must produce the same output.
  */
+
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
+import { canvasAdapter } from '@/lms/canvas/index.js'
 import { LtiPlatformsService } from '@/modules/admin/lti-platforms/services/lti-platforms.js'
+import { syntheticAdapter } from '@/test-support/lms.js'
 import { silentLogger } from '@/test-support/lti.js'
 import type { Config } from '@/config.js'
 import type { AdminAuth } from '@/lib/auth.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
+import type { LmsAdapter } from '@/lms/contract.js'
 import type {
   LtiPlatformMutations,
   LtiPlatformQueries,
@@ -25,9 +29,10 @@ const PUBLIC_JWK = {
   kid: 'tool-key',
 }
 
-const createService = (existingIssuer?: string) => {
+const createService = (existingIssuer?: string, adapter: LmsAdapter = canvasAdapter()) => {
   const created: Record<string, unknown>[] = []
   const service = new LtiPlatformsService({
+    lmsAdapter: adapter,
     logger: silentLogger(),
     config: {
       server: {
@@ -159,5 +164,23 @@ describe('LtiPlatformsService (Canvas registration)', () => {
     assert.equal(config.description, 'Interactive activities')
     assert.equal(config.extensions[0].tool_id, 'coursework')
     assert.equal(config.extensions[0].platform, 'canvas.example.edu')
+  })
+})
+
+describe('LtiPlatformsService with a non-Canvas adapter', () => {
+  it('derives endpoints from the adapter, not Canvas paths', async () => {
+    const { service, created } = createService(undefined, syntheticAdapter())
+    await service.createLtiPlatform(auth, {
+      name: 'Synthetic',
+      issuer: 'https://lms.synthetic.test',
+      client_id: 'synthetic-client',
+    })
+    assert.equal(created[0]?.authorization_endpoint, 'https://lms.synthetic.test/oidc/authorize')
+    assert.equal(created[0]?.jwks_uri, 'https://lms.synthetic.test/oidc/jwks')
+  })
+
+  it('refuses to generate a registration configuration the adapter cannot produce', async () => {
+    const { service } = createService(undefined, syntheticAdapter())
+    await assert.rejects(service.generateCanvasConfig(auth, {}), /does not generate registration/)
   })
 })

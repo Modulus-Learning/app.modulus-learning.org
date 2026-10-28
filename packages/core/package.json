@@ -31,6 +31,14 @@
       "types": "./dist/public/env.d.ts",
       "import": "./dist/public/env.js"
     },
+    "./lms": {
+      "types": "./dist/lms/contract.d.ts",
+      "import": "./dist/lms/contract.js"
+    },
+    "./lms/canvas": {
+      "types": "./dist/lms/canvas/index.d.ts",
+      "import": "./dist/lms/canvas/index.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {

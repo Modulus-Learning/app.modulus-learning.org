@@ -8,6 +8,7 @@ import type { Config } from '@/config.js'
 import type { AdminAuth } from '@/lib/auth.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
+import type { LmsAdapter } from '@/lms/contract.js'
 import type { LtiPlatformMutations, LtiPlatformQueries } from '../repository.js'
 import type {
   CreateLtiPlatformRequest,
@@ -22,6 +23,7 @@ export class LtiPlatformsService extends BaseService {
   private ltiKeyStore: LtiKeyStore
   private queries: LtiPlatformQueries
   private mutations: LtiPlatformMutations
+  private lms: LmsAdapter
 
   constructor(deps: {
     logger: CoreLogger
@@ -29,12 +31,14 @@ export class LtiPlatformsService extends BaseService {
     ltiKeyStore: LtiKeyStore
     queries: LtiPlatformQueries
     mutations: LtiPlatformMutations
+    lmsAdapter: LmsAdapter
   }) {
     super(deps.logger, 'admin', 'lti-platforms')
     this.config = deps.config
     this.ltiKeyStore = deps.ltiKeyStore
     this.queries = deps.queries
     this.mutations = deps.mutations
+    this.lms = deps.lmsAdapter
   }
 
   @method
@@ -78,13 +82,8 @@ export class LtiPlatformsService extends BaseService {
       name: request.name,
       issuer: request.issuer,
       client_id: request.client_id,
-      // TODO: For now we're just hard-coding these endpoints based on the
-      // standard urls for Canvas LMS.  In the future (if we keep this method of
-      // platform registration), these urls should be configurable in some way.
-      authorization_endpoint: new URL('/api/lti/authorize_redirect', request.issuer).href,
-      authorization_server: new URL('/login/oauth2/token', request.issuer).href,
-      token_endpoint: new URL('/login/oauth2/token', request.issuer).href,
-      jwks_uri: new URL('/api/lti/security/jwks', request.issuer).href,
+      // The LMS adapter knows its platform's standard endpoints.
+      ...this.lms.registrationEndpoints(request.issuer),
     })
 
     return { platform: toPlatform(newPlatform) }
@@ -100,99 +99,21 @@ export class LtiPlatformsService extends BaseService {
       platform = 'canvas.instructure.com',
     }: GenerateCanvasConfigRequest
   ): Promise<GenerateCanvasConfigResponse> {
-    const baseUrl = new URL(this.config.server.baseUrl)
-
-    const config = {
+    if (this.lms.registrationConfig == null) {
+      throw ERR_NOT_FOUND({
+        message: `the ${this.lms.id} adapter does not generate registration configuration`,
+      }).log(this.logger)
+    }
+    const config_json = this.lms.registrationConfig({
+      baseUrl: this.config.server.baseUrl,
+      host: this.config.server.host,
+      publicJwk: this.ltiKeyStore.getJWKS().keys[0],
       title,
       description,
-      target_link_uri: new URL('/routes/lti/launch', baseUrl).toString(),
-      oidc_initiation_url: new URL('/routes/lti/login', baseUrl).toString(),
-      public_jwk: this.ltiKeyStore.getJWKS().keys[0],
-      custom_fields: {},
-      scopes: [
-        'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
-        'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
-        'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
-        'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-        // 'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
-        // 'https://canvas.instructure.com/lti/account_lookup/scope/show',
-        // 'https://canvas.instructure.com/lti-ags/progress/scope/show',
-        // 'https://canvas.instructure.com/lti/page_content/show',
-      ],
-      extensions: [
-        {
-          domain: this.config.server.host,
-          tool_id,
-          privacy_level: 'public',
-          platform,
-          settings: {
-            placements: [
-              {
-                text: 'Create a Modulus Assignment',
-                placement: 'assignment_selection',
-                message_type: 'LtiDeepLinkingRequest',
-                custom_fields: {
-                  context_id: '$Context.id',
-                  context_title: '$Context.title',
-                  canvas_course_id: '$Canvas.course.id',
-                  canvas_course_name: '$Canvas.course.name',
-                  modulus_launch_type: 'deep-link',
-                  modulus_deep_link_context: 'assignment',
-                  com_instructure_context_uuid: '$com.instructure.Context.uuid',
-                  com_instructure_context_label: '$com.instructure.contextLabel',
-                  com_instructure_assignment_lti_id: '$com.instructure.Assignment.lti.id',
-                },
-                target_link_uri: new URL('/lti/deep-link', baseUrl).toString(),
-              },
-              // {
-              //   text: 'Link to a Modulus activity',
-              //   placement: 'link_selection',
-              //   message_type: 'LtiDeepLinkingRequest',
-              //   custom_fields: {
-              //     context_id: '$Context.id',
-              //     context_title: '$Context.title',
-              //     canvas_course_id: '$Canvas.course.id',
-              //     canvas_course_name: '$Canvas.course.name',
-              //     modulus_launch_type: 'deep-link',
-              //     modulus_deep_link_context: 'standalone',
-              //     com_instructure_context_label: '$com.instructure.contextLabel',
-              //   },
-              //   target_link_uri: new URL('/lti/deep-link', baseUrl).toString(),
-              // },
-              // {
-              //   text: 'Link to a Modulus activity',
-              //   placement: 'editor_button',
-              //   message_type: 'LtiDeepLinkingRequest',
-              //   custom_fields: {
-              //     context_id: '$Context.id',
-              //     context_title: '$Context.title',
-              //     canvas_course_id: '$Canvas.course.id',
-              //     canvas_course_name: '$Canvas.course.name',
-              //     modulus_launch_type: 'deep-link',
-              //     modulus_deep_link_context: 'standalone',
-              //     com_instructure_context_label: '$com.instructure.contextLabel',
-              //   },
-              //   target_link_uri: new URL('/lti/deep-link', baseUrl).toString(),
-              // },
-              {
-                text: 'Modulus Dashboard',
-                placement: 'course_navigation',
-                message_type: 'LtiResourceLinkRequest',
-                windowTarget: '_blank',
-                custom_fields: {
-                  modulus_launch_type: 'view-dashboard',
-                },
-                target_link_uri: new URL('/dashboard', baseUrl).toString(),
-                required_permissions: 'manage_students',
-              },
-            ],
-          },
-        },
-      ],
-    }
+      tool_id,
+      platform,
+    })
 
-    return {
-      config_json: JSON.stringify(config, null, 2),
-    }
+    return { config_json }
   }
 }
