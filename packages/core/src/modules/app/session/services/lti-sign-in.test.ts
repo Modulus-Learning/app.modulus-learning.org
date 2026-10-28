@@ -36,6 +36,8 @@ type World = {
   byLtiId?: UserRecord
   byEmail?: UserRecord
   createReturns?: UserRecord | 'absent'
+  /** A concurrent launch linked a different identity first. */
+  linkLost?: boolean
   /** After a lost creation race, the row the second lookup finds. */
   afterRace?: UserRecord
 }
@@ -44,6 +46,7 @@ const createService = (world: World) => {
   const calls = {
     emailLookups: [] as string[],
     updates: [] as Partial<UserInsert>[],
+    links: [] as Array<{ user_id: string; lti_iss: string; lti_sub: string }>,
     created: [] as UserInsert[],
     roleLookups: [] as string[][],
     rolesAdded: [] as Array<{ user_id: string; role_ids: string[] }>,
@@ -69,6 +72,11 @@ const createService = (world: World) => {
         calls.created.push(values)
         if (world.createReturns === 'absent') return undefined
         return world.createReturns ?? userRecord({ ...values } as Partial<UserRecord>)
+      },
+      linkLtiIdentity: async (user_id: string, lti_iss: string, lti_sub: string) => {
+        calls.links.push({ user_id, lti_iss, lti_sub })
+        if (world.linkLost) return undefined
+        return { ...(world.byEmail as UserRecord), lti_iss, lti_sub }
       },
       updateUser: async (user: UserRecord, update: Partial<UserInsert>) => {
         calls.updates.push(update)
@@ -120,9 +128,24 @@ describe('LtiSignInService.signInLti', () => {
 
     assert.equal(result.user.id, byEmail.id)
     assert.deepEqual(calls.emailLookups, ['learner@example.test'])
-    assert.equal(calls.updates[0]?.lti_iss, ISSUER)
-    assert.equal(calls.updates[0]?.lti_sub, 'canvas-sub-1')
+    assert.deepEqual(calls.links, [
+      { user_id: byEmail.id, lti_iss: ISSUER, lti_sub: 'canvas-sub-1' },
+    ])
+    assert.equal(calls.updates[0]?.lti_iss, undefined)
+    assert.equal(result.user.id, byEmail.id)
     assert.deepEqual(calls.created, [])
+  })
+
+  it('refuses the launch when a concurrent launch linked a different identity first', async () => {
+    const byEmail = userRecord({ lti_iss: null, lti_sub: null })
+    const { service, calls } = createService({ byEmail, linkLost: true })
+    await assert.rejects(service.signInLti(credentials, false), (error) => {
+      assert.equal((error as { code?: string }).code, 'ERR_LTI_IDENTITY_CONFLICT')
+      return true
+    })
+    assert.equal(calls.links.length, 1)
+    assert.deepEqual(calls.updates, [])
+    assert.deepEqual(calls.logins, [])
   })
 
   it('refuses to re-point an account linked to a different LTI identity by email', async () => {
@@ -132,6 +155,7 @@ describe('LtiSignInService.signInLti', () => {
       assert.equal((error as { code?: string }).code, 'ERR_LTI_IDENTITY_CONFLICT')
       return true
     })
+    assert.deepEqual(calls.links, [])
     assert.deepEqual(calls.updates, [])
     assert.deepEqual(calls.created, [])
     assert.deepEqual(calls.logins, [])

@@ -47,14 +47,7 @@ export class LtiSignInService extends BaseService {
     if (user == null && credentials.email != null) {
       const byEmail = await this.queries.findUserByEmail(credentials.email)
       if (byEmail?.lti_iss != null && byEmail.lti_sub != null) {
-        this.logger.warn(
-          { user_id: byEmail.id, iss: credentials.iss },
-          'lti launch email matches an account linked to a different lti identity'
-        )
-        throw ERR_LTI_IDENTITY_CONFLICT({
-          message: 'lti launch email belongs to an account linked to a different lti identity',
-          logLevel: 'silent',
-        })
+        this.refuseIdentityConflict(byEmail.id, credentials.iss)
       }
       user = byEmail
     }
@@ -113,10 +106,19 @@ export class LtiSignInService extends BaseService {
         userUpdate.email = credentials.email
       }
       // Link the LTI identity to an account found by email that has none yet.
-      // An account matched by issuer and subject already carries it.
+      // An account matched by issuer and subject already carries it. The link
+      // is a conditional write, so a concurrent launch that linked a different
+      // identity first wins and this launch is refused.
       if (user.lti_iss == null || user.lti_sub == null) {
-        userUpdate.lti_iss = credentials.iss
-        userUpdate.lti_sub = credentials.sub
+        const linked = await this.mutations.linkLtiIdentity(
+          user.id,
+          credentials.iss,
+          credentials.sub
+        )
+        if (linked == null) {
+          this.refuseIdentityConflict(user.id, credentials.iss)
+        }
+        user = linked
       }
       user = await this.mutations.updateUser(user, userUpdate)
 
@@ -150,6 +152,17 @@ export class LtiSignInService extends BaseService {
     const abilities = await this.queries.getUserAbilities(user.id)
 
     return toSignInResult(user, abilities)
+  }
+
+  private refuseIdentityConflict(user_id: string, iss: string): never {
+    this.logger.warn(
+      { user_id, iss },
+      'lti launch email matches an account linked to a different lti identity'
+    )
+    throw ERR_LTI_IDENTITY_CONFLICT({
+      message: 'lti launch email belongs to an account linked to a different lti identity',
+      logLevel: 'silent',
+    })
   }
 
   private async createLTIUser(

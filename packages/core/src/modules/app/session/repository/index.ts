@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
 import { permissions, roles, roleUser, userLogins, users } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
@@ -154,6 +154,39 @@ export class SessionMutations extends BaseService {
     this.utils.assertExists(updatedUser, { message: 'updated user is null' })
 
     return updatedUser
+  }
+
+  /**
+   * Link an LTI identity to an existing account, atomically. The update applies
+   * only while the account has no LTI identity, or already has this one, so of
+   * two concurrent launches carrying different identities for the same account
+   * exactly one links it. Returns nothing when the account is linked to a
+   * different identity.
+   */
+  @method
+  async linkLtiIdentity(
+    user_id: string,
+    lti_iss: string,
+    lti_sub: string
+  ): Promise<UserRecord | undefined> {
+    const [user] = await this.db
+      .get()
+      .update(users)
+      .set({ lti_iss, lti_sub })
+      .where(
+        and(
+          eq(users.id, user_id),
+          or(
+            isNull(users.lti_iss),
+            isNull(users.lti_sub),
+            and(eq(users.lti_iss, lti_iss), eq(users.lti_sub, lti_sub))
+          )
+        )
+      )
+      .returning()
+      .catch(this.utils.wrapDbErrorNew())
+
+    return user
   }
 
   @method
