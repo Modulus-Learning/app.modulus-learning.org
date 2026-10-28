@@ -4,8 +4,13 @@ Date: 2026-10-25
 
 Status: Ready for contract review; implementation has not started.
 
-Revision: 2026-10-25, incorporating source review, explicit contract-boundary
-decisions, and remaining contract-review notes.
+Revision: 2026-10-28, aligned with the companion
+[Modulus Packaging and Distribution](./2026-10-28-modulus-packaging-and-distribution-spec.md)
+specification. The new packages are now published as part of a lockstep server
+set; the adapter is selected in a host's composition file; LTI HTTP handling
+moves into a published host package; and adapter compatibility is checked at
+boot. Earlier revision: 2026-10-25, incorporating source review, explicit
+contract-boundary decisions, and remaining contract-review notes.
 
 Document type: Explanation and architectural specification.
 
@@ -61,7 +66,8 @@ than assuming every existing documentation statement is current.
 | `packages/core/src/modules/app/lti/score-submission/ags-client.ts` | Sends Assignment & Grade Services (AGS) scores and interprets responses | Shared protocol primitives with Canvas transport compatibility and response interpretation in Canvas |
 | `score-submission/error-classifier.ts` and `quota-governor.ts` under the LTI module | Recognises Canvas error text and adapts concurrency to Canvas quota headers | Canvas package |
 | Remaining score-submission orchestration, repositories, and `packages/core/src/workers/` | Claims durable work, fences completion, schedules retries, records incidents, and manages worker lifetime | Core |
-| `apps/gradebook/src/routes/routes/lti/`, `src/session-http/`, and `src/modules/lti/` | HTTP handling, state cookies, session cookies, redirects, deep-link forms, and launch presentation | Host application |
+| `apps/gradebook/src/routes/routes/lti/` and `src/modules/lti/` | HTTP handling, state cookies, session cookies, redirects, deep-link forms, and launch presentation | Host package `@modulus-learning/host-tanstack-start`, exposed as route factories at fixed paths; each host application re-exports them |
+| `apps/gradebook/src/session-http/` | End-to-end HTTP suites for launch, deep link, and sessions | Reference host (`apps/gradebook`) |
 
 An existing contract provides a useful starting point:
 
@@ -96,14 +102,22 @@ The following names are proposed, not existing APIs.
 | `@modulus-learning/lms-canvas` in `packages/lms-canvas` | The complete Canvas adapter: registration defaults/configuration, launch interpretation, custom fields, transport compatibility, error classification, and quota policy | Depends on the shared LTI package; no core or host imports |
 | `@modulus-learning/lms-conformance` in `packages/lms-conformance` | Reusable behavioural suites and synthetic fixtures for adapter contracts | Private test infrastructure; no production imports and no adapter-specific implementation |
 | Existing `@modulus-learning/core` | Application policy, durable state, account/session handling, activity scopes, enrollment, score queue, incidents, and authorised commands | Imports shared contracts as types and calls an injected adapter; no shared protocol runtime or Canvas imports |
-| Existing gradebook host | Selects the installed adapter at the composition root and implements HTTP/UI behaviour | Imports core and the selected adapter only in server composition |
+| `@modulus-learning/host-tanstack-start` in `packages/host-tanstack-start` | LTI route handlers, state and session cookies, deep-link forms, and launch presentation, among the other host concerns defined by the packaging specification | Imports core; does not import an adapter package; receives the adapter only through core |
+| Host application — the reference host `apps/gradebook` or a downstream installation | Selects the installed adapter in its composition file and re-exports host-package routes | Imports core, the host package, and the selected adapter only in server composition |
 
-All new packages should initially be private workspace packages. Publication,
-independent release schedules, and third-party plugin loading are separate
-decisions. Only the existing agent package remains publicly released.
+`lti` and `lms-canvas` are published with core and the host package in one
+lockstep Changesets `fixed` group, as the packaging specification describes.
+`lms-conformance` remains private test infrastructure. The agent is in the
+same lockstep group. Third-party adapter loading — an adapter published
+outside this repository — is not supported by this extraction; the contract is
+public so that it can be reviewed and tested, not yet so that external adapters
+can rely on its stability.
 
 The runtime dependency direction is host → core and selected adapter;
-Canvas → shared LTI. Core depends on shared LTI for contracts and types only.
+Canvas → shared LTI. Core depends on shared LTI for contracts and types only. Because core's
+published declaration files reference those types, `@modulus-learning/lti` is a
+declared runtime `dependency` of core, not a development dependency, even though
+core's source imports it with `import type` only.
 Its single runtime integration object is the injected adapter, including for
 OIDC construction, launch verification, public JWKS retrieval, deep-link signing,
 and registration-bound score clients. Core does not call shared protocol helpers
@@ -121,7 +135,8 @@ until an actual non-LTI integration requires it.
 ### One Adapter Per Installation
 
 Extend `initCore` to accept an adapter factory selected by the host's server
-configuration. The factory receives narrow dependencies and returns an
+composition file — `modulus/server.config.ts` in the packaging specification —
+which imports the adapter package and passes it in. The factory receives narrow dependencies and returns an
 installation adapter capable of creating registration-specific clients.
 Register this value through the existing typed dependency-injection registry,
 which assembles core's services; retain `CoreCommands` as the host's only
@@ -130,16 +145,23 @@ application-operation surface.
 All frontend and admin processes belonging to the same installation must use
 the same adapter selection and support the stored integration-schema version.
 That version describes persisted integration state and its interpretation;
-it is not a separately versioned package contract. These private packages are
-built together, but the frontend and admin Fly applications can temporarily run
-different builds during rollout. Each build must check the stored adapter ID
+it is not the npm package version. The lockstep release means a normal install
+pairs core with an adapter built and tested alongside it, but published packages
+can still be mismatched by a hand-pinned dependency or a duplicated install,
+and the frontend and admin applications can temporarily run different builds
+during rollout. The adapter therefore also declares the LMS contract version it
+implements, and core refuses to start integration services on an incompatible
+one. Each build must check the stored adapter ID
 and integration-schema version at boot, and refuse incompatible integration
 work. Deployment mode changes which surfaces and workers run, not which LMS
 owns the installation.
 
-An installation setting identifies the selected adapter, initially `canvas`.
-Selection is explicit at startup, not inferred from an issuer hostname, launch
-claim, or administrator-entered display name. A missing or incompatible adapter
+The selected adapter is the one the composition file imports, and its stable
+`id` — initially `canvas` — is the configured selection compared with the stored
+installation binding. A separate environment variable naming the adapter would
+duplicate that choice and could disagree with it, so none is added. Selection is
+explicit at startup, not inferred from an issuer hostname, launch claim, or
+administrator-entered display name. A missing or incompatible adapter
 must prevent the relevant integration services from starting.
 
 This is not a per-platform vendor dispatcher. An installation can hold several
@@ -329,7 +351,9 @@ The extraction should preserve current Canvas behaviour, except for separately
 identified and reviewed fixes. Compatibility includes:
 
 - Existing `/routes/lti/*` endpoints, launch/deep-link pages, state and session
-  cookies, redirects, command results, and registered tool URLs.
+  cookies, redirects, command results, and registered tool URLs. These paths are
+  fixed by the host package's route factories; a downstream installation cannot
+  relocate them.
 - Existing durable resource links and `modulus_*` custom fields. No requirement
   to recreate Canvas assignments or regenerate all developer keys.
 - Configured signing keys and key IDs. The current keystore loads keys from
@@ -349,9 +373,12 @@ Packages do not independently migrate a shared database or start pools. Moving
 protocol implementation does not justify renaming tables or splitting transactions.
 
 Configuration is divided by owner: shared protocol settings, Canvas settings,
-and core operational policy. Preserve current environment inputs through a
-documented compatibility mapping where practical. Pass only relevant settings
-into packages. Tool keys, tokens, and server adapter imports must stay out of
+and core operational policy. Published packages receive these as arguments and
+do not read `process.env`. The host package's environment loader is the single
+documented mapping from today's environment inputs, and its variable names are
+a semver-governed contract for downstream installations. Adapter-specific
+settings are passed to the adapter factory in the composition file. Pass only
+relevant settings into packages. Tool keys, tokens, and server adapter imports must stay out of
 browser bundles.
 
 Token and JWKS caches must be registration-bound, with token scope and signing
@@ -495,6 +522,14 @@ Extend the actual CI discovery paths: root `lint:check` currently enumerates
 existing source directories, so a new workspace package is not automatically
 covered by it.
 Ensure the aggregate CI gate executes the new suites and existing session tests.
+Include `lti` and `lms-canvas` in the packaging specification's packed-install
+smoke test and public-export baseline, so a missing `files` entry, undeclared
+dependency, or unreviewed export is caught before publication.
+
+Conformance proves the adapter; it does not prove an installation. Each
+downstream installation repeats the LMS acceptance exercise against its own
+LMS test environment before go-live. Publish that exercise as a checklist in
+`docs/` so it does not depend on knowledge held only in this repository.
 
 ## Delivery Strategy and Review Gates
 
@@ -505,7 +540,7 @@ These are reviewable increments, not an approved task breakdown or schedule.
 | Contract review | Approve the explicit runtime boundary, post-verification deployment write, issuer/registration mapping, cutoff ownership, email-link policy, capability baseline, and installation binding | Resolve remaining policy/schema details below before producing a detailed implementation plan |
 | Characterisation | Capture existing Canvas behaviour, separate reusable assertions from vendor fixtures, and document known gaps | Existing implementation passes the relevant baseline; behaviour changes are explicitly identified |
 | Boundary preparation | Introduce neutral launch/outcome values and injectable protocol, transport, and scheduling boundaries in the existing composition | Canvas behaviour remains stable; core tests can substitute a non-Canvas adapter |
-| Package extraction | Move shared protocol and Canvas implementation into their packages; wire the selected adapter at startup | No forbidden imports; Canvas passes full conformance; core database and host HTTP checks pass |
+| Package extraction | Move shared protocol and Canvas implementation into their packages; wire the selected adapter in the reference host's composition file | No forbidden imports; Canvas passes full conformance; core database and host HTTP checks pass; the packed-install smoke test passes with `lti` and `lms-canvas` installed from tarballs |
 | Operational adoption | Rehearse upgrade and rollback, enable binding/schema and email-relinking checks, document configuration, and run Canvas acceptance | Existing registrations/assignments and queued scores survive the upgrade; reviewed account-linking policy and cache fixes have explicit acceptance evidence |
 | Second LMS | Implement one chosen LMS against the reviewed contracts and the same conformance suite | Independent real-LMS acceptance; core has no new vendor-specific branches |
 
@@ -597,7 +632,12 @@ these choices to the implementer. The remaining details to settle are:
 
 - **Contract placement and naming:** accept `lti`, `lms-canvas`, and
   `lms-conformance`, and confirm the shared package owns contracts for LTI-based
-  adapters rather than a universal LMS API.
+  adapters rather than a universal LMS API. Published npm names are effectively
+  permanent, so settle them before the first prerelease.
+- **Sequencing with packaging:** the packaging specification recommends
+  completing this extraction before stable publication. A prerelease before
+  the extraction is possible; the adapter becoming a required `initCore` input
+  is then a planned breaking change.
 - **Installation binding:** choose the additive schema for adapter ID and
   integration-schema version, the supported-version rollout rules, the legacy
   Canvas backfill, and the representation of inactive registrations and retained
@@ -631,12 +671,15 @@ these choices to the implementer. The remaining details to settle are:
   requirement and access to a representative test environment. The target's
   version, configuration, and supported LTI features must be established then.
 
-Implementation planning should follow this review. No package creation, runtime
-change, schema migration, or new LMS support is authorised by the existence of
-this draft alone.
+Implementation planning should follow this review. No package creation,
+publication, runtime change, schema migration, or new LMS support is authorised
+by the existence of this draft alone.
 
 ## Where to go next
 
+- [Modulus Packaging and Distribution](./2026-10-28-modulus-packaging-and-distribution-spec.md)
+  defines the published package set, host package, release process, and
+  downstream installation model this extraction fits into.
 - [Documentation Overview](../docs/DOCUMENTATION-PLAN.md) records this draft and
   distinguishes the available proposal from planned implementation/reference work.
 - [Architecture](../docs/ARCHITECTURE.md) explains the core boundary and the

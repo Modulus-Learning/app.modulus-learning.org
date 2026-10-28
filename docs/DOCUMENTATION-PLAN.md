@@ -144,6 +144,14 @@ Canvas and shared LTI packages, behavioural conformance suites, one selected LMS
 per installation, and foundations for a later migration between LMSs.
 Implementation and a published integration-package reference remain planned.
 
+### Packaging and Distribution — Planned
+The specification is a draft for architectural review in
+`specs/2026-10-28-modulus-packaging-and-distribution-spec.md`. It proposes
+publishing the server packages as one lockstep set with a TanStack Start host
+package, so a downstream application can install and operate its own Modulus
+instance. An installation guide, a configuration reference, and upgrade notes
+remain planned.
+
 ### [Security & Privacy](./SECURITY-AND-PRIVACY.md) — Available
 The security and privacy posture: the principle of storing as little as
 possible, the LTI identity abstraction, what data is and is not retained,
