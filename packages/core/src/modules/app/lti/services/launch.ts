@@ -79,7 +79,7 @@ type VerifiedLaunch = {
 
 export class LtiLaunchService extends BaseService {
   // TODO: Move this to a seprate service
-  private platformJWKS: Record<string, RemoteJWKSet> = {}
+  private platformJWKS: Record<string, { jwks: RemoteJWKSet; jwks_uri: string }> = {}
 
   private config: Config
   private tx: TXManager
@@ -329,13 +329,17 @@ export class LtiLaunchService extends BaseService {
    * TODO: Should these keysets be persisted?  They're pretty cheap to fetch, so
    * in-memory is probably fine on node, but on some serverless / edge runtimes
    * the cache would be reset on every request.
+   *
+   * Each entry is bound to the registration's `jwks_uri`: a corrected key-set
+   * URL replaces the resolver on the next launch.
    */
   private async getPlatformJWKS(platform: PlatformRecord): Promise<RemoteJWKSet> {
-    let jwks = this.platformJWKS[platform.id]
-    if (!jwks) {
-      jwks = createRemoteJWKSet(new URL(platform.jwks_uri))
-      this.platformJWKS[platform.id] = jwks
+    const cached = this.platformJWKS[platform.id]
+    if (cached?.jwks_uri === platform.jwks_uri) {
+      return cached.jwks
     }
+    const jwks = createRemoteJWKSet(new URL(platform.jwks_uri))
+    this.platformJWKS[platform.id] = { jwks, jwks_uri: platform.jwks_uri }
     return jwks
   }
 

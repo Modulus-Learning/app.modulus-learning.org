@@ -73,6 +73,21 @@ export type LtiRegistration = {
   authorization_server: string
 }
 
+/**
+ * The registration values a platform connection is built from. Two snapshots of
+ * one registration with different fingerprints must not share cached tokens or
+ * score clients: a corrected client id or endpoint takes effect on the next use.
+ */
+export const registrationFingerprint = (registration: LtiRegistration): string =>
+  JSON.stringify([
+    registration.issuer,
+    registration.client_id,
+    registration.authorization_endpoint,
+    registration.token_endpoint,
+    registration.jwks_uri,
+    registration.authorization_server,
+  ])
+
 /** Where a score client obtains, and returns rejected, access tokens. */
 export interface AccessTokenSource {
   getAccessToken(registration: LtiRegistration): Promise<AccessTokenResult>

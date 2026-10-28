@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 
 import type { AccessToken, AccessTokenResult } from '@modulus-learning/lti'
 import {
+  registrationFingerprint,
   SCOPE_AGS_LINEITEM,
   SCOPE_AGS_RESULT_READONLY,
   SCOPE_AGS_SCORE,
@@ -25,11 +26,15 @@ import type { PlatformRecord } from '../repository/index.js'
  * Since Canvas API tokens only last for 1 hour (and we currently only support
  * canvas), we simply store tokens in memory, and preemptively fetch a new one
  * when the current one is about to expire.
+ *
+ * A cached token is bound to the registration values it was issued for
+ * (`registrationFingerprint`): after a registration's client id or endpoints
+ * change, the next request fetches a new token rather than reusing the old one.
  */
 export class AccessTokenManager extends BaseService {
   private config: Config
   private keystore: LtiKeyStore
-  private tokens: Record<string, AccessToken> = {}
+  private tokens: Record<string, { accessToken: AccessToken; fingerprint: string }> = {}
 
   constructor(deps: {
     logger: CoreLogger
@@ -42,7 +47,9 @@ export class AccessTokenManager extends BaseService {
   }
 
   async getAccessToken(platform: PlatformRecord): Promise<AccessTokenResult> {
-    const accessToken = this.tokens[platform.id]
+    const cached = this.tokens[platform.id]
+    const accessToken =
+      cached?.fingerprint === registrationFingerprint(platform) ? cached.accessToken : undefined
 
     if (accessToken == null || accessToken.expires.getTime() < Date.now() + 30000) {
       return await this.fetchAccessToken(platform)
@@ -55,9 +62,14 @@ export class AccessTokenManager extends BaseService {
   }
 
   invalidateAccessToken(platform: PlatformRecord, accessToken: AccessToken) {
-    if (this.tokens[platform.id]?.token === accessToken.token) {
+    if (this.tokens[platform.id]?.accessToken.token === accessToken.token) {
       delete this.tokens[platform.id]
     }
+  }
+
+  /** Drops any cached token for a registration that changed or no longer exists. */
+  forgetRegistration(platform_id: string) {
+    delete this.tokens[platform_id]
   }
 
   private async fetchAccessToken(platform: PlatformRecord): Promise<AccessTokenResult> {
@@ -170,7 +182,7 @@ export class AccessTokenManager extends BaseService {
     }
     // Reused until 30 seconds before it expires (see getAccessToken), or until
     // the platform rejects it (invalidateAccessToken).
-    this.tokens[platform.id] = accessToken
+    this.tokens[platform.id] = { accessToken, fingerprint: registrationFingerprint(platform) }
 
     return {
       ok: true,

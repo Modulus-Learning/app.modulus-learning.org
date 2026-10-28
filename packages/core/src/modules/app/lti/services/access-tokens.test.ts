@@ -142,6 +142,23 @@ describe('AccessTokenManager', () => {
     assert.equal(calls.length, 2)
   })
 
+  it('fetches again when the registration changes under the same id', async () => {
+    const manager = createManager()
+    await manager.getAccessToken(platform)
+    await manager.getAccessToken({ ...platform, client_id: 'corrected-client' })
+    await manager.getAccessToken({ ...platform, token_endpoint: `${ISSUER}/corrected/token` })
+    assert.equal(calls.length, 3)
+    assert.equal(calls[2]?.url, `${ISSUER}/corrected/token`)
+  })
+
+  it('fetches again after a registration is forgotten', async () => {
+    const manager = createManager()
+    await manager.getAccessToken(platform)
+    manager.forgetRegistration(platform.id)
+    await manager.getAccessToken(platform)
+    assert.equal(calls.length, 2)
+  })
+
   const failureFor = async (response: () => Promise<Response>) => {
     respond = response
     const result = await createManager().getAccessToken(platform)

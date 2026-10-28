@@ -225,6 +225,24 @@ describe('LTI launch characterisation', () => {
       assert.deepEqual(calls.order, [])
     })
 
+    it('uses a corrected jwks_uri on the next launch, without a restart', async () => {
+      const wrong = await startJwksServer(otherKeys.jwk)
+      const registered = platform
+      try {
+        const { service } = createService()
+        platform = { ...registered, jwks_uri: wrong.uri }
+        await rejectsAsInvalidLaunch(
+          service.handleLaunch({ id_token: await signLaunch(), issuer: ISSUER }),
+          /verification failed/
+        )
+        platform = registered
+        await service.handleLaunch({ id_token: await signLaunch(), issuer: ISSUER })
+      } finally {
+        platform = registered
+        await wrong.close()
+      }
+    })
+
     it('rejects a token whose iss differs from the requested issuer', async () => {
       const { service } = createService()
       await rejectsAsInvalidLaunch(
