@@ -37,14 +37,16 @@ an installation uses one version for all of them.
 | --- | --- |
 | `@modulus-learning/core` | Business logic and data access, behind the `CoreCommands` facade described in [Core Composition](./CORE-COMPOSITION.md). Also provides the `modulus` command for the database, administrators, and keys. |
 | `@modulus-learning/host-tanstack-start` | The TanStack Start layer: route factories, server functions, the admin and learner UI, entry helpers, the Vite preset, and styles. |
+| `@modulus-learning/lms-canvas` | The Canvas LMS adapter, `canvasAdapter()`, which your server entry passes to core. See [The LMS Adapter](./CORE-COMPOSITION.md#the-lms-adapter). |
+| `@modulus-learning/lti` | Not imported by your application. The shared LTI 1.3 vocabulary and the LMS adapter contract, installed as a dependency of core and the adapter. |
 | `@modulus-learning/agent` | Not used by your application. Activity pages embed it to report progress; see [Agent](./AGENT.md). |
 
 ## Recipe
 
 ### 1. Install the Packages
 
-Add core and the host package at the same version, the TanStack Start versions
-above, and the native packages listed below:
+Add core, the host package, and the Canvas adapter at the same version, the
+TanStack Start versions above, and the native packages listed below:
 
 ```json
 // fixtures/host-minimal/package.json (dependencies, excerpt)
@@ -133,14 +135,19 @@ application, so each entry file is a single call that takes Modulus's options:
 import handler, { createServerEntry } from '@tanstack/react-start/server-entry'
 
 import { createModulusFetch } from '@modulus-learning/host-tanstack-start/server/entry'
+import { canvasAdapter } from '@modulus-learning/lms-canvas'
 
 // The lowest app-owned request chokepoint. `createModulusFetch` validates the
-// server configuration, starts background jobs where the deployment mode
-// allows, installs graceful shutdown, and gates every request by mode.
+// server configuration, initialises core with this installation's LMS adapter,
+// starts background jobs where the deployment mode allows, installs graceful
+// shutdown, and gates every request by mode.
 export default createServerEntry({
-  fetch: createModulusFetch((request) => handler.fetch(request)),
+  fetch: createModulusFetch((request) => handler.fetch(request), { lms: canvasAdapter() }),
 })
 ```
+
+The `lms` option names the one LMS your installation connects to. Core is
+initialised with it at boot, before the instance serves a request.
 
 ```ts
 // apps/gradebook/src/start.ts

@@ -1,0 +1,5 @@
+{
+  // The published build: source only; tests stay in the repository.
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}

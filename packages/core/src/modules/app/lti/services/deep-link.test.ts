@@ -1,14 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { pino } from 'pino'
-import { v7 as uuidv7 } from 'uuid'
-
-import { UserAuth } from '@/lib/auth.js'
-import { createCoreLogger } from '@/lib/logger.js'
-import { canvasAdapter } from '@/lms/canvas/index.js'
-import { parseAdmissibleUrl } from '@/modules/activity-registration/url-policy.js'
-import { syntheticAdapter } from '@/test-support/lms.js'
+import { canvasAdapter } from '@modulus-learning/lms-canvas'
+import type { DeepLinkingContentItem, LmsAdapter } from '@modulus-learning/lti'
 import {
   CLAIM_DEEP_LINKING_CONTENT,
   CLAIM_DEEP_LINKING_DATA,
@@ -16,12 +10,18 @@ import {
   CLAIM_DEPLOYMENT_ID,
   CLAIM_MESSAGE_TYPE,
   CLAIM_VERSION,
-} from '../constants.js'
+} from '@modulus-learning/lti'
+import { pino } from 'pino'
+import { v7 as uuidv7 } from 'uuid'
+
+import { UserAuth } from '@/lib/auth.js'
+import { createCoreLogger } from '@/lib/logger.js'
+import { parseAdmissibleUrl } from '@/modules/activity-registration/url-policy.js'
+import { syntheticAdapter } from '@/test-support/lms.js'
 import { LtiDeepLinkingService } from './deep-link.js'
 import type { UrlBuilder } from '@/config.js'
 import type { CoreError } from '@/lib/errors.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
-import type { LmsAdapter } from '@/lms/contract.js'
 import type { ActivityRecord } from '@/modules/activity-registration/repository/index.js'
 import type { PolicySnapshot } from '@/modules/activity-registration/schemas.js'
 import type {
@@ -33,7 +33,6 @@ import type {
   ActivityQueries,
 } from '@/modules/app/activities/repository/index.js'
 import type { LtiQueries } from '../repository/index.js'
-import type { DeepLinkingContentItem } from '../types/messages/tool-originating/deep-linking-response.js'
 
 const logger = createCoreLogger({ pinoLogger: pino({ level: 'silent' }) })
 

@@ -1,3 +1,5 @@
+import type { LmsAdapter } from '@modulus-learning/lti'
+
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_NOT_FOUND } from '@/lib/errors.js'
 import { LoggingIncidentSink } from './incident-sink.js'
@@ -7,7 +9,6 @@ import { LtiScoreSubmitter } from './submitter.js'
 import type { Config } from '@/config.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
-import type { LmsAdapter } from '@/lms/contract.js'
 import type { AccessTokenManager } from '../services/access-tokens.js'
 import type {
   LtiScoreSubmissionMutations,
@@ -154,11 +155,18 @@ export class LtiScoreSubmissionManager extends BaseService {
   private addProcessor(platform: PlatformRecord) {
     // The adapter supplies the registration-bound transport and its pacing
     // policy; core keeps claiming, fencing, retries, incidents and the cap.
+    const scoreSubmission = this.config.lti.score_submission
     const { client: agsClient, scheduling } = this.lms.createScoreClient({
       registration: platform,
       accessTokens: this.accessTokenManager,
       logger: this.logger,
-      config: this.config,
+      settings: {
+        requestTimeoutSeconds: scoreSubmission.request_timeout_seconds,
+        maxConcurrentSubmissions: scoreSubmission.max_concurrent_submissions,
+        quotaReserveRequests: scoreSubmission.quota_reserve_requests,
+        quotaWindowMs: scoreSubmission.quota_window_ms,
+        quotaRampIntervalMs: scoreSubmission.quota_ramp_interval_ms,
+      },
     })
 
     const submitter = new LtiScoreSubmitter({

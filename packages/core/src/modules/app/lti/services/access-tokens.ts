@@ -1,14 +1,18 @@
 import crypto from 'node:crypto'
 
+import type { AccessToken, AccessTokenResult } from '@modulus-learning/lti'
+import {
+  SCOPE_AGS_LINEITEM,
+  SCOPE_AGS_RESULT_READONLY,
+  SCOPE_AGS_SCORE,
+} from '@modulus-learning/lti'
 import { SignJWT } from 'jose'
 
 import { BaseService } from '@/lib/base-service.js'
-import { SCOPE_AGS_LINEITEM, SCOPE_AGS_RESULT_READONLY, SCOPE_AGS_SCORE } from '../constants.js'
 import type { Config } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
 import type { PlatformRecord } from '../repository/index.js'
-import type { AccessToken, AccessTokenResult } from '../types/access-token.js'
 
 /***
  * Manages access tokens for making API requests to LTI platforms.

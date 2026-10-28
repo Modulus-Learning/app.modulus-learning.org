@@ -24,7 +24,7 @@
  * accessor so this function stays independent of the Response object.
  */
 
-import type { SubmissionErrorCategory, SubmissionResult } from './types.js'
+import type { SubmissionErrorCategory, SubmissionResult } from '@modulus-learning/lti'
 
 interface Rule {
   status: number

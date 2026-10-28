@@ -425,7 +425,8 @@ and `packages/host-tanstack-start/src/core-adapter.ts`.
 
 ### The LMS Adapter
 
-The `LmsAdapter` contract (`packages/core/src/lms/contract.ts`) is everything core
+The `LmsAdapter` contract (`packages/lti/src/contract.ts`, published as
+`@modulus-learning/lti`) is everything core
 needs from the one LMS an installation connects to, expressed as neutral values:
 whether a launch's roles make the user an instructor, the launch's academic
 term, the vendor's assignment-cutoff fallback, the custom fields a deep-link
@@ -435,13 +436,19 @@ concurrency pacing policy. Core applies the policy — account linking, scope
 resolution, the standard-first cutoff, the concurrency cap, retries and
 incidents — and never branches on the vendor.
 
-`canvasAdapter()` (`packages/core/src/lms/canvas/`) is the only adapter today. A
-boundary test (`packages/core/src/lms/boundary.test.ts`) fails if any core module
-outside the adapter imports Canvas implementation, and a deliberately non-Canvas
-test adapter (`packages/core/src/test-support/lms.ts`) runs the launch,
-deep-linking, and registration services without Canvas. Both prepare the
-extraction of the adapter into `@modulus-learning/lms-canvas`, described in
-`specs/2026-10-25-canvas-lti-package-extraction-spec.md`.
+`canvasAdapter()` from `@modulus-learning/lms-canvas` (`packages/lms-canvas/`)
+is the only adapter today. It holds the Canvas role names, term fields,
+substitution variables, registration defaults, the AGS score client, and the
+quota governor. The host passes it to `createModulusFetch`, which hands it to
+`initCore` as `lms`; `initCore` checks its contract version and registers it as
+`lmsAdapter`.
+
+Core depends on `@modulus-learning/lti` and has `@modulus-learning/lms-canvas`
+only as a development dependency, for tests. A boundary test
+(`packages/core/src/lms/boundary.test.ts`) fails if a core runtime module
+imports the Canvas package, and a deliberately non-Canvas test adapter
+(`packages/core/src/test-support/lms.ts`) runs the launch, deep-linking, and
+registration services without Canvas.
 
 One related composition is kept deliberately separate: **token verification**
 (`public/tokens.ts`) builds its own small `AsyncRegistry` of the three verifiers

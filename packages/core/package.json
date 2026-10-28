@@ -31,14 +31,6 @@
       "types": "./dist/public/env.d.ts",
       "import": "./dist/public/env.js"
     },
-    "./lms": {
-      "types": "./dist/lms/contract.d.ts",
-      "import": "./dist/lms/contract.js"
-    },
-    "./lms/canvas": {
-      "types": "./dist/lms/canvas/index.d.ts",
-      "import": "./dist/lms/canvas/index.js"
-    },
     "./package.json": "./package.json"
   },
   "bin": {
@@ -71,6 +63,7 @@
     "modulus": "tsx src/cli/index.ts"
   },
   "dependencies": {
+    "@modulus-learning/lti": "workspace:*",
     "@infonomic/schemas": "^2.4.0",
     "argon2": "^0.45.1",
     "dotenv": "^18.0.9",
@@ -87,6 +80,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@modulus-learning/lms-canvas": "workspace:*",
     "@biomejs/biome": "^2.6.2",
     "@faker-js/faker": "^10.6.0",
     "@types/node": "^26.6.5",

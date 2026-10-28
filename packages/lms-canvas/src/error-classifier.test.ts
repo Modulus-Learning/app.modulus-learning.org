@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
+import type { SubmissionErrorCategory } from '@modulus-learning/lti'
+
 import { classifyScoreSubmissionResponse } from './error-classifier.js'
-import type { SubmissionErrorCategory } from './types.js'
 
 const classify = (status: number, body = '') =>
   classifyScoreSubmissionResponse(status, async () => body)

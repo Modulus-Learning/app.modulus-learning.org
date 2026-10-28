@@ -12,8 +12,8 @@ import {
   type UserSession,
 } from '@modulus-learning/core'
 import { loadCoreConfigFromEnv, loadTokenVerifierConfigFromEnv } from '@modulus-learning/core/env'
-import { canvasAdapter } from '@modulus-learning/core/lms/canvas'
 import { initTokenVerifiers, type TokenVerifiers } from '@modulus-learning/core/tokens'
+import type { LmsAdapter } from '@modulus-learning/lti'
 import type { Logger } from 'pino'
 
 import { getServerConfig } from '@/config'
@@ -36,16 +36,24 @@ import { getServerConfig } from '@/config'
 const CORE = Symbol.for('modulus.coreInstance')
 type CoreGlobal = { [CORE]?: Promise<CoreInstance> }
 
-export const getCoreInstance = (logger: Logger): Promise<CoreInstance> => {
+/**
+ * The process's core instance. The first call creates it and must name the
+ * installation's LMS adapter: `createModulusFetch` does so at boot, before any
+ * request is served. Later callers (route handlers, `elb-status`) omit it.
+ */
+export const getCoreInstance = (logger: Logger, lms?: LmsAdapter): Promise<CoreInstance> => {
   const global = globalThis as CoreGlobal
   if (global[CORE] == null) {
+    if (lms == null) {
+      return Promise.reject(
+        new Error('core is not initialised: pass an LMS adapter to createModulusFetch')
+      )
+    }
     const { publicServerUrl } = getServerConfig()
     global[CORE] = initCore({
       pinoLogger: logger,
       config: loadCoreConfigFromEnv(process.env),
-      // The installation's LMS. Canvas is the only adapter today; a host will
-      // name its adapter in server configuration once it is a separate package.
-      lms: canvasAdapter(),
+      lms,
       urlBuilder: {
         baseUrl: publicServerUrl,
         // The tool's launch endpoint, which is what an LTI resource link's

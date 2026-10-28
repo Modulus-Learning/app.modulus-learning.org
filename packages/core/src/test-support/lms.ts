@@ -1,5 +1,9 @@
-import { LMS_CONTRACT_VERSION, type LmsAdapter } from '@/lms/contract.js'
-import { CLAIM_CUSTOM, CLAIM_ROLES } from '@/modules/app/lti/constants.js'
+import {
+  CLAIM_CUSTOM,
+  CLAIM_ROLES,
+  LMS_CONTRACT_VERSION,
+  type LmsAdapter,
+} from '@modulus-learning/lti'
 
 /**
  * A deliberately non-Canvas LMS adapter. Core tests run against it to prove

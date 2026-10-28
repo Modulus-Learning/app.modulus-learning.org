@@ -1,22 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { pino } from 'pino'
+import type { AccessToken, AccessTokenResult, LtiRegistration } from '@modulus-learning/lti'
 
-import { createCoreLogger } from '@/lib/logger.js'
 import { type FetchFn, HttpLtiAgsClient } from './ags-client.js'
-import type { Config } from '@/config.js'
-import type { RateLimitReading } from '@/modules/app/lti/score-submission/types.js'
-import type { AccessToken, AccessTokenResult } from '../types/access-token.js'
-import type { PlatformRecord } from './repository.js'
+import type { RateLimitReading } from './types.js'
 
-const logger = createCoreLogger({ pinoLogger: pino({ level: 'silent' }) })
+const logger = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} }
 
-const config = {
-  lti: { score_submission: { request_timeout_seconds: 30 } },
-} as unknown as Config
-
-const platform: PlatformRecord = {
+const platform: LtiRegistration = {
   id: 'platform-1',
   issuer: 'https://canvas.test',
   name: 'Test',
@@ -51,12 +43,18 @@ function makeClient(opts: { fetch?: FetchFn; tokenResult?: AccessTokenResult }):
 
   const accessTokenManager = {
     getAccessToken: (): Promise<AccessTokenResult> => Promise.resolve(opts.tokenResult ?? okToken),
-    invalidateAccessToken: (_platform: PlatformRecord, token: AccessToken): void => {
+    invalidateAccessToken: (_platform: LtiRegistration, token: AccessToken): void => {
       invalidated.push(token.token)
     },
   }
 
-  const client = new HttpLtiAgsClient({ logger, config, platform, accessTokenManager, fetchFn })
+  const client = new HttpLtiAgsClient({
+    logger,
+    registration: platform,
+    accessTokens: accessTokenManager,
+    requestTimeoutSeconds: 30,
+    fetchFn,
+  })
   return { client, calls, invalidated }
 }
 

@@ -1,8 +1,9 @@
+import type { SchedulingPolicy } from '@modulus-learning/lti'
+
 import { BaseService, method } from '@/lib/base-service.js'
 import { IncidentTracker } from './incident-tracker.js'
 import type { Config } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
-import type { SchedulingPolicy } from '@/lms/contract.js'
 import type { FailureInfo, IncidentEffect } from './incident-tracker.js'
 import type { LtiScoreSubmissionMutations, LtiScoreSubmissionQueries } from './repository.js'
 import type { LtiScoreSubmitter, SubmissionOutcome } from './submitter.js'

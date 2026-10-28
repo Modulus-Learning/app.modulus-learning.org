@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, it } from 'node:test'
 
+import type { RateLimitReading } from '@modulus-learning/lms-canvas'
 import { eq } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -8,7 +9,6 @@ import { lineitems } from '@/database/schema/index.js'
 import { deadResult, FakeLtiAgsClient, retryableResult, successResult } from '@/test-support/ags.js'
 import { seedLineItem, seedScenario, seedScope } from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
-import type { RateLimitReading } from '@/modules/app/lti/score-submission/types.js'
 
 let h: TestHarness
 

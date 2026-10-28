@@ -39,7 +39,7 @@ mkdir -p "$PACKED"
 rm -f "$PACKED"/*.tgz
 
 echo "── build and pack"
-for pkg in core host-tanstack-start; do
+for pkg in lti lms-canvas core host-tanstack-start; do
   pnpm -F "@modulus-learning/${pkg}" build >/dev/null
   (cd "${REPO_ROOT}/packages/${pkg}" && pnpm pack --pack-destination "$PACKED" >/dev/null)
 done

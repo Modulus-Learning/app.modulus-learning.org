@@ -10,7 +10,7 @@ import {
   CLAIM_DEPLOYMENT_ID,
   CLAIM_MESSAGE_TYPE,
   CLAIM_VERSION,
-} from '@/modules/app/lti/constants.js'
+} from '../../constants.js'
 
 const imageUrlSchema = z.object({
   url: z.url(),

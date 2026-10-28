@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { CLAIM_MESSAGE_TYPE } from '@/modules/app/lti/constants.js'
+import { CLAIM_MESSAGE_TYPE } from '../../constants.js'
 import { deepLinkingRequestSchema } from './deep-linking-request.js'
 import { resourceLinkLaunchRequestSchema } from './resource-link-launch-request.js'
 

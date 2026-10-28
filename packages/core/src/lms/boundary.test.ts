@@ -1,7 +1,7 @@
 /**
- * The LMS boundary inside core: only the Canvas adapter (and tests) may reach
- * Canvas code. Core's own modules depend on the adapter contract alone, so the
- * Canvas adapter can move into its own package without core changing.
+ * The LMS boundary: core depends on the adapter contract in
+ * `@modulus-learning/lti` alone. Only tests and test support may import the
+ * Canvas adapter package, which is a development dependency of core.
  */
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
@@ -18,11 +18,8 @@ const sourceFiles = (dir: string): string[] =>
     return /\.ts$/.test(name) && !/\.(test|itest)\.ts$/.test(name) ? [path] : []
   })
 
-/** Modules that are Canvas implementation, reachable only through the adapter. */
-const CANVAS_ONLY = [
-  /^lms\/canvas(\/|$)/,
-  /^modules\/app\/lti\/score-submission\/(ags-client|error-classifier|quota-governor)$/,
-]
+/** Canvas implementation, reachable only through the installation's adapter. */
+const CANVAS_ONLY = [/^@modulus-learning\/lms-canvas(\/|$)/]
 
 /** A specifier as a path relative to `src`, without extension; bare packages pass through. */
 const resolveSpecifier = (file: string, specifier: string): string => {
@@ -42,11 +39,11 @@ const valueImportsOf = (source: string): string[] =>
 const isCanvasOnly = (path: string) => CANVAS_ONLY.some((pattern) => pattern.test(path))
 
 describe('LMS boundary', () => {
-  it('lets only Canvas implementation and test support import Canvas implementation', () => {
+  it('keeps the Canvas adapter out of core runtime modules', () => {
     const offenders: string[] = []
     for (const file of sourceFiles(SRC)) {
       const path = relative(SRC, file).replace(/\.ts$/, '')
-      if (isCanvasOnly(path) || path.startsWith('test-support/')) continue
+      if (path.startsWith('test-support/')) continue
       for (const specifier of valueImportsOf(readFileSync(file, 'utf8'))) {
         if (isCanvasOnly(resolveSpecifier(file, specifier))) {
           offenders.push(`${path} → ${specifier}`)

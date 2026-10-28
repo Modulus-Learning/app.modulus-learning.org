@@ -3,7 +3,7 @@
 // for now this list just includes roles that Canvas appears to use.  See:
 // https://www.imsglobal.org/spec/lti/v1p3/#role-vocabularies
 // https://developerdocs.instructure.com/services/canvas/external-tools/file.canvas_roles
-const INSTRUCTOR_LTI_ROLES = [
+export const INSTRUCTOR_LTI_ROLES = [
   // A system / site admin.
   'http://purl.imsglobal.org/vocab/lis/v2/system/person#SysAdmin',
 

@@ -1,32 +1,34 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose'
-import { v7 as uuidv7 } from 'uuid'
-
-import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
-import { BaseService, method } from '@/lib/base-service.js'
+import type {
+  DeepLinkingRequest,
+  LmsAdapter,
+  ResourceLinkLaunchRequest,
+  TermInspection,
+} from '@modulus-learning/lti'
 import {
   CLAIM_AGS_ENDPOINT,
   CLAIM_CUSTOM,
   CLAIM_DEEP_LINKING_SETTINGS,
   CLAIM_DEPLOYMENT_ID,
   CLAIM_MESSAGE_TYPE,
-} from '../constants.js'
-import { ERR_INVALID_LAUNCH } from '../errors.js'
-import {
+  effectiveCutoff,
   type PlatformMessage,
   platformMessageSchema,
-} from '../types/messages/platform-originating/platform-message.js'
+} from '@modulus-learning/lti'
+import { createRemoteJWKSet, jwtVerify } from 'jose'
+import { v7 as uuidv7 } from 'uuid'
+
+import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
+import { BaseService, method } from '@/lib/base-service.js'
+import { ERR_INVALID_LAUNCH } from '../errors.js'
 import type { Config } from '@/config.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
-import type { LmsAdapter, TermInspection } from '@/lms/contract.js'
 import type { ActivityQueries } from '@/modules/app/activities/repository/index.js'
 import type { EnrollmentService } from '@/modules/app/activities/services/enrollment.js'
 import type { LtiSignInService } from '@/modules/app/session/services/lti-sign-in.js'
 import type { TokenIssuer } from '@/modules/app/session/services/token-issuer.js'
 import type { LtiMutations, LtiQueries, PlatformRecord } from '../repository/index.js'
 import type { LaunchRequest, LaunchResponse } from '../schemas.js'
-import type { DeepLinkingRequest } from '../types/messages/platform-originating/deep-linking-request.js'
-import type { ResourceLinkLaunchRequest } from '../types/messages/platform-originating/resource-link-launch-request.js'
 
 type RemoteJWKSet = ReturnType<typeof createRemoteJWKSet>
 
@@ -215,10 +217,7 @@ export class LtiLaunchService extends BaseService {
     const lineitem_url = launch[CLAIM_AGS_ENDPOINT]?.lineitem
     if (lineitem_url != null) {
       // The standard field first, then the adapter's own fallback.
-      const cutoff_at = parseDateFromArray([
-        launch[CLAIM_CUSTOM]['ResourceLink.available.endDateTime'],
-        interpretation.cutoffFallback,
-      ])
+      const cutoff_at = effectiveCutoff(launch[CLAIM_CUSTOM], interpretation.cutoffFallback)
 
       await this.tx.withTransaction(async () => {
         await this.ltiMutations.upsertProgress(activity.id, signIn.user.id, scope.scope_id)
@@ -411,16 +410,5 @@ export class LtiLaunchService extends BaseService {
     }
 
     return { launch, platform }
-  }
-}
-
-const parseDateFromArray = (array: unknown[]): Date | undefined => {
-  for (const value of array) {
-    if (typeof value === 'string') {
-      const timestamp = Date.parse(value)
-      if (!Number.isNaN(timestamp)) {
-        return new Date(timestamp)
-      }
-    }
   }
 }

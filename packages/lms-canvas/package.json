@@ -1,0 +1,52 @@
+{
+  "name": "@modulus-learning/lms-canvas",
+  "version": "0.11.0",
+  "private": false,
+  "description": "The Canvas LMS adapter for Modulus",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "homepage": "https://github.com/Modulus-Learning/app.modulus-learning.org",
+  "bugs": {
+    "url": "https://github.com/Modulus-Learning/app.modulus-learning.org/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Modulus-Learning/app.modulus-learning.org.git",
+    "directory": "packages/lms-canvas"
+  },
+  "engines": {
+    "node": "^22.18.0 || ^24.11.0 || >=26.0.0"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "rm -rf node_modules dist .turbo",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "lint": "biome check --write --diagnostic-level=error",
+    "typecheck": "tsc --noEmit",
+    "test": "LOG_LEVEL=off tsx --test $(find src -name \"*.test.ts\")"
+  },
+  "dependencies": {
+    "@modulus-learning/lti": "workspace:*",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.2",
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

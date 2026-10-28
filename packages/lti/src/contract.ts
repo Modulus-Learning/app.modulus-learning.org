@@ -3,19 +3,13 @@
  * installation is connected to, as neutral values. Core calls the adapter;
  * the adapter never calls into core.
  *
- * This module is the seed of `@modulus-learning/lti`'s adapter contract
- * (specs/2026-10-25-canvas-lti-package-extraction-spec.md). Shared LTI
- * protocol mechanics — launch verification, the OIDC request, token exchange —
- * still live in core and move into that package during extraction, where the
- * adapter composes them.
+ * See specs/2026-10-25-canvas-lti-package-extraction-spec.md. Launch
+ * verification, the OIDC request and token exchange still live in core; they
+ * move behind the adapter in a later increment.
  */
 
-import type { Config } from '@/config.js'
-import type { CoreLogger } from '@/lib/logger.js'
-import type { PlatformRecord } from '@/modules/app/lti/repository/index.js'
-import type { LtiAgsClient } from '@/modules/app/lti/score-submission/ags-client.js'
-import type { AccessTokenManager } from '@/modules/app/lti/services/access-tokens.js'
-import type { PlatformMessage } from '@/modules/app/lti/types/messages/platform-originating/platform-message.js'
+import type { PlatformMessage } from './messages/platform-originating/platform-message.js'
+import type { AccessTokenSource, LtiAgsClient, LtiLogger, LtiRegistration } from './score.js'
 
 /** Incremented on any change to what an adapter must provide or what core assumes. */
 export const LMS_CONTRACT_VERSION = 1
@@ -93,11 +87,25 @@ export interface SchedulingPolicy {
   reset(): void
 }
 
+/** Core's score-submission settings that a score client and its policy use. */
+export type ScoreClientSettings = {
+  /** Abort a platform request after this long. */
+  requestTimeoutSeconds: number
+  /** Core's concurrency cap for one registration. */
+  maxConcurrentSubmissions: number
+  /** Quota the policy keeps in reserve. */
+  quotaReserveRequests: number
+  /** How long quota readings stay relevant. */
+  quotaWindowMs: number
+  /** The minimum interval between concurrency increases. */
+  quotaRampIntervalMs: number
+}
+
 export type ScoreClientDeps = {
-  registration: PlatformRecord
-  accessTokens: AccessTokenManager
-  logger: CoreLogger
-  config: Config
+  registration: LtiRegistration
+  accessTokens: AccessTokenSource
+  logger: LtiLogger
+  settings: ScoreClientSettings
 }
 
 /** A registration-bound score client and its scheduling policy. */

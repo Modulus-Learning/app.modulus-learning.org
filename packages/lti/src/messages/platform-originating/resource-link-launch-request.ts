@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { CLAIM_MESSAGE_TYPE, CLAIM_RESOURCE_LINK } from '@/modules/app/lti/constants.js'
+import { CLAIM_MESSAGE_TYPE, CLAIM_RESOURCE_LINK } from '../../constants.js'
 import { baseMessageSchema } from './base-message.js'
 
 export const resourceLinkLaunchRequestSchema = baseMessageSchema.extend({

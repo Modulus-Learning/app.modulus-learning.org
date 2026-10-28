@@ -7,6 +7,8 @@ allowBuilds:
   bcrypt: true
   protobufjs: true
 minimumReleaseAge: 0
-# Resolve the packed core tarball instead of the registry.
+# Resolve the packed tarballs instead of the registry.
 overrides:
   '@modulus-learning/core': file:../../.packed/modulus-learning-core.tgz
+  '@modulus-learning/lms-canvas': file:../../.packed/modulus-learning-lms-canvas.tgz
+  '@modulus-learning/lti': file:../../.packed/modulus-learning-lti.tgz

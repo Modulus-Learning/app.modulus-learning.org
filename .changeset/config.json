@@ -3,7 +3,13 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [
-    ["@modulus-learning/agent", "@modulus-learning/core", "@modulus-learning/host-tanstack-start"]
+    [
+      "@modulus-learning/agent",
+      "@modulus-learning/core",
+      "@modulus-learning/host-tanstack-start",
+      "@modulus-learning/lms-canvas",
+      "@modulus-learning/lti"
+    ]
   ],
   "linked": [],
   "access": "public",

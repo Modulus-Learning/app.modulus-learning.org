@@ -1,6 +1,8 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { canvasAdapter } from '@modulus-learning/lms-canvas'
+import type { LtiAgsClient } from '@modulus-learning/lti'
 import { config as loadEnv } from 'dotenv'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
@@ -11,7 +13,6 @@ import * as schema from '@/database/schema/index.js'
 import { DBManagerImpl, TXManagerImpl } from '@/lib/db-manager.js'
 import { createCoreLogger } from '@/lib/logger.js'
 import { CoreUtils } from '@/lib/utils.js'
-import { canvasAdapter } from '@/lms/canvas/index.js'
 import {
   ActivityUrlAllowlistMutations,
   ActivityUrlAllowlistQueries,
@@ -40,7 +41,6 @@ import { testConfig } from '@/test-support/config.js'
 import type { UrlBuilder } from '@/config.js'
 import type { DB } from '@/database/index.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
-import type { LtiAgsClient } from '@/modules/app/lti/score-submission/ags-client.js'
 
 const MIGRATIONS_FOLDER = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

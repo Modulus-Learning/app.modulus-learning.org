@@ -2,14 +2,7 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { after, before, describe, it } from 'node:test'
 
-import type { JWK } from 'jose'
-import { exportJWK, generateKeyPair, SignJWT } from 'jose'
-import { pino } from 'pino'
-import { v7 as uuidv7 } from 'uuid'
-
-import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
-import { createCoreLogger } from '@/lib/logger.js'
-import { canvasAdapter, inspectCanvasTerm, normalizeCanvasTerm } from '@/lms/canvas/index.js'
+import { canvasAdapter, inspectCanvasTerm, normalizeCanvasTerm } from '@modulus-learning/lms-canvas'
 import {
   CLAIM_AGS_ENDPOINT,
   CLAIM_CUSTOM,
@@ -19,7 +12,14 @@ import {
   CLAIM_ROLES,
   CLAIM_TARGET_LINK_URI,
   CLAIM_VERSION,
-} from '@/modules/app/lti/constants.js'
+} from '@modulus-learning/lti'
+import type { JWK } from 'jose'
+import { exportJWK, generateKeyPair, SignJWT } from 'jose'
+import { pino } from 'pino'
+import { v7 as uuidv7 } from 'uuid'
+
+import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
+import { createCoreLogger } from '@/lib/logger.js'
 import { ErrorCodes } from '@/modules/app/lti/errors.js'
 import { LtiLaunchService, resolveVerifiedLaunchScope } from '@/modules/app/lti/services/launch.js'
 import type { Config } from '@/config.js'

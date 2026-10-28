@@ -24,6 +24,8 @@ pnpm + Turborepo monorepo. Node >=22.13, pnpm 11.10.0, TypeScript 6.
 | Path | Package | Published? | What it is |
 |---|---|---|---|
 | `packages/core` | `@modulus-learning/core` | **public on npm** | All business logic, data access, and services behind class contracts, plus the schema scripts and the `modulus` command (`db`, `bootstrap`, `admin create`, `keys generate`). |
+| `packages/lti` | `@modulus-learning/lti` | **public on npm** | Shared LTI 1.3 vocabulary (claims, messages, access tokens, score results) and the `LmsAdapter` contract. |
+| `packages/lms-canvas` | `@modulus-learning/lms-canvas` | **public on npm** | The Canvas LMS adapter, `canvasAdapter()`: roles, term fields, deep-link variables, registration defaults, the AGS client and quota governor. Core uses it only in tests. |
 | `packages/host-tanstack-start` | `@modulus-learning/host-tanstack-start` | **public on npm** | The TanStack Start host layer: route factories, server functions and their gates, server-entry/start/router helpers, the admin and learner UI, the Vite preset, and styles. |
 | `apps/gradebook` | `@modulus-learning/gradebook` | private | This repository's own installation and the reference host: route files that call packaged factories, plus its public pages. It imports the packages only through their public exports. |
 | `apps/agent` | `@modulus-learning/agent` | **public on npm** | The browser instrumentation library embedded in Ximera pages. |
@@ -75,7 +77,7 @@ first).
 
 | Package | Runner |
 |---|---|
-| `packages/core` | `node:test` via `tsx` — **not vitest** |
+| `packages/core`, `packages/lti`, `packages/lms-canvas` | `node:test` via `tsx` — **not vitest** |
 | `apps/gradebook` | vitest (jsdom and node modes, both in `pnpm test`); plus the HTTP suites below |
 | `apps/agent` | vitest (jsdom and node modes, both in `pnpm test`) |
 
@@ -128,8 +130,9 @@ refuse a database name that does not end in `_test`.
 
 ## Things that bite
 
-- **The published packages release in lockstep.** `agent`, `core`, and
-  `host-tanstack-start` form `fixed[0]` in `.changeset/config.json` and always
+- **The published packages release in lockstep.** `agent`, `core`,
+  `host-tanstack-start`, `lms-canvas`, and `lti` form `fixed[0]` in
+  `.changeset/config.json` and always
   share one version; `gradebook` and the demos are `ignore`d. The root `VERSION`
   (the gradebook image tag) follows the lockstep version.
 - **Releases are published locally**, not by CI. `RELEASE-INSTRUCTIONS.md` is

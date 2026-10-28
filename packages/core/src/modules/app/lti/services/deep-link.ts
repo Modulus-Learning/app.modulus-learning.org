@@ -1,8 +1,6 @@
 import * as crypto from 'node:crypto'
 
-import { BaseService, method } from '@/lib/base-service.js'
-import { ERR_FORBIDDEN } from '@/lib/errors.js'
-import { activityUrlNotAllowed } from '@/modules/activity-registration/errors.js'
+import type { DeepLinkingContentItem, DeepLinkingResponse, LmsAdapter } from '@modulus-learning/lti'
 import {
   CLAIM_DEEP_LINKING_CONTENT,
   CLAIM_DEEP_LINKING_DATA,
@@ -10,13 +8,16 @@ import {
   CLAIM_DEPLOYMENT_ID,
   CLAIM_MESSAGE_TYPE,
   CLAIM_VERSION,
-} from '../constants.js'
+} from '@modulus-learning/lti'
+
+import { BaseService, method } from '@/lib/base-service.js'
+import { ERR_FORBIDDEN } from '@/lib/errors.js'
+import { activityUrlNotAllowed } from '@/modules/activity-registration/errors.js'
 import { ERR_DEEP_LINKING } from '../errors.js'
 import type { UrlBuilder } from '@/config.js'
 import type { UserAuth } from '@/lib/auth.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
-import type { LmsAdapter } from '@/lms/contract.js'
 import type { ActivityRegistrationService } from '@/modules/activity-registration/services/activity-registration.js'
 import type {
   ActivityMutations,
@@ -24,10 +25,6 @@ import type {
 } from '@/modules/app/activities/repository/index.js'
 import type { LtiQueries } from '../repository/index.js'
 import type { DeepLinkRequest, DeepLinkResponse } from '../schemas.js'
-import type {
-  DeepLinkingContentItem,
-  DeepLinkingResponse,
-} from '../types/messages/tool-originating/deep-linking-response.js'
 
 export class LtiDeepLinkingService extends BaseService {
   private urlBuilder: UrlBuilder

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, it } from 'node:test'
 
+import { inspectCanvasTerm } from '@modulus-learning/lms-canvas'
 import { and, eq } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -13,7 +14,6 @@ import {
   progressEvents,
   scopes,
 } from '@/database/schema/index.js'
-import { inspectCanvasTerm } from '@/lms/canvas/index.js'
 import { resolveVerifiedLaunchScope } from '@/modules/app/lti/services/launch.js'
 import {
   type Scenario,

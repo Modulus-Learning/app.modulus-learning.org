@@ -1,4 +1,4 @@
-import type { RegistrationConfigInput, RegistrationEndpoints } from '@/lms/contract.js'
+import type { RegistrationConfigInput, RegistrationEndpoints } from '@modulus-learning/lti'
 
 /**
  * Canvas registration: the standard Canvas endpoints for an issuer, and the

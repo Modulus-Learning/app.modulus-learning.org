@@ -1,3 +1,4 @@
+import { assertLmsAdapter, type LmsAdapter } from '@modulus-learning/lti'
 import { type Logger as PinoLogger, pino } from 'pino'
 
 import { connect } from './database/index.js'
@@ -10,7 +11,6 @@ import { type CoreLogger, createCoreLogger } from './lib/logger.js'
 import { LtiKeyStore } from './lib/lti-keystore.js'
 import { AsyncRegistry } from './lib/registry.js'
 import { CoreUtils } from './lib/utils.js'
-import { assertLmsAdapter, type LmsAdapter } from './lms/contract.js'
 import { createActivityRegistrationRegistry } from './modules/activity-registration/index.js'
 import { createAdminRegistry, getAdminCommands } from './modules/admin/index.js'
 import { createAgentRegistry, getAgentCommands } from './modules/agent/index.js'
@@ -104,7 +104,7 @@ export type InitOptions = {
   pinoLogger?: PinoLogger
   urlBuilder: UrlBuilder
   config: Config
-  /** The installation's LMS adapter, e.g. `canvasAdapter()` from `@modulus-learning/core/lms/canvas`. */
+  /** The installation's LMS adapter, e.g. `canvasAdapter()` from `@modulus-learning/lms-canvas`. */
   lms: LmsAdapter
 }
 

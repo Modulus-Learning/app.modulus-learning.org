@@ -1,6 +1,6 @@
 import { initCore } from '@modulus-learning/core'
 import { loadCoreConfigFromEnv } from '@modulus-learning/core/env'
-import { canvasAdapter } from '@modulus-learning/core/lms/canvas'
+import { canvasAdapter } from '@modulus-learning/lms-canvas'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 

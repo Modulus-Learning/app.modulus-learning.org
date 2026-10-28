@@ -1,22 +1,24 @@
-import { LMS_CONTRACT_VERSION } from '@/lms/contract.js'
-import { CLAIM_CUSTOM, CLAIM_ROLES } from '@/modules/app/lti/constants.js'
-import { HttpLtiAgsClient } from '@/modules/app/lti/score-submission/ags-client.js'
-import { QuotaGovernor } from '@/modules/app/lti/score-submission/quota-governor.js'
+import {
+  CLAIM_CUSTOM,
+  CLAIM_ROLES,
+  LMS_CONTRACT_VERSION,
+  type LmsAdapter,
+} from '@modulus-learning/lti'
+
+import { HttpLtiAgsClient } from './ags-client.js'
 import { CANVAS_CUSTOM_LAUNCH_FIELDS } from './deep-link-fields.js'
+import { QuotaGovernor } from './quota-governor.js'
 import { canvasRegistrationConfig, canvasRegistrationEndpoints } from './registration.js'
 import { isInstructor } from './roles.js'
 import { inspectCanvasTerm } from './term.js'
-import type { LmsAdapter } from '@/lms/contract.js'
-import type { RateLimitReading } from '@/modules/app/lti/score-submission/types.js'
-
-export { inspectCanvasTerm, normalizeCanvasTerm } from './term.js'
+import type { RateLimitReading } from './types.js'
 
 /**
  * The Canvas LMS adapter. Everything Canvas-specific that core relies on —
  * role interpretation, term metadata, the assignment lock-date fallback, the
  * deep-link substitution variables, registration defaults and developer-key
  * configuration, the AGS transport and Canvas quota pacing — is reached
- * through this object. It becomes `@modulus-learning/lms-canvas`.
+ * through this object.
  */
 export const canvasAdapter = (): LmsAdapter => ({
   id: 'canvas',
@@ -34,22 +36,21 @@ export const canvasAdapter = (): LmsAdapter => ({
   registrationEndpoints: canvasRegistrationEndpoints,
   registrationConfig: canvasRegistrationConfig,
 
-  createScoreClient: ({ registration, accessTokens, logger, config }) => {
-    const { score_submission } = config.lti
+  createScoreClient: ({ registration, accessTokens, logger, settings }) => {
     // One governor per registration-bound client: no pacing state is shared
-    // between registrations, as with the previous per-platform governor.
+    // between registrations.
     const governor = new QuotaGovernor(
-      Math.max(1, score_submission.max_concurrent_submissions),
-      score_submission.quota_reserve_requests,
-      score_submission.quota_window_ms,
-      score_submission.quota_ramp_interval_ms
+      Math.max(1, settings.maxConcurrentSubmissions),
+      settings.quotaReserveRequests,
+      settings.quotaWindowMs,
+      settings.quotaRampIntervalMs
     )
     return {
       client: new HttpLtiAgsClient({
         logger,
-        config,
-        platform: registration,
-        accessTokenManager: accessTokens,
+        registration,
+        accessTokens,
+        requestTimeoutSeconds: settings.requestTimeoutSeconds,
       }),
       scheduling: {
         target: () => governor.target(),

@@ -36,6 +36,7 @@
     "@infonomic/uikit": "^6.8.2",
     "@modulus-learning/core": "workspace:*",
     "@modulus-learning/host-tanstack-start": "workspace:*",
+    "@modulus-learning/lms-canvas": "workspace:*",
     "@panva/hkdf": "^1.2.1",
     "@tanstack/react-router": "1.170.46",
     "@tanstack/react-start": "1.169.4",

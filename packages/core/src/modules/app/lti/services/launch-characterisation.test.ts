@@ -8,10 +8,8 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 
-import { type JWTPayload, SignJWT } from 'jose'
-import { v7 as uuidv7 } from 'uuid'
-
-import { canvasAdapter } from '@/lms/canvas/index.js'
+import { canvasAdapter } from '@modulus-learning/lms-canvas'
+import type { LmsAdapter } from '@modulus-learning/lti'
 import {
   CLAIM_AGS_ENDPOINT,
   CLAIM_CUSTOM,
@@ -22,7 +20,10 @@ import {
   CLAIM_ROLES,
   CLAIM_TARGET_LINK_URI,
   CLAIM_VERSION,
-} from '@/modules/app/lti/constants.js'
+} from '@modulus-learning/lti'
+import { type JWTPayload, SignJWT } from 'jose'
+import { v7 as uuidv7 } from 'uuid'
+
 import { ErrorCodes } from '@/modules/app/lti/errors.js'
 import { LtiLaunchService } from '@/modules/app/lti/services/launch.js'
 import {
@@ -39,7 +40,6 @@ import {
 } from '@/test-support/lti.js'
 import type { Config } from '@/config.js'
 import type { TXManager } from '@/lib/db-manager.js'
-import type { LmsAdapter } from '@/lms/contract.js'
 import type { ActivityQueries } from '@/modules/app/activities/repository/index.js'
 import type { EnrollmentService } from '@/modules/app/activities/services/enrollment.js'
 import type {

@@ -7,14 +7,15 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { canvasAdapter } from '@/lms/canvas/index.js'
+import { canvasAdapter } from '@modulus-learning/lms-canvas'
+import type { LmsAdapter } from '@modulus-learning/lti'
+
 import { LtiPlatformsService } from '@/modules/admin/lti-platforms/services/lti-platforms.js'
 import { syntheticAdapter } from '@/test-support/lms.js'
 import { silentLogger } from '@/test-support/lti.js'
 import type { Config } from '@/config.js'
 import type { AdminAuth } from '@/lib/auth.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
-import type { LmsAdapter } from '@/lms/contract.js'
 import type {
   LtiPlatformMutations,
   LtiPlatformQueries,

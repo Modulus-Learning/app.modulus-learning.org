@@ -1,8 +1,11 @@
+import type {
+  CLAIM_CUSTOM,
+  FieldQuality,
+  NormalizedTerm,
+  PlatformMessage,
+  TermInspection,
+} from '@modulus-learning/lti'
 import { z } from 'zod'
-
-import type { FieldQuality, NormalizedTerm, TermInspection } from '@/lms/contract.js'
-import type { CLAIM_CUSTOM } from '@/modules/app/lti/constants.js'
-import type { PlatformMessage } from '@/modules/app/lti/types/messages/platform-originating/platform-message.js'
 
 /**
  * Canvas term metadata: the `Canvas.term.*` substitution variables a Modulus

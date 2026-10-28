@@ -7,7 +7,7 @@ import {
   CLAIM_ROLES,
   CLAIM_TARGET_LINK_URI,
   CLAIM_VERSION,
-} from '@/modules/app/lti/constants.js'
+} from '../../constants.js'
 
 export const baseMessageSchema = z.object({
   // Core claims

@@ -1,3 +1,5 @@
+import type { LmsAdapter } from '@modulus-learning/lti'
+
 import { getServerConfig } from '@/config/index'
 import { negotiateLocaleRedirect } from '@/i18n/server-locale-redirect'
 import { getCoreInstance } from '@/lib/core/instance'
@@ -13,12 +15,19 @@ import {
   startBackgroundJobsOnce,
 } from '@/lib/shutdown'
 
+export type ModulusFetchOptions = {
+  /** The installation's LMS adapter, e.g. `canvasAdapter()` from `@modulus-learning/lms-canvas`. */
+  lms: LmsAdapter
+}
+
 /**
  * Boot a Modulus host process and return its server-entry `fetch`. The host's
  * `src/server.ts` keeps the literal `createServerEntry` call Start requires:
  *
  *   export default createServerEntry({
- *     fetch: createModulusFetch((request) => handler.fetch(request)),
+ *     fetch: createModulusFetch((request) => handler.fetch(request), {
+ *       lms: canvasAdapter(),
+ *     }),
  *   })
  *
  * Call it once, at module evaluation: it validates the whole server
@@ -28,7 +37,10 @@ import {
  * lowest request chokepoint, run on the un-rewritten request before the
  * router: deployment-mode gating, locale negotiation and access logging.
  */
-export const createModulusFetch = (render: (request: Request) => Response | Promise<Response>) => {
+export const createModulusFetch = (
+  render: (request: Request) => Response | Promise<Response>,
+  { lms }: ModulusFetchOptions
+) => {
   const config = getServerConfig()
   const logger = getServerLogger()
   const mode = config.deployment.mode
@@ -53,7 +65,7 @@ export const createModulusFetch = (render: (request: Request) => Response | Prom
   // supervisor restarts it, rather than leaving an instance that looks
   // healthy. Elsewhere it stays up for diagnosis, and `/routes/elb-status`
   // reports 503.
-  const core = getCoreInstance(logger)
+  const core = getCoreInstance(logger, lms)
   core.catch((error) => {
     logger.fatal({ err: error }, 'core failed to initialise')
     if (process.env.NODE_ENV === 'production') process.exit(1)

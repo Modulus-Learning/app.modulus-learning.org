@@ -1,78 +1,50 @@
-import { BaseService, method } from '@/lib/base-service.js'
+import type {
+  AccessTokenSource,
+  LtiAgsClient,
+  LtiLogger,
+  LtiRegistration,
+  PublishScoreInput,
+  PublishScoreOutcome,
+} from '@modulus-learning/lti'
+
 import { classifyScoreSubmissionResponse } from './error-classifier.js'
-import type { Config } from '@/config.js'
-import type { CoreLogger } from '@/lib/logger.js'
-import type { AccessTokenManager } from '../services/access-tokens.js'
-import type { PlatformRecord } from './repository.js'
-import type { RateLimitReading, SubmissionResult } from './types.js'
+import type { RateLimitReading } from './types.js'
 
-export type PublishScoreInput = {
-  lineitemUrl: string
-  ltiUserId: string
-  scoreGiven: number // 0..1
-}
-
-export type PublishScoreOutcome = {
-  result: SubmissionResult
-  /**
-   * The response's scheduling signal for the adapter's own pacing policy
-   * (for Canvas, a `RateLimitReading`). Opaque to core, which only passes it on.
-   */
-  reading?: unknown
-}
-
-/**
- * The transport boundary for LTI Assignment & Grade Services (AGS) requests to a
- * platform: acquiring the access token, speaking the AGS wire format, and
- * classifying the platform's response into a domain `SubmissionResult`.
- *
- * The submitter uses this interface, so it can be faked in tests without
- * a network; `HttpLtiAgsClient` is the real adapter.
- */
-export interface LtiAgsClient {
-  readonly issuer: string
-  publishScore(input: PublishScoreInput): Promise<PublishScoreOutcome>
-}
-
-// The slice of AccessTokenManager the adapter uses. Narrowing to these two
-// methods keeps the adapter fakeable without depending on the manager's guts.
-type AgsTokenManager = Pick<AccessTokenManager, 'getAccessToken' | 'invalidateAccessToken'>
-
-// The `fetch` seam, injected so the adapter can be unit-tested with a canned
+// The `fetch` seam, injected so the client can be unit-tested with a canned
 // transport and no global mutation. Defaults to the global `fetch`.
 export type FetchFn = typeof fetch
 
 /**
- * HTTP adapter for {@link LtiAgsClient}, targeting Canvas's AGS score endpoint.
+ * HTTP client for {@link LtiAgsClient}, targeting Canvas's AGS score endpoint.
  * Owns access-token acquisition (and invalidation on a token-level rejection),
  * the AGS Score payload, the rate-limit header read, and response
- * classification -- everything transport/protocol, so the submitter is left
+ * classification -- everything transport/protocol, so core's submitter is left
  * with pure queue/lease orchestration.
  */
-export class HttpLtiAgsClient extends BaseService implements LtiAgsClient {
+export class HttpLtiAgsClient implements LtiAgsClient {
   readonly issuer: string
 
-  private config: Config
-  private platform: PlatformRecord
-  private accessTokenManager: AgsTokenManager
+  private logger: LtiLogger
+  private platform: LtiRegistration
+  private accessTokenManager: AccessTokenSource
+  private requestTimeoutSeconds: number
   private fetchFn: FetchFn
 
   constructor(deps: {
-    logger: CoreLogger
-    config: Config
-    platform: PlatformRecord
-    accessTokenManager: AgsTokenManager
+    logger: LtiLogger
+    registration: LtiRegistration
+    accessTokens: AccessTokenSource
+    requestTimeoutSeconds: number
     fetchFn?: FetchFn
   }) {
-    super(deps.logger, 'app', 'lti')
-    this.config = deps.config
-    this.platform = deps.platform
-    this.issuer = deps.platform.issuer
-    this.accessTokenManager = deps.accessTokenManager
+    this.logger = deps.logger
+    this.platform = deps.registration
+    this.issuer = deps.registration.issuer
+    this.accessTokenManager = deps.accessTokens
+    this.requestTimeoutSeconds = deps.requestTimeoutSeconds
     this.fetchFn = deps.fetchFn ?? fetch
   }
 
-  @method
   async publishScore(input: PublishScoreInput): Promise<PublishScoreOutcome> {
     this.logger.debug(
       {
@@ -113,7 +85,7 @@ export class HttpLtiAgsClient extends BaseService implements LtiAgsClient {
       method: 'POST',
       headers,
       body,
-      signal: AbortSignal.timeout(this.config.lti.score_submission.request_timeout_seconds * 1000),
+      signal: AbortSignal.timeout(this.requestTimeoutSeconds * 1000),
     }).catch((err) => {
       // TODO: Should we handle TimeoutError (from the AbortSignal) differently?
       this.logger.warn({ err, issuer: this.issuer }, 'network error in LTI score submission')

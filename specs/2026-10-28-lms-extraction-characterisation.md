@@ -2,7 +2,7 @@
 
 Date: 2026-10-28
 
-Status: Complete for the first increment of
+Status: Complete for the first three increments of
 [Canvas and LTI Package Extraction](./2026-10-25-canvas-lti-package-extraction-spec.md).
 
 Document type: Record of pinned behaviour and known gaps.
@@ -75,9 +75,36 @@ request, token exchange, and the files the Canvas adapter wraps
 The installation binding (stored adapter id and integration-schema version) is
 part of the later operational-adoption increment.
 
+## Package Extraction (Done)
+
+The third increment followed on 2026-10-28:
+
+- **`@modulus-learning/lti`** (`packages/lti`) holds the shared protocol
+  vocabulary moved out of core — claim constants, platform and tool message
+  types, the OIDC authentication request, access-token types — together with
+  the `LmsAdapter` contract, the score-client types (`LtiAgsClient`,
+  `SubmissionResult`, `SubmissionErrorCategory`), and the narrow
+  `LtiRegistration`, `AccessTokenSource`, and `LtiLogger` shapes an adapter
+  receives in place of core's records, token manager, and logger.
+- **`@modulus-learning/lms-canvas`** (`packages/lms-canvas`) holds
+  `canvasAdapter()` and everything it wraps: roles, term fields, deep-link
+  variables, registration defaults, `HttpLtiAgsClient`, the error classifier,
+  and `QuotaGovernor`. It depends on `lti` only. The score client takes plain
+  `settings` (timeout, concurrency, quota reserve, window, and ramp) rather than
+  core's `Config`.
+- **Host wiring.** The application's server entry names its adapter:
+  `createModulusFetch(render, { lms: canvasAdapter() })`. The host package
+  depends on `lti` for the type and never on `lms-canvas`; core has
+  `lms-canvas` as a development dependency for its tests. The boundary test now
+  fails if a core runtime module imports `@modulus-learning/lms-canvas`.
+- **Release and smoke test.** Both packages join `fixed[0]` at 0.11.0. The
+  packed-install smoke test packs them and installs the Canvas adapter into the
+  fixture from its tarball.
+
+Still in core, by design: launch verification, the OIDC request, token
+exchange, and the keystore (Phase B moves them behind the shared LTI package),
+and the installation binding (operational adoption).
+
 ## Next Increment
 
-Package extraction: move shared protocol code into `packages/lti` and the Canvas
-adapter, with the files it wraps, into `packages/lms-canvas`; let the host's
-server configuration name its adapter; add both packages to the lockstep set and
-exercise the packed Canvas adapter in the smoke test.
+The 0.12.0-next.0 prerelease of the extended lockstep set, then Phase B.

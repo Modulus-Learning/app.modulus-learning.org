@@ -1,3 +1,4 @@
+import type { LmsAdapter } from '@modulus-learning/lti'
 import { v7 as uuidv7 } from 'uuid'
 
 import { BaseService, method } from '@/lib/base-service.js'
@@ -8,7 +9,6 @@ import type { Config } from '@/config.js'
 import type { AdminAuth } from '@/lib/auth.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
-import type { LmsAdapter } from '@/lms/contract.js'
 import type { LtiPlatformMutations, LtiPlatformQueries } from '../repository.js'
 import type {
   CreateLtiPlatformRequest,

@@ -1,9 +1,9 @@
+import type { LtiAgsClient, SubmissionResult } from '@modulus-learning/lti'
+
 import { BaseService, method } from '@/lib/base-service.js'
 import type { Config } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
-import type { LtiAgsClient } from './ags-client.js'
 import type { ClaimedLineItem, LtiScoreSubmissionMutations } from './repository.js'
-import type { SubmissionResult } from './types.js'
 
 /**
  * The result of a single `processOne` call, reported back to the driver

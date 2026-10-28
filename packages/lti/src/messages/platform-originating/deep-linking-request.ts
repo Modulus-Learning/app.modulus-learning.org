@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { CLAIM_DEEP_LINKING_SETTINGS, CLAIM_MESSAGE_TYPE } from '@/modules/app/lti/constants.js'
+import { CLAIM_DEEP_LINKING_SETTINGS, CLAIM_MESSAGE_TYPE } from '../../constants.js'
 import { baseMessageSchema } from './base-message.js'
 
 // Same claims as a resource link launch request, except the

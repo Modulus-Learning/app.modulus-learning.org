@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { canvasAdapter } from '@/lms/canvas/index.js'
-import { assertLmsAdapter, LMS_CONTRACT_VERSION } from '@/lms/contract.js'
+import { canvasAdapter } from '@modulus-learning/lms-canvas'
+import { assertLmsAdapter, LMS_CONTRACT_VERSION } from '@modulus-learning/lti'
+
 import { syntheticAdapter } from '@/test-support/lms.js'
 
 describe('assertLmsAdapter', () => {
