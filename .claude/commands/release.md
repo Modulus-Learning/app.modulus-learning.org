@@ -234,42 +234,68 @@ names.
 
 ## Step 11 — Umbrella GitHub release
 
-1. **Find the anchor commit.** `git rev-list -n 1 "@modulus-learning/core@<NEXT_VERSION>"`.
+This is the original `/release` behaviour, run with `NEXT_VERSION`:
+
+1. **Find the anchor commit.** `git rev-list -n 1 "@modulus-learning/core@<NEXT_VERSION>"`. The umbrella tag points here.
 2. **Detect prior state (idempotency).**
-   - Local umbrella tag `v<NEXT_VERSION>` exists? Verify it points at the
-     anchor; if it diverges, stop and ask. If it matches, skip creating it.
-   - Remote umbrella tag exists? Skip the push.
-   - Existing GitHub release? `gh release view v<NEXT_VERSION> --repo
-     Modulus-Learning/app.modulus-learning.org`. If one exists, show its URL and
-     ask whether to leave it, edit the notes, or delete and recreate.
-3. **Synthesize release notes**, in these sections and this order, omitting any
-   that are empty: **Highlights**, **Bug Fixes**, **Chores**, **Migrations**,
-   **Breaking Changes**. Lead each bullet with the affected package(s) in bold
-   backticks (**`@modulus-learning/core`**), or **monorepo** for cross-cutting
-   items. Each bullet is a substantive paragraph in user-visible terms: what
-   changed, why, and any consumer-side effect. Past tense.
-   - **Migrations** must name every new dated release script and the operator
-     step: run `modulus db upgrade` (or the installation's Fly
-     `release_command`) before the new build serves traffic.
-   - **Breaking Changes** must state the required downstream action.
-   - Always end with this exact line, outside any section:
+   - Local umbrella tag `v<NEXT_VERSION>` exists? Verify it points at the anchor commit; if it diverges, stop and ask. If it matches, skip the create step.
+   - Remote umbrella tag exists? Skip the push step.
+   - Existing GitHub release? `gh release view v<NEXT_VERSION> --repo Modulus-Learning/app.modulus-learning.org` (capture exit code). If a release already exists, show its URL and ask whether to (a) leave it, (b) edit notes, or (c) delete + recreate.
+3. **Synthesize release notes.** Group changes into these sections, in this order. Omit any section that has no entries — never include an empty heading.
 
-     ```
-     All other `@modulus-learning/*` packages bumped to `<NEXT_VERSION>` in lockstep with no behavioural changes this cycle.
-     ```
+   ```markdown
+   ## Highlights
 
-   Source priority: this session's context, then `git log --oneline
-   "$PREV_TAG..HEAD"` and `git show <sha>`, then the top of
-   `packages/core/CHANGELOG.md`. If you can't construct a confident summary,
-   ask the user for a paragraph rather than guessing.
-4. **Confirm before any visible action.** Show the version, anchor SHA, full
-   proposed notes, and the steps about to run. Wait for explicit approval.
-5. **Execute** only the steps needed: write the notes to
-   `/tmp/release-notes-v<NEXT_VERSION>.md`, then
+   New features, enhancements, and any other non-breaking, non-migrating changes likely to be of user interest. Lead each bullet with the affected package(s) in bold backticks: **`@modulus-learning/host-tanstack-start`**.
+
+   ## Bug Fixes
+
+   Direct bug fixes — regressions, packaging fixes, runtime corrections. Same bullet shape as Highlights.
+
+   ## Chores
+
+   Internal-tooling and dev-experience changes that don't alter consumer behaviour but are worth recording in the cycle (e.g. wiring a package check, updating the release script). Brief — usually one line per item.
+
+   ## Migrations
+
+   Non-breaking changes that nonetheless require the user to migrate existing data, run a script, or update configuration to take advantage of (or stay compatible with) the new behaviour. State the migration step explicitly. Name every new dated release script under `packages/core/src/database/sql/`, and state the operator step: run `modulus db upgrade` (or the installation's Fly `release_command`) before the new build serves traffic.
+
+   ## Breaking Changes
+
+   Anything that requires the user to change code, config, or dependencies *before* the release will run. State both the breaking change and the required user action. Mark inline mentions elsewhere with **breaking**: in bold.
+   ```
+
+   Within each section:
+   - Lead each bullet with the package name(s) in bold backticks: **`@modulus-learning/core`**, **`@modulus-learning/host-tanstack-start`**. Use **monorepo** (no backticks) for cross-cutting items that aren't owned by a single package.
+   - Each bullet should be a substantive paragraph, not a commit subject. Explain *what* changed in user-visible terms, *why* it matters (the constraint or bug it addresses), and any *consumer-side effect* (migration step, bundle impact, new install footprint, behavioural change). Past tense.
+   - Focus on user-visible behaviour and migration impact, not implementation detail. But name specific symbols (component names, hook names, env vars, route paths) when the user would search for them.
+   - Skip "patch dependencies updated" noise — those are auto-generated CHANGELOG entries, not release-note prose.
+
+   **Always** end the notes with this exact closing line, outside any section, even if all sections were populated:
+
+   ```
+   All other `@modulus-learning/*` packages bumped to `<NEXT_VERSION>` in lockstep with no behavioural changes this cycle.
+   ```
+
+   This is the standing convention for lockstep releases — it signals to consumers that any package they pin from the set has the same baseline as the rest, regardless of whether that specific package shows up in the sections above.
+
+   **Source priority for the prose:**
+   1. The conversation context for this release cycle — usually the strongest source if the work happened in-session.
+   2. `git log --oneline "$PREV_TAG..HEAD"` plus per-commit diffs (`git show <sha>`) for anything that's not obvious from the subject line.
+   3. The top section of `packages/core/CHANGELOG.md` (the Step 2 line) — expand it with package context, not replace it.
+
+   The umbrella release notes can and should be longer than the changeset summary — full sections, multiple bullets per section, with the depth of prose seen in recent releases (open `gh release view v<PREV_VERSION> --repo Modulus-Learning/app.modulus-learning.org` and match the tone). The Step 2 line is the headline; this is the cycle write-up.
+
+   If you can't construct a confident summary, stop and ask the user for a paragraph rather than guessing.
+
+4. **Confirm before any visible action.** Show the version, anchor SHA, full proposed release notes, and the list of steps about to run. Wait for explicit approval.
+
+5. **Execute.** Write the notes to `/tmp/release-notes-v<NEXT_VERSION>.md`. Then, only running the steps actually needed:
    - `git tag v<NEXT_VERSION> <anchor-sha>`
    - `git push origin v<NEXT_VERSION>`
    - `gh release create v<NEXT_VERSION> --repo Modulus-Learning/app.modulus-learning.org --title "v<NEXT_VERSION>" --notes-file /tmp/release-notes-v<NEXT_VERSION>.md`
-6. **Report** the release URL.
+
+6. **Report.** Print the release URL returned by `gh release create` (or by `gh release view` if it already existed and the user chose to leave it).
 
 ## Prereleases
 
@@ -291,7 +317,8 @@ short-lived branch cut from the last stable tag.
 - `./publish-packages.sh` fails partway → surface the output verbatim and stop.
   Re-running it is the intended recovery once the cause is fixed.
 - `git merge --ff-only` on `main` fails → stop and ask how to reconcile.
-- `gh release create` fails → surface the error verbatim and stop.
+- `gh release create` fails because of branch protection → surface the error verbatim and stop.
+- Anchor commit is not on `main` after the sync step → warn loudly. The release should anchor to a commit reachable from `main`.
 
 ## What this command does NOT do
 
