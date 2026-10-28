@@ -37,6 +37,7 @@ keeps one account when they later arrive from Canvas.
 | --- | --- | --- | --- |
 | Step 2 re-pointed an account already linked to a different LTI identity: any platform able to assert an email could take over that account | Refused with `ERR_LTI_IDENTITY_CONFLICT`; the learner sees the "Account Already Linked" page (`packages/host-tanstack-start/src/modules/lti/error-messages.ts`) | `f88c50c` | `lti-sign-in.test.ts` |
 | The guard was check-then-write: two concurrent launches with different identities could both link one unlinked account, the second overwriting the first | `SessionMutations.linkLtiIdentity` is a single conditional `UPDATE`: it applies only while the account is unlinked (either column null) or already carries this identity | `13a848b` | `lti-sign-in.itest.ts` |
+| The early guard in step 2 refused any account found by email that carried an LTI identity, even the launch's own: if a concurrent launch with the same identity linked the account between this launch's identity lookup and its email lookup, this launch failed with a false `ERR_LTI_IDENTITY_CONFLICT` | The guard refuses only a different issuer/subject pair; an account already linked to this identity is signed in. The conditional write is unchanged | `86c7f94` | `lti-sign-in.itest.ts` (pauses one launch between its two lookups) |
 
 The policy in force is the one decided on 2026-10-28, "keep linking, scoped":
 an email match may link an account that has no LTI identity, and never
