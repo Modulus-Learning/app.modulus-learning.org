@@ -46,6 +46,19 @@ export const createModulusFetch = (render: (request: Request) => Response | Prom
 
   const inFlight = createInFlightTracker()
 
+  // Every mode initialises core at boot, so the schema check and the rest of
+  // core's validation run before the instance serves anything. Core is a
+  // dependency of every surface, not only of the background jobs. A failed
+  // initialisation is fatal in production: the process exits and the
+  // supervisor restarts it, rather than leaving an instance that looks
+  // healthy. Elsewhere it stays up for diagnosis, and `/routes/elb-status`
+  // reports 503.
+  const core = getCoreInstance(logger)
+  core.catch((error) => {
+    logger.fatal({ err: error }, 'core failed to initialise')
+    if (process.env.NODE_ENV === 'production') process.exit(1)
+  })
+
   // Background jobs run only on `admin` and `all-in-one` instances (config
   // validation also forbids them on `frontend`). Such an instance owns process
   // exit on SIGTERM/SIGINT, so a rolling deploy lets an in-flight score
@@ -57,10 +70,12 @@ export const createModulusFetch = (render: (request: Request) => Response | Prom
     if (warning != null) logger.warn({ shutdownDrainSeconds }, warning)
 
     // Not awaited: HTTP comes up while core initialises. A failed start is
-    // logged, and shutdown then has no workers to drain.
+    // logged (and, if core itself failed, handled above), and shutdown then
+    // has no workers to drain.
     const started = startBackgroundJobsOnce(async () => {
+      const instance = await core
       logger.info('starting background jobs')
-      return (await getCoreInstance(logger)).startBackgroundJobs()
+      return instance.startBackgroundJobs()
     })
     started.catch((error) => logger.error({ err: error }, 'background jobs failed to start'))
     installShutdownSignals(

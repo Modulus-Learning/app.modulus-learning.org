@@ -108,8 +108,17 @@ instance:
 {"mode":"admin","jobs":true,"surfaces":["admin"],"msg":"modulus starting"}
 ```
 
+Every instance, whatever its mode, then initialises core — including the
+[schema check](#database-schema-at-release) — before it reports healthy. Core
+is a dependency of every surface, not only of the background jobs. If core fails
+to initialise, the instance logs `core failed to initialise` at fatal level and,
+in production, exits, so the supervisor restarts it rather than leaving an
+instance that looks healthy. Outside production it stays up for diagnosis.
+
 `GET /routes/elb-status` reports the same facts to a load balancer or an
-operator: `{"status":"okay","mode":"admin","jobs":true}`.
+operator once core is ready: `{"status":"okay","mode":"admin","jobs":true}`.
+While core is initialising the probe waits; if initialisation failed it answers
+`503` with `"status":"unavailable"`.
 
 ## Launch Interstitial
 

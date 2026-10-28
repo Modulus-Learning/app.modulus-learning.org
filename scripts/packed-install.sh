@@ -83,7 +83,8 @@ write_env() {
   local mode="$1"
   shift
   node --input-type=module -e "
-    import { envForMode } from '@modulus-learning/host-tanstack-start/config/fixtures/mode-env'
+    // Repository test support (not published); Node strips the TypeScript types.
+    import { envForMode } from '${REPO_ROOT}/packages/host-tanstack-start/src/config/fixtures/mode-env.ts'
     const overrides = Object.fromEntries(process.argv.slice(1).map((pair) => {
       const at = pair.indexOf('=')
       return [pair.slice(0, at), pair.slice(at + 1)]
@@ -92,8 +93,10 @@ write_env() {
       ...envForMode('${mode}'),
       JOB_QUEUE_ENABLED: 'false',
       NODE_ENV: 'production',
-      // Never a developer database unless one is passed explicitly.
+      // Never a developer database unless one is passed explicitly. Without
+      // one, core's schema check is off so the gating sections can boot.
       POSTGRES_CONNECTION_STRING: 'postgres://none:none@127.0.0.1:1/fixture_test',
+      MODULUS_SCHEMA_CHECK: 'off',
       ...overrides,
     }
     console.log(Object.entries(env).map(([k, v]) => k + '=' + v).join('\\n'))
@@ -177,6 +180,31 @@ esac
 [ "$(status_of /admin/sign-in)" = 200 ] || fail "admin instance did not serve the admin sign-in page"
 curl -sf "localhost:${PORT}/routes/elb-status" | grep -q '"jobs":false' \
   || fail "admin instance reported background jobs with JOB_QUEUE_ENABLED=false"
+
+echo "── enforced schema check against an unreachable database: no boot"
+# Core initialises at boot in every mode, so a production instance that cannot
+# pass the schema check must exit, never answer healthy (frontend included).
+for mode in frontend admin; do
+  write_env "$mode" MODULUS_SCHEMA_CHECK=enforce
+  stop_server
+  : > "$LOG"
+  PORT="$PORT" node --env-file=.env.fixture .output/server/index.mjs > "$LOG" 2>&1 &
+  SERVER_PID=$!
+  HEALTHY=0
+  for _ in $(seq 1 40); do
+    kill -0 "$SERVER_PID" 2>/dev/null || break
+    curl -sf "localhost:${PORT}/routes/elb-status" >/dev/null 2>&1 && HEALTHY=1
+    sleep 0.5
+  done
+  if kill -0 "$SERVER_PID" 2>/dev/null; then
+    cat "$LOG" >&2
+    fail "a $mode instance kept running despite failing the schema check"
+  fi
+  wait "$SERVER_PID" && fail "a $mode instance exited cleanly despite failing the schema check"
+  SERVER_PID=""
+  [ "$HEALTHY" -eq 0 ] || fail "a $mode instance answered healthy despite failing the schema check"
+  grep -q 'core failed to initialise' "$LOG" || { cat "$LOG" >&2; fail "no fatal log from the $mode instance"; }
+done
 
 if [ -n "${FIXTURE_DATABASE_URL:-}" ]; then
   echo "── core startup against a fresh database"

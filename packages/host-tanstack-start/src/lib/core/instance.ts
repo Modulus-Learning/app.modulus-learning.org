@@ -27,12 +27,19 @@ import { getServerConfig } from '@/config'
  * Only one host runs in a process, so the first caller's logger wins.
  */
 
-let coreInstancePromise: Promise<CoreInstance> | undefined
+// One core per process. TanStack Start can evaluate the server entry and the
+// route handlers as separate module instances, so the singleton lives on
+// `globalThis` rather than in module scope: the entry's boot-time
+// initialisation and every later request share one instance, one connection
+// pool, and one initialisation outcome.
+const CORE = Symbol.for('modulus.coreInstance')
+type CoreGlobal = { [CORE]?: Promise<CoreInstance> }
 
 export const getCoreInstance = (logger: Logger): Promise<CoreInstance> => {
-  if (coreInstancePromise == null) {
+  const global = globalThis as CoreGlobal
+  if (global[CORE] == null) {
     const { publicServerUrl } = getServerConfig()
-    coreInstancePromise = initCore({
+    global[CORE] = initCore({
       pinoLogger: logger,
       config: loadCoreConfigFromEnv(process.env),
       urlBuilder: {
@@ -47,7 +54,7 @@ export const getCoreInstance = (logger: Logger): Promise<CoreInstance> => {
       },
     })
   }
-  return coreInstancePromise
+  return global[CORE]
 }
 
 export const getCoreCommands = async (logger: Logger): Promise<CoreCommands> =>
