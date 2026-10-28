@@ -45,22 +45,61 @@ for selector in '.gradient-glow' '.flex-1'; do
 done
 
 echo "── client isolation"
-if grep -rlE "argon2|loadCoreConfigFromEnv" .output/public; then
+# Server-only code the fixture reaches only through packaged server functions
+# and handlers: the host config loader, core's env mapping, native hashing.
+if grep -rlE "SESSION_SECRET|loadCoreConfigFromEnv|argon2" .output/public; then
   echo "server-only code found in client assets" >&2
   exit 1
 fi
 
+echo "── fixture environment"
+# A complete synthetic all-in-one environment from the packaged mode fixture.
+node --input-type=module -e "
+  import { envForMode } from '@modulus-learning/host-tanstack-start/config/fixtures/mode-env'
+  const env = {
+    ...envForMode('all-in-one'),
+    JOB_QUEUE_ENABLED: 'false',
+    NODE_ENV: 'production',
+    // Never a developer database: core startup is not exercised here yet.
+    POSTGRES_CONNECTION_STRING: 'postgres://none:none@127.0.0.1:1/fixture_test',
+  }
+  console.log(Object.entries(env).map(([k, v]) => k + '=' + v).join('\\n'))
+" > .env.fixture
+
 echo "── boot"
-PORT="$PORT" node .output/server/index.mjs >/dev/null 2>&1 &
+PORT="$PORT" node --env-file=.env.fixture .output/server/index.mjs >/dev/null 2>&1 &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 for _ in $(seq 1 30); do
   curl -sf "localhost:${PORT}/routes/elb-status" >/dev/null && break
   sleep 0.5
 done
-curl -sf "localhost:${PORT}/routes/elb-status" | grep -q '"status":"okay"' \
-  || { echo "status route failed" >&2; exit 1; }
+
+echo "── packaged handlers"
+curl -sf "localhost:${PORT}/routes/elb-status" | grep -q '"mode":"all-in-one"' \
+  || { echo "packaged elb-status handlers failed" >&2; exit 1; }
+
+echo "── packaged server function (SSR)"
+SITE_NAME="$(grep '^VITE_SITE_NAME=' .env.fixture | cut -d= -f2-)"
+curl -sf "localhost:${PORT}/" | grep -q "$SITE_NAME" \
+  || { echo "home page did not render the server function result" >&2; exit 1; }
 curl -sf "localhost:${PORT}/" | grep -q 'gradient-glow' \
   || { echo "home page did not render the packaged component" >&2; exit 1; }
+
+echo "── packaged server function (RPC)"
+# The client bundle carries one stub per reachable server function; the root
+# config function is the one whose result names the site.
+RPC_OK=0
+for FN_ID in $(grep -ohE '[a-f0-9]{64}' .output/public/assets/*.js | sort -u); do
+  for METHOD in GET POST; do
+    if curl -sf -X "$METHOD" "localhost:${PORT}/_serverFn/${FN_ID}" \
+      -H "origin: http://localhost:${PORT}" -H 'sec-fetch-site: same-origin' \
+      -H 'x-tsr-serverFn: true' -H 'accept: application/json' | grep -q 'siteName'; then
+      RPC_OK=1
+      break 2
+    fi
+  done
+done
+[ "$RPC_OK" -eq 1 ] || { echo "server function RPC failed" >&2; exit 1; }
 
 echo "packed install passed"

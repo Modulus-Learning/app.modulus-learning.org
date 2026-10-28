@@ -59,3 +59,4 @@ fixtures/*/.tanstack/
 fixtures/*/.nitro/
 fixtures/*/src/routeTree.gen.ts
 fixtures/*/pnpm-lock.yaml
+fixtures/*/.env.fixture
