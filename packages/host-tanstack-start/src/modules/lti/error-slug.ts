@@ -22,12 +22,24 @@ const LAUNCH_FAULT_CODES = new Set(['ERR_INVALID_LOGIN', 'ERR_INVALID_LAUNCH'])
  */
 const REQUEST_FAULT_CODES = new Set(['ERR_VALIDATION'])
 
-export type LtiErrorSlug = 'invalid_request' | 'invalid_launch' | 'session_expired' | 'server_error'
+/**
+ * The launch is genuine, but its email belongs to a Modulus account already
+ * linked to a different LMS identity, and Modulus does not re-point that link.
+ */
+const IDENTITY_CONFLICT_CODES = new Set(['ERR_LTI_IDENTITY_CONFLICT'])
+
+export type LtiErrorSlug =
+  | 'invalid_request'
+  | 'invalid_launch'
+  | 'identity_conflict'
+  | 'session_expired'
+  | 'server_error'
 
 export const errorSlugFor = (
   code: string
-): 'invalid_launch' | 'invalid_request' | 'server_error' => {
+): 'invalid_launch' | 'invalid_request' | 'identity_conflict' | 'server_error' => {
   if (LAUNCH_FAULT_CODES.has(code)) return 'invalid_launch'
+  if (IDENTITY_CONFLICT_CODES.has(code)) return 'identity_conflict'
   if (REQUEST_FAULT_CODES.has(code)) return 'invalid_request'
   return 'server_error'
 }

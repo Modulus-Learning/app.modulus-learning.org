@@ -125,14 +125,16 @@ describe('LtiSignInService.signInLti', () => {
     assert.deepEqual(calls.created, [])
   })
 
-  it('re-points an account that has a different LTI identity by email (current gap)', async () => {
+  it('refuses to re-point an account linked to a different LTI identity by email', async () => {
     const other = userRecord({ lti_iss: 'https://other-lms.test', lti_sub: 'other-sub' })
     const { service, calls } = createService({ byEmail: other })
-    const result = await service.signInLti(credentials, false)
-
-    assert.equal(result.user.id, other.id)
-    assert.equal(calls.updates[0]?.lti_iss, ISSUER)
-    assert.equal(calls.updates[0]?.lti_sub, 'canvas-sub-1')
+    await assert.rejects(service.signInLti(credentials, false), (error) => {
+      assert.equal((error as { code?: string }).code, 'ERR_LTI_IDENTITY_CONFLICT')
+      return true
+    })
+    assert.deepEqual(calls.updates, [])
+    assert.deepEqual(calls.created, [])
+    assert.deepEqual(calls.logins, [])
   })
 
   it('creates a learner account when nothing matches', async () => {

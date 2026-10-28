@@ -10,6 +10,11 @@ export const MESSAGES: Record<LtiErrorSlug, { title: string; message: string }> 
     title: 'Launch Error',
     message: 'This activity could not be launched. Please contact your instructor.',
   },
+  identity_conflict: {
+    title: 'Account Already Linked',
+    message:
+      'Your email address belongs to a Modulus account that is linked to a different LMS account, so this launch could not sign you in. Please contact your Modulus administrator.',
+  },
   // Reached when the `state-<state>` cookie is missing. That cookie is set
   // `SameSite=None`, so the likeliest cause in practice is a launch rendered
   // inside a Canvas iframe with third-party cookies blocked -- the instructor

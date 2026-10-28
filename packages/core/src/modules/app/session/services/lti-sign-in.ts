@@ -2,6 +2,7 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_UNAUTHORIZED } from '@/lib/errors.js'
+import { ERR_LTI_IDENTITY_CONFLICT } from '../errors.js'
 import { toSignInResult } from '../utils.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type {
@@ -37,8 +38,25 @@ export class LtiSignInService extends BaseService {
     // If there was no such user, and credentials.email is defined, look for a Modulus user matching
     // credentials.email and log them in instead, and set that user's lti_iss and lti_sub to match
     // the values in credentials.
+    //
+    // Email linking is scoped: it links an account that has no LTI identity
+    // yet, but never re-points an account already linked to a different LTI
+    // identity. A signed email claim alone does not prove the account is the
+    // same person's, so an existing link is never overwritten by one; the
+    // launch is refused instead (a new account would collide with the email).
     if (user == null && credentials.email != null) {
-      user = await this.queries.findUserByEmail(credentials.email)
+      const byEmail = await this.queries.findUserByEmail(credentials.email)
+      if (byEmail?.lti_iss != null && byEmail.lti_sub != null) {
+        this.logger.warn(
+          { user_id: byEmail.id, iss: credentials.iss },
+          'lti launch email matches an account linked to a different lti identity'
+        )
+        throw ERR_LTI_IDENTITY_CONFLICT({
+          message: 'lti launch email belongs to an account linked to a different lti identity',
+          logLevel: 'silent',
+        })
+      }
+      user = byEmail
     }
 
     let isNewUser = false
@@ -94,8 +112,9 @@ export class LtiSignInService extends BaseService {
       if (user.email == null && credentials.email != null) {
         userUpdate.email = credentials.email
       }
-      // Update lti_iss and lti_sub if they don't already match
-      if (user.lti_iss !== credentials.iss || user.lti_sub !== credentials.sub) {
+      // Link the LTI identity to an account found by email that has none yet.
+      // An account matched by issuer and subject already carries it.
+      if (user.lti_iss == null || user.lti_sub == null) {
         userUpdate.lti_iss = credentials.iss
         userUpdate.lti_sub = credentials.sub
       }

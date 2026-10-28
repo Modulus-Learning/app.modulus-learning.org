@@ -10,6 +10,10 @@ describe('errorSlugFor', () => {
     }
   )
 
+  test('classifies an email already linked to another LMS identity apart', () => {
+    expect(errorSlugFor('ERR_LTI_IDENTITY_CONFLICT')).toBe('identity_conflict')
+  })
+
   test('classifies a failed input schema as a malformed request', () => {
     expect(errorSlugFor('ERR_VALIDATION')).toBe('invalid_request')
   })
