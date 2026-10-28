@@ -1,6 +1,6 @@
-import { Image } from '@/framework'
-import logoBlack from '@/images/logo/modulus-logo-symbol-black.svg'
-import logoWhite from '@/images/logo/modulus-logo-symbol-white.svg'
+import { Image } from '@modulus-learning/host-tanstack-start/framework/index'
+import logoBlack from '@modulus-learning/host-tanstack-start/images/logo/modulus-logo-symbol-black.svg'
+import logoWhite from '@modulus-learning/host-tanstack-start/images/logo/modulus-logo-symbol-white.svg'
 
 import './branding.css'
 

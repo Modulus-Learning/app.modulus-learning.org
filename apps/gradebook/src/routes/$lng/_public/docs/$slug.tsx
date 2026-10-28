@@ -2,12 +2,12 @@ import { useMemo } from 'react'
 import { createFileRoute, notFound } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
+import { pageHead } from '@modulus-learning/host-tanstack-start/lib/head'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
+import { GradientGlow } from '@modulus-learning/host-tanstack-start/ui/components/gradient'
 
-import { pageHead } from '@/lib/head'
 import { getDocFn } from '@/modules/docs/docs'
 import { renderMarkdownSync } from '@/modules/docs/lib/render'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
-import { GradientGlow } from '@/ui/components/gradient'
 
 export const Route = createFileRoute('/$lng/_public/docs/$slug')({
   loader: async ({ params }) => {

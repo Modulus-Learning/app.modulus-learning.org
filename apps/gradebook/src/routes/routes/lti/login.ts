@@ -4,7 +4,9 @@ export const Route = createFileRoute('/routes/lti/login')({
   server: {
     handlers: {
       POST: async ({ request }) =>
-        (await import('@/modules/lti/handlers/login.server')).handleLtiLogin(request),
+        (
+          await import('@modulus-learning/host-tanstack-start/modules/lti/handlers/login.server')
+        ).handleLtiLogin(request),
     },
   },
 })

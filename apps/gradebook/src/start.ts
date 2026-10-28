@@ -1,9 +1,12 @@
 import { createCsrfMiddleware, createMiddleware, createStart } from '@tanstack/react-start'
 import { deleteCookie, getCookie, setResponseHeader } from '@tanstack/react-start/server'
 
-import { getServerConfig } from '@/config'
-import { cspHeaderFor, generateNonce } from '@/lib/csp-policy'
-import { annotateRequest, getRequestScope } from '@/lib/request-scope'
+import { getServerConfig } from '@modulus-learning/host-tanstack-start/config/index'
+import { cspHeaderFor, generateNonce } from '@modulus-learning/host-tanstack-start/lib/csp-policy'
+import {
+  annotateRequest,
+  getRequestScope,
+} from '@modulus-learning/host-tanstack-start/lib/request-scope'
 
 /**
  * TanStack Start instance configuration (spec: Request lifecycle mapping).

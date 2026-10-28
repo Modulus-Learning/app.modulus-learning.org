@@ -1,19 +1,22 @@
 import handler, { createServerEntry } from '@tanstack/react-start/server-entry'
 
-import { getServerConfig } from '@/config'
-import { negotiateLocaleRedirect } from '@/i18n/server-locale-redirect'
-import { getCoreInstance } from '@/lib/core/instance'
-import { backgroundJobsEnabled, servedSurfaces } from '@/lib/deployment-mode'
-import { createEntryHandler } from '@/lib/entry'
-import { findPublicEnvDrift } from '@/lib/env-drift'
-import { getServerLogger } from '@/lib/server-logger'
+import { getServerConfig } from '@modulus-learning/host-tanstack-start/config/index'
+import { negotiateLocaleRedirect } from '@modulus-learning/host-tanstack-start/i18n/server-locale-redirect'
+import { getCoreInstance } from '@modulus-learning/host-tanstack-start/lib/core/instance'
+import {
+  backgroundJobsEnabled,
+  servedSurfaces,
+} from '@modulus-learning/host-tanstack-start/lib/deployment-mode'
+import { createEntryHandler } from '@modulus-learning/host-tanstack-start/lib/entry'
+import { findPublicEnvDrift } from '@modulus-learning/host-tanstack-start/lib/env-drift'
+import { getServerLogger } from '@modulus-learning/host-tanstack-start/lib/server-logger'
 import {
   createInFlightTracker,
   createShutdown,
   drainDeadlineWarning,
   installShutdownSignals,
   startBackgroundJobsOnce,
-} from '@/lib/shutdown'
+} from '@modulus-learning/host-tanstack-start/lib/shutdown'
 
 // TanStack Start server entry: the lowest app-owned request chokepoint, run on
 // the original, un-rewritten request before the router. Everything below runs

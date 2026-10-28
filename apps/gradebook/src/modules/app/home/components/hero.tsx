@@ -1,9 +1,9 @@
 import { Button, Container, Section } from '@infonomic/uikit/react'
+import { LangLink, Link } from '@modulus-learning/host-tanstack-start/framework/index'
+import type { Locale } from '@modulus-learning/host-tanstack-start/i18n/i18n-config'
 import { ArrowRight, BookOpen } from 'lucide-react'
 
-import { LangLink, Link } from '@/framework'
 import { HeroAnimation } from './hero-animation'
-import type { Locale } from '@/i18n/i18n-config'
 
 export function Hero({ lng }: { lng: Locale }) {
   return (

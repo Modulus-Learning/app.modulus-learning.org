@@ -1,10 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Card, Container, Section } from '@infonomic/uikit/react'
-
-import { pageHead } from '@/lib/head'
-import { CreateActivityCodeForm } from '@/modules/app/activities/components/create-activity-code-form'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { pageHead } from '@modulus-learning/host-tanstack-start/lib/head'
+import { CreateActivityCodeForm } from '@modulus-learning/host-tanstack-start/modules/app/activities/components/create-activity-code-form'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_auth/dashboard/create-activity-code')({
   head: ({ matches }) =>

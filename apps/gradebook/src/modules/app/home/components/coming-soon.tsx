@@ -1,7 +1,7 @@
 import { Button, Container, Section } from '@infonomic/uikit/react'
+import { Link } from '@modulus-learning/host-tanstack-start/framework/index'
 import { ArrowRight, BookOpen, ExternalLink } from 'lucide-react'
 
-import { Link } from '@/framework'
 import { HeroAnimation } from './hero-animation'
 
 export function ComingSoon() {

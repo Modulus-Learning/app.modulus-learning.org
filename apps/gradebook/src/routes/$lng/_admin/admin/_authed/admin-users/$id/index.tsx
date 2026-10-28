@@ -1,11 +1,10 @@
 import { createFileRoute, getRouteApi, notFound } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { AdminUserDetailsView } from '@/modules/admin/admin-users/components/details-view'
-import { getAdminUser } from '@/modules/admin/admin-users/get'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
-import { FlashToast } from '@/ui/components/flash-toast'
+import { AdminUserDetailsView } from '@modulus-learning/host-tanstack-start/modules/admin/admin-users/components/details-view'
+import { getAdminUser } from '@modulus-learning/host-tanstack-start/modules/admin/admin-users/get'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
+import { FlashToast } from '@modulus-learning/host-tanstack-start/ui/components/flash-toast'
 
 const rootRoute = getRouteApi('__root__')
 

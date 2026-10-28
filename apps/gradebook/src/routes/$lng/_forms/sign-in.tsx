@@ -1,12 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { Image } from '@/framework'
-import logoBlack from '@/images/logo/modulus-logo-symbol-black.svg'
-import logoWhite from '@/images/logo/modulus-logo-symbol-white.svg'
-import { pageHead } from '@/lib/head'
-import { SignIn } from '@/modules/app/session/components/sign-in'
+import { Image } from '@modulus-learning/host-tanstack-start/framework/index'
+import logoBlack from '@modulus-learning/host-tanstack-start/images/logo/modulus-logo-symbol-black.svg'
+import logoWhite from '@modulus-learning/host-tanstack-start/images/logo/modulus-logo-symbol-white.svg'
+import { pageHead } from '@modulus-learning/host-tanstack-start/lib/head'
+import { SignIn } from '@modulus-learning/host-tanstack-start/modules/app/session/components/sign-in'
 
 export const Route = createFileRoute('/$lng/_forms/sign-in')({
   head: ({ matches }) => pageHead({ title: 'Sign In', path: '/sign-in' }, matches),

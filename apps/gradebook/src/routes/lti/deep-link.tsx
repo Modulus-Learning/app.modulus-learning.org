@@ -1,16 +1,15 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { Section } from '@infonomic/uikit/react'
+import { ssrRecoveryHref } from '@modulus-learning/host-tanstack-start/lib/session/bootstrap'
+import { renewInBrowser } from '@modulus-learning/host-tanstack-start/lib/session/browser-renewal'
+import { resolveGuardedSession } from '@modulus-learning/host-tanstack-start/lib/session/route-guard'
+import { SessionIdentity } from '@modulus-learning/host-tanstack-start/lib/session/session-identity'
+import { SessionGuardError } from '@modulus-learning/host-tanstack-start/lib/session/session-retry'
+import { listActivityCodesFn } from '@modulus-learning/host-tanstack-start/modules/app/activities/activity-codes-fn'
+import { getUserSessionFn } from '@modulus-learning/host-tanstack-start/modules/app/session/session-state'
+import { DeepLinkingForm } from '@modulus-learning/host-tanstack-start/modules/lti/components/deep-linking-form'
 import { z } from 'zod'
-
-import { ssrRecoveryHref } from '@/lib/session/bootstrap'
-import { renewInBrowser } from '@/lib/session/browser-renewal'
-import { resolveGuardedSession } from '@/lib/session/route-guard'
-import { SessionIdentity } from '@/lib/session/session-identity'
-import { SessionGuardError } from '@/lib/session/session-retry'
-import { listActivityCodesFn } from '@/modules/app/activities/activity-codes-fn'
-import { getUserSessionFn } from '@/modules/app/session/session-state'
-import { DeepLinkingForm } from '@/modules/lti/components/deep-linking-form'
 
 // LTI deep-linking picker (`/lti/deep-link?id=<launch id>`). The page's own
 // session establishes the identity its submission must carry (review R5): an

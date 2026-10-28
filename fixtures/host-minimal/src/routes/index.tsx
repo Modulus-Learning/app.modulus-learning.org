@@ -1,3 +1,11 @@
-import { createSpikePageRoute } from '@modulus-learning/host-tanstack-start/spike'
+import { createFileRoute } from '@tanstack/react-router'
 
-export const Route = createSpikePageRoute('/')
+import { GradientGlow } from '@modulus-learning/host-tanstack-start/ui/components/gradient'
+
+export const Route = createFileRoute('/')({
+  component: () => (
+    <main>
+      <GradientGlow />
+    </main>
+  ),
+})

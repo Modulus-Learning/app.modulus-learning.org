@@ -10,21 +10,20 @@ import {
 } from '@tanstack/react-router'
 
 import { DrawerProvider, ToastProvider, ToastViewport } from '@infonomic/uikit/react'
-
-import { PublicConfigProvider } from '@/config/provider'
-import { ProgressBarProvider } from '@/context/progress-bar-provider'
-import { i18nConfig, type Locale } from '@/i18n/i18n-config'
-import { getRootConfigFn } from '@/lib/public-config'
-import { ConsoleCredit } from '@/ui/components/console-credit'
-import { RouteAnnouncer } from '@/ui/components/route-announcer'
-import { EarlyThemeDetector } from '@/ui/theme/early-theme-detector'
-import { ThemeProviderBase } from '@/ui/theme/provider-base'
+import { PublicConfigProvider } from '@modulus-learning/host-tanstack-start/config/provider'
+import { ProgressBarProvider } from '@modulus-learning/host-tanstack-start/context/progress-bar-provider/index'
+import { i18nConfig, type Locale } from '@modulus-learning/host-tanstack-start/i18n/i18n-config'
+import { getRootConfigFn } from '@modulus-learning/host-tanstack-start/lib/public-config'
+import { ConsoleCredit } from '@modulus-learning/host-tanstack-start/ui/components/console-credit'
+import { RouteAnnouncer } from '@modulus-learning/host-tanstack-start/ui/components/route-announcer'
+import { EarlyThemeDetector } from '@modulus-learning/host-tanstack-start/ui/theme/early-theme-detector'
+import { ThemeProviderBase } from '@modulus-learning/host-tanstack-start/ui/theme/provider-base'
 
 /**
  * Global style sheet, inside of which are uikit, tailwind, app and other
  * imports (one PostCSS pass instead of one per file).
  */
-import '@/ui/styles/global.css'
+import '@modulus-learning/host-tanstack-start/ui/styles/global.css'
 
 /**
  * The single document for the TanStack Start host (spec: Target Architecture →

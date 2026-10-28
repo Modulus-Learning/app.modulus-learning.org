@@ -1,9 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { AllowlistRuleCreateForm } from '@/modules/admin/activity-url-allowlist/components/create-form'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { AllowlistRuleCreateForm } from '@modulus-learning/host-tanstack-start/modules/admin/activity-url-allowlist/components/create-form'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_admin/admin/_authed/activities/add')({
   component: function Page() {

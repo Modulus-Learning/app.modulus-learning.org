@@ -1,9 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { AdminRoleCreateForm } from '@/modules/admin/admin-roles/components/create-form'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { AdminRoleCreateForm } from '@modulus-learning/host-tanstack-start/modules/admin/admin-roles/components/create-form'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_admin/admin/_authed/admin-roles/add')({
   component: function Page() {

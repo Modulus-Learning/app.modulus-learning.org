@@ -27,6 +27,7 @@ WORKDIR /app
 
 COPY apps/gradebook/package.json ./apps/gradebook/package.json
 COPY packages/core/package.json ./packages/core/package.json
+COPY packages/host-tanstack-start/package.json ./packages/host-tanstack-start/package.json
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
@@ -48,6 +49,7 @@ WORKDIR /app
 
 COPY apps/gradebook/package.json ./apps/gradebook/package.json
 COPY packages/core/package.json ./packages/core/package.json
+COPY packages/host-tanstack-start/package.json ./packages/host-tanstack-start/package.json
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 
 # RUN pnpm install --prod;
@@ -68,17 +70,20 @@ ENV NODE_OPTIONS="--max-old-space-size=3072"
 
 COPY --from=deps /app/apps/gradebook/node_modules /app/apps/gradebook/node_modules
 COPY --from=deps /app/packages/core/node_modules /app/packages/core/node_modules
+COPY --from=deps /app/packages/host-tanstack-start/node_modules /app/packages/host-tanstack-start/node_modules
 COPY --from=deps /app/node_modules /app/node_modules
 
 # Copy source code for the project (manually excluding _docker)
 COPY apps/gradebook apps/gradebook
 COPY packages/core packages/core
+COPY packages/host-tanstack-start packages/host-tanstack-start
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 
 # Setup pnpm and global tools in a separate layer to reduce peak memory during build
 RUN corepack enable pnpm
 
-# Run build (turbo): core `tsc`, then the gradebook's TanStack Start build into
+# Run build (turbo): core and the host package with `tsc`, then the gradebook's
+# TanStack Start build into
 # apps/gradebook/.output. The client bundle inlines the public VITE_* values
 # from the committed apps/gradebook/.env; .env.local never enters the image.
 RUN pnpm run build

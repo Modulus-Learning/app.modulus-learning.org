@@ -1,8 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { SessionBootstrap } from '@modulus-learning/host-tanstack-start/lib/session/session-bootstrap'
 import { z } from 'zod'
-
-import { SessionBootstrap } from '@/lib/session/session-bootstrap'
 
 // Admin-session renewal bootstrap (spec: Authentication And Sessions, item 5).
 export const Route = createFileRoute('/$lng/_admin/admin/renew')({

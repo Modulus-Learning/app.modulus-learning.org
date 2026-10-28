@@ -1,9 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { LtiPlatformCreateForm } from '@/modules/admin/lti-platforms/components/create-form'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { LtiPlatformCreateForm } from '@modulus-learning/host-tanstack-start/modules/admin/lti-platforms/components/create-form'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_admin/admin/_authed/lti-platforms/add')({
   component: function Page() {

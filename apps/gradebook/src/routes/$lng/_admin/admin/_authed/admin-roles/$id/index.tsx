@@ -1,10 +1,9 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { AdminRoleDetailsView } from '@/modules/admin/admin-roles/components/details-view'
-import { getAdminRole } from '@/modules/admin/admin-roles/get'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { AdminRoleDetailsView } from '@modulus-learning/host-tanstack-start/modules/admin/admin-roles/components/details-view'
+import { getAdminRole } from '@modulus-learning/host-tanstack-start/modules/admin/admin-roles/get'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_admin/admin/_authed/admin-roles/$id/')({
   loader: async ({ params }) => {

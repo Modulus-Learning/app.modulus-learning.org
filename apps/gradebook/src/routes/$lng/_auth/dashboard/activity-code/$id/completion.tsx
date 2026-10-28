@@ -1,11 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { pageHead } from '@/lib/head'
-import { CompletionChart } from '@/modules/app/activities/components/completion-chart'
-import { getProgress } from '@/modules/app/activities/get-progress'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { pageHead } from '@modulus-learning/host-tanstack-start/lib/head'
+import { CompletionChart } from '@modulus-learning/host-tanstack-start/modules/app/activities/components/completion-chart'
+import { getProgress } from '@modulus-learning/host-tanstack-start/modules/app/activities/get-progress'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_auth/dashboard/activity-code/$id/completion')({
   loader: ({ params }) => getProgress(params.id),

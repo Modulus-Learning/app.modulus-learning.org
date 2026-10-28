@@ -1,10 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { AllowlistRulesListView } from '@/modules/admin/activity-url-allowlist/components/list-view'
-import { listAllowlistRules } from '@/modules/admin/activity-url-allowlist/list'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { AllowlistRulesListView } from '@modulus-learning/host-tanstack-start/modules/admin/activity-url-allowlist/components/list-view'
+import { listAllowlistRules } from '@modulus-learning/host-tanstack-start/modules/admin/activity-url-allowlist/list'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_admin/admin/_authed/activities/')({
   loader: async ({ params }) => {

@@ -1,10 +1,9 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { UserEditForm } from '@/modules/admin/users/components/edit-form'
-import { getUser } from '@/modules/admin/users/get'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { UserEditForm } from '@modulus-learning/host-tanstack-start/modules/admin/users/components/edit-form'
+import { getUser } from '@modulus-learning/host-tanstack-start/modules/admin/users/get'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_admin/admin/_authed/users/$id/edit')({
   loader: async ({ params }) => {

@@ -1,8 +1,8 @@
 import { createFileRoute, notFound, Outlet } from '@tanstack/react-router'
 
-import { TranslationsProvider } from '@/i18n/client/translations-provider'
-import { i18nConfig, type Locale } from '@/i18n/i18n-config'
-import { getTranslations } from '@/i18n/translations'
+import { TranslationsProvider } from '@modulus-learning/host-tanstack-start/i18n/client/translations-provider'
+import { i18nConfig, type Locale } from '@modulus-learning/host-tanstack-start/i18n/i18n-config'
+import { getTranslations } from '@modulus-learning/host-tanstack-start/i18n/translations/index'
 
 const isLocale = (value: string): value is Locale =>
   (i18nConfig.locales as readonly string[]).includes(value)

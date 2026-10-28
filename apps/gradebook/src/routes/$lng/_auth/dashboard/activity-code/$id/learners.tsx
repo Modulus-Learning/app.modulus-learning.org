@@ -1,12 +1,11 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { pageHead } from '@/lib/head'
-import { validateSearchParamsSchema } from '@/modules/app/activities/@types'
-import { LearnersProgressView } from '@/modules/app/activities/components/learners-progress-view'
-import { getProgress } from '@/modules/app/activities/get-progress'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { pageHead } from '@modulus-learning/host-tanstack-start/lib/head'
+import { validateSearchParamsSchema } from '@modulus-learning/host-tanstack-start/modules/app/activities/@types/index'
+import { LearnersProgressView } from '@modulus-learning/host-tanstack-start/modules/app/activities/components/learners-progress-view'
+import { getProgress } from '@modulus-learning/host-tanstack-start/modules/app/activities/get-progress'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 type LearnersSearch = {
   page?: string

@@ -1,10 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { addAdminUser } from '@/modules/admin/admin-users/add'
-import { AdminUserCreateForm } from '@/modules/admin/admin-users/components/create-form'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { addAdminUser } from '@modulus-learning/host-tanstack-start/modules/admin/admin-users/add'
+import { AdminUserCreateForm } from '@modulus-learning/host-tanstack-start/modules/admin/admin-users/components/create-form'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_admin/admin/_authed/admin-users/add')({
   loader: async ({ params }) => {

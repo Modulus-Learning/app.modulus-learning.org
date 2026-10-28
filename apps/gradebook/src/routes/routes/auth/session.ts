@@ -13,7 +13,9 @@ export const Route = createFileRoute('/routes/auth/session')({
   server: {
     handlers: {
       GET: async () => {
-        const { getUserSessionState } = await import('@/lib/session/context')
+        const { getUserSessionState } = await import(
+          '@modulus-learning/host-tanstack-start/lib/session/context'
+        )
         const state = await getUserSessionState()
         return Response.json(state.status === 'valid' ? state.session : null, {
           headers: {

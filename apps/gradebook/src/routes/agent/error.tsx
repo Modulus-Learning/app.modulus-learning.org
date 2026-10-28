@@ -1,8 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { AgentErrorView } from '@modulus-learning/host-tanstack-start/modules/agent/components/agent-error-view'
 import { z } from 'zod'
-
-import { AgentErrorView } from '@/modules/agent/components/agent-error-view'
 
 /**
  * `/agent/error?code=<slug>`. The search schema admits only the known slugs:

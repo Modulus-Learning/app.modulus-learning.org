@@ -1,11 +1,10 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { validateSearchParamsSchema } from '@/modules/admin/admin-users/@types'
-import { AdminUsersListView } from '@/modules/admin/admin-users/components/list-view'
-import { listAdminUsers } from '@/modules/admin/admin-users/list'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { validateSearchParamsSchema } from '@modulus-learning/host-tanstack-start/modules/admin/admin-users/@types/index'
+import { AdminUsersListView } from '@modulus-learning/host-tanstack-start/modules/admin/admin-users/components/list-view'
+import { listAdminUsers } from '@modulus-learning/host-tanstack-start/modules/admin/admin-users/list'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_admin/admin/_authed/admin-users/')({
   // Search values stay strings, as the Next page received them; the page's own

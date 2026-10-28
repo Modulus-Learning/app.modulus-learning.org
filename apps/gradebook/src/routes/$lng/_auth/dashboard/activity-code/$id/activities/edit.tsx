@@ -1,12 +1,11 @@
 import { createFileRoute, getRouteApi, notFound } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { pageHead } from '@/lib/head'
-import { ActivityCodeContainer } from '@/modules/app/activities/components/activity-code-container'
-import { getActivities } from '@/modules/app/activities/get-activities'
-import { listActivityCodeMembers } from '@/modules/app/activities/list-activity-code-members'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { pageHead } from '@modulus-learning/host-tanstack-start/lib/head'
+import { ActivityCodeContainer } from '@modulus-learning/host-tanstack-start/modules/app/activities/components/activity-code-container'
+import { getActivities } from '@modulus-learning/host-tanstack-start/modules/app/activities/get-activities'
+import { listActivityCodeMembers } from '@modulus-learning/host-tanstack-start/modules/app/activities/list-activity-code-members'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 const authLayout = getRouteApi('/$lng/_auth')
 

@@ -4,7 +4,11 @@ export const Route = createFileRoute('/routes/oauth/google')({
   server: {
     handlers: {
       GET: async ({ request }) =>
-        (await import('@/modules/app/session/oauth-callback.server')).handleGoogleCallback(request),
+        (
+          await import(
+            '@modulus-learning/host-tanstack-start/modules/app/session/oauth-callback.server'
+          )
+        ).handleGoogleCallback(request),
     },
   },
 })

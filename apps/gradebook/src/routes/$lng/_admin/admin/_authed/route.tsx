@@ -1,20 +1,19 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 
 import { ScrollToTop } from '@infonomic/uikit/react'
-
-import { i18nConfig } from '@/i18n/i18n-config'
-import { localeOutputRewrite } from '@/i18n/locale-rewrite'
-import { pageHead } from '@/lib/head'
-import { ssrRecoveryHref } from '@/lib/session/bootstrap'
-import { renewInBrowser } from '@/lib/session/browser-renewal'
-import { resolveGuardedSession } from '@/lib/session/route-guard'
-import { SessionGuardError } from '@/lib/session/session-retry'
-import { getAdminSessionFn } from '@/modules/admin/session/session-state'
-import { AdminAppBar } from '@/ui/components/admin/admin-app-bar'
-import { Content } from '@/ui/components/admin/content'
-import { MenuDrawer } from '@/ui/components/admin/menu-drawer'
-import { MenuProvider } from '@/ui/components/admin/menu-provider'
-import { NotFoundView } from '@/ui/components/not-found-view'
+import { i18nConfig } from '@modulus-learning/host-tanstack-start/i18n/i18n-config'
+import { localeOutputRewrite } from '@modulus-learning/host-tanstack-start/i18n/locale-rewrite'
+import { pageHead } from '@modulus-learning/host-tanstack-start/lib/head'
+import { ssrRecoveryHref } from '@modulus-learning/host-tanstack-start/lib/session/bootstrap'
+import { renewInBrowser } from '@modulus-learning/host-tanstack-start/lib/session/browser-renewal'
+import { resolveGuardedSession } from '@modulus-learning/host-tanstack-start/lib/session/route-guard'
+import { SessionGuardError } from '@modulus-learning/host-tanstack-start/lib/session/session-retry'
+import { getAdminSessionFn } from '@modulus-learning/host-tanstack-start/modules/admin/session/session-state'
+import { AdminAppBar } from '@modulus-learning/host-tanstack-start/ui/components/admin/admin-app-bar'
+import { Content } from '@modulus-learning/host-tanstack-start/ui/components/admin/content'
+import { MenuDrawer } from '@modulus-learning/host-tanstack-start/ui/components/admin/menu-drawer'
+import { MenuProvider } from '@modulus-learning/host-tanstack-start/ui/components/admin/menu-provider'
+import { NotFoundView } from '@modulus-learning/host-tanstack-start/ui/components/not-found-view'
 
 /**
  * The authenticated admin area. Replaces the Next `withAdminAuth` proxy layer:

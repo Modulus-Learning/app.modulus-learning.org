@@ -7,7 +7,7 @@ export const Route = createFileRoute('/routes/lti/deep-link/activities')({
     handlers: {
       GET: async ({ request }) => {
         const { getCoreCommands, getCoreUserRequestContext } = await import(
-          '@/lib/core/start-adapter'
+          '@modulus-learning/host-tanstack-start/lib/core/start-adapter'
         )
         const userAuth = await getCoreUserRequestContext()
         if (userAuth == null) {

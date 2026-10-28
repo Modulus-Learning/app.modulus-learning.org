@@ -1,10 +1,9 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { AllowlistRuleEditForm } from '@/modules/admin/activity-url-allowlist/components/edit-form'
-import { getAllowlistRule } from '@/modules/admin/activity-url-allowlist/get'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { AllowlistRuleEditForm } from '@modulus-learning/host-tanstack-start/modules/admin/activity-url-allowlist/components/edit-form'
+import { getAllowlistRule } from '@modulus-learning/host-tanstack-start/modules/admin/activity-url-allowlist/get'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_admin/admin/_authed/activities/$id/edit')({
   loader: async ({ params }) => {

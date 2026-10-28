@@ -1,9 +1,9 @@
 import type React from 'react'
 
 import { Card, ChevronRightIcon } from '@infonomic/uikit/react'
+import { LangLink } from '@modulus-learning/host-tanstack-start/framework/index'
+import type { Locale } from '@modulus-learning/host-tanstack-start/i18n/i18n-config'
 
-import { LangLink } from '@/framework'
-import type { Locale } from '@/i18n/i18n-config'
 import type { DocEntry } from '@/modules/docs/lib/registry'
 
 interface DocsListProps {

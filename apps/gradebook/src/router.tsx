@@ -1,7 +1,11 @@
 import { createRouter } from '@tanstack/react-router'
 import { createIsomorphicFn } from '@tanstack/react-start'
 
-import { localeInputRewrite, localeOutputRewrite } from '@/i18n/locale-rewrite'
+import {
+  localeInputRewrite,
+  localeOutputRewrite,
+} from '@modulus-learning/host-tanstack-start/i18n/locale-rewrite'
+
 import { routeTree } from './routeTree.gen'
 
 // The per-request CSP nonce lives in the server request scope (set by the CSP

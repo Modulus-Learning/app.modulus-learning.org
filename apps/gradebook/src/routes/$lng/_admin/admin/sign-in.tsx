@@ -1,14 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Container, ScrollToTop, Section } from '@infonomic/uikit/react'
-
-import { Image } from '@/framework'
-import logoBlack from '@/images/logo/modulus-logo-symbol-black.svg'
-import logoWhite from '@/images/logo/modulus-logo-symbol-white.svg'
-import { pageHead } from '@/lib/head'
-import { SignInForm } from '@/modules/admin/session/components/sign-in-form'
-import { AdminAppBarPublic } from '@/ui/components/admin/admin-app-bar-public'
-import { SiteFooter } from '@/ui/components/site-footer'
+import { Image } from '@modulus-learning/host-tanstack-start/framework/index'
+import logoBlack from '@modulus-learning/host-tanstack-start/images/logo/modulus-logo-symbol-black.svg'
+import logoWhite from '@modulus-learning/host-tanstack-start/images/logo/modulus-logo-symbol-white.svg'
+import { pageHead } from '@modulus-learning/host-tanstack-start/lib/head'
+import { SignInForm } from '@modulus-learning/host-tanstack-start/modules/admin/session/components/sign-in-form'
+import { AdminAppBarPublic } from '@modulus-learning/host-tanstack-start/ui/components/admin/admin-app-bar-public'
+import { SiteFooter } from '@modulus-learning/host-tanstack-start/ui/components/site-footer'
 
 // Admin sign-in. Deliberately outside `_authed`, so it is never itself
 // redirected (the Next `withAdminAuth` matched only an unprefixed

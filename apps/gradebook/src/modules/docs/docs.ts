@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 
-import { frontendSurfaceMiddleware } from '@/lib/server-fn'
+import { frontendSurfaceMiddleware } from '@modulus-learning/host-tanstack-start/lib/server-fn'
 
 /** The docs index for the TanStack Start host (markdown bundled at build time). */
 export const listDocsFn = createServerFn({ method: 'GET' })

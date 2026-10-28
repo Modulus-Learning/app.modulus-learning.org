@@ -1,12 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Button, Container, CopyButton, Section, Table } from '@infonomic/uikit/react'
-
-import { LangLink } from '@/framework'
-import { pageHead } from '@/lib/head'
-import { getActivityCodes } from '@/modules/app/activities/get-activity-codes'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
-import { LocalDateTime } from '@/ui/components/local-date-time'
+import { LangLink } from '@modulus-learning/host-tanstack-start/framework/index'
+import { pageHead } from '@modulus-learning/host-tanstack-start/lib/head'
+import { getActivityCodes } from '@modulus-learning/host-tanstack-start/modules/app/activities/get-activity-codes'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
+import { LocalDateTime } from '@modulus-learning/host-tanstack-start/ui/components/local-date-time'
 
 export const Route = createFileRoute('/$lng/_auth/dashboard/')({
   loader: () => getActivityCodes(),

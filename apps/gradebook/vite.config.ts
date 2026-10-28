@@ -2,23 +2,11 @@ import { readFileSync } from 'node:fs'
 
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 
+import { modulus, modulusNitroOptions } from '@modulus-learning/host-tanstack-start/vite'
 import tailwindcss from '@tailwindcss/vite'
 import viteReact from '@vitejs/plugin-react'
 import { nitro } from 'nitro/vite'
 import { defineConfig } from 'vite'
-
-// Packages that load native binaries, are CJS-only, or locate files through
-// `__dirname` must stay external so Node resolves them at runtime. Each needs
-// listing for both Vite's SSR build and Nitro's own bundler.
-const nativeExternals = [
-  'argon2',
-  'bcrypt',
-  'pino',
-  'pg',
-  'googleapis',
-  '@google-cloud/recaptcha-enterprise',
-  'google-gax',
-]
 
 // Dependencies such as @base-ui/react and @tanstack/react-router mark their
 // modules `'use client'`, a React Server Components directive with no meaning in
@@ -53,25 +41,14 @@ export default defineConfig({
   css: { postcss: { plugins: [] } },
   // `public/assets/` already exists, so hashed build assets go to `/_build/`.
   build: { assetsDir: '_build', rolldownOptions: { onwarn } },
-  ssr: {
-    external: nativeExternals,
-    // `@infonomic/uikit` imports its own CSS modules. In dev, Vite leaves
-    // dependencies external to SSR and Node cannot import a `.css` file, so the
-    // package must go through Vite's pipeline (the production bundle already does).
-    noExternal: ['@infonomic/uikit'],
-  },
-  optimizeDeps: { exclude: nativeExternals },
   plugins: [
-    nitro({
-      preset: 'node',
-      // Boot the app (config validation, jobs, shutdown handlers) at process
-      // start rather than on the first request; see the plugin.
-      plugins: ['./src/nitro/eager-boot.ts'],
-      // React must be external by pattern: externalising only 'react' and
-      // 'react-dom' leaves subpaths such as react-dom/server bundled, and SSR
-      // then runs two React instances ("dispatcher.getOwner is not a function").
-      rolldownConfig: { external: [/^react(-dom)?(\/.*)?$/, ...nativeExternals], onwarn },
-    }),
+    modulus(),
+    nitro(
+      modulusNitroOptions({
+        preset: 'node',
+        rolldownConfig: { onwarn },
+      })
+    ),
     tailwindcss(),
     tanstackStart(),
     viteReact(),

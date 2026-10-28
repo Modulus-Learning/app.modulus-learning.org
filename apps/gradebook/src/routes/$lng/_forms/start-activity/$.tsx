@@ -1,20 +1,19 @@
 import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { usePathname } from '@/framework'
-import { localeOutputRewrite } from '@/i18n/locale-rewrite'
-import { DEFAULT_SCOPE_ID } from '@/lib/default-scope'
-import { ssrRecoveryHref } from '@/lib/session/bootstrap'
-import { renewInBrowser } from '@/lib/session/browser-renewal'
-import { resolveGuardedSession } from '@/lib/session/route-guard'
-import { SessionGuardError } from '@/lib/session/session-retry'
-import { StartActivity } from '@/modules/app/activity/components/start-activity'
-import { extractActivityLaunchParameters } from '@/modules/app/activity/launch-url'
-import { startActivityFn } from '@/modules/app/activity/start-activity-fn'
-import { getUserSessionFn } from '@/modules/app/session/session-state'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
-import type { StartActivityResult } from '@/modules/app/activity/@types'
+import { usePathname } from '@modulus-learning/host-tanstack-start/framework/index'
+import { localeOutputRewrite } from '@modulus-learning/host-tanstack-start/i18n/locale-rewrite'
+import { DEFAULT_SCOPE_ID } from '@modulus-learning/host-tanstack-start/lib/default-scope'
+import { ssrRecoveryHref } from '@modulus-learning/host-tanstack-start/lib/session/bootstrap'
+import { renewInBrowser } from '@modulus-learning/host-tanstack-start/lib/session/browser-renewal'
+import { resolveGuardedSession } from '@modulus-learning/host-tanstack-start/lib/session/route-guard'
+import { SessionGuardError } from '@modulus-learning/host-tanstack-start/lib/session/session-retry'
+import type { StartActivityResult } from '@modulus-learning/host-tanstack-start/modules/app/activity/@types/index'
+import { StartActivity } from '@modulus-learning/host-tanstack-start/modules/app/activity/components/start-activity'
+import { extractActivityLaunchParameters } from '@modulus-learning/host-tanstack-start/modules/app/activity/launch-url'
+import { startActivityFn } from '@modulus-learning/host-tanstack-start/modules/app/activity/start-activity-fn'
+import { getUserSessionFn } from '@modulus-learning/host-tanstack-start/modules/app/session/session-state'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 const formsLayout = getRouteApi('/$lng/_forms')
 

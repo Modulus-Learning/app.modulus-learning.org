@@ -1,15 +1,14 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router'
 
 import { ScrollToTop } from '@infonomic/uikit/react'
-
-import { pageHead } from '@/lib/head'
-import { SessionIdentity } from '@/lib/session/session-identity'
-import { SessionRecovery } from '@/lib/session/session-recovery'
-import { UserSessionProvider } from '@/modules/app/session/provider'
-import { getUserSessionFn } from '@/modules/app/session/session-state'
-import { AppBarFront } from '@/ui/components/app-bar-front'
-import { NotFoundView } from '@/ui/components/not-found-view'
-import { SiteFooter } from '@/ui/components/site-footer'
+import { pageHead } from '@modulus-learning/host-tanstack-start/lib/head'
+import { SessionIdentity } from '@modulus-learning/host-tanstack-start/lib/session/session-identity'
+import { SessionRecovery } from '@modulus-learning/host-tanstack-start/lib/session/session-recovery'
+import { UserSessionProvider } from '@modulus-learning/host-tanstack-start/modules/app/session/provider'
+import { getUserSessionFn } from '@modulus-learning/host-tanstack-start/modules/app/session/session-state'
+import { AppBarFront } from '@modulus-learning/host-tanstack-start/ui/components/app-bar-front/index'
+import { NotFoundView } from '@modulus-learning/host-tanstack-start/ui/components/not-found-view'
+import { SiteFooter } from '@modulus-learning/host-tanstack-start/ui/components/site-footer'
 
 /**
  * Public layout (`/`, `/about`, `/docs`). Verification-only session for the

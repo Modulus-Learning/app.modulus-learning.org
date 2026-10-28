@@ -1,9 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { RegistrationResults } from '@modulus-learning/host-tanstack-start/modules/lti/components/RegistrationResult'
+import { registerPlatformFn } from '@modulus-learning/host-tanstack-start/modules/lti/register'
 import { z } from 'zod'
-
-import { RegistrationResults } from '@/modules/lti/components/RegistrationResult'
-import { registerPlatformFn } from '@/modules/lti/register'
 
 /**
  * LTI dynamic-registration page, shown to the platform admin during tool

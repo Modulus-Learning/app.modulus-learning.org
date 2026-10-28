@@ -1,11 +1,10 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { pageHead } from '@/lib/head'
-import { ActivitiesView } from '@/modules/app/activities/components/activities-view'
-import { getActivities } from '@/modules/app/activities/get-activities'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { pageHead } from '@modulus-learning/host-tanstack-start/lib/head'
+import { ActivitiesView } from '@modulus-learning/host-tanstack-start/modules/app/activities/components/activities-view'
+import { getActivities } from '@modulus-learning/host-tanstack-start/modules/app/activities/get-activities'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_auth/dashboard/activity-code/$id/activities/')({
   loader: async ({ params }) => {

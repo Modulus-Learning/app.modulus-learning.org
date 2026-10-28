@@ -1,10 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { LtiPlatformsListView } from '@/modules/admin/lti-platforms/components/list-view'
-import { listLtiPlatforms } from '@/modules/admin/lti-platforms/list'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { LtiPlatformsListView } from '@modulus-learning/host-tanstack-start/modules/admin/lti-platforms/components/list-view'
+import { listLtiPlatforms } from '@modulus-learning/host-tanstack-start/modules/admin/lti-platforms/list'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_admin/admin/_authed/lti-platforms/')({
   loader: async ({ params }) => {

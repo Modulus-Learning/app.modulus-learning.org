@@ -1,12 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { DEFAULT_SCOPE_ID } from '@modulus-learning/host-tanstack-start/lib/default-scope'
+import { getActivityLaunchViewFn } from '@modulus-learning/host-tanstack-start/modules/app/activity/activity-launch-view-fn'
+import { buildActivityLaunchUrl } from '@modulus-learning/host-tanstack-start/modules/app/activity/launch-url'
+import { getUserSessionFn } from '@modulus-learning/host-tanstack-start/modules/app/session/session-state'
+import { LtiLaunchActivity } from '@modulus-learning/host-tanstack-start/modules/lti/components/lti-launch-activity'
 import { z } from 'zod'
-
-import { DEFAULT_SCOPE_ID } from '@/lib/default-scope'
-import { getActivityLaunchViewFn } from '@/modules/app/activity/activity-launch-view-fn'
-import { buildActivityLaunchUrl } from '@/modules/app/activity/launch-url'
-import { getUserSessionFn } from '@/modules/app/session/session-state'
-import { LtiLaunchActivity } from '@/modules/lti/components/lti-launch-activity'
 
 const ErrorCard = ({ title, message }: { title: string; message: string }) => (
   <div className="flex justify-center mt-[12vh] sm:mt-[18vh] bg-gray-50 not-dark">

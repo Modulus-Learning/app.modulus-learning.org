@@ -1,10 +1,9 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
-
-import { AccountContainer } from '@/modules/admin/account/components/account-container'
-import { getAccount } from '@/modules/admin/account/get-account'
-import { Breadcrumbs } from '@/ui/components/breadcrumbs'
+import { AccountContainer } from '@modulus-learning/host-tanstack-start/modules/admin/account/components/account-container'
+import { getAccount } from '@modulus-learning/host-tanstack-start/modules/admin/account/get-account'
+import { Breadcrumbs } from '@modulus-learning/host-tanstack-start/ui/components/breadcrumbs'
 
 export const Route = createFileRoute('/$lng/_admin/admin/_authed/account')({
   loader: async ({ params }) => {

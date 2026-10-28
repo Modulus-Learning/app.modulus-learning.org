@@ -1,8 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { LtiErrorView } from '@modulus-learning/host-tanstack-start/modules/lti/components/lti-error-view'
 import { z } from 'zod'
-
-import { LtiErrorView } from '@/modules/lti/components/lti-error-view'
 
 /**
  * `/lti/error?code=<slug>`. The search schema admits only the known slugs:

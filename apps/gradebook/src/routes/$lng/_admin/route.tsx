@@ -1,8 +1,8 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router'
 
-import { SessionIdentity } from '@/lib/session/session-identity'
-import { AdminSessionProvider } from '@/modules/admin/session/provider'
-import { getAdminSessionFn } from '@/modules/admin/session/session-state'
+import { SessionIdentity } from '@modulus-learning/host-tanstack-start/lib/session/session-identity'
+import { AdminSessionProvider } from '@modulus-learning/host-tanstack-start/modules/admin/session/provider'
+import { getAdminSessionFn } from '@modulus-learning/host-tanstack-start/modules/admin/session/session-state'
 
 /**
  * The admin surface's pathless layout. The server entry 404s it on a
