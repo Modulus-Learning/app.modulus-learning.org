@@ -87,16 +87,12 @@ export interface AdminUserDeleteState {
 }
 
 export const validateSearchParamsSchema = z.strictObject({
-  page: integerFromStringSchema.optional().prefault(1),
-  page_size: integerFromStringSchema.optional().prefault(10),
+  page: integerFromStringSchema.prefault(1),
+  page_size: integerFromStringSchema.prefault(10),
   order: z
     .enum(['created_at', 'id', 'given_name', 'family_name', 'username', 'email'])
     .prefault('created_at'),
-  role: z
-    .string()
-    .max(50, 'role must be a string with a maximum of 50 characters')
-    .optional()
-    .prefault('all'),
+  role: z.string().max(50, 'role must be a string with a maximum of 50 characters').prefault('all'),
   query: z.string().max(128, 'query must be a string with a maximum of 128 characters').optional(),
   desc: booleanSchema(true),
 }) // Ensures no extra properties are allowed

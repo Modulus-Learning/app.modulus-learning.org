@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer'
+import nodemailer, { type Transporter } from 'nodemailer'
 import type SMTPTransport from 'nodemailer/lib/smtp-transport'
 
 import { getServerConfig } from '../config'
@@ -16,7 +16,7 @@ const createMailer = () => {
   })
 }
 
-let cachedMailer: nodemailer.Transporter<SMTPTransport.SentMessageInfo, SMTPTransport.Options>
+let cachedMailer: Transporter<SMTPTransport.SentMessageInfo, SMTPTransport.Options>
 
 export const getMailer = () => {
   if (cachedMailer == null) {

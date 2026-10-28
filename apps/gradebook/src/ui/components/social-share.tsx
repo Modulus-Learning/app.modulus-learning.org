@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 
 import {
-  EmailIcon,
+  EmailLegacyIcon,
   EmailShareButton,
-  FacebookIcon,
+  FacebookLegacyIcon,
   FacebookShareButton,
-  LinkedinIcon,
+  LinkedinLegacyIcon,
   LinkedinShareButton,
-  TwitterShareButton,
-  XIcon,
+  XLegacyIcon,
+  XShareButton,
 } from 'react-share'
 import { twMerge } from 'tailwind-merge'
 
@@ -51,22 +51,22 @@ export function SocialShare({ className }: { className?: string }): React.JSX.El
         aria-label="Share to Facebook"
         className="cursor-pointer transition-all duration-200 hover:opacity-75"
       >
-        <FacebookIcon size={26} round />
+        <FacebookLegacyIcon size={26} round />
       </FacebookShareButton>
-      <TwitterShareButton
+      <XShareButton
         url={share.url}
         aria-label="Share to Twitter / X"
-        title={share.title}
+        text={share.title}
         className="cursor-pointer transition-all duration-200 hover:opacity-75"
       >
-        <XIcon size={26} round />
-      </TwitterShareButton>
+        <XLegacyIcon size={26} round />
+      </XShareButton>
       <LinkedinShareButton
         url={share.url}
         aria-label="Share to LinkedIn"
         className="cursor-pointer transition-all duration-200 hover:opacity-75"
       >
-        <LinkedinIcon size={26} round />
+        <LinkedinLegacyIcon size={26} round />
       </LinkedinShareButton>
       <EmailShareButton
         url={share.url}
@@ -75,7 +75,7 @@ export function SocialShare({ className }: { className?: string }): React.JSX.El
         body="body"
         className="cursor-pointer transition-all duration-200 hover:opacity-75"
       >
-        <EmailIcon size={26} round />
+        <EmailLegacyIcon size={26} round />
       </EmailShareButton>
     </div>
   )
