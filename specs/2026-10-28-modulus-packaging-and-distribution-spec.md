@@ -2,15 +2,19 @@
 
 Date: 2026-10-28
 
-Status: Direction approved with amendments; implementation starting on
-`chore/packaging` with the host spike.
+Status: Direction approved with amendments. The host spike is complete (see
+Host Spike Results); packaging foundations are next on `chore/packaging`.
 
 Revision: 2026-10-28, incorporating architectural review. The agent joins the
 lockstep set and every package starts at `0.11.0`; the host spike moves first;
 migration compatibility, migration locking, and bootstrap behaviour are now
 explicit contracts; the packed-install gate is strengthened; host diagnostics
 stay out of core; the Nitro alias is a support concern, not a publication
-blocker; and licensing records the owners' pending decision.
+blocker; and licensing records the owners' pending decision. A second
+revision the same day records the host spike results, replaces the Drizzle
+journal release path with the existing reviewed SQL scripts, adopts the
+published `nitro` beta in place of the nightly alias, and drops browser
+automation frameworks from the verification plan.
 
 Document type: Explanation and architectural specification.
 
@@ -59,9 +63,10 @@ The recommended approach is to:
   lockstep through one Changesets `fixed` group, starting at `0.11.0`. Guard
   embedded content with an explicit agent-protocol version, so a server release
   never strands an agent already in activity pages.
-- Ship database migrations inside `@modulus-learning/core` with a programmatic
-  migrator and a small command-line tool. Migration is an explicit release step,
-  never a side effect of serving traffic.
+- Keep schema assets in `@modulus-learning/core` (PostgreSQL only): Drizzle for
+  development, and a release baseline plus the reviewed SQL release scripts for
+  installations, applied by a small command-line tool. Migration is an explicit
+  release step, never a side effect of serving traffic.
 - Publish to the public npm registry under the existing scope, as the agent
   already is. The server licence is an open decision for the project owners;
   the agent stays MIT. Keep every institution-specific artefact in the
@@ -89,8 +94,8 @@ The following inventory is based on source at `develop` (`e7a8c24`).
 | Public pages and content | `modules/app/home/*`, `routes/$lng/_public/*`, `content/docs/*` | Mix Modulus product pages (Ximera hero, about, docs) with what a downstream installation would brand itself |
 | Styling | Tailwind v4 utility classes in components (no CSS modules), `@infonomic/uikit` | A packaged component tree needs the downstream Tailwind build to scan it, or must ship compiled CSS |
 | Vite and Nitro configuration | `apps/gradebook/vite.config.ts` lists native externals, `ssr.noExternal`, a Nitro eager-boot plugin, React externalisation | Every downstream would have to copy and keep this in sync |
-| Dependencies | Exact pins for React (`19.3.1`) and TanStack (`1.170.46`/`1.169.4`); Nitro as an `npm:nitro-nightly@…` alias; `argon2`, `bcrypt`, and `bcryptjs` together; `engines` `^18.20.2 \|\| >=20.9.0` against a root of `^22.18.0` | Library packages need peer ranges, not exact application pins. npm aliases are valid in published manifests, but a nightly is a support and stability concern; each release must name a tested Nitro version |
-| Database | Drizzle Kit migrations `0000`–`0016` with journal; applied manually via `pnpm drizzle:migrate`; the production image has no migration step | A downstream has no supported way to apply or verify migrations |
+| Dependencies | Exact pins for React (`19.3.1`) and TanStack (`1.170.46`/`1.169.4`); Nitro as an `npm:nitro-nightly@…` alias; `argon2`, `bcrypt`, and `bcryptjs` together; `engines` `^18.20.2 \|\| >=20.9.0` against a root of `^22.18.0` | Library packages need peer ranges, not exact application pins. npm aliases are valid in published manifests, but a nightly is a support and stability concern. Nitro 3 is published only as betas, but those betas are published under the official `nitro` name |
+| Database | Drizzle Kit migrations `0000`–`0016` with journal for development; reviewed, idempotent release scripts under `src/database/sql/` (`YYYY-MM-DD-NNN-*.sql`) applied by hand in production; no record in the database of which scripts ran | A downstream has no supported way to create a fresh schema, apply release scripts, or verify the schema at boot. The same directory also tracks `pg_dump` snapshots (`modulus-deploy-*.sql`) and a collation maintenance script that must never ship |
 | Release | `.changeset/config.json` has an empty `fixed` group; `publish-packages.sh` hard-codes the single agent package | Cannot release a coherent multi-package set |
 | Seeds | `src/database/seeds/index.ts` deletes progress, enrollment, activities, activity codes, permissions, and role assignments before rebuilding fixtures | Cannot be run against a live installation; a bootstrap must be a different, non-destructive operation |
 | Licence | Root, core, and gradebook are AGPL-3.0; agent is MIT | Packages must declare licence metadata; the owners are considering MPL-2.0 for the server packages |
@@ -139,7 +144,7 @@ Two Byline choices are deliberately **not** adopted at first:
 
 | Package | Path | Published | Responsibility | Depends On |
 | --- | --- | --- | --- | --- |
-| `@modulus-learning/core` | `packages/core` | Yes, lockstep | Business logic, data access, `CoreCommands`, migrations, migrator, production bootstrap, and the `modulus` binary for database, administrator, and key commands | `@modulus-learning/lti` for contract types (see companion) |
+| `@modulus-learning/core` | `packages/core` | Yes, lockstep | Business logic, data access, `CoreCommands`, schema baseline and release scripts, production bootstrap, and the `modulus` binary for database, administrator, and key commands | `@modulus-learning/lti` for contract types (see companion) |
 | `@modulus-learning/lti` | `packages/lti` | Yes, lockstep | Shared LTI protocol mechanics and the LTI-based adapter contract (companion specification) | None internal |
 | `@modulus-learning/lms-canvas` | `packages/lms-canvas` | Yes, lockstep | The Canvas adapter (companion specification) | `@modulus-learning/lti` |
 | `@modulus-learning/host-tanstack-start` | `packages/host-tanstack-start` | Yes, lockstep | Route factories, server functions and gates, request and session handling, admin and learner UI, server-entry helpers, configuration loader, Vite preset, styles, and host diagnostics | `core` as a dependency; React, TanStack Router/Start, Vite, and Nitro as peers |
@@ -198,26 +203,42 @@ layout. Public marketing pages are entirely the installation's.
 
 ### Route Factories
 
-Each host route file becomes a re-export, as in Byline. If the host spike shows
-that factories do not work for some route kinds, the fallback is a thin local
-`createFileRoute(...)` declaration that imports a packaged handler, loader, or
-component. That keeps nearly all of the architecture and costs a few more lines
-per file.
+Page routes become re-exports of packaged factories, as in Byline. Server-only
+routes cannot: the host spike showed that Start strips `server.handlers` from
+the client build only when they appear in a literal `createFileRoute(...)`
+call in the host's own route file. Options built inside a packaged factory keep
+their handlers, and the handlers' dynamic imports, in the client bundle. Server
+routes therefore use a thin local declaration that imports packaged handlers:
 
 ```ts
 // downstream: src/routes/routes/lti/launch.ts
-import { createLtiLaunchRoute } from '@modulus-learning/host-tanstack-start/routes/lti'
+import { createFileRoute } from '@tanstack/react-router'
 
-export const Route = createLtiLaunchRoute('/routes/lti/launch')
+import { ltiLaunchHandlers } from '@modulus-learning/host-tanstack-start/server-routes/lti'
+
+export const Route = createFileRoute('/routes/lti/launch')({
+  server: { handlers: ltiLaunchHandlers },
+})
 ```
 
-The factory owns the handler, middleware, loader, and component. The path
-argument exists because TanStack Router's generator requires each file to name
-its route. Factories for externally registered paths — `/routes/lti/*`,
-`/routes/agent/*`, `/routes/oauth/*`, `/routes/elb-status`, `/routes/keep-alive` —
-must validate the supplied path against the fixed path they implement and fail
-at build or boot on a mismatch. A downstream cannot accidentally move the LTI
-launch URL.
+The same rule applies to any page-route option that must not reach the
+browser. Page-route factories may carry components, and loaders that call
+server functions, because both are client code by design.
+
+```ts
+// downstream: src/routes/$lng/_admin/admin/_authed/index.tsx
+import { createAdminDashboardRoute } from '@modulus-learning/host-tanstack-start/routes/admin'
+
+export const Route = createAdminDashboardRoute('/$lng/_admin/admin/_authed/')
+```
+
+The factory owns the component, loader, and route options. The path argument
+exists because TanStack Router's generator requires each file to name its
+route. Externally registered paths — `/routes/lti/*`, `/routes/agent/*`,
+`/routes/oauth/*`, `/routes/elb-status`, `/routes/keep-alive` — are server
+routes, so their paths sit literally in the downstream file. The route manifest
+below pins them, and the host diagnostic fails on a moved or missing file, so a
+downstream cannot accidentally move the LTI launch URL.
 
 The reference host's 73 route files make the list concrete. A route manifest
 exported by the host package (`@modulus-learning/host-tanstack-start/routes/manifest`)
@@ -233,11 +254,6 @@ command (for example `modulus-host doctor`). Core's `modulus doctor` may run a
 host diagnostic only when one is supplied explicitly; core never depends on the
 host package.
 
-Before committing to factories for server-only routes (`server.handlers`
-routes under `/routes/*`), verify that Start's route generator and compiler
-accept a factory-returned route in that position. Byline's factories cover page
-routes; Modulus's server routes are a new case.
-
 ### Server Functions Inside a Package
 
 The host package is built as unbundled ESM — `tsc` with `tsc-alias`, matching
@@ -247,11 +263,13 @@ configuration inlines `/^@modulus-learning\//` through SSR (`ssr.noExternal`)
 so Start's compiler sees and transforms them, exactly as Byline's webapp does
 for `@byline/*`.
 
-This mechanism is plausible but unproven here. `ssr.noExternal` controls SSR
-externalisation; it does not by itself establish that Start's client-side
-transformation replaces packaged handlers with RPC stubs. The host spike must
-invoke a packaged server function from the browser and inspect the client
-output for server code before any substantial move.
+The host spike confirmed this from an installed tarball. In `vite dev` and in a
+production build, Start replaced the packaged handler with a
+`createClientRpc(...)` stub and removed the server middleware body. A browser
+click invoked the function, its gate middleware ran, and the built client
+assets contained no packaged server code. Start's plugin also keeps the
+package out of the client dependency pre-bundle, so no `optimizeDeps`
+exclusion was needed.
 
 The convention test that every server function's first middleware is a gate
 moves into the host package and scans the package's own source. The reference
@@ -287,8 +305,11 @@ export default defineConfig({
 
 `modulus()` owns the native-externals list currently in
 `apps/gradebook/vite.config.ts`. `modulusNitroOptions` merges the downstream's
-Nitro options with the eager-boot plugin path and the React externalisation that
-prevents two React instances during SSR.
+Nitro options with the eager-boot plugin and the React externalisation that
+prevents two React instances during SSR. The spike showed that Nitro resolves
+`plugins` entries as paths from the project root, not as package specifiers,
+so the helper passes the packaged plugin by absolute path resolved from its own
+module URL.
 
 ### Styles
 
@@ -303,9 +324,9 @@ that declares its own sources, so the downstream adds one import:
 
 The package stylesheet uses `@source` relative to itself to scan the package's
 `dist/`, and imports the `@infonomic/uikit` styles it depends on. Theme tokens
-are CSS custom properties the downstream may override. Shipping precompiled CSS
-is the alternative if `@source` across `node_modules` proves unreliable in
-production builds; decide during the host-package spike.
+are CSS custom properties the downstream may override. The spike confirmed that
+a utility used only inside the packaged component was generated in both dev and
+production builds, so precompiled CSS is not needed.
 
 ## What a Downstream Installation Owns
 
@@ -378,75 +399,81 @@ Published library code receives configuration as arguments. It does not read
 ## Database and Migrations
 
 Core remains the only owner of the schema, as the companion specification
-requires. Packaging adds distribution and operation of that schema.
+requires. Modulus supports PostgreSQL only, so schema assets stay in core with
+no separate database package.
 
-### Shipping Migrations
+### Drizzle for Development, SQL for Releases
 
-Add `src/database/migrations/**` (SQL files and the `meta/` journal) to core's
-published `files`, resolved at runtime relative to `import.meta.url`. Core
-exports a migrator built on Drizzle's runtime migrator, so a downstream needs
-`drizzle-orm` (already a dependency) but not `drizzle-kit`:
+The existing split becomes the contract:
 
-```ts
-import { migrate } from '@modulus-learning/core/migrate'
+- **Development.** The Drizzle schema in TypeScript is the source of truth.
+  `drizzle:generate` produces journal migrations, and development and test
+  databases (including the integration harness) apply them. Drizzle Kit is a
+  development dependency only.
+- **Releases.** Each schema change also gets a reviewed release script in
+  `packages/core/src/database/sql/`, named `YYYY-MM-DD-NNN-<slug>.sql`, that
+  mirrors one or more Drizzle migrations. Scripts follow the established
+  convention: a header naming the Drizzle migrations mirrored, one transaction,
+  and idempotent statements that are safe to re-run.
+- **Fresh installations.** A release-specific **baseline** script creates the
+  complete current schema in an empty database. It is generated from the Drizzle
+  schema at release time, reviewed, and committed alongside the release scripts.
+  It records every release script up to its date as already applied. This
+  follows Byline's squashed-baseline-plus-numbered-scripts model.
 
-await migrate({ connectionString: process.env.POSTGRES_CONNECTION_STRING })
-```
+Only the baseline and the dated release scripts ship in core's `files`. The
+`pg_dump` snapshots (`modulus-deploy-*.sql`) and `refresh-collation.sql` are
+operational artefacts for this repository's own installation and are excluded.
+Decide separately whether they should remain in the repository at all.
 
-The `modulus` binary exposes the same operation for release pipelines:
+### Applying Scripts
+
+The `modulus` binary runs the shipped scripts:
 
 ```sh
-pnpm exec modulus db migrate     # apply pending migrations
-pnpm exec modulus db status      # applied, pending, and unknown migrations
+pnpm exec modulus db init       # empty database only: apply the baseline
+pnpm exec modulus db upgrade    # apply unapplied release scripts in name order
+pnpm exec modulus db status     # applied, pending, and unknown scripts
 ```
 
-### Operating Migrations
-
+- Core records applied scripts in a `modulus_schema_scripts` table: name,
+  SHA-256 checksum, and time applied. `init` creates it; the first `upgrade`
+  against an existing installation creates it and asks the operator to confirm
+  which scripts were already applied by hand.
+- Each run holds a PostgreSQL advisory lock, so two release steps cannot apply
+  scripts concurrently.
+- Applied scripts are immutable. A shipped script whose checksum differs from
+  the recorded one stops the run.
+- `init` refuses a database that already contains Modulus tables; `upgrade`
+  refuses a database with no ledger and no Modulus tables. These rules follow
+  Byline's refusal to touch an occupied or unexpected schema.
 - Migration is an explicit release step, run once per deployment before the new
   build serves traffic — for example a Fly `release_command` on the admin
-  application. It is never run implicitly by a frontend instance on boot.
-- The migrator takes a PostgreSQL advisory lock for its whole run, so two
-  release steps or two instances cannot apply migrations concurrently.
-- Applied migrations are immutable. The migrator and the boot check compare the
-  hash of every migration the build ships with the hash recorded in the
-  database, and refuse on any difference.
-- An upgrade is rehearsed from the previous release before publication: restore
-  a database migrated by the previous release with representative data, apply
-  the new migrations, boot, and check that the data survives.
+  application. A frontend instance never runs it on boot.
 
-### Migration Compatibility Contract
+### Schema Compatibility at Boot
 
-An older build cannot read migration files that exist only in a newer package,
-so compatibility metadata must live in the database, written by the newer
-migrator, in a form the older build already understands.
-
-- Each build carries an integer **schema epoch** and the ordered list of
-  migration hashes it ships.
-- Core owns a small `modulus_schema_state` table holding the current epoch and a
-  **reader floor**: the lowest epoch that may still serve against this database.
-- A migration that older builds can safely run against declares that in core
-  source; the migrator then raises the epoch and leaves the reader floor
-  unchanged. Any other migration raises both, to the new epoch.
-- At boot, core checks:
+An older build cannot read scripts that exist only in a newer package, so the
+rule is deliberately simple and needs no metadata from the future:
 
 | Database State | Result |
 | --- | --- |
-| Every applied migration is known to the build and their hashes match; none pending | Start |
-| Migrations pending | Refuse; run `modulus db migrate` |
-| Unknown applied migrations, and the build's epoch is at least the reader floor | Start; this is the rollback window |
-| Unknown applied migrations, and the build's epoch is below the reader floor | Refuse |
-| Known migration with a different hash, missing state table, or unreadable state | Refuse |
+| Ledger matches every script the build ships, by name and checksum | Start |
+| Scripts the build ships are not yet applied | Refuse; run `modulus db upgrade` |
+| Ledger contains scripts unknown to the build | Refuse, unless the operator sets `MODULUS_ALLOW_NEWER_SCHEMA=true` for a deliberate rollback |
+| Checksum mismatch, missing ledger, or unreadable ledger | Refuse |
 
-  Unknown states are always rejected.
-- This is the database-level counterpart of the companion specification's
-  integration-schema version check. Each release note records both, with the
-  Drizzle migrations they cover.
-- Migrations are additive within a major version. A migration that drops,
-  renames, or rewrites data the previous minor release reads is a major-version
-  change with an upgrade note.
-- Downstream installations do not add tables to core's schema or core's journal.
-  Installation-specific persistence, if ever needed, uses a separate schema and
-  its own journal; that is out of scope here.
+Release scripts are additive within a minor release, which is what makes a
+deliberate rollback reasonable. A script that drops, renames, or rewrites data
+the previous release reads is a breaking change and its release note says that
+rollback is unsupported. This is the database-level counterpart of the
+companion specification's integration-schema version check; each release note
+records both.
+
+An upgrade is rehearsed before publication. Restore a database built by the
+previous release with representative synthetic data, run `modulus db upgrade`,
+boot, and check that the data survived. Until there is a previous published
+release, rehearse against a copy of this repository's own installation.
 
 ### Bootstrap Versus Fixtures
 
@@ -522,10 +549,12 @@ explicitly (`latest` or `next`), never inferring it.
 The host package declares React, React DOM, TanStack Router, TanStack Start,
 Vite, and Nitro as peers with tested ranges, and records the exact versions the
 reference host runs as the tested combination in each release note. The
-reference host keeps its exact pins. The `nitro-nightly` alias is valid in a
-published manifest, but each release must name the Nitro version it was tested
-with. Prefer a published Nitro release as soon as one supports the features
-in use.
+reference host keeps its exact pins. Replace the `nitro-nightly` alias with the
+official `nitro` package. Nitro 3 is still published only as betas, and the
+spike passed on `nitro@3.0.260903-beta`, the current `latest`. Pin the exact beta
+in the reference host, record it as the tested version in each release note,
+and make the same change in the other TanStack Start applications that share
+the alias.
 
 ### What Counts as Breaking
 
@@ -621,11 +650,14 @@ Add to `pnpm run ci`:
 
 The smoke test must prove:
 
-- Fresh installation: migrations apply to an empty `modulus_test`, the
-  bootstrap runs twice without error or data change, and the host boots in
-  `all-in-one`, `frontend`, and `admin` modes.
-- Upgrade: a database migrated and populated by the previous release upgrades,
-  boots, and retains its data.
+- Fresh installation: `modulus db init` applies the baseline to an empty
+  `modulus_test`, `modulus db upgrade` is then a no-op, the bootstrap runs twice
+  without error or data change, and the host boots in `all-in-one`, `frontend`,
+  and `admin` modes.
+- Upgrade: a database built and populated by the previous release upgrades
+  through the release scripts, boots, and retains its data.
+- Baseline parity: the schema produced by the baseline matches the schema
+  produced by the Drizzle journal, so the two paths cannot drift.
 - Deployment-mode gates: routes and server functions outside a mode's surfaces
   are denied in each mode, and a `frontend` instance never starts workers.
 - Client isolation: built browser assets contain no server configuration,
@@ -634,6 +666,12 @@ The smoke test must prove:
   publication against controlled protocol fixtures. A synthetic adapter alone
   leaves the packaged Canvas code untested.
 - Basic flows: sign-in, an LTI launch, and an agent token exchange succeed.
+
+Checks run over HTTP from a Node script with `fetch`, against built servers, and
+by inspecting build output. Modulus does not adopt a browser automation
+framework. Browser-level checks — a packaged server function invoked by a real
+click, rendered styles — are short manual checklists, run with the Claude in
+Chrome extension or by hand and recorded in the pull request.
 
 Real Canvas acceptance stays a separate, installation-level check. Where a
 check is expensive to automate early — upgrade-from-previous-release before
@@ -698,14 +736,38 @@ core will become part of core's published surface.
 
 Stable publication waits for the extraction.
 
+## Host Spike Results
+
+Run on 2026-10-28 with a minimal TanStack Start application outside the
+workspace, installing `@modulus-learning/host-tanstack-start` from a `pnpm pack`
+tarball. Versions: `@tanstack/react-start` 1.169.4, `@tanstack/react-router`
+1.170.46, Vite 8.3.5, React 19.3.1, Tailwind 4.3.3, and both
+`nitro-nightly@3.0.260610-beta` and `nitro@3.0.260903-beta`. The package was
+built with `tsc` as unbundled ESM.
+
+| Mechanism | Result |
+| --- | --- |
+| Packaged `createServerFn` with gate middleware | Works in dev and production. The client receives a `createClientRpc` stub; the handler and middleware server bodies are removed. A browser click returned the server result with the middleware context applied |
+| Packaged page-route factory (`createFileRoute(path)` inside the package) | Works |
+| Packaged server-route factory (`server.handlers` built inside the package) | Responds correctly, but **leaks**: the handler and its dynamic import of a `*.server` module ship in the client bundle |
+| Local `createFileRoute` with packaged `server.handlers` | Works with no client leak; adopted for every `/routes/*` endpoint |
+| `@source` stylesheet in the package | A utility used only by the packaged component is generated in dev and production |
+| Nitro plugin by package specifier | Fails: Nitro resolves plugin entries relative to the project root |
+| Nitro plugin by absolute path from `modulusNitroOptions` | Works; eager boot fetched the packaged status route at startup |
+| `ssr.noExternal` for the scope | Sufficient; no client `optimizeDeps` exclusion needed |
+| Official `nitro@3.0.260903-beta` in place of the nightly alias | Builds and passes the same checks |
+
+The spike fixture is kept at `fixtures/host-minimal/` as the seed of the
+packed-install smoke test.
+
 ## Delivery Increments and Review Gates
 
 These are reviewable increments, not an approved task breakdown.
 
 | Increment | Deliverable | Gate Before Proceeding |
 | --- | --- | --- |
-| Host spike | In a throwaway host installed from tarballs, prove a packaged literal server function invoked from the browser, a packaged server-only route under `/routes/*`, a packaged page route factory, the Tailwind `@source` stylesheet, and the Nitro eager-boot plugin | Each works in `vite dev` and a production build; the client output contains no packaged server code; or a fallback (local `createFileRoute` with packaged handlers, compiled CSS) is chosen |
-| Core readiness | Explicit `initCore` configuration; tokens without `process.env`; migrations in `files`; locked, checksummed migrator and `modulus db` commands; schema epoch and reader floor; non-destructive bootstrap; `modulus keys generate` | Core's tests and integration suite pass; the production image applies migrations through the new command |
+| Host spike — **complete** | Packaged server function, page-route factory, server-route handlers, `@source` stylesheet, and eager-boot plugin, in a host installed from a tarball | Passed in `vite dev` and a production build, including a browser click; server routes use the local `createFileRoute` fallback (see Host Spike Results) |
+| Core readiness | Explicit `initCore` configuration; tokens without `process.env`; baseline and release scripts in `files`; `modulus db init`, `upgrade`, and `status` with ledger, lock, and checksums; boot-time schema check; non-destructive bootstrap; `modulus keys generate` | Core's tests and integration suite pass; the production image applies migrations through the new command |
 | Host package extraction | Move host code; reference host rewritten as re-exports and a composition file; route manifest and host diagnostic | Session and contract suites pass unchanged against the reference host; convention tests pass in both places |
 | Release machinery | One `fixed` group at `0.11.0` including the agent, generalised publish script, hygiene fields, CI gates including the packed-install smoke test | Dry-run publish of the full set is clean; smoke test passes |
 | LMS extraction | Companion specification increments | Companion gates, plus the smoke test exercising packed `lms-canvas` against protocol fixtures |
@@ -782,8 +844,11 @@ management to every downstream pipeline.
 - **Password hashing dependencies.** `argon2`, `bcrypt`, and `bcryptjs` all appear
   in the gradebook. Establish which are needed for existing hashes before
   declaring native dependencies a downstream must build.
-- **Server-route factories.** Unverified until the host spike; see Route
-  Factories for the fallback.
+- **Resolved: server routes.** Local `createFileRoute` with packaged handlers;
+  see Host Spike Results.
+- **Existing hand-applied scripts.** Decide how this repository's own
+  installation seeds `modulus_schema_scripts` with the scripts already applied
+  by hand, and whether the tracked `pg_dump` snapshots stay in the repository.
 - **Agent-protocol versioning.** Choose the version carrier (a header, a token
   claim, or the agent endpoint path) and the support window; unmarked agents
   are the legacy version.
