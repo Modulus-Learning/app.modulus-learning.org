@@ -1,51 +1,15 @@
 import { createRouter } from '@tanstack/react-router'
-import { createIsomorphicFn } from '@tanstack/react-start'
 
-import {
-  localeInputRewrite,
-  localeOutputRewrite,
-} from '@modulus-learning/host-tanstack-start/i18n/locale-rewrite'
+import { modulusRouterOptions } from '@modulus-learning/host-tanstack-start/server/router-options'
 
 import { routeTree } from './routeTree.gen'
 
-// The per-request CSP nonce lives in the server request scope (set by the CSP
-// middleware in `src/start.ts`). It is read through the scope's global symbol
-// so this isomorphic module never imports server-only code; on the client the
-// router reads the nonce from `<meta property="csp-nonce">` itself.
-const getSsrNonce = createIsomorphicFn()
-  .server((): string | undefined => {
-    const storage = (globalThis as Record<symbol, unknown>)[Symbol.for('modulus.requestScope')] as
-      | { getStore(): { nonce?: string } | undefined }
-      | undefined
-    return storage?.getStore()?.nonce
-  })
-  .client(() => undefined)
-
 export function getRouter() {
-  const nonce = getSsrNonce()
-  return createRouter({
-    routeTree,
-    // Isomorphic locale rewrite (spec: Internationalisation): `input` makes
-    // the matcher always see a locale segment on localizable paths; `output`
-    // strips only the default locale, so `en` URLs stay clean.
-    rewrite: {
-      input: ({ url }) => localeInputRewrite(url),
-      output: ({ url }) => localeOutputRewrite(url),
-    },
-    scrollRestoration: true,
-    defaultPreload: 'intent',
-    ...(nonce != null ? { ssr: { nonce } } : {}),
-  })
+  return createRouter({ routeTree, ...modulusRouterOptions() })
 }
 
 declare module '@tanstack/react-router' {
   interface Register {
     router: ReturnType<typeof getRouter>
-  }
-  interface StaticDataRouteOption {
-    /** Which theme palette the document uses (see `data-theme-context`). */
-    themeContext?: 'public' | 'protected'
-    /** `chromeless` documents (LTI, agent, renewal) render no app chrome. */
-    chrome?: 'full' | 'chromeless'
   }
 }
