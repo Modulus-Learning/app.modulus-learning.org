@@ -675,9 +675,6 @@ importers:
       '@formatjs/intl-localematcher':
         specifier: ^0.9.0
         version: 0.9.0
-      '@google-cloud/recaptcha-enterprise':
-        specifier: ^7.3.0
-        version: 7.3.0(supports-color@5.5.0)
       '@hookform/resolvers':
         specifier: ^6.0.0
         version: 6.0.0(@standard-schema/spec@1.1.0)(react-hook-form@8.0.0-beta.5(@types/react@19.3.0)(react@19.3.1))(zod@4.6.7)
@@ -696,12 +693,6 @@ importers:
       '@panva/hkdf':
         specifier: ^1.2.1
         version: 1.2.1
-      argon2:
-        specifier: ^0.45.1
-        version: 0.45.1
-      bcrypt:
-        specifier: ^6.0.0
-        version: 6.0.0
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -714,9 +705,6 @@ importers:
       escape-html:
         specifier: ^1.0.3
         version: 1.0.3
-      googleapis:
-        specifier: ^188.0.0
-        version: 188.0.0(supports-color@5.5.0)
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3
@@ -750,12 +738,6 @@ importers:
       nodemailer:
         specifier: ^10.2.1
         version: 10.2.1
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-      pino:
-        specifier: ^10.4.0
-        version: 10.4.0
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
@@ -817,6 +799,9 @@ importers:
       '@biomejs/biome':
         specifier: ^2.6.2
         version: 2.6.2
+      '@google-cloud/recaptcha-enterprise':
+        specifier: ^7.3.0
+        version: 7.3.0(supports-color@5.5.0)
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
@@ -865,18 +850,33 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.1.2
         version: 6.1.2(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      argon2:
+        specifier: ^0.45.1
+        version: 0.45.1
+      bcrypt:
+        specifier: ^6.0.0
+        version: 6.0.0
       chokidar-cli:
         specifier: ^3.0.0
         version: 3.0.0
       dotenv:
         specifier: ^18.0.9
         version: 18.0.9
+      googleapis:
+        specifier: ^188.0.0
+        version: 188.0.0(supports-color@5.5.0)
       nitro:
         specifier: 3.0.260903-beta
         version: 3.0.260903-beta
       npm-run-all:
         specifier: ^4.1.5
         version: 4.1.5
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      pino:
+        specifier: ^10.4.0
+        version: 10.4.0
       postcss:
         specifier: ^8.5.31
         version: 8.5.31

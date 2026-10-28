@@ -1,14 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { handlers } from '@modulus-learning/host-tanstack-start/server-routes/oauth/github'
+
 export const Route = createFileRoute('/routes/oauth/github')({
-  server: {
-    handlers: {
-      GET: async ({ request }) =>
-        (
-          await import(
-            '@modulus-learning/host-tanstack-start/modules/app/session/oauth-callback.server'
-          )
-        ).handleGithubCallback(request),
-    },
-  },
+  server: { handlers },
 })

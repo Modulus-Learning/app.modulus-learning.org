@@ -1,8 +1,3 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { createRoute } from '@modulus-learning/host-tanstack-start/routes/agent/route.route'
 
-// Chromeless agent pages (the agent authorization error page).
-export const Route = createFileRoute('/agent')({
-  staticData: { chrome: 'chromeless' },
-  head: () => ({ meta: [{ title: 'Modulus' }] }),
-  component: Outlet,
-})
+export const Route = createRoute('/agent')

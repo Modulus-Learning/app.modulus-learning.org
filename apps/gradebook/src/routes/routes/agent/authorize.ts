@@ -1,14 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { handlers } from '@modulus-learning/host-tanstack-start/server-routes/agent/authorize'
+
 export const Route = createFileRoute('/routes/agent/authorize')({
-  server: {
-    handlers: {
-      GET: async ({ request }) =>
-        (
-          await import(
-            '@modulus-learning/host-tanstack-start/modules/agent/handlers/authorize.server'
-          )
-        ).handleAgentAuthorize(request),
-    },
-  },
+  server: { handlers },
 })

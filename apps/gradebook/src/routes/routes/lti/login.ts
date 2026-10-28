@@ -1,12 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { handlers } from '@modulus-learning/host-tanstack-start/server-routes/lti/login'
+
 export const Route = createFileRoute('/routes/lti/login')({
-  server: {
-    handlers: {
-      POST: async ({ request }) =>
-        (
-          await import('@modulus-learning/host-tanstack-start/modules/lti/handlers/login.server')
-        ).handleLtiLogin(request),
-    },
-  },
+  server: { handlers },
 })

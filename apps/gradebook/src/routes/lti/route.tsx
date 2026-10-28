@@ -1,11 +1,3 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { createRoute } from '@modulus-learning/host-tanstack-start/routes/lti/route.route'
 
-// Chromeless LTI pages (spec: Task 13), served in English and always light.
-// The server entry's deployment-mode gate covers every request here.
-export const Route = createFileRoute('/lti')({
-  staticData: { chrome: 'chromeless' },
-  head: () => ({
-    meta: [{ title: 'Modulus' }, { name: 'description', content: 'Modulus Learning Platform' }],
-  }),
-  component: Outlet,
-})
+export const Route = createRoute('/lti')
