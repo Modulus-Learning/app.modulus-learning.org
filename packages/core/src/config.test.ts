@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
-import { afterEach, beforeEach, describe, it } from 'node:test'
+import { describe, it } from 'node:test'
 
-import { configSchema, loadConfigUnchecked } from '@/config.js'
+import { configSchema } from '@/config.js'
+import { readCoreEnv } from '@/public/env.js'
 
 const KEY = Buffer.from('-----BEGIN KEY-----\nnot-a-real-key\n-----END KEY-----\n').toString(
   'base64'
@@ -36,27 +37,8 @@ const OAUTH_ENV: Record<string, string> = {
   OAUTH_GITHUB_USER_URL: 'https://api.github.test/user',
 }
 
-const MANAGED_KEYS = [...Object.keys(REQUIRED_ENV), ...Object.keys(OAUTH_ENV)]
-
 describe('core config: oauth section', () => {
-  let saved: Record<string, string | undefined>
-
-  beforeEach(() => {
-    saved = Object.fromEntries(MANAGED_KEYS.map((key) => [key, process.env[key]]))
-    for (const key of MANAGED_KEYS) delete process.env[key]
-  })
-
-  afterEach(() => {
-    for (const [key, value] of Object.entries(saved)) {
-      if (value === undefined) delete process.env[key]
-      else process.env[key] = value
-    }
-  })
-
-  const parseWith = (env: Record<string, string>) => {
-    Object.assign(process.env, env)
-    return configSchema.parse(loadConfigUnchecked())
-  }
+  const parseWith = (env: Record<string, string>) => configSchema.parse(readCoreEnv(env))
 
   it('is optional when no oauth variable is set', () => {
     const config = parseWith(REQUIRED_ENV)

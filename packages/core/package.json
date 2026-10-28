@@ -13,6 +13,10 @@
       "types": "./dist/public/tokens.d.ts",
       "import": "./dist/public/tokens.js"
     },
+    "./env": {
+      "types": "./dist/public/env.d.ts",
+      "import": "./dist/public/env.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

@@ -9,23 +9,13 @@ import { AdminTokenVerifier } from '@/modules/admin/session/services/token-verif
 import { AgentTokenVerifier } from '@/modules/agent/auth/services/token-verifier.js'
 import { TokenVerifier as UserTokenVerifier } from '@/modules/app/session/services/token-verifier.js'
 
-const jwtVerifierConfigSchema = z.object({
+export const jwtVerifierConfigSchema = z.object({
   publicKey: z.string().transform((val) => Buffer.from(val, 'base64').toString('utf-8')),
   audience: z.string(),
   issuer: z.string(),
 })
 
 export type JWTVerifierConfig = z.infer<typeof jwtVerifierConfigSchema>
-
-const loadRawJwtVerifierConfig = () => {
-  return {
-    publicKey: process.env.API_JWT_PUBLIC_KEY,
-    audience: process.env.API_JWT_AUDIENCE,
-    issuer: process.env.API_JWT_ISSUER,
-  }
-}
-
-export const loadJwtVerifierConfig = () => jwtVerifierConfigSchema.parse(loadRawJwtVerifierConfig())
 
 const createTokenVerifierRegistry = () =>
   new AsyncRegistry()
@@ -41,10 +31,10 @@ const createTokenVerifierRegistry = () =>
 
 export const initTokenVerifiers = async ({
   pinoLogger = pino({ level: 'info' }),
-  config = loadJwtVerifierConfig(),
+  config,
 }: {
   pinoLogger?: PinoLogger
-  config?: JWTVerifierConfig
+  config: JWTVerifierConfig
 }) => {
   const services = await createTokenVerifierRegistry().compose({ pinoLogger, config })
   return services.verifiers

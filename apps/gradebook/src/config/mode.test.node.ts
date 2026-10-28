@@ -1,4 +1,5 @@
 import { initCore } from '@modulus-learning/core'
+import { loadCoreConfigFromEnv } from '@modulus-learning/core/env'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
@@ -93,6 +94,7 @@ describe('per-mode boot: host config and core initialise with only the permitted
     const config = parseServerConfig()
     const core = await initCore({
       pinoLogger: pino({ level: 'silent' }),
+      config: loadCoreConfigFromEnv(process.env),
       urlBuilder: {
         baseUrl: config.publicServerUrl,
         ltiLaunchUrl: `${config.publicServerUrl}/routes/lti/launch`,

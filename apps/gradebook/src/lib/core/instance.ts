@@ -11,6 +11,7 @@ import {
   type UserRequestContext,
   type UserSession,
 } from '@modulus-learning/core'
+import { loadCoreConfigFromEnv, loadTokenVerifierConfigFromEnv } from '@modulus-learning/core/env'
 import { initTokenVerifiers, type TokenVerifiers } from '@modulus-learning/core/tokens'
 import type { Logger } from 'pino'
 
@@ -33,6 +34,7 @@ export const getCoreInstance = (logger: Logger): Promise<CoreInstance> => {
     const { publicServerUrl } = getServerConfig()
     coreInstancePromise = initCore({
       pinoLogger: logger,
+      config: loadCoreConfigFromEnv(process.env),
       urlBuilder: {
         baseUrl: publicServerUrl,
         // The tool's launch endpoint, which is what an LTI resource link's
@@ -55,7 +57,10 @@ let tokenVerifiersPromise: Promise<TokenVerifiers> | undefined
 
 export const getCoreTokenVerifiers = (logger: Logger): Promise<TokenVerifiers> => {
   if (tokenVerifiersPromise == null) {
-    tokenVerifiersPromise = initTokenVerifiers({ pinoLogger: logger })
+    tokenVerifiersPromise = initTokenVerifiers({
+      pinoLogger: logger,
+      config: loadTokenVerifierConfigFromEnv(process.env),
+    })
   }
   return tokenVerifiersPromise
 }

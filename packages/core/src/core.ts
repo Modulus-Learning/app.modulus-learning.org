@@ -1,6 +1,5 @@
 import { type Logger as PinoLogger, pino } from 'pino'
 
-import { type Config, loadConfig, type UrlBuilder } from './config.js'
 import { connect } from './database/index.js'
 import { DBManagerImpl, TXManagerImpl } from './lib/db-manager.js'
 import { DebugMailer, NodeMailer } from './lib/email/services/mailer.js'
@@ -16,6 +15,7 @@ import { createAgentRegistry, getAgentCommands } from './modules/agent/index.js'
 import { createAppRegistry, getAppCommands } from './modules/app/index.js'
 import { startHousekeepingWorker } from './workers/housekeeping.js'
 import { startScoreSubmissionWorker } from './workers/score-submission.js'
+import type { Config, UrlBuilder } from './config.js'
 
 const createJwtSigner = (deps: { logger: CoreLogger; config: Config }) =>
   JWTSigner.create(deps.logger, deps.config.jwt)
@@ -100,7 +100,7 @@ export type CoreInstance = {
 export type InitOptions = {
   pinoLogger?: PinoLogger
   urlBuilder: UrlBuilder
-  config?: Config
+  config: Config
 }
 
 /**
@@ -114,7 +114,7 @@ export type InitOptions = {
 export const initCore = async ({
   pinoLogger = pino({ level: 'info' }),
   urlBuilder,
-  config = loadConfig(),
+  config,
 }: InitOptions): Promise<CoreInstance> => {
   const registry = await createCoreRegistry(urlBuilder, config).compose({ pinoLogger })
 
