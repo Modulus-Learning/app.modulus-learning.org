@@ -1,4 +1,4 @@
-import { createFileRoute, lazyRouteComponent } from '@tanstack/react-router'
+import { createFileRoute, type FileRoutesByPath, lazyRouteComponent } from '@tanstack/react-router'
 
 import { z } from 'zod'
 
@@ -10,11 +10,10 @@ import type { RouteParams } from '@/lib/route-params'
  * The LTI launch interstitial (`/lti/launch/<activity_id>?scope_id=…`), shown
  * when `LTI_LAUNCH_INTERSTITIAL=always` (see `docs/DEPLOYMENT.md`).
  */
-export const createRoute = (path: string) => {
-  // biome-ignore lint/suspicious/noExplicitAny: a factory-supplied path bypasses route-tree typing
-  const Route: any = createFileRoute(path as never)({
+export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) => {
+  const Route = createFileRoute(path)({
     validateSearch: z.object({ scope_id: z.string().optional() }),
-    loaderDeps: ({ search }: { search: { scope_id?: string } }) => ({
+    loaderDeps: ({ search }) => ({
       scope_id: search.scope_id,
     }),
     loader: async ({ params, deps }) => {

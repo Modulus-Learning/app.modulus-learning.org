@@ -1,4 +1,9 @@
-import { createFileRoute, lazyRouteComponent, redirect } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  type FileRoutesByPath,
+  lazyRouteComponent,
+  redirect,
+} from '@tanstack/react-router'
 
 import { localeOutputRewrite } from '@/i18n/locale-rewrite'
 import { DEFAULT_SCOPE_ID } from '@/lib/default-scope'
@@ -18,9 +23,8 @@ import type { StartActivityResult } from '@/modules/app/activity/@types/index'
  * catch-all `[...go]` delivered them, rather than from the router's decoded
  * splat param: `extractActivityLaunchParameters` owns the decoding.
  */
-export const createRoute = (path: string) => {
-  // biome-ignore lint/suspicious/noExplicitAny: a factory-supplied path bypasses route-tree typing
-  const Route: any = createFileRoute(path as never)({
+export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) => {
+  const Route = createFileRoute(path)({
     loader: async ({ location }) => {
       const raw = location.pathname.split('/start-activity/')[1] ?? ''
       const go = raw.split('/').filter((segment) => segment.length > 0)

@@ -1,4 +1,4 @@
-import { createFileRoute, lazyRouteComponent } from '@tanstack/react-router'
+import { createFileRoute, type FileRoutesByPath, lazyRouteComponent } from '@tanstack/react-router'
 
 import { z } from 'zod'
 
@@ -10,9 +10,8 @@ import { registerPlatformFn } from '@/modules/lti/register'
  *
  * https://www.imsglobal.org/spec/lti-dr/v1p0#step-1-registration-initiation-request
  */
-export const createRoute = (path: string) => {
-  // biome-ignore lint/suspicious/noExplicitAny: a factory-supplied path bypasses route-tree typing
-  const Route: any = createFileRoute(path as never)({
+export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) => {
+  const Route = createFileRoute(path)({
     validateSearch: z.object({
       openid_configuration: z.string().optional(),
       registration_token: z.string().optional(),

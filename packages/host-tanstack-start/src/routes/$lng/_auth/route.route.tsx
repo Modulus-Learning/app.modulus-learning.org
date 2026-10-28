@@ -1,4 +1,9 @@
-import { createFileRoute, lazyRouteComponent, redirect } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  type FileRoutesByPath,
+  lazyRouteComponent,
+  redirect,
+} from '@tanstack/react-router'
 
 import { i18nConfig } from '@/i18n/i18n-config'
 import { localeOutputRewrite } from '@/i18n/locale-rewrite'
@@ -23,9 +28,8 @@ const REQUIRED_ABILITY: Array<[RegExp, string]> = [
  * but renewable session renews in place on client navigation, or via the
  * bootstrap page on a server render (spec: Authentication And Sessions, item 5).
  */
-export const createRoute = (path: string) => {
-  // biome-ignore lint/suspicious/noExplicitAny: a factory-supplied path bypasses route-tree typing
-  const Route: any = createFileRoute(path as never)({
+export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) => {
+  const Route = createFileRoute(path)({
     staticData: { themeContext: 'protected' },
     beforeLoad: async ({ location, params }) => {
       const visible = localeOutputRewrite(new URL(location.href, 'http://internal'))

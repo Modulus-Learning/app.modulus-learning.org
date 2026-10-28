@@ -1,4 +1,9 @@
-import { createFileRoute, lazyRouteComponent, notFound } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  type FileRoutesByPath,
+  lazyRouteComponent,
+  notFound,
+} from '@tanstack/react-router'
 
 import { pageHead } from '@/lib/head'
 import { validateSearchParamsSchema } from '@/modules/app/activities/@types/index'
@@ -13,9 +18,8 @@ type LearnersSearch = {
   role?: string
 }
 
-export const createRoute = (path: string) => {
-  // biome-ignore lint/suspicious/noExplicitAny: a factory-supplied path bypasses route-tree typing
-  const Route: any = createFileRoute(path as never)({
+export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) => {
+  const Route = createFileRoute(path)({
     // Search values stay strings, as the Next page received them; the shared
     // schema decides validity and an invalid query is a 404, as before.
     validateSearch: (search: Record<string, unknown>): LearnersSearch =>

@@ -1,4 +1,4 @@
-import { createFileRoute, lazyRouteComponent } from '@tanstack/react-router'
+import { createFileRoute, type FileRoutesByPath, lazyRouteComponent } from '@tanstack/react-router'
 
 import { z } from 'zod'
 
@@ -8,9 +8,8 @@ import { z } from 'zod'
  * state, so dropping anything else here keeps a rejected value out of the
  * HTML entirely (the Next page always carried it in its RSC payload).
  */
-export const createRoute = (path: string) => {
-  // biome-ignore lint/suspicious/noExplicitAny: a factory-supplied path bypasses route-tree typing
-  const Route: any = createFileRoute(path as never)({
+export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) => {
+  const Route = createFileRoute(path)({
     validateSearch: z.object({
       code: z.enum(['invalid_request', 'server_error']).optional().catch(undefined),
     }),

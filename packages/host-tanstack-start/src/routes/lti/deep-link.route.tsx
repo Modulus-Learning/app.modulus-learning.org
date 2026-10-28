@@ -1,4 +1,9 @@
-import { createFileRoute, lazyRouteComponent, redirect } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  type FileRoutesByPath,
+  lazyRouteComponent,
+  redirect,
+} from '@tanstack/react-router'
 
 import { z } from 'zod'
 
@@ -15,11 +20,10 @@ import { getUserSessionFn } from '@/modules/app/session/session-state'
 // expired session renews here — through the bootstrap on a server render —
 // before the form is shown, and `SessionIdentity` registers the principal the
 // submission sends.
-export const createRoute = (path: string) => {
-  // biome-ignore lint/suspicious/noExplicitAny: a factory-supplied path bypasses route-tree typing
-  const Route: any = createFileRoute(path as never)({
+export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) => {
+  const Route = createFileRoute(path)({
     validateSearch: z.object({ id: z.string().optional() }),
-    loaderDeps: ({ search }: { search: { id?: string } }) => ({ id: search.id }),
+    loaderDeps: ({ search }) => ({ id: search.id }),
     loader: async ({ deps, location }) => {
       if (deps.id == null) throw redirect({ href: '/' })
       const decision = await resolveGuardedSession({

@@ -1,11 +1,10 @@
-import { createFileRoute, lazyRouteComponent } from '@tanstack/react-router'
+import { createFileRoute, type FileRoutesByPath, lazyRouteComponent } from '@tanstack/react-router'
 
 import { z } from 'zod'
 
 // Learner-session renewal bootstrap (spec: Authentication And Sessions, item 5).
-export const createRoute = (path: string) => {
-  // biome-ignore lint/suspicious/noExplicitAny: a factory-supplied path bypasses route-tree typing
-  const Route: any = createFileRoute(path as never)({
+export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) => {
+  const Route = createFileRoute(path)({
     staticData: { chrome: 'chromeless' },
     validateSearch: z.object({ return: z.string().optional() }),
     head: () => ({ meta: [{ name: 'robots', content: 'noindex' }] }),

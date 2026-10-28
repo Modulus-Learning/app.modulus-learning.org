@@ -52,8 +52,7 @@ const DEFAULT_ICONS = [
 export const createModulusRootRoute = (options: RootRouteOptions = {}) => {
   const { appTitle = 'Modulus', icons = DEFAULT_ICONS, analytics } = options
 
-  // biome-ignore lint/suspicious/noExplicitAny: the host's route tree types its root
-  const Route: any = createRootRoute({
+  const Route = createRootRoute({
     // Read once per full page load: these values cannot change during a session.
     loader: async () => ({ ...(await getRootConfigFn()), analytics: analytics ?? null }),
     staleTime: Number.POSITIVE_INFINITY,
