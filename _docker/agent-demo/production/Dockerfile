@@ -1,6 +1,10 @@
 # Node LTS on Debian Slim (glibc). Automatically tracks the active LTS line (currently 26.x).
 FROM node:lts-slim AS base
 
+# Install the pnpm version pinned by packageManager in package.json.
+RUN --mount=type=bind,source=package.json,target=/tmp/package.json \
+    npm install --global --allow-scripts=pnpm "pnpm@$(node -p "require('/tmp/package.json').packageManager.split('@')[1].split('+')[0]")"
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Throw-away build stage to reduce size of final image
 FROM base AS build
@@ -19,11 +23,8 @@ COPY --link package.json                       package.json
 COPY --link apps/agent/package.json            apps/agent/package.json
 COPY --link apps/agent-demo/react/package.json apps/agent-demo/react/package.json
 
-# Prepare pnpm and install node modules
-# See: https://github.com/nodejs/corepack/issues/612
-ENV COREPACK_INTEGRITY_KEYS=0
+# Install node modules
 ENV NODE_ENV="production"
-RUN corepack enable pnpm
 RUN pnpm install --frozen-lockfile --prod=false
 
 # Build agent

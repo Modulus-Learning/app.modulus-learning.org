@@ -5,9 +5,6 @@ FROM node:lts-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
-# See: https://github.com/nodejs/corepack/issues/612
-ENV COREPACK_INTEGRITY_KEYS=0
-
 # Create nginx user/group to match Alpine convention used throughout this Dockerfile
 RUN groupadd --system nginx && useradd --system --gid nginx --no-create-home --shell /usr/sbin/nologin nginx
 
@@ -15,6 +12,10 @@ RUN groupadd --system nginx && useradd --system --gid nginx --no-create-home --s
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx supervisor netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
+
+# Install the pnpm version pinned by packageManager in package.json.
+RUN --mount=type=bind,source=package.json,target=/tmp/package.json \
+    npm install --global --allow-scripts=pnpm "pnpm@$(node -p "require('/tmp/package.json').packageManager.split('@')[1].split('+')[0]")"
 
 WORKDIR /app
 
@@ -33,7 +34,7 @@ COPY packages/lms-canvas/package.json ./packages/lms-canvas/package.json
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    corepack enable pnpm && pnpm install --frozen-lockfile
+    pnpm install --frozen-lockfile
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # production-deps
@@ -58,7 +59,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 
 # RUN pnpm install --prod;
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    corepack enable pnpm && pnpm install --prod --frozen-lockfile
+    pnpm install --prod --frozen-lockfile
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -86,9 +87,6 @@ COPY packages/host-tanstack-start packages/host-tanstack-start
 COPY packages/lti packages/lti
 COPY packages/lms-canvas packages/lms-canvas
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
-
-# Setup pnpm and global tools in a separate layer to reduce peak memory during build
-RUN corepack enable pnpm
 
 # Run build (turbo): lti, lms-canvas, core and the host package with `tsc`, then the gradebook's
 # TanStack Start build into
