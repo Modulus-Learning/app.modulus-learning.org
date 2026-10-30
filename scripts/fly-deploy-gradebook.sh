@@ -12,7 +12,9 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "${SCRIPT_DIR}/fly-gradebook-image.sh"
 
 build_image
-deploy_app "${REPO_ROOT}/fly-gradebook-frontend.toml" "$@"
+# Admin first: its release_command runs `modulus db upgrade`, and the frontend
+# refuses to start until the schema is current.
 # --ha=false: the admin instance runs the background workers and must be a SINGLE machine
 # (see fly-gradebook-admin.toml), so suppress Fly's default 2-machine HA pair.
 deploy_app "${REPO_ROOT}/fly-gradebook-admin.toml" --ha=false "$@"
+deploy_app "${REPO_ROOT}/fly-gradebook-frontend.toml" "$@"
