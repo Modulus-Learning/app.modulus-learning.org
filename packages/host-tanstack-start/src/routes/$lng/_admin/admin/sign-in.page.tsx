@@ -5,7 +5,7 @@ import { Container, ScrollToTop, Section } from '@infonomic/uikit/react'
 import { Image } from '@/framework/index'
 import { SignInForm } from '@/modules/admin/session/components/sign-in-form'
 import { AdminAppBarPublic } from '@/ui/components/admin/admin-app-bar-public'
-import { SiteFooter } from '@/ui/components/site-footer'
+import { AdminFooter } from '@/ui/components/admin/admin-footer'
 import logoBlack from '../../../../images/logo/modulus-logo-symbol-black.svg'
 import logoWhite from '../../../../images/logo/modulus-logo-symbol-white.svg'
 
@@ -32,12 +32,12 @@ export const Page = function AdminSignInPage() {
                   alt="Modulus"
                 />
               </div>
-              <SignInForm lng={lng} />
+              <SignInForm />
             </div>
           </Container>
         </Section>
       </main>
-      <SiteFooter lng={lng} />
+      <AdminFooter />
       <ScrollToTop />
     </div>
   )

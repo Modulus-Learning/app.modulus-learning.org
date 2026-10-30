@@ -27,7 +27,9 @@ export function Branding({
       )}
     >
       <div className="w-[150px] sm:w-[150px]">
-        <LangLink prefetch={false} href="/" lng={lng}>
+        {/* The admin home, not `/`: an admin-mode instance serves no public
+            pages, and a client-side visit to `/` runs a frontend-only loader. */}
+        <LangLink prefetch={false} href="/admin" lng={lng}>
           <Image src={logoWhite} className="hidden dark:block" width={150} alt="Modulus" />
           <Image src={logoBlack} className="block dark:hidden" width={150} alt="Modulus" />
         </LangLink>

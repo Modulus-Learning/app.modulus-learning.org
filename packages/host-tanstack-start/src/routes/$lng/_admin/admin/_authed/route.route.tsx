@@ -49,7 +49,9 @@ export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) =
         })
       }
       if (!decision.session.abilities?.includes('access_admin')) {
-        throw redirect({ href: localePrefix || '/' })
+        // A document load, so the server entry decides what home means in
+        // this deployment mode (an admin instance sends `/` to sign-in).
+        throw redirect({ href: localePrefix || '/', reloadDocument: true })
       }
       return { adminSession: decision.session }
     },

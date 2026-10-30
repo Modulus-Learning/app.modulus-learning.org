@@ -2,15 +2,14 @@ import { type FormEvent, startTransition, useActionState, useState } from 'react
 
 import { Alert, Button, Card, Checkbox, Input, LoaderEllipsis } from '@infonomic/uikit/react'
 
-import { LangLink, adminSignIn as signIn, useSearchParams } from '@/framework'
+import { adminSignIn as signIn, useSearchParams } from '@/framework'
 import { useTranslations } from '@/i18n/client'
 import { signInSchema } from '../@types'
-import type { Locale } from '@/i18n/i18n-config'
 import type { SignInFormState } from '../@types'
 
 const initialState: SignInFormState = { errors: {}, status: 'idle' }
 
-export function SignInForm({ lng }: { lng: Locale }) {
+export function SignInForm() {
   const { t } = useTranslations('auth')
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get('callbackUrl')
@@ -107,13 +106,7 @@ export function SignInForm({ lng }: { lng: Locale }) {
               <div className="flex items-start">
                 <Checkbox label={t('Remember me')} id="remember_me" name="remember_me" />
               </div>
-              <LangLink
-                href="/"
-                lng={lng}
-                className="text-sm font-medium text-primary-600 hover:underline dark:text-white"
-              >
-                {t('Forgot password?')}
-              </LangLink>
+              {/* No password reset yet; restore a "Forgot password?" link when there is one. */}
             </div>
             <div className="actions mt-3 mb-4">
               <Button type="submit" fullWidth aria-disabled={isPending}>
