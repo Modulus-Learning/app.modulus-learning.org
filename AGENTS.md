@@ -19,7 +19,7 @@ changes.
 
 ## Repo map
 
-pnpm + Turborepo monorepo. Node >=22.13, pnpm 11.10.0, TypeScript 6.
+pnpm + Turborepo monorepo. Node 26, pnpm 12.16.1, TypeScript 6.
 
 | Path | Package | Published? | What it is |
 |---|---|---|---|
