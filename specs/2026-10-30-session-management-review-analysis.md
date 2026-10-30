@@ -6,6 +6,9 @@ Status: Revision 4, after three independent reviews (see
 [Review Response](#review-response)). Nothing in the code has been changed. This
 document establishes the need for the work and lists the decisions the
 implementation spec must settle; it is not itself the implementation spec.
+Revision 4 has passed the final analysis review and is ready for implementation
+specification. See [Implementation Handoff](#implementation-handoff) for the
+next agent's requirements; no prior chat context is needed.
 
 Document type: Analysis — what Modulus does today, how it compares with the
 refactor made in bylinecms.dev after its security audit, and a proposed scope.
@@ -395,6 +398,55 @@ For the implementation spec to settle:
    Recommendation: an absolute cap for both domains, because learner grace makes
    the synchronised case possible there.
 
+## Implementation Handoff
+
+Final analysis review: 2026-10-30. **Revision 4 is ready to serve as the basis
+for an implementation spec.** No blocking issue remains at the analysis level,
+and no further analysis revision is required before drafting that spec. This
+confirms design readiness, not implementation correctness: the resulting code
+and tests still require review.
+
+If you are picking this up in another session or on another computer, use this
+document as the review record. Write the implementation spec and plan under
+`specs/`, preserving the requirements in [Decisions Taken](#decisions-taken)
+and the limitations in [Rotation by Login Generation](#rotation-by-login-generation).
+The next deliverable must:
+
+1. **Resolve the four policy decisions.** State explicit defaults and limits
+   for admin retry policy, grace duration, logout during a database outage, and
+   absolute versus sliding lifetime for each domain. Record the rationale for
+   each choice. The recommendations in [Open Decisions](#open-decisions) are
+   inputs to these decisions, not already-settled values.
+2. **Complete the rotation state machine.** Validate credentials before any
+   state change; define rejection of invalid or future generations; enforce
+   token and login expiry; and make account/login revocation checks precede
+   issuance. Specify transaction boundaries, lock order, and rollback behaviour
+   for every issuance and revocation path listed in Phase 1. Preserve the
+   invariant of one shared generation counter with bounded predecessor
+   acceptance, rather than claiming only one generation can be accepted.
+3. **Define the host failure contract.** Make boundary-originated unauthorised
+   responses distinguishable from ordinary business-handler 401s. Specify how
+   that distinction reaches the shared learner recovery decision. Preserve
+   retryable verification/renewal outages, and permit automatic replay only
+   when the boundary proves the business handler did not run.
+4. **Specify the implementation surface.** Include database schema and indexes,
+   token claims and validation, core command contracts, host changes, cleanup,
+   and an ordered implementation plan. Identify the affected files against the
+   checkout you are working in rather than relying on historical line numbers.
+5. **Define rollout and acceptance tests.** Include migration and stopped-instance
+   upgrade steps, legacy-token rejection and framed-learner recovery. Cover
+   concurrent refreshes; lost and delayed responses; sign-in overlapping a
+   password change; refresh overlapping revocation; all sign-in and LTI issuance
+   paths; learner/admin identity rules; database outages; and the documented
+   synchronised-attacker and idle-victim sequences. Pin the accepted delayed
+   response failure and conditional replay-detection limits in tests rather than
+   claiming the generation scheme eliminates them.
+
+The analysis remains a historical explanation of the findings and decisions.
+The implementation spec should be a self-contained contract for the final
+behaviour, with links back here for rationale. Keep unimplemented behaviour
+clearly labelled until the work ships.
+
 ## Review Response
 
 ### Round 1 (Revision 1 → 2)
@@ -472,4 +524,5 @@ For the reviewing agent, the claims most worth verifying:
 
 - `docs/AUTHN-AUTHZ.md` — current Modulus session documentation.
 - bylinecms.dev `docs/07-auth-and-security/01-authn-authz.md` — the reference model.
-- If approved, a spec and implementation plan under `specs/` for Phase 1.
+- The next deliverable is a spec and implementation plan under `specs/` for
+  Phase 1, following [Implementation Handoff](#implementation-handoff).
