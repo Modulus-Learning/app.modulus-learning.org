@@ -35,7 +35,9 @@ echo "🔨 Building image: ${IMAGE_TAG}"
 PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
 echo "Building for platform: $PLATFORM"
 
+# --pull refreshes the floating node:lts-slim base instead of reusing a cached one.
 DOCKER_BUILDKIT=1 docker build \
+  --pull \
   --platform="$PLATFORM" \
   --network=host \
   --file _docker/agent-demo/production/Dockerfile \

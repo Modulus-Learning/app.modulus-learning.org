@@ -37,7 +37,9 @@ build_image() {
   local platform="${DOCKER_PLATFORM:-linux/amd64}"
   echo "🔨 Building image: ${IMAGE_TAG} (platform ${platform})"
 
+  # --pull refreshes the floating node:lts-slim base instead of reusing a cached one.
   ( cd "${REPO_ROOT}" && DOCKER_BUILDKIT=1 docker build \
+      --pull \
       --platform="${platform}" \
       --network=host \
       --file _docker/gradebook/production/Dockerfile \
