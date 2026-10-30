@@ -1,4 +1,4 @@
-# Node LTS on Debian Slim (glibc). Automatically tracks the active LTS line (currently 24.x).
+# Node LTS on Debian Slim (glibc). Automatically tracks the active LTS line (currently 26.x).
 FROM node:lts-slim AS base
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
