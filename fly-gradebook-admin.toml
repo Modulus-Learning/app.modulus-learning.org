@@ -42,6 +42,12 @@ APP_VOLUME = '/app/storage'
 
 [deploy]
 strategy = 'rolling'
+# Apply any unapplied release scripts before the new build serves traffic. Fly
+# runs this on a temporary machine from the new image, with this app's secrets
+# (POSTGRES_CONNECTION_STRING), and aborts the deploy if it fails. Only this
+# admin app migrates; the frontend never does. The database must already have
+# been adopted (`modulus db adopt`) -- see docs/DEPLOYMENT.md.
+release_command = 'node /app/packages/core/dist/cli/index.js db upgrade'
 
 [env]
 PORT = '3000'
