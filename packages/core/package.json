@@ -1,6 +1,6 @@
 {
   "name": "@modulus-learning/core",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "private": false,
   "description": "Modulus core: business logic, data access, schema scripts and the modulus command",
   "license": "AGPL-3.0-only",

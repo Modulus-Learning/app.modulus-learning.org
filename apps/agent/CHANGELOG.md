@@ -1,5 +1,12 @@
 # @modulus-learning/agent
 
+## 0.11.1
+
+### Patch Changes
+
+- first publish of **`@modulus-learning/core`**, **`@modulus-learning/host-tanstack-start`**, **`@modulus-learning/lti`** and **`@modulus-learning/lms-canvas`**, with release-script schema commands and a non-destructive bootstrap
+  hardened lti identity linking, token caching and registration binding
+
 ## 0.11.0
 
 ### Minor Changes
