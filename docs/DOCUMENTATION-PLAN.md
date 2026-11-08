@@ -145,12 +145,12 @@ The planned HTTP proxy layer — a thin wrapper over the core service layer with
 proxy implementations of the class contracts, swappable with the in-process
 implementations through the same dependency-injection registry.
 
-### LMS Package Extraction — Planned
-The specification is ready for contract review in
-`specs/2026-10-25-canvas-lti-package-extraction-spec.md`. It proposes separate
-Canvas and shared LTI packages, behavioural conformance suites, one selected LMS
-per installation, and foundations for a later migration between LMSs.
-Implementation and a published integration-package reference remain planned.
+### LMS Integration Package Reference — Planned
+The Canvas adapter (`@modulus-learning/lms-canvas`) and shared LTI vocabulary
+(`@modulus-learning/lti`) are implemented and part of the lockstep release set.
+Their extraction design is recorded in
+`specs/2026-10-25-canvas-lti-package-extraction-spec.md`. A published reference
+for the integration packages remains planned.
 
 ### Packaging and Distribution — Planned
 The specification in
@@ -171,8 +171,8 @@ The accessibility posture and conformance statement (VPAT) for the application.
 ### [Testing Strategy](./TESTING.md) — Available
 The unit and integration test boundaries, file naming and runtime conventions,
 dedicated PostgreSQL test database lifecycle, the gradebook's HTTP-level session
-and route-contract suites, fixture responsibilities, local commands, and the
-minimum pull-request CI gate.
+and route-contract suites, release-script safety tests, fixture responsibilities,
+and local reproduction of the main and packed-install CI jobs.
 
 ### Contributing, Governance & License — Planned
 How to contribute, the project's governance model, and licensing. Some of these

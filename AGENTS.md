@@ -21,7 +21,8 @@ changes.
 
 ## Repo map
 
-pnpm + Turborepo monorepo. Node 26, pnpm 12.16.1, TypeScript 6.
+pnpm + Turborepo monorepo. Node 26 locally, pnpm 12.16.1, TypeScript 7.0.2.
+CI uses Node 22; supported Node versions are declared in `package.json`.
 
 | Path | Package | Published? | What it is |
 |---|---|---|---|
@@ -49,9 +50,10 @@ pnpm dev                               # all packages via turbo
 
 `apps/gradebook/.env` is committed and holds only public `VITE_*` values. Put
 everything secret in a gitignored `apps/gradebook/.env.local` (copy the
-variables from `.env.example`); never add a secret to `.env`. `packages/core`
-needs its own `.env` — its tests load it directly. The gradebook runs on port
-3000; `pnpm --filter @modulus-learning/gradebook start` serves the built
+variables from `.env.example`); never add a secret to `.env`. Core's integration
+tests load `packages/core/.env.test`; its database development commands use
+`packages/core/.env`. Core's unit test scripts do not load `.env`. The gradebook
+runs on port 3000; `pnpm --filter @modulus-learning/gradebook start` serves the built
 `.output/` with `.env` and then `.env.local` loaded, as `vite dev` does.
 
 For LTI work use `pnpm --filter @modulus-learning/gradebook devlti`, which serves
@@ -73,11 +75,17 @@ pnpm build        pnpm lint        pnpm typecheck        pnpm test
 **modifies files**. A `lint-staged` pre-commit hook runs `biome check --write` on
 staged files. `pnpm lint:check` is the read-only lint gate used by CI.
 
-`pnpm run ci` is the complete local gate: `lint:check`, typechecking, all unit
-tests, the database integration suite, the gradebook's session HTTP suite
+`pnpm run ci` runs the main CI job locally: `lint:check`, release-script safety
+tests (`pnpm test:release`), typechecking, all unit tests, the database integration
+suite, the gradebook's session HTTP suite
 (`pnpm test:session`, which builds the gradebook first), and
 `pnpm check:packages` (packs each lockstep package and checks the tarball with
 publint and arethetypeswrong; expects the packages to be built).
+
+GitHub CI also runs a separate `pnpm test:packed` job. To reproduce all CI
+coverage locally, run that command too, with `FIXTURE_DATABASE_URL` pointing
+to a fresh, empty PostgreSQL database whose name ends in `_test`. Without the
+variable, the packed-install check skips real database startup.
 
 ### Tests differ per package — check before you run
 
@@ -99,9 +107,9 @@ pnpm -F @modulus-learning/agent exec vitest run <path>
 ```
 
 `pnpm test` does **not** cover core's `*.itest.ts` integration tests.
-Run them from the root with `pnpm test:integration`, or run the complete local
-CI gate with `pnpm run ci`. See `docs/TESTING.md` for test database setup and file
-naming conventions.
+Run them from the root with `pnpm test:integration`, or run the main CI job with
+`pnpm run ci`. See `docs/TESTING.md` for test database setup and file naming
+conventions.
 
 ### Database
 
@@ -125,8 +133,14 @@ refuse a database name that does not end in `_test`.
 - **No commit trailers of any kind.** No `Co-Authored-By`, no AI attribution, no
   DCO `Signed-off-by` — this repo has no DCO gate, so don't pass `-s`. The same
   applies to PR descriptions: no AI attribution footer.
+- **Publication and production changes require explicit authorisation.** This
+  includes publishing to npm, pushing release tags, deploying, and changing
+  production data. Existing explicit authorisation in the conversation counts;
+  do not ask again for the same agreed action. If approval is missing, prepare
+  the concrete result for review first and ask before executing that action.
 - **`develop` is the integration branch.** `main` is the default branch and only
-  advances at release time. Open PRs against `develop`; branches are named
+  advances at stable release time; prereleases stay on `develop`. Open PRs
+  against `develop`; branches are named
   `<type>/<short-slug>` (e.g. `feat/score-submission`).
 - **Biome** handles lint and format for JS/TS/JSON/CSS, and is what the hook and
   `pnpm lint` run. A separate `pnpm format` runs Prettier over `**/*.{ts,tsx,md}`
@@ -146,7 +160,10 @@ refuse a database name that does not end in `_test`.
 - **Releases are published locally**, not by CI. `RELEASE-INSTRUCTIONS.md` is
   authoritative: `pnpm changeset` → `pnpm version-packages` →
   `./publish-packages.sh`, driven end to end by the `release` workflow. The
-  auto-publish GitHub Action is disabled (no npm token). `changeset publish` /
+  legacy auto-publish workflow is archived as
+  `.github/workflows/release.yml.disabled`; this takes effect on GitHub when
+  the change reaches `main`. Missing npm credentials alone do not disable a
+  workflow. `changeset publish` /
   `pnpm release:npm` **cannot** publish under passkey-only 2FA — that is why the
   shell script exists.
 - **CI runs on pull requests and pushes to `develop` / `main`.** The workflow
@@ -203,4 +220,5 @@ tasks, read the matching `SKILL.md` completely and follow it:
 | Run type checking | `.agents/skills/typecheck/SKILL.md` |
 | Apply lint fixes | `.agents/skills/lint-fix/SKILL.md` |
 
-Claude Code runs the same workflows from `.claude/`; `CLAUDE.md` maps them.
+These skills are the canonical workflow bodies for every agent. Claude Code's
+entry points under `.claude/` delegate to them; `CLAUDE.md` maps the commands.

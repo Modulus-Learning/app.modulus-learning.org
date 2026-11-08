@@ -152,9 +152,9 @@ being verified, while replacing outbound systems such as an LMS or email
 provider with narrow fakes. Unit tests should construct explicit configuration
 values rather than loading application environment files.
 
-## Local and hosted CI
+## Local and Hosted CI
 
-The complete local gate is:
+Run the main CI job locally with:
 
 ```sh
 pnpm run ci
@@ -163,18 +163,32 @@ pnpm run ci
 It runs, in order:
 
 1. `pnpm lint:check` — read-only Biome validation of TypeScript sources;
-2. `pnpm typecheck`;
-3. `pnpm test` — all unit modes;
-4. `pnpm test:integration` — serialized PostgreSQL integration tests;
-5. `pnpm test:session` — the gradebook build and its session HTTP suite.
+2. `pnpm test:release` — publishing guards, partial-release recovery, and SQL
+   immutability, using temporary Git repositories and mocked npm/pnpm commands;
+3. `pnpm typecheck`;
+4. `pnpm test` — all unit modes;
+5. `pnpm test:integration` — serialized PostgreSQL integration tests;
+6. `pnpm test:session` — the gradebook build and its session HTTP suite;
+7. `pnpm check:packages` — publint and arethetypeswrong against packed tarballs.
 
 The GitHub Actions workflow calls this same aggregate command on every pull
 request and on pushes to `develop` and `main`. Runs for the same ref cancel older
 in-flight runs. CI provisions PostgreSQL 18 with a `modulus_test` database and
 passes its connection string through the same variable used locally.
 
+A separate CI job runs `pnpm test:packed`, which builds and installs tarballs
+into `fixtures/host-minimal`, then checks the downstream host. To reproduce
+both jobs locally, also run that command with `FIXTURE_DATABASE_URL` set to a
+fresh, empty PostgreSQL 18 database whose name ends in `_test`. Without that
+variable, the script checks packaging and deployment-mode gating but skips
+real core startup. It must not be reported as equivalent to the hosted job.
+
+The release-script suite can run independently with `pnpm test:release`. Its
+registry clients are mocks and its Git remotes are local temporary directories;
+it does not publish packages or contact GitHub.
+
 The pre-commit hook remains intentionally fast and only formats/checks staged
-files. Run `pnpm run ci` before pushing; the hosted workflow is the required merge
+files. Run both CI jobs locally before pushing; the hosted workflow is the required merge
 gate.
 
 ## Baseline limits and next phases
