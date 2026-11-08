@@ -1,6 +1,6 @@
 ---
 name: release
-description: Use when asked to release or publish the @modulus-learning/* packages. Runs the lockstep changeset, versioning, gates, lint, release commit, npm publish and per-package tags, develop/main sync, and umbrella GitHub release. Accepts an optional patch, minor, or major bump level.
+description: Use when asked to release or publish the @modulus-learning/* packages. Runs the lockstep changeset, versioning, gates, lint, release commit, npm publish and per-package tags, stable main sync, and umbrella GitHub release. Accepts patch, minor, major, or resume with a version and release commit.
 ---
 
 Drive the full release loop for the `@modulus-learning/*` lockstep set, end to
@@ -24,8 +24,8 @@ statement of this process and takes precedence if the two ever disagree.
    fixed group at the chosen bump level.
 3. Runs `pnpm version-packages` and verifies every package in the set landed on
    the same new version and that the version delta matches the requested bump.
-4. Runs `pnpm lint` to auto-fix any formatting churn on the bumped CHANGELOGs /
-   package.json files.
+4. Runs `pnpm lint` for safe fixes to supported files and reviews the release
+   diff. Markdown CHANGELOGs are not formatted by Biome in this repository.
 5. Stages the bump + lint output and creates a single `chore(release): X.Y.Z`
    commit on the current branch (usually `develop`).
 6. Pushes that branch.
@@ -33,18 +33,53 @@ statement of this process and takes precedence if the two ever disagree.
    `npm publish`es each package in dependency order, and creates + pushes
    per-package tags. Replaces `changeset publish` / `pnpm release:npm`, which
    dead-ends under passkey-only 2FA.
-8. Fast-forwards `main` to the release commit and pushes it, bringing `develop`
-   and `main` back into sync.
+8. For a stable release, fast-forwards `main` to the release commit and pushes
+   it. Prereleases stay on `develop`.
 9. Creates the umbrella `v<version>` tag and a single GitHub release that
    summarises the cycle.
 
-The command is idempotent at every step — re-running after a partial failure
-should detect what's already done and skip it.
+Choose **new release** or **resume** before any versioning. A fresh run is not
+idempotent: versioning again can create another release. After an interruption,
+follow Resume below. Shared publication policy lives in `AGENTS.md`; explicit
+authorisation already given for the same concrete release remains valid.
+
+## Resume
+
+Accept `resume <version> <release-commit>` or the same information in natural
+language. Recover the version, full commit SHA, previous release tag, original
+branch, and completed steps from the conversation, release commit, tags, and
+registry. Do not infer the intended release from a later `HEAD`.
+
+- If versioning changed files but no release commit exists, inspect the diff
+  and Changesets state. Continue verification, lint, and committing those
+  existing changes; do not create another changeset or run versioning again.
+  Ask for the intended version if it cannot be established from that evidence.
+- Once a release commit exists, set `NEXT_VERSION` to its package version and
+  `RELEASE_COMMIT` to its full SHA. Verify all fixed packages and `VERSION` at
+  that commit agree, and its subject is `chore(release): <NEXT_VERSION>`.
+- Use a clean checkout at `RELEASE_COMMIT`. If the working branch has advanced,
+  use an isolated worktree at that commit; never reset the branch or publish
+  later code under the old version.
+- Recover `PREV_TAG` from release history before the release commit; verify it
+  is an ancestor. Keep that anchor for the SQL check and release notes. If
+  ambiguous, ask; the bumped package version is not the previous version.
+- Fetch origin. Verify every existing local and remote per-package and umbrella
+  tag for `NEXT_VERSION` resolves to `RELEASE_COMMIT`. A remote annotated tag
+  must be compared using its peeled commit. Stop on any mismatch; never move
+  published tags. `publish-packages.sh` checks the whole set before publishing.
+- Repeat any gates whose successful completion cannot be established for this
+  release. Ensure the release commit is pushed to its intended branch. Check
+  stable-main ancestry as below before publication; skip new-release Steps 1–6.
+- Resume at the first incomplete step, using
+  `./publish-packages.sh --anchor "$RELEASE_COMMIT" --yes` only when publication
+  is authorised. Allow registry propagation before retrying. Existing matching
+  tags and an existing GitHub release are left intact; edit published notes only
+  if requested. Never restart the version bump to repair a tag or upload failure.
 
 ## Preconditions
 
-Before any visible action, verify all of these. If any fails, stop and explain
-what the user needs to do:
+For a new release, verify these before versioning. For a resume, use the
+existing release commit and version as described above:
 
 1. **`gh` is installed and authenticated** — `gh auth status` shows a logged-in
    account with `repo` scope.
@@ -58,6 +93,10 @@ what the user needs to do:
    number must be `0`**. The release branch is normally *ahead* — those are the
    commits being released, and Step 6 pushes them. Only a non-zero right-hand
    count is a blocker: unpulled remote work would be excluded from the release.
+   For a stable release, also run `git merge-base --is-ancestor main HEAD` and
+   `git merge-base --is-ancestor origin/main HEAD`. Resolve divergence before
+   versioning or publishing. These checks are separate from tracking-branch
+   freshness. Prereleases do not advance `main`.
 5. **You are on a branch where the release should land** — normally `develop`.
    If on `main` or a feature branch, confirm with the user before proceeding.
 6. **Read the *current* version** from `packages/core/package.json` and stash it
@@ -68,30 +107,31 @@ what the user needs to do:
 
 ### Gates before versioning
 
-Run from the repository root. Stop before versioning, build, pack, or
-publication if any fails:
+Run from the repository root. These gates build and pack packages. Stop before
+versioning or publication if any fails:
 
 ```sh
-pnpm run ci                                              # the full local CI gate
+pnpm run ci                                              # the main CI job
 pnpm -F @modulus-learning/core schema:manifest:check     # release-script manifest current
 pnpm -F @modulus-learning/core schema:baseline           # regenerate the baseline …
 git diff --exit-code -- packages/core/src/database/sql/baseline.sql   # … and require no drift
-git diff --exit-code --diff-filter=MD "$PREV_TAG" -- 'packages/core/src/database/sql/[0-9]*.sql'
+bash scripts/check-release-sql.sh "$PREV_TAG"             # includes renamed/deleted released SQL
 ./scripts/packed-install.sh                              # the packed-install smoke test
 ```
 
-The last `git diff` requires every dated release script that shipped in the
-previous release to remain present and byte-identical: installations record
-each script's checksum when they apply it, and refuse a changed one.
+The SQL check disables rename detection and requires every dated release script
+from the previous release to remain present and byte-identical. Installations
+record each script's checksum when they apply it, and refuse a changed one.
 
 `pnpm run ci` already runs `pnpm check:packages` (publint and arethetypeswrong
-on every packed tarball). Run the smoke test with `FIXTURE_DATABASE_URL` set to
-an empty `*_test` database when one is available, so core startup is covered.
+on every packed tarball). To match GitHub’s separate packed-install job, set
+`FIXTURE_DATABASE_URL` to a fresh, empty PostgreSQL 18 `*_test` database. Without
+it, startup coverage is skipped: report that gap and do not claim full CI parity.
 
 ## Step 1 — Choose bump level
 
-If `$ARGUMENTS` is one of `patch` / `minor` / `major`, use that. Otherwise ask
-via `AskUserQuestion`:
+If the user supplied `patch`, `minor`, or `major`, use it. Otherwise ask using
+the available user-input tool or a concise question:
 
 - Question: `"Release bump level for v<PREV_VERSION> → next?"`
 - Header: `"Bump level"`
@@ -145,16 +185,20 @@ After it completes:
 - Read the `version` of every package in `fixed[0]`. Confirm they are all
   identical. If not, **stop** and show the divergence — something is wrong with
   the `fixed` group.
-- Compute the expected next version from `PREV_VERSION` and the bump level.
-  Confirm the new version matches. If not, stop and show actual vs expected.
+- Check the version against the Changesets release plan, pending changesets,
+  and `.changeset/pre.json` when present. In stable mode verify the requested
+  semantic-version bump; in prerelease mode account for the `next.N` suffix
+  and counter. Do not apply a stable-only comparison to a prerelease or its exit.
+  Stop and explain any mismatch before committing.
 - Record this as `NEXT_VERSION`, and write it to the root `VERSION` file (the
   gradebook image tag follows the lockstep version).
 
 ## Step 5 — Lint
 
 `pnpm lint` (Biome with safe auto-fix). If it fails on unrelated issues, stop
-and surface the output. If only the CHANGELOG / package.json files got
-reformatted, continue.
+and surface the output. Review any source fixes before including them; rerun
+affected checks if they change code. Markdown CHANGELOG formatting is disabled
+in Biome, so inspect those changes separately.
 
 ## Step 6 — Release commit
 
@@ -167,8 +211,10 @@ Stage the bump artefacts explicitly — do **not** use `git add -A`:
   lint in this turn.
 
 Commit with the literal message `chore(release): <NEXT_VERSION>`, with no
-trailers (see `.claude/rules/conventional-commits.md`). Then `git push` on the
-current branch.
+trailers (see `.agents/rules/conventional-commits.md`). Record the full SHA as
+`RELEASE_COMMIT`, and push the current branch. Require a clean working tree.
+For stable releases, fetch origin and recheck both `main` and `origin/main` are
+ancestors of `RELEASE_COMMIT` before publishing.
 
 ## Step 7 — Confirm before publishing
 
@@ -178,16 +224,20 @@ Stop here and show the user:
   for a prerelease version, otherwise `latest`)
 - The anchor commit SHA (short form, just-pushed `HEAD`)
 - The changeset summary line(s) from Step 2
-- The remaining steps: `./publish-packages.sh` (publish + push per-package
-  tags) → fast-forward `main` and push → umbrella tag + GitHub release.
+- The full proposed GitHub release notes from Step 11, prepared now
+- The remaining steps: publish + push per-package tags → stable-only `main`
+  sync → umbrella tag + GitHub release (marked prerelease for `next` versions).
 
-Wait for explicit approval. `./publish-packages.sh` publishes to the public npm
-registry and is not trivially reversible — the user must confirm.
+Obtain explicit approval for this concrete result unless the user has already
+authorised the same version, notes, and actions. Public npm publication is not
+trivially reversible. Prepare all notes before asking so approval is the final
+review step; do not ask again later for the same authorised actions.
 
 ## Step 8 — Publish to npm (+ push per-package tags)
 
-`./publish-packages.sh --yes` — Step 7 already captured explicit approval, so
-`--yes` skips the script's own confirmation prompt.
+`./publish-packages.sh --anchor "$RELEASE_COMMIT" --yes` — Step 7 establishes
+authorisation, so `--yes` skips the script’s confirmation prompt. The script
+requires the clean checkout to match that release commit and root `VERSION`.
 
 This replaces `changeset publish` / `pnpm release:npm`, which **cannot publish
 under passkey-only 2FA**. The script:
@@ -199,13 +249,13 @@ under passkey-only 2FA**. The script:
 - Creates per-package git tags at the release commit
   (`@modulus-learning/core@<NEXT_VERSION>`, etc.) **and pushes them**.
 
-It is **idempotent**: packages already live at `NEXT_VERSION` are skipped and
-existing tags are left alone. Run `./publish-packages.sh --dry-run` first if you
-want to pack + verify without publishing.
+For the same release anchor, packages already live at `NEXT_VERSION` are
+skipped and matching tags are preserved. Mismatched tags abort before publishing.
+Run `./publish-packages.sh --dry-run` first if you want to pack + verify without
+publishing.
 
 If publish fails partway, surface the script's output verbatim and stop.
-Re-running the script is the intended recovery path — but only after the user
-diagnoses why it failed.
+Use the Resume path after diagnosing the failure; do not start another bump.
 
 ### Registry propagation — wait before concluding anything failed
 
@@ -222,23 +272,31 @@ Already handled by `./publish-packages.sh`. Nothing to do here unless the script
 reported a tag-push failure, in which case `git push origin <tag> …` the ones it
 names.
 
-## Step 10 — Sync `main`
+## Step 10 — Sync `main` for Stable Releases
+
+Skip this step for prereleases. For a stable release, fetch origin again and
+compare both local and remote `main` with `RELEASE_COMMIT`. If either already
+contains that commit, do not rewind it. If it is an ancestor, fast-forward to
+the exact release commit, never to a moving `develop` tip. Stop on divergence.
+
+When both main refs can advance:
 
 - `git checkout main`
-- `git merge --ff-only develop` (or whichever branch the release landed on). If
-  fast-forward isn't possible, **stop** and ask the user how to reconcile.
+- `git merge --ff-only "$RELEASE_COMMIT"`
 - `git push origin main`
-- `git checkout <original-branch>`
+- Return to the original checkout (or release worktree).
+
+On resume, verify remote reachability and skip a sync already completed.
 
 ## Step 11 — Umbrella GitHub release
 
 This is the original `/release` behaviour, run with `NEXT_VERSION`:
 
-1. **Find the anchor commit.** `git rev-list -n 1 "@modulus-learning/core@<NEXT_VERSION>"`. The umbrella tag points here.
+1. **Verify the anchor commit.** `git rev-list -n 1 "@modulus-learning/core@<NEXT_VERSION>"` must equal `RELEASE_COMMIT`. The umbrella tag points to that same commit.
 2. **Detect prior state (idempotency).**
    - Local umbrella tag `v<NEXT_VERSION>` exists? Verify it points at the anchor commit; if it diverges, stop and ask. If it matches, skip the create step.
-   - Remote umbrella tag exists? Skip the push step.
-   - Existing GitHub release? `gh release view v<NEXT_VERSION> --repo Modulus-Learning/app.modulus-learning.org` (capture exit code). If a release already exists, show its URL and ask whether to (a) leave it, (b) edit notes, or (c) delete + recreate.
+   - Remote umbrella tag exists? Verify its peeled commit matches `RELEASE_COMMIT` before skipping the push.
+   - Existing GitHub release? `gh release view v<NEXT_VERSION> --repo Modulus-Learning/app.modulus-learning.org` (capture exit code). If a release already exists, verify its tag and prerelease status, show its URL, and leave it unchanged unless the user requested an edit. Report mismatches before changing a published release.
 3. **Synthesize release notes.** Group changes into these sections, in this order. Omit any section that has no entries — never include an empty heading.
 
    ```markdown
@@ -286,12 +344,13 @@ This is the original `/release` behaviour, run with `NEXT_VERSION`:
 
    If you can't construct a confident summary, stop and ask the user for a paragraph rather than guessing.
 
-4. **Confirm before any visible action.** Show the version, anchor SHA, full proposed release notes, and the list of steps about to run. Wait for explicit approval.
+4. **Check authorisation.** Step 7 includes the full proposed notes and remaining actions. Reuse that approval. Ask only if the notes or scope have materially changed or approval is still missing.
 
 5. **Execute.** Write the notes to `/tmp/release-notes-v<NEXT_VERSION>.md`. Then, only running the steps actually needed:
    - `git tag v<NEXT_VERSION> <anchor-sha>`
    - `git push origin v<NEXT_VERSION>`
-   - `gh release create v<NEXT_VERSION> --repo Modulus-Learning/app.modulus-learning.org --title "v<NEXT_VERSION>" --notes-file /tmp/release-notes-v<NEXT_VERSION>.md`
+   - Stable: `gh release create v<NEXT_VERSION> --verify-tag --repo Modulus-Learning/app.modulus-learning.org --title "v<NEXT_VERSION>" --notes-file /tmp/release-notes-v<NEXT_VERSION>.md`
+   - Prerelease: use the same command with `--prerelease --latest=false`. Never create an ordinary GitHub release for a `next` version.
 
 6. **Report.** Print the release URL returned by `gh release create` (or by `gh release view` if it already existed and the user chose to leave it).
 
@@ -300,8 +359,9 @@ This is the original `/release` behaviour, run with `NEXT_VERSION`:
 For a prerelease line, enter Changesets prerelease mode first
 (`pnpm changeset pre enter next`, committed), then run this command as usual:
 versions become `X.Y.Z-next.N`, and `./publish-packages.sh` publishes them under
-the `next` dist-tag automatically. Leave prerelease mode with
-`pnpm changeset pre exit` before the stable release. Prerelease mode applies to
+the `next` dist-tag automatically. Keep prereleases on `develop`, skip Step 10,
+and mark the GitHub release with `--prerelease --latest=false`. Leave prerelease
+mode with `pnpm changeset pre exit` before the stable release. Prerelease mode applies to
 the whole set; an urgent stable fix during a prerelease cycle is released from a
 short-lived branch cut from the last stable tag.
 
@@ -316,7 +376,8 @@ short-lived branch cut from the last stable tag.
   Re-running it is the intended recovery once the cause is fixed.
 - `git merge --ff-only` on `main` fails → stop and ask how to reconcile.
 - `gh release create` fails because of branch protection → surface the error verbatim and stop.
-- Anchor commit is not on `main` after the sync step → warn loudly. The release should anchor to a commit reachable from `main`.
+- Stable release commit is not reachable from remote `main` after sync → stop
+  and report incomplete synchronisation. Prereleases intentionally stay off `main`.
 
 ## What this command does NOT do
 
