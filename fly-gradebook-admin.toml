@@ -10,7 +10,7 @@
 # only -- the public/learner and LTI surface is blocked (404) -- and runs the
 # background workers (LTI score submission, housekeeping). The learner/LTI
 # surface is served by the companion fly-gradebook-frontend.toml app. See
-# docs/DEPLOYMENT.md.
+# docs/19-deployment.md.
 #
 # SAME IMAGE, both apps. DEPLOYMENT_MODE / JOB_QUEUE_ENABLED and all server-side
 # config are read at RUNTIME from process.env, so this app and the frontend app
@@ -25,7 +25,7 @@
 # Shutdown: kill_timeout (90 s) outlasts supervisord's stopwaitsecs (80 s),
 # which outlasts the app's SHUTDOWN_DRAIN_SECONDS (70 s), which outlasts a
 # score submission's request timeout (60 s). A rolling deploy therefore lets an
-# in-flight submission finish. See docs/DEPLOYMENT.md.
+# in-flight submission finish. See docs/19-deployment.md.
 #
 # This admin instance serves https://admin.modulus-learning.org -- you must add
 # the DNS record and a Fly certificate for that subdomain.
@@ -46,7 +46,7 @@ strategy = 'rolling'
 # runs this on a temporary machine from the new image, with this app's secrets
 # (POSTGRES_CONNECTION_STRING), and aborts the deploy if it fails. Only this
 # admin app migrates; the frontend never does. The database must already have
-# been adopted (`modulus db adopt`) -- see docs/DEPLOYMENT.md.
+# been adopted (`modulus db adopt`) -- see docs/19-deployment.md.
 release_command = 'node /app/packages/core/dist/cli/index.js db upgrade'
 
 [env]

@@ -8,7 +8,7 @@ import type { RouteParams } from '@/lib/route-params'
 
 /**
  * The LTI launch interstitial (`/lti/launch/<activity_id>?scope_id=…`), shown
- * when `LTI_LAUNCH_INTERSTITIAL=always` (see `docs/DEPLOYMENT.md`).
+ * when `LTI_LAUNCH_INTERSTITIAL=always` (see `docs/19-deployment.md`).
  */
 export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) => {
   const Route = createFileRoute(path)({

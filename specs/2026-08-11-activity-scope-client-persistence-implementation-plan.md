@@ -11,8 +11,8 @@ Related:
   analysis, partially superseded for browser context selection
 - `specs/2026-08-04-activity-scopes-implementation-plan.md` — completed
   implementation plan for the broader activity-scope feature
-- `docs/AGENT.md` — shipped browser-agent authentication and storage behaviour
-- `docs/AUTHN-AUTHZ.md` — authorization-code, token, and renewal contracts that
+- `docs/15-agent.md` — shipped browser-agent authentication and storage behaviour
+- `docs/12-authn-authz.md` — authorization-code, token, and renewal contracts that
   remain unchanged
 - `apps/agent/src/core/activity-context.ts` — current tab and local-default
   context records
@@ -364,10 +364,10 @@ Proposed commit: `docs(agent): documented activity context persistence`
 
 Files:
 
-- revise `docs/AGENT.md`;
+- revise `docs/15-agent.md`;
 - revise `.changeset/tidy-tabs-remember.md`;
 - revise this plan with task status and verification results; and
-- revise `docs/AUTHN-AUTHZ.md` or `docs/SECURITY-AND-PRIVACY.md` only if final
+- revise `docs/12-authn-authz.md` or `docs/21-security-and-privacy.md` only if final
   implementation review identifies an inaccurate browser-storage or trust
   statement. Their server-side token and privacy contracts are expected to
   remain unchanged.
@@ -378,7 +378,7 @@ production correction in documentation or release metadata.
 
 Work:
 
-- update the `docs/AGENT.md` front-matter summary and “Connecting to Modulus”
+- update the `docs/15-agent.md` front-matter summary and “Connecting to Modulus”
   resolution order to describe explicit launch, OAuth response, incomplete
   transaction, tab context, local default, and no-context resolution;
 - define `sessionStorage` as established-tab context and `localStorage` as the
@@ -411,7 +411,7 @@ Work:
 
 Automated acceptance criteria:
 
-- `docs/AGENT.md` describes the implemented resolution and persistence order
+- `docs/15-agent.md` describes the implemented resolution and persistence order
   without presenting an accepted race as a guarantee;
 - documentation still distinguishes the OAuth transaction from both context
   caches;

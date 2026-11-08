@@ -10,11 +10,11 @@ Modulus answers two questions on every protected call: **who are you?**
 (authentication) and **what are you allowed to do?** (authorization). It answers
 them separately for three kinds of caller — *learners*, *administrators*, and
 *instrumentation agents* — and keeps those three apart all the way down, from the
-database tables ([DATA-MODEL](./DATA-MODEL.md)) through to the command boundary
-([CORE-COMPOSITION → The Command Pattern](./CORE-COMPOSITION.md#the-command-pattern)).
+database tables ([DATA-MODEL](./11-data-model.md)) through to the command boundary
+([CORE-COMPOSITION → The Command Pattern](./10-core-composition.md#the-command-pattern)).
 
 This document assumes the actor model from
-[ARCHITECTURE → Three Actor Domains](./ARCHITECTURE.md#4-three-separate-actor-domains).
+[ARCHITECTURE → Three Actor Domains](./09-architecture.md#4-three-separate-actor-domains).
 
 ## The Three Actors
 
@@ -67,14 +67,14 @@ Two things follow from this design:
 
 1. **One signing keypair, many payload shapes.** Core composes a single
    `jwtSign` / `jwtVerify` pair from `config.jwt` (see
-   [CORE-COMPOSITION → Initialization](./CORE-COMPOSITION.md#putting-it-together-initialization)).
+   [CORE-COMPOSITION → Initialization](./10-core-composition.md#putting-it-together-initialization)).
    What distinguishes a learner token from an admin token from an agent token is
    the **payload schema** used to verify it — each actor has its own
    `accessTokenPayloadSchema`. The shapes are mutually exclusive (the admin
    payload is `strictObject` and additionally carries `provider: 'admin_session'`),
    so a token minted for one actor fails schema validation when parsed as another.
    LTI message signing uses a *separate* keypair (`config.lti.jwks`) — see
-   [LTI](./LTI.md).
+   [LTI](./13-lti.md).
 2. **Verification is decoupled from the full core graph.** A small standalone
    registry (`public/tokens.ts`, exported as `@modulus-learning/core/tokens`)
    composes just the three verifiers, so a host can validate a token without a
@@ -105,7 +105,7 @@ There are four sign-in services, all landing on the same `SignInResult` shape:
   existing user by `(iss, sub)`, else by email (adopting the LTI identity onto
   that account), else **auto-provisions** a new `users` row — granting
   `['everyone','instructor']` or `['everyone','learner']` by the launch role.
-  This is the auto-registration the summary doc describes; see [LTI](./LTI.md).
+  This is the auto-registration the summary doc describes; see [LTI](./13-lti.md).
 
 `TokenRefreshService.refreshTokens` is intentionally not a blind re-issue. It
 verifies the refresh token, **re-reads the user**, rejects a missing or disabled
@@ -238,7 +238,7 @@ abilities; what a command checks is an ability.
 
 - **Where they live.** Each `permissions` row is one `ability` (e.g.
   `account:read_own`) attached to a role; `role_user` assigns roles to users
-  ([DATA-MODEL → Identity](./DATA-MODEL.md#1-identity--access--learners)). The
+  ([DATA-MODEL → Identity](./11-data-model.md#1-identity--access--learners)). The
   `admin_*` tables mirror this for administrators.
 - **How they're resolved.** `getUserAbilities` flattens role membership into a
   string list with a single join:
@@ -266,7 +266,7 @@ abilities; what a command checks is an ability.
 
   and `createCommand` calls `ctx.userAuth.assertAbilities(...)` (or the admin
   equivalent) up front — see
-  [CORE-COMPOSITION → The Command Pattern](./CORE-COMPOSITION.md#the-command-pattern).
+  [CORE-COMPOSITION → The Command Pattern](./10-core-composition.md#the-command-pattern).
   Auth mode also fixes the *static* context type, so calling an `admin` command
   with a `UserRequestContext` is a compile error. The `agent` mode performs no
   ability check — an agent's authority is fixed by the user/activity/scope tuple
@@ -294,12 +294,12 @@ for. Mutating the allowlist is one capability, so it is one ability.
 
 Instructors and learners never see these rules. The rules table references
 `admin_users` for provenance and holds no learner or instructor data — see
-[DATA-MODEL → Activities & Grouping](./DATA-MODEL.md#3-activities--grouping).
+[DATA-MODEL → Activities & Grouping](./11-data-model.md#3-activities--grouping).
 
 ## The Agent Flow (OAuth 2.0 + PKCE)
 
 The agent is how instrumented Ximera content authenticates to Modulus
-([AGENT](./AGENT.md)). It is **not** an LMS session; it derives a narrowly-scoped
+([AGENT](./15-agent.md)). It is **not** an LMS session; it derives a narrowly-scoped
 credential from an already-authenticated learner, using the OAuth 2.0
 Authorization Code flow with **PKCE**, and it never receives PII. Two steps,
 backed by `agent_auth_codes` and `agent_refresh_tokens`:
@@ -359,7 +359,7 @@ claim. State services derive the complete `(user_id, activity_id, scope_id)`
 tuple from the verified token. `scope_id` is a partition label, not an
 authorization entitlement, so core checks that it exists but does not infer a
 platform association. This is exactly the right-hand column of the
-[data-isolation table](./DATA-MODEL.md#the-data-isolation-boundary-in-schema-terms):
+[data-isolation table](./11-data-model.md#the-data-isolation-boundary-in-schema-terms):
 no email, no LMS identity, no abilities. `renew_after` (≈60s) is a hint telling
 the agent when to refresh; the host turns a verified token into an `AgentAuth`:
 
@@ -482,12 +482,12 @@ common path here and today it resolves with no learner action at all.
 
 Server-identity (registry) validation — the agent confirming it is talking to a
 genuine Modulus install before starting this flow — happens on the *agent* side;
-see [AGENT](./AGENT.md).
+see [AGENT](./15-agent.md).
 
 ## How the Host Wires It
 
 Core is auth-mechanism-agnostic: it consumes a `RequestContext` and never reads a
-cookie or header itself ([ARCHITECTURE → Single-instance](./ARCHITECTURE.md#3-single-instance-no-separate-api-server)).
+cookie or header itself ([ARCHITECTURE → Single-instance](./09-architecture.md#3-single-instance-no-separate-api-server)).
 The TanStack Start host builds each context in
 `packages/host-tanstack-start/src/lib/core/start-adapter.ts`:
 
@@ -556,16 +556,16 @@ Flagged in the code, worth knowing before relying on these paths:
   nothing revokes. An emergency block — stopping launches, tokens, or passback
   for an activity already accepted — is a separate deferred feature with its own
   decision surface, recorded in
-  [SECURITY-AND-PRIVACY → Open Questions](./SECURITY-AND-PRIVACY.md#open-questions--needs-institutional-policy).
+  [SECURITY-AND-PRIVACY → Open Questions](./21-security-and-privacy.md#open-questions--needs-institutional-policy).
 
 ---
 
 ## Where to go next
 
-- [CORE-COMPOSITION → The Command Pattern](./CORE-COMPOSITION.md#the-command-pattern)
+- [CORE-COMPOSITION → The Command Pattern](./10-core-composition.md#the-command-pattern)
   — where ability assertion and context typing are enforced.
-- [LTI](./LTI.md) — the LMS launch/login path that drives `LtiSignInService` and
+- [LTI](./13-lti.md) — the LMS launch/login path that drives `LtiSignInService` and
   auto-provisioning.
-- [AGENT](./AGENT.md) — the client side of the PKCE flow and registry validation.
-- [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md) — the data-isolation and
+- [AGENT](./15-agent.md) — the client side of the PKCE flow and registry validation.
+- [SECURITY-AND-PRIVACY](./21-security-and-privacy.md) — the data-isolation and
   FERPA posture these mechanisms uphold.

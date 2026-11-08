@@ -8,13 +8,13 @@ summary: "The Modulus Postgres schema: identity and RBAC, the activity and unsco
 
 This is the canonical reference for the Modulus database schema. It is the shared
 vocabulary the subsystem docs build on, so it is worth reading before
-[LTI](./LTI.md), [AGENT](./AGENT.md), or [AUTHN-AUTHZ](./AUTHN-AUTHZ.md).
+[LTI](./13-lti.md), [AGENT](./15-agent.md), or [AUTHN-AUTHZ](./12-authn-authz.md).
 
 The schema is defined with [Drizzle ORM](https://orm.drizzle.team) in
 `packages/core/src/database/schema/source/`, re-exported through
 `schema/index.js`, and is the *only* thing the repository layer touches — all SQL
 lives in `*Queries`/`*Mutations` classes (see
-[CORE-COMPOSITION → Anatomy of a Module](./CORE-COMPOSITION.md#anatomy-of-a-module)).
+[CORE-COMPOSITION → Anatomy of a Module](./10-core-composition.md#anatomy-of-a-module)).
 Postgres is the only supported database.
 
 ## Conventions
@@ -56,7 +56,7 @@ Authorization is role-based:
 - **`roles`** — named roles with a unique `machine_name` and an `order`.
 - **`permissions`** — one row per `ability` string (e.g. `account:read_own`)
   belonging to a role. Abilities are the strings asserted by commands; see
-  [AUTHN-AUTHZ](./AUTHN-AUTHZ.md).
+  [AUTHN-AUTHZ](./12-authn-authz.md).
 - **`role_user`** — the user ⇄ role assignment (composite PK).
 
 Two supporting flows hang off identity:
@@ -81,7 +81,7 @@ And one audit table:
 
 A **parallel, separate** RBAC set for the `admin` domain — the schema-level
 expression of the actor separation in
-[ARCHITECTURE → Three Actor Domains](./ARCHITECTURE.md#4-three-separate-actor-domains).
+[ARCHITECTURE → Three Actor Domains](./09-architecture.md#4-three-separate-actor-domains).
 `admin_users` (with an `is_super_admin` flag), `admin_roles`,
 `admin_permissions`, and the `admin_role_admin_user` assignment table mirror the
 learner tables but are entirely distinct — an admin is not a `users` row, and the
@@ -176,7 +176,7 @@ This is the graph that connects learners to Ximera content.
   (`packages/core/src/modules/activity-registration/`), the only writer of
   `activities` rows outside seeds and fixtures, and managed through the admin
   commands gated by `activity-url-allowlist:list` / `:manage`
-  ([AUTHN-AUTHZ → The Activity URL Allowlist Abilities](./AUTHN-AUTHZ.md#the-activity-url-allowlist-abilities)).
+  ([AUTHN-AUTHZ → The Activity URL Allowlist Abilities](./12-authn-authz.md#the-activity-url-allowlist-abilities)).
 
 ### 4. Academic scopes
 
@@ -214,7 +214,7 @@ that gained `scope_id` use a non-null foreign key with the sentinel default.
 
 ### 6. LTI integration
 
-Everything needed to be an LTI 1.3 tool and to passback grades (see [LTI](./LTI.md)):
+Everything needed to be an LTI 1.3 tool and to passback grades (see [LTI](./13-lti.md)):
 
 - **`lti_platforms`** — a registered LMS platform: `issuer` (unique), `name`,
   `client_id`, and the platform's `authorization_endpoint`, `token_endpoint`,
@@ -243,14 +243,14 @@ Everything needed to be an LTI 1.3 tool and to passback grades (see [LTI](./LTI.
   These columns make passback **reliable at scale** — workers claim with
   lease-fenced updates, back off on failure, and recover expired leases after a
   crash. The flow is documented in
-  [LTI Score Submission](./LTI-SCORE-SUBMISSION.md), and worker config lives under
+  [LTI Score Submission](./14-lti-score-submission.md), and worker config lives under
   `config.lti.score_submission`. Unique on `(user_id, activity_id, lineitem_url)`.
   Scope is deliberately absent from that unique key: a verified term change
   rebinds and resets the existing row instead of creating a second line item.
 
 ### 7. Agent authorization (OAuth 2.0 + PKCE)
 
-Storage for the browser agent's authorization (see [AGENT](./AGENT.md)):
+Storage for the browser agent's authorization (see [AGENT](./15-agent.md)):
 
 - **`agent_auth_codes`** — short-lived authorization codes for the OAuth
   Authorization Code flow. The `code_challenge` column is the **PKCE** challenge,
@@ -260,14 +260,14 @@ Storage for the browser agent's authorization (see [AGENT](./AGENT.md)):
   `expires_at`, `used_at`); `used_at` supports rotation/replay detection.
 
 Note the boundary this enforces, consistent with the
-[data-isolation rule](./ARCHITECTURE.md#system-context-three-tiers): the agent's
+[data-isolation rule](./09-architecture.md#system-context-three-tiers): the agent's
 authorization is tied to an opaque `users.id`, not to any LMS identity.
 
 ### 8. Reporting
 
 - **`admin_reports_mau`** — a small precomputed rollup of monthly active users,
   keyed `(year, month)` with a `total`. The basis for the admin reports surface
-  ([REPORTS](./REPORTS.md)).
+  ([REPORTS](./18-reports.md)).
 
 Instructor activity-code reports deliberately remain scope-agnostic. The query
 first projects all scoped progress to one row per `(user_id, activity_id)` using
@@ -307,7 +307,7 @@ minimal projection the agent is allowed to see:
 | — | `page_state` (activity-specific) |
 
 The agent's access token payload is built to carry only the right-hand column set;
-see [AGENT](./AGENT.md) and [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md).
+see [AGENT](./15-agent.md) and [SECURITY-AND-PRIVACY](./21-security-and-privacy.md).
 
 ## Migrations & Seeds
 
@@ -342,7 +342,7 @@ The `modulus-deploy-YYYY-MM-DD.sql` files in the same directory are `pg_dump`
 snapshots of this repository's own installation, and `refresh-collation.sql` is
 a maintenance script; neither is a migration. How the scripts are applied at
 deploy time, and what the boot check does with the ledger, is described in
-[Deployment](./DEPLOYMENT.md#database-schema-at-release).
+[Deployment](./19-deployment.md#database-schema-at-release).
 
 - **The production bootstrap** (`database/bootstrap/`) creates the reference
   roles and their permissions — the admin roles Manager, User, and Guest, and
@@ -384,9 +384,9 @@ in a future revision:
 
 ## Where to go next
 
-- [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) — how `users`/`roles`/`permissions` (and the
+- [AUTHN-AUTHZ](./12-authn-authz.md) — how `users`/`roles`/`permissions` (and the
   `admin_*` mirror) become the three actor contexts and ability checks.
-- [LTI](./LTI.md) — how the `lti_*` tables drive launch, deep linking, and AGS
+- [LTI](./13-lti.md) — how the `lti_*` tables drive launch, deep linking, and AGS
   passback.
-- [AGENT](./AGENT.md) — how `agent_auth_codes` / `agent_refresh_tokens` and the
+- [AGENT](./15-agent.md) — how `agent_auth_codes` / `agent_refresh_tokens` and the
   learner-signal tables are written from instrumented content.

@@ -6,7 +6,7 @@ summary: "How a single gradebook build is deployed in one of three runtime modes
 
 # Deployment Modes
 
-Modulus is a [single-instance, in-process system](./ARCHITECTURE.md#3-single-instance-no-separate-api-server):
+Modulus is a [single-instance, in-process system](./09-architecture.md#3-single-instance-no-separate-api-server):
 the `apps/gradebook` host — a [TanStack Start](https://tanstack.com/start)
 application served by Nitro's Node server — calls `initCore` once and holds the
 result as a runtime service registry serving the learner/LTI frontend, the admin
@@ -133,7 +133,7 @@ resource-link launch path; the direct `/start-activity` path is unaffected.
 
 Both values reach the same activity URL with the same query parameters, and the
 learner's session is established before either redirect. The full mechanics are in
-[LTI → Where The Learner Lands](./LTI.md#where-the-learner-lands).
+[LTI → Where The Learner Lands](./13-lti.md#where-the-learner-lands).
 
 Choosing `never` gives up three things, all of which `always` provides:
 
@@ -218,7 +218,7 @@ Gating happens in two places, each covering what the other cannot see:
    `pnpm run ci` gate — if any server function's first middleware is not one of
    these, and limits
    `neutralMiddleware` to an allowlist. The session columns are described in
-   [Authentication & Authorization](./AUTHN-AUTHZ.md).
+   [Authentication & Authorization](./12-authn-authz.md).
 
 Both gates read the mode from the validated configuration, so an instance
 cannot serve a surface its configuration does not describe.
@@ -243,7 +243,7 @@ With CSP disabled, the dashboard displays inside the frame. A start-activity
 launch is unaffected: it leaves the frame for the activity URL, or for the
 interstitial under `/lti/*`. Which origins may frame learner pages is an open
 policy decision; see
-[Security & Privacy → Open Questions](./SECURITY-AND-PRIVACY.md#open-questions--needs-institutional-policy).
+[Security & Privacy → Open Questions](./21-security-and-privacy.md#open-questions--needs-institutional-policy).
 :::
 
 ## Background Jobs
@@ -333,7 +333,7 @@ SQL: a baseline for a new, empty database and dated release scripts
 applied script, with its SHA-256 checksum, in the `modulus.schema_scripts` table,
 and the `modulus` command in core applies them. The data-model side of this —
 how the Drizzle schema, the baseline, and the release scripts relate — is
-described in [Data Model](./DATA-MODEL.md#migrations--seeds).
+described in [Data Model](./11-data-model.md#migrations--seeds).
 
 | Command | What it does |
 | --- | --- |
@@ -396,7 +396,7 @@ node packages/core/dist/cli/index.js db upgrade --database-url "$DATABASE_URL"
 `db adopt` creates and fills only the ledger. To rehearse first, restore a
 backup locally, adopt and upgrade it, and check that `db status` reports
 `schema is current` — the procedure in
-[Database Migration](./DATABASE-MIGRATION.md) covers taking and restoring a
+[Database Migration](./23-database-migration.md) covers taking and restoring a
 backup.
 
 ## Instance Naming on Fly
@@ -415,14 +415,14 @@ scripts are `scripts/fly-deploy-gradebook-frontend.sh`,
 
 ## Where to go next
 
-- [Architecture](./ARCHITECTURE.md) — the single-instance, in-process model these
+- [Architecture](./09-architecture.md) — the single-instance, in-process model these
   modes split, and the three actor domains (`app`, `admin`, `agent`) that map onto
   the frontend and admin surfaces.
-- [Core Composition](./CORE-COMPOSITION.md) — how `initCore` assembles the graph
+- [Core Composition](./10-core-composition.md) — how `initCore` assembles the graph
   and exposes `startBackgroundJobs()`.
-- [Installing Modulus](./INSTALLATION.md) — setting up a new installation in your
+- [Installing Modulus](./04-installation.md) — setting up a new installation in your
   own TanStack Start application, including its first database.
-- [Authentication & Authorization](./AUTHN-AUTHZ.md) — the sessions and the
+- [Authentication & Authorization](./12-authn-authz.md) — the sessions and the
   renewal boundary behind the session middleware in the server-function gate.
-- [LTI](./LTI.md) — the launch and score-passback flows that the frontend surface
+- [LTI](./13-lti.md) — the launch and score-passback flows that the frontend surface
   and the background workers serve.

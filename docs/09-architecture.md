@@ -7,16 +7,22 @@ summary: "The load-bearing design decisions behind Modulus: a contract-based cor
 # Key Architectural Decisions
 
 These are the load-bearing design decisions behind Modulus. Each is summarised
-here and described in more depth in the matching reference document under
-[`docs/`](.).
+here and described in more depth in the matching reference document listed in
+the [documentation overview](./00-documentation-plan.md).
 
-Modulus is a pnpm + Turborepo monorepo. Almost everything that matters lives in
-one package, `packages/core`, which holds all business logic, data access, and
-services behind class contracts. The applications around it —
-[`apps/gradebook`](#3-single-instance-no-separate-api-server) (the TanStack Start host)
-and [`apps/agent`](./AGENT.md) (the browser instrumentation client) — are
-deliberately thin. If you understand how core is composed and how applications
-talk to it, you understand the shape of the whole system.
+Modulus is a pnpm + Turborepo monorepo with five published packages. Core owns
+business operations and data access; the LTI package defines shared contracts;
+the Canvas adapter supplies LMS-specific behaviour; the TanStack Start host
+provides the request pipeline and UI; and the browser agent instruments activity
+pages. [Packages](./03-packages.md) maps these boundaries and their public entry
+points. `apps/gradebook` is the reference installation that composes them.
+
+:::note[Documentation in Progress]
+Documentation is actively being worked on following the package refactor.
+The package map reflects the current layout; detailed examples in the existing
+subsystem references are being reviewed. Downstream setup will be validated
+against a working independent installation before it is marked complete.
+:::
 
 ## System Context: Three Tiers
 
@@ -56,17 +62,17 @@ Two integration surfaces connect the tiers, and each has its own reference doc:
 - **Tier 1 ↔ Tier 2 is LTI 1.3** — OIDC login, deep linking (instructors pick
   activities from inside Canvas), resource-link launch (learners open an
   assignment), and Assignment & Grade Services (AGS) score passback. See
-  [LTI](./LTI.md).
+  [LTI](./13-lti.md).
 - **Tier 2 ↔ Tier 3 is the agent** — a Ximera page instrumented with
   `@modulus-learning/agent` authenticates to Modulus over OAuth 2.0 with PKCE and
-  reports normalized progress and page state. See [AGENT](./AGENT.md).
+  reports normalized progress and page state. See [AGENT](./15-agent.md).
 
 A defining constraint runs along the Tier 2 ↔ Tier 3 boundary: **no learner PII
 crosses it.** Activities receive only an opaque user UUID, a display name, the
 activity context, and normalized scores — never an email address, institutional
 student ID, course identity, or LMS gradebook data. This data-isolation rule is
 what keeps the design FERPA-compatible, and it shapes both the schema and the
-agent token payloads. See [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md).
+agent token payloads. See [SECURITY-AND-PRIVACY](./21-security-and-privacy.md).
 
 A further constraint shapes the internals: at OSU scale, **several thousand
 learners may submit progress at nearly the same time**, and no scores may be
@@ -122,7 +128,7 @@ feasible: a proxy implementation of a contract can be registered in place of the
 in-process one without any consumer noticing.
 
 For the full treatment — the registry types, the `compose()` lifecycle, and how
-each module assembles its own sub-registry — see [CORE-COMPOSITION](./CORE-COMPOSITION.md).
+each module assembles its own sub-registry — see [CORE-COMPOSITION](./10-core-composition.md).
 
 ## 2. A Commands Facade Is the Only Public Surface
 
@@ -244,7 +250,7 @@ belongs to — `UserRequestContext`, `AdminRequestContext`, or
 `AgentRequestContext` — each carrying a typed auth object (`UserAuth`,
 `AdminAuth`, `AgentAuth`). Commands declare which one they require, so it is a
 type error to call an admin command with a user context. The full token model,
-session lifecycle, and RBAC story is in [AUTHN-AUTHZ](./AUTHN-AUTHZ.md).
+session lifecycle, and RBAC story is in [AUTHN-AUTHZ](./12-authn-authz.md).
 
 ## 5. A Uniform Module Shape: Repository · Service · Commands
 
@@ -294,13 +300,11 @@ Two future moves are explicitly enabled by the contract boundary above, and both
 are worth keeping in mind when reading any subsystem doc.
 
 **Framework portability.** Core has no dependency on the host framework — it is a
-plain library driven through `initCore` and the commands facade. The gradebook
-has already exercised this: it moved from Next.js 16 to TanStack Start by
-replacing the host's route handlers, pages, request pipeline and core adapter.
-The only change to core was to make its OAuth configuration optional, so that an
-instance serving only the admin surface need not carry OAuth settings. The
-migration plan and its decisions are recorded in
-`specs/2026-10-23-gradebook-tanstack-start-migration-plan.md`.
+plain library driven through `initCore` and the commands facade. The first host
+adapter is `@modulus-learning/host-tanstack-start`. Downstream installations
+compose its public helpers with their own TanStack Start application; another
+framework would need its own adapter. [TanStack Start Host](./07-host-tanstack-start.md)
+describes the current boundary and the reference installation.
 
 **The remote connector (planned).** For larger or distributed deployments, the
 plan is to let core talk to an external API instead of running everything
@@ -309,17 +313,17 @@ in-process. This consists of a thin HTTP wrapper around core's service layer and
 Because applications depend only on the contracts — resolved through the registry
 in decision 1 — the in-process and remote implementations are interchangeable
 without any change to application code. The design is not yet finalised; see
-[REMOTE-CONNECTOR](./REMOTE-CONNECTOR.md) for current thinking and open
+[REMOTE-CONNECTOR](./25-remote-connector.md) for current thinking and open
 questions.
 
 ---
 
 ## Where to go next
 
-- [CORE-COMPOSITION](./CORE-COMPOSITION.md) — the registry, `compose()`, and how
+- [CORE-COMPOSITION](./10-core-composition.md) — the registry, `compose()`, and how
   modules are assembled.
-- [DATA-MODEL](./DATA-MODEL.md) — the Drizzle schema and the entities the
+- [DATA-MODEL](./11-data-model.md) — the Drizzle schema and the entities the
   subsystems share.
-- [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) — the three actor domains, tokens, sessions,
+- [AUTHN-AUTHZ](./12-authn-authz.md) — the three actor domains, tokens, sessions,
   and RBAC.
-- [LTI](./LTI.md) and [AGENT](./AGENT.md) — the two integration surfaces.
+- [LTI](./13-lti.md) and [AGENT](./15-agent.md) — the two integration surfaces.

@@ -9,7 +9,7 @@ Related:
 - `apps/gradebook/src/modules/app/activities/components/completion-chart.tsx` — learner/instructor activity chart
 - `apps/gradebook/src/modules/admin/dashboard/components` — four administration dashboard charts
 - `apps/gradebook/src/content/docs/02-accessibility.md` — current public accessibility conformance statement
-- `docs/ACCESSIBILITY-AUDIT.md` — response to the completed application accessibility review
+- `docs/24-accessibility-audit.md` — response to the completed application accessibility review
 - External references: [Recharts accessibility](https://github.com/recharts/recharts/wiki/Recharts-and-accessibility), [Recharts API](https://recharts.github.io/en-US/api/), [TanStack Charts accessibility](https://tanstack.com/charts/latest/docs/guides/accessibility), [TanStack Charts repository](https://github.com/TanStack/charts), [WCAG 2.1 SC 1.1.1 guidance](https://www.w3.org/WAI/WCAG21/Understanding/non-text-content), [WAI-ARIA 1.2 `img` role](https://www.w3.org/TR/wai-aria-1.2/#img), and [SVG 2 ARIA attributes](https://www.w3.org/TR/SVG2/struct.html#ARIAAttributes)
 
 ## Question

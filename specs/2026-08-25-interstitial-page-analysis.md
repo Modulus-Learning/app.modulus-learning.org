@@ -4,10 +4,10 @@ Date: 2026-08-25
 Status: implemented on feat/interstitial-page
 Related:
 
-- `docs/LTI.md` — Flow 2 (resource-link launch) and the interstitial's place in it
-- `docs/AGENT.md` — the OAuth 2.0 + PKCE handshake the learner lands in after the redirect
-- `docs/AUTHN-AUTHZ.md` — session cookies and the agent flow
-- `docs/SECURITY-AND-PRIVACY.md` — the no-PII-across-the-boundary constraint
+- `docs/13-lti.md` — Flow 2 (resource-link launch) and the interstitial's place in it
+- `docs/15-agent.md` — the OAuth 2.0 + PKCE handshake the learner lands in after the redirect
+- `docs/12-authn-authz.md` — session cookies and the agent flow
+- `docs/21-security-and-privacy.md` — the no-PII-across-the-boundary constraint
 - `apps/gradebook/src/app/routes/lti/launch/route.ts` — the launch handler that redirects to the interstitial
 - `apps/gradebook/src/app/lti/launch/[...go]/page.tsx` — the LTI interstitial
 - `apps/gradebook/src/modules/lti/components/lti-launch-activity.tsx` — its countdown UI
@@ -250,7 +250,7 @@ into a *path* (`/lti/launch/{code}/{activity_url}`) so the address bar stays
 readable, and `extractActivityLaunchParameters` reassembles it from Next's route
 segments on the other side.
 
-`docs/LTI.md` already admits the consequence:
+`docs/13-lti.md` already admits the consequence:
 
 > an authored query, fragment, or literal percent escape embedded in that target
 > is not guaranteed to round-trip through the catch-all route.
@@ -408,14 +408,14 @@ breaking configuration change for every instance that set it.
 
 There is no migration story to write. With no live deployments, nothing has to be
 set before deploying and no operator can be surprised — the first instance ever
-stood up simply gets the analysed behaviour. `docs/DEPLOYMENT.md` documents the
+stood up simply gets the analysed behaviour. `docs/19-deployment.md` documents the
 key; there is nobody to announce a change to.
 
 - **Gains** — the analysed improvement is what instances actually get;
   reversibility in both directions without a deploy; a single documented place to
   describe the trade-off.
 - **Loses** — one more configuration key to document in `.env.example` and
-  `docs/DEPLOYMENT.md`.
+  `docs/19-deployment.md`.
 - **Effort** — small.
 
 ### Option C — Learner "Don't Show This Again"
@@ -939,7 +939,7 @@ forgets it — but the persistent agent-side badge that would be the real answer
 also out of scope, so for the initial implementation the disclosure is simply
 gone unless an operator sets `always`.
 
-`docs/DEPLOYMENT.md` should describe `always` as a supported configuration rather
+`docs/19-deployment.md` should describe `always` as a supported configuration rather
 than a legacy one, so that an operator who wants the disclosure knows it is a
 first-class choice. No migration guidance is needed, since there is nothing
 deployed to migrate.
@@ -964,9 +964,9 @@ component that holds the verified launch result — but the route is growing, an
 the destination-selection logic should be extracted into a small, directly
 testable helper rather than inlined.
 
-Finally, the readable-URL requirement recorded in `docs/LTI.md` no longer binds
+Finally, the readable-URL requirement recorded in `docs/13-lti.md` no longer binds
 the LTI path, but review has confirmed it still governs the direct
-`/start-activity` path. Two consequences. `docs/LTI.md` states the requirement
+`/start-activity` path. Two consequences. `docs/13-lti.md` states the requirement
 without qualifying it by surface, so the doc needs amending to say which one it
 now governs. And `appendQueryBeforeFragment` and `extractActivityLaunchParameters`
 survive with a single caller — so the codebase ends up with one launch path that
@@ -979,7 +979,7 @@ A future implementation of the recommendation is complete when:
 
 - `LTI_LAUNCH_INTERSTITIAL` is validated at boot as a `never | always` enum,
   **defaults to `never`**, and appears in `.env.example` and
-  `docs/DEPLOYMENT.md`;
+  `docs/19-deployment.md`;
 - with `never`, a verified resource-link launch redirects once, directly to the
   activity URL carrying only `modulus` and `scope_id`;
 - with `always`, a verified resource-link launch shows the interstitial and
@@ -1036,7 +1036,7 @@ A future implementation of the recommendation is complete when:
   covering both modes;
 - `/start-activity`, its components, its URL shape, and
   `extractActivityLaunchParameters` are unchanged, and their tests still pass;
-- `docs/LTI.md` Flow 2 is updated to describe the switch and the re-keyed URL,
+- `docs/13-lti.md` Flow 2 is updated to describe the switch and the re-keyed URL,
   and its readable-nested-URL note is amended to say it governs the direct
   `/start-activity` path only.
 
@@ -1127,4 +1127,4 @@ the agreed behaviour to ordered tasks with explicit verification after each:
 8. The generic deep-link content item `url`.
 9. Test matrix across both modes, including every error branch; confirm
    `/start-activity` is untouched.
-10. `docs/LTI.md`, `docs/DEPLOYMENT.md`, and `.env.example`.
+10. `docs/13-lti.md`, `docs/19-deployment.md`, and `.env.example`.

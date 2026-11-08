@@ -28,13 +28,13 @@ summary: "Why Modulus materializes an activity row on demand ('lazy create') fro
 > one of those points. The sections below are retained as history; read them
 > only for the reasoning, never as a description of the system. What was built
 > is described in
-> [DATA-MODEL → Activities & Grouping](./DATA-MODEL.md#3-activities--grouping)
+> [DATA-MODEL → Activities & Grouping](./11-data-model.md#3-activities--grouping)
 > (the `activity_url_allowlist_rules` table),
-> [AUTHN-AUTHZ → The Agent Flow](./AUTHN-AUTHZ.md#the-agent-flow-oauth-20--pkce)
+> [AUTHN-AUTHZ → The Agent Flow](./12-authn-authz.md#the-agent-flow-oauth-20--pkce)
 > (admission on the OAuth path),
-> [Cumulative Progress](./CUMMULATIVE-PROGRESS.md) (admission on the umbrella-target
+> [Cumulative Progress](./17-cumulative-progress.md) (admission on the umbrella-target
 > path), and
-> [SECURITY-AND-PRIVACY → Agent / activity trust](./SECURITY-AND-PRIVACY.md#agent--activity-trust-tier-2--tier-3)
+> [SECURITY-AND-PRIVACY → Agent / activity trust](./21-security-and-privacy.md#agent--activity-trust-tier-2--tier-3)
 > (what admission does and does not control).
 
 This document describes **lazy activity creation** — letting Modulus materialize
@@ -42,11 +42,11 @@ an `activities` row on demand when an agent reports against a URL that is not ye
 recorded — and the **site-wide admin policy** originally proposed to govern when
 that is allowed. Lazy creation is current; the policy proposal is not.
 
-It builds directly on [The Modulus Agent](./AGENT.md) (OAuth + activity-state
-ingestion), [Cumulative Progress](./CUMMULATIVE-PROGRESS.md) (the umbrella-target
+It builds directly on [The Modulus Agent](./15-agent.md) (OAuth + activity-state
+ingestion), [Cumulative Progress](./17-cumulative-progress.md) (the umbrella-target
 path this relaxes — its deferred "Phase 2b"), and the
-[Data Model](./DATA-MODEL.md) (`activities`, `activity_codes`,
-`activity_activity_code`). It also touches [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) for the
+[Data Model](./11-data-model.md) (`activities`, `activity_codes`,
+`activity_activity_code`). It also touches [AUTHN-AUTHZ](./12-authn-authz.md) for the
 admin abilities.
 
 ## How the Shipped Allowlist Differs
@@ -95,7 +95,7 @@ is reported in the response's `rejected_targets` and does not fail the submissio
 > `is_enabled`, `admin_users` provenance, and a `unique (origin, path_prefix)`
 > constraint — with segment-bounded path matching and allow-all when no rules
 > are enabled. See
-> [DATA-MODEL → Activities & Grouping](./DATA-MODEL.md#3-activities--grouping).
+> [DATA-MODEL → Activities & Grouping](./11-data-model.md#3-activities--grouping).
 
 A single table of allowlist rules drives the decision.
 
@@ -307,8 +307,8 @@ Mirrors the existing `lti-platforms` admin module end to end.
 - Fill in `src/routes/$lng/_admin/admin/_authed/activities/index.tsx` to render the list + form.
 
 **Docs**
-- Save this file; add a pointer in `docs/DOCUMENTATION-PLAN.md`; add a short
-  cross-reference from `docs/CUMMULATIVE-PROGRESS.md`'s "Activity existence"
+- Save this file; add a pointer in `docs/00-documentation-plan.md`; add a short
+  cross-reference from `docs/17-cumulative-progress.md`'s "Activity existence"
   section (Phase 2b is now specified here).
 
 ## Verification
@@ -353,7 +353,7 @@ Mirrors the existing `lti-platforms` admin module end to end.
 - **Emergency blocking** — withdrawing access to an activity Modulus has already
   accepted — is a separate, deferred feature. The allowlist governs admission
   only; see
-  [SECURITY-AND-PRIVACY → Open Questions](./SECURITY-AND-PRIVACY.md#open-questions--needs-institutional-policy).
+  [SECURITY-AND-PRIVACY → Open Questions](./21-security-and-privacy.md#open-questions--needs-institutional-policy).
 
 ## Appendix — code reference map (session hand-off)
 
@@ -420,7 +420,7 @@ editing.
 - Token issuer: `modules/agent/auth/services/token-issuer.ts` — `createAccessToken({ user, activity })` bakes a single `activity_id` into the JWT.
 - Contract schemas: `modules/agent/activity-state/schemas.ts`.
 - Agent client (for end-to-end testing): `apps/agent/src/core/auth.ts`, `apps/agent/src/core/api-client.ts` (redirect_uri = activity URL).
-- **TODO (locate next session):** the core composition/container file where `AgentAuthService` and `ActivityProgressService` are constructed — needed to inject the policy service. See `docs/CORE-COMPOSITION.md` for where DI lives.
+- **TODO (locate next session):** the core composition/container file where `AgentAuthService` and `ActivityProgressService` are constructed — needed to inject the policy service. See `docs/10-core-composition.md` for where DI lives.
 
 ### Dev helper
 - `postgres/reset-demo-progress.sh` — resets demo progress (clears target + sources by URL prefix); use during verification.
@@ -429,11 +429,11 @@ editing.
 
 ## Where to go next
 
-- [DATA-MODEL](./DATA-MODEL.md) — the `activity_url_allowlist_rules` table that
+- [DATA-MODEL](./11-data-model.md) — the `activity_url_allowlist_rules` table that
   shipped in place of the policy table proposed here.
-- [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) — how an activity URL is admitted during agent
+- [AUTHN-AUTHZ](./12-authn-authz.md) — how an activity URL is admitted during agent
   authorization, and the two abilities that govern the rules.
-- [Cumulative Progress](./CUMMULATIVE-PROGRESS.md) — the umbrella-target path
+- [Cumulative Progress](./17-cumulative-progress.md) — the umbrella-target path
   this document relaxes, and what happens now when a target is refused.
-- [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md) — what admission does and
+- [SECURITY-AND-PRIVACY](./21-security-and-privacy.md) — what admission does and
   does not control, and why removing a rule is not revocation.

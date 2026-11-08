@@ -217,9 +217,9 @@ The next useful improvements are:
 
 ## Where to go next
 
-- [Architecture](./ARCHITECTURE.md) explains the boundaries tests should
+- [Architecture](./09-architecture.md) explains the boundaries tests should
   protect without coupling to host-framework details.
-- [Core Composition](./CORE-COMPOSITION.md) describes the registry and
+- [Core Composition](./10-core-composition.md) describes the registry and
   dependency assembly that future domain harnesses may target.
-- [Data Model](./DATA-MODEL.md) documents the PostgreSQL entities used by the
+- [Data Model](./11-data-model.md) documents the PostgreSQL entities used by the
   integration fixtures.

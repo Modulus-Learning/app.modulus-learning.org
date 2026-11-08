@@ -5,7 +5,7 @@
 #
 # Build-once / deploy-twice: the frontend (DEPLOYMENT_MODE=frontend) and admin
 # (DEPLOYMENT_MODE=admin) apps run the SAME image; the mode is purely a runtime env
-# switch (see docs/DEPLOYMENT.md). build_image() builds a single local image; both
+# switch (see docs/19-deployment.md). build_image() builds a single local image; both
 # deploys retag that identical image into each app's Fly registry namespace and
 # release it -- no per-app rebuild. Within one invocation build_image is called
 # once, so the two-app deploy still builds only once. build_image always runs

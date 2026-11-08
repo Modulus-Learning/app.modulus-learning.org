@@ -9,8 +9,8 @@ summary: "Modulus's security and privacy posture for IT and security staff: the 
 This document describes how Modulus protects learner data and how it
 authenticates the parties it talks to. It is written for the audience the
 institutional summary calls "IT and Security Staff," and it consolidates
-mechanisms documented in detail elsewhere — [AUTHN-AUTHZ](./AUTHN-AUTHZ.md),
-[LTI](./LTI.md), and [AGENT](./AGENT.md).
+mechanisms documented in detail elsewhere — [AUTHN-AUTHZ](./12-authn-authz.md),
+[LTI](./13-lti.md), and [AGENT](./15-agent.md).
 
 :::note[Status]
 The *technical* controls below are implemented and described from the code. The
@@ -22,7 +22,7 @@ those sections as placeholders pending OSU input.
 
 ## Design Principles
 
-Two privacy principles, stated in [INTRODUCTION](./introduction), drive the
+Two privacy principles, stated in [Introduction](./01-introduction.md), drive the
 design:
 
 - **Store as little as possible.** Modulus retains assignment-interaction data,
@@ -53,20 +53,20 @@ Modulus deployment, and the LMS gradebook data flows *one way* (Modulus → LMS 
 AGS), never out to third-party content.
 
 The boundary is enforced in code at three points (detailed in
-[AGENT → Data-Isolation Guarantee](./AGENT.md#the-data-isolation-guarantee-end-to-end)):
+[AGENT → Data-Isolation Guarantee](./15-agent.md#the-data-isolation-guarantee-end-to-end)):
 
 1. **The token** an agent receives carries only `{ user: {id, full_name?},
    activity_id, scope_id, renew_after }`.
 2. **The API** only ever exposes *this* learner's progress/page state for *this*
    activity and scope, because the ingestion services read `user_id`,
    `activity_id`, and `scope_id` from the verified token, never from the request body
-   ([AGENT → Server-Side Ingestion](./AGENT.md#server-side-ingestion)).
+   ([AGENT → Server-Side Ingestion](./15-agent.md#server-side-ingestion)).
 3. **The agent validates the server** against a central registry before sending
    anything (below).
 
 ## What Modulus Stores About a Learner
 
-Identity lives in the `users` table ([DATA-MODEL](./DATA-MODEL.md#1-identity--access--learners)).
+Identity lives in the `users` table ([DATA-MODEL](./11-data-model.md#1-identity--access--learners)).
 For an LTI-provisioned learner this is deliberately thin: the LTI `iss`/`sub`
 pair, and whatever name/email the launch supplied. LTI identity is *abstracted* —
 the `sub` is the LMS's opaque subject identifier, and downstream (to activities)
@@ -86,14 +86,14 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
 
 - **Passwords** (where used) are hashed with **Argon2** (`argon2`); plaintext is
   never stored.
-- **Sessions** are RS256 JWTs ([AUTHN-AUTHZ → JWT layer](./AUTHN-AUTHZ.md#the-jwt-layer)),
+- **Sessions** are RS256 JWTs ([AUTHN-AUTHZ → JWT layer](./12-authn-authz.md#the-jwt-layer)),
   delivered to the browser in cookies whose `httpOnly`, `secure`, and `sameSite`
   attributes are configurable per cookie (separate access/refresh cookies for
   user and admin).
 - **Refresh is re-validated, not blind.** Token refresh re-reads the account,
   rejects a disabled user, and re-fetches abilities — so a disabled account or
   revoked role takes effect at the next refresh
-  ([AUTHN-AUTHZ → Sessions](./AUTHN-AUTHZ.md#sessions--token-refresh)).
+  ([AUTHN-AUTHZ → Sessions](./12-authn-authz.md#sessions--token-refresh)).
 - **Bot mitigation.** Public self-service flows (self-registration, password
   sign-in) currently have **no bot mitigation** — no CAPTCHA and no failed-login
   lockout. In practice nearly all accounts are provisioned via trusted LTI
@@ -107,13 +107,13 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
 
 - **Signed launches.** Every `id_token` launch is verified against the platform's
   **JWKS**, with `iss` and `aud` (must equal our `client_id`) checked
-  ([LTI → Launch & Validation](./LTI.md#flow-2--launch--validation)).
+  ([LTI → Launch & Validation](./13-lti.md#flow-2--launch--validation)).
 - **Replay protection.** Each launch carries a one-time **nonce** that must exist
   and be unused; it is marked used on acceptance.
 - **No shared secrets for AGS.** Outbound grade passback obtains an access token
   via the OAuth **client-credentials grant with a signed JWT client-assertion**,
   using the tool's own keypair — there is no static API secret to leak
-  ([LTI → Platform access tokens](./LTI.md#platform-access-tokens)).
+  ([LTI → Platform access tokens](./13-lti.md#platform-access-tokens)).
 - **Published key set.** The tool exposes its public keys at a JWKS endpoint; the
   private key signs tool-originating messages and client-assertions.
 
@@ -121,7 +121,7 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
 
 - **OAuth 2.0 + PKCE.** The agent authenticates with the Authorization Code flow
   and PKCE (S256), so an intercepted authorization code is useless without the
-  `code_verifier` ([AGENT → Connecting to Modulus](./AGENT.md#connecting-to-modulus)).
+  `code_verifier` ([AGENT → Connecting to Modulus](./15-agent.md#connecting-to-modulus)).
 - **Registry validation (anti-spoofing).** Before authenticating, the agent
   confirms the Modulus server's identity against the central registry at
   `modulus-learning.org/api/registry`, preventing a rogue page from redirecting
@@ -133,7 +133,7 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
   record a *new* activity URL at all is governed by the **sitewide activity URL
   allowlist** — administrator-managed rules, each an exact normalized origin plus
   a path-segment-bounded subtree, held in `activity_url_allowlist_rules`
-  ([DATA-MODEL → Activities](./DATA-MODEL.md#3-activities--grouping)) and managed
+  ([DATA-MODEL → Activities](./11-data-model.md#3-activities--grouping)) and managed
   at `/admin/activities`. With **no enabled rules**, every valid new activity URL
   is admitted, including when all stored rules are disabled. With one or more
   enabled rules, a new URL must match one of them. Disabling or deleting the last
@@ -188,7 +188,7 @@ The `user_logins` table is an **append-only** audit of authentication events —
 time, (nullable) user id, provider, IP address, and a typed outcome
 (`success` / `failed_no_password` / `failed_bad_password` / `failed_disabled`).
 It is intentionally not foreign-keyed so it can be pruned by age and, in future,
-moved to a time-series store ([DATA-MODEL → Identity](./DATA-MODEL.md#1-identity--access--learners)).
+moved to a time-series store ([DATA-MODEL → Identity](./11-data-model.md#1-identity--access--learners)).
 The summary doc lists "full audit capability for launches, scores, and data
 access" as a goal; the login audit exists today, and launch/score auditing is a
 candidate area to extend.
@@ -201,7 +201,7 @@ flagged directly in the code:
 - **Framing policy for learner pages under CSP.** With `VITE_CSP_ENABLED=true`,
   learner pages other than the LTI, agent and renewal pages send
   `frame-ancestors 'none'`, so a dashboard launched from an LMS cannot display
-  inside the LMS iframe ([DEPLOYMENT → Content Security Policy](./DEPLOYMENT.md#content-security-policy)).
+  inside the LMS iframe ([DEPLOYMENT → Content Security Policy](./19-deployment.md#content-security-policy)).
   Allowing it means choosing which origins may frame those pages — for example,
   the registered platforms' origins. CSP is off in the current deployments.
 - **Learner and LTI state cookies under third-party-cookie blocking.** A separate
@@ -217,10 +217,10 @@ flagged directly in the code:
 - **Bot mitigation & failed-login throttling.** Public self-service flows have no
   CAPTCHA, and while `failed_login_attempts` is recorded, lockout / back-off and
   timing-attack mitigations are not yet enforced
-  ([AUTHN-AUTHZ → Honest Notes](./AUTHN-AUTHZ.md#honest-notes--open-questions)).
+  ([AUTHN-AUTHZ → Honest Notes](./12-authn-authz.md#honest-notes--open-questions)).
 - **Key persistence.** The LTI tool keystore and the agent's per-platform JWKS
   caches are in-memory and reset on restart; persistence (and rotation strategy)
-  is a noted `TODO` ([LTI → Keys & Trust](./LTI.md#keys--trust)).
+  is a noted `TODO` ([LTI → Keys & Trust](./13-lti.md#keys--trust)).
 - **Nonce / token housekeeping.** Used LTI nonces are marked but not yet pruned;
   agent refresh-token rotation (`used_at`) should be confirmed end-to-end.
 - **Emergency blocking is deferred.** The activity URL allowlist admits; nothing
@@ -247,19 +247,19 @@ flagged directly in the code:
   is an accepted risk, not an oversight: closing the bounce means replacing it
   with a Modulus page and a return link, and session expiry is the common path
   through this endpoint and today resolves with no learner action at all. See
-  [AUTHN-AUTHZ → The Authorization Endpoint's Branch Ordering](./AUTHN-AUTHZ.md#the-authorization-endpoints-branch-ordering).
+  [AUTHN-AUTHZ → The Authorization Endpoint's Branch Ordering](./12-authn-authz.md#the-authorization-endpoints-branch-ordering).
 - **Formal threat model & pen-test.** A written threat model and an independent
   review are not yet part of the repository.
 - **Transport & secrets.** TLS termination, secret management, and key
-  distribution are deployment concerns — see [DEPLOYMENT](./DEPLOYMENT.md).
+  distribution are deployment concerns — see [DEPLOYMENT](./19-deployment.md).
 
 ---
 
 ## Where to go next
 
-- [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) — the authentication and authorization
+- [AUTHN-AUTHZ](./12-authn-authz.md) — the authentication and authorization
   mechanics in full.
-- [LTI](./LTI.md) and [AGENT](./AGENT.md) — the two trust boundaries.
-- [DATA-MODEL](./DATA-MODEL.md) — exactly what is stored, and where.
-- [DEPLOYMENT](./DEPLOYMENT.md) — transport security, secrets, and operational
+- [LTI](./13-lti.md) and [AGENT](./15-agent.md) — the two trust boundaries.
+- [DATA-MODEL](./11-data-model.md) — exactly what is stored, and where.
+- [DEPLOYMENT](./19-deployment.md) — transport security, secrets, and operational
   hardening.

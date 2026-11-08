@@ -11,7 +11,7 @@ the *curriculum and content authoring* domain — it is the piece a content auth
 embeds in a Ximera activity so that, when a learner works through that activity,
 their progress and page state are reported back to Modulus. It is the
 **Tier 2 ↔ Tier 3** surface from
-[ARCHITECTURE → System Context](./ARCHITECTURE.md#system-context-three-tiers).
+[ARCHITECTURE → System Context](./09-architecture.md#system-context-three-tiers).
 
 A defining property: instrumentation is **additive and optional**. Ximera content
 remains openly accessible without a login; the agent only activates grade tracking
@@ -28,7 +28,7 @@ The agent has two halves:
 
 This document covers both. The authentication handshake is summarised here from
 the client's perspective; the server side is in
-[AUTHN-AUTHZ → The Agent Flow](./AUTHN-AUTHZ.md#the-agent-flow-oauth-20--pkce).
+[AUTHN-AUTHZ → The Agent Flow](./12-authn-authz.md#the-agent-flow-oauth-20--pkce).
 
 ## The Published Package
 
@@ -176,7 +176,7 @@ response does not replace the prior local default and does not commit a
 locally-restored context to the tab. The server side of this exchange —
 `createAuthCode` / `claimAuthCode`, the PKCE check, and the activity-and-scope-bound token
 it mints — is documented in
-[AUTHN-AUTHZ → The Agent Flow](./AUTHN-AUTHZ.md#the-agent-flow-oauth-20--pkce).
+[AUTHN-AUTHZ → The Agent Flow](./12-authn-authz.md#the-agent-flow-oauth-20--pkce).
 
 The resulting access token carries only an opaque user id, a display name, one
 `activity_id`, one opaque `scope_id`, and a `renew_after` hint — never raw LMS
@@ -221,11 +221,11 @@ Three things are true of all four:
   session built on short-lived tokens, renewed on the back of normal traffic.
 - **Writes feed, but don't block on, grade passback.** `setProgress` writes the
   `progress` table and returns immediately. It does **not** call the LMS — the
-  [LTI score-submission worker](./LTI.md#flow-4--ags-score-passback) discovers the
+  [LTI score-submission worker](./13-lti.md#flow-4--ags-score-passback) discovers the
   changed scoped line item and submits it independently. Page state is
   `JSON.stringify`'d into the `page_state.state` column (and parsed back on read).
 
-See [DATA-MODEL → Learner signals](./DATA-MODEL.md#5-learner-signals) for the
+See [DATA-MODEL → Learner signals](./11-data-model.md#5-learner-signals) for the
 `progress` and `page_state` tables these write.
 
 ## The Data-Isolation Guarantee, End to End
@@ -240,8 +240,8 @@ PII) is upheld at three points:
 3. the agent **validates the server** (registry) before sending anything.
 
 What may cross to authored content is exactly the right-hand column of the
-[data-isolation table](./DATA-MODEL.md#the-data-isolation-boundary-in-schema-terms).
-See [SECURITY-AND-PRIVACY](./SECURITY-AND-PRIVACY.md) for the policy view.
+[data-isolation table](./11-data-model.md#the-data-isolation-boundary-in-schema-terms).
+See [SECURITY-AND-PRIVACY](./21-security-and-privacy.md) for the policy view.
 
 ## Honest Notes & Open Questions
 
@@ -253,7 +253,7 @@ Flagged in the code, relevant to authors and maintainers:
   first, then intersect that aggregate with the reporting cohort: the learners
   enrolled in the selected activity code, and the activities associated with it.
   Enrollment is a learner's membership of an activity code — see
-  [DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping) —
+  [DATA-MODEL → Activities & grouping](./11-data-model.md#3-activities--grouping) —
   and is deliberately unscoped, so a cohort survives across terms.
 
   Activity codes never cross the Tier 2 ↔ Tier 3 boundary. No agent API, access-
@@ -287,15 +287,15 @@ Flagged in the code, relevant to authors and maintainers:
   code notes this is a simplification pending a state-merge strategy.
 - **Single central registry.** Registry validation is hardwired to
   `modulus-learning.org/api/registry`; how this evolves for self-hosted installs
-  relates to the [remote connector](./REMOTE-CONNECTOR.md).
+  relates to the [remote connector](./25-remote-connector.md).
 
 ---
 
 ## Where to go next
 
-- [AUTHN-AUTHZ → The Agent Flow](./AUTHN-AUTHZ.md#the-agent-flow-oauth-20--pkce)
+- [AUTHN-AUTHZ → The Agent Flow](./12-authn-authz.md#the-agent-flow-oauth-20--pkce)
   — the server side of the PKCE handshake.
-- [LTI → AGS Score Passback](./LTI.md#flow-4--ags-score-passback) — what happens
+- [LTI → AGS Score Passback](./13-lti.md#flow-4--ags-score-passback) — what happens
   to the progress the agent records.
-- [DATA-MODEL → Learner signals](./DATA-MODEL.md#5-learner-signals) — the tables
+- [DATA-MODEL → Learner signals](./11-data-model.md#5-learner-signals) — the tables
   the agent reads and writes.

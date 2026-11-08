@@ -1,10 +1,20 @@
 ---
 title: "Installing Modulus in a TanStack Start Host"
 path: "installation"
-summary: "How to run your own Modulus installation from the published packages inside a TanStack Start application: the packages and the native dependencies your application must declare, the Vite and Nitro configuration, the three entry files, the route files that call packaged route factories, environment variables and keys, creating the database with the modulus command, building and running, and upgrading to a later release."
+summary: "An installation draft covering package dependencies, TanStack Start host wiring, environment configuration, database commands, and upgrades, pending validation against an independent downstream installation."
 ---
 
 # Installing Modulus in a TanStack Start Host
+
+:::note[Draft — Downstream Validation Pending]
+Documentation is actively being worked on following the package refactor.
+The recipe below is an implementation draft based on the reference application
+and packed-install fixture, not yet a validated downstream installation guide.
+Detailed setup and supporting instructions will be completed after a working
+independent installation has been exercised. Start with
+[Getting Started](./02-getting-started.md), [Packages](./03-packages.md), and
+[CLI](./06-cli.md) for the current scope.
+:::
 
 This guide is for an institution or developer who wants to run their own
 Modulus installation — with its own database, LMS registration, keys, and
@@ -25,7 +35,7 @@ below is copied from one of them.
   reference host pins: `@tanstack/react-start` 1.169.4, `@tanstack/react-router`
   1.170.46, React 19.3.1, Vite 8.3.5, Nitro `3.0.260903-beta`, and Tailwind CSS
   4.3.3.
-- You have read [Deployment](./DEPLOYMENT.md), which explains the three
+- You have read [Deployment](./19-deployment.md), which explains the three
   deployment modes (`DEPLOYMENT_MODE`) that every installation uses.
 
 ## The Packages
@@ -35,11 +45,11 @@ an installation uses one version for all of them.
 
 | Package | What your application uses it for |
 | --- | --- |
-| `@modulus-learning/core` | Business logic and data access, behind the `CoreCommands` facade described in [Core Composition](./CORE-COMPOSITION.md). Also provides the `modulus` command for the database, administrators, and keys. |
+| `@modulus-learning/core` | Business logic and data access, behind the `CoreCommands` facade described in [Core Composition](./10-core-composition.md). Also provides the `modulus` command for the database, administrators, and keys. |
 | `@modulus-learning/host-tanstack-start` | The TanStack Start layer: route factories, server functions, the admin and learner UI, entry helpers, the Vite preset, and styles. |
-| `@modulus-learning/lms-canvas` | The Canvas LMS adapter, `canvasAdapter()`, which your server entry passes to core. See [The LMS Adapter](./CORE-COMPOSITION.md#the-lms-adapter). |
+| `@modulus-learning/lms-canvas` | The Canvas LMS adapter, `canvasAdapter()`, which your server entry passes to core. See [The LMS Adapter](./10-core-composition.md#the-lms-adapter). |
 | `@modulus-learning/lti` | Not imported by your application. The shared LTI 1.3 vocabulary and the LMS adapter contract, installed as a dependency of core and the adapter. |
-| `@modulus-learning/agent` | Not used by your application. Activity pages embed it to report progress; see [Agent](./AGENT.md). |
+| `@modulus-learning/agent` | Not used by your application. Activity pages embed it to report progress; see [Agent](./15-agent.md). |
 
 ## Recipe
 
@@ -292,7 +302,7 @@ prompts for a password without echoing it (or reads one from standard input with
 `--password-stdin`) and creates an administrator with the Manager role. Both
 commands accept `--database-url` and `--env-file`. The schema commands and what
 the boot-time check requires are described in
-[Deployment](./DEPLOYMENT.md#database-schema-at-release).
+[Deployment](./19-deployment.md#database-schema-at-release).
 
 ### 7. Build and Run
 
@@ -304,7 +314,7 @@ node --env-file-if-exists=.env --env-file-if-exists=.env.local .output/server/in
 On start, the instance logs one line naming its mode, and
 `GET /routes/elb-status` answers `{"status":"okay","mode":"all-in-one","jobs":true}`.
 Sign in at `/admin/sign-in` with the administrator from step 6, then register
-your LMS as described in [LTI](./LTI.md).
+your LMS as described in [LTI](./13-lti.md).
 
 ## Upgrading
 
@@ -312,7 +322,7 @@ your LMS as described in [LTI](./LTI.md).
 2. Read the release notes for **Breaking Changes** and **Migrations**.
 3. Run `modulus db upgrade` before the new build serves traffic — on Fly, as the
    admin app's `release_command`, described in
-   [Deployment](./DEPLOYMENT.md#applying-scripts-on-deploy).
+   [Deployment](./19-deployment.md#applying-scripts-on-deploy).
 4. Rebuild and deploy.
 
 An enforcing build refuses to start against a database that is missing a release
@@ -323,19 +333,19 @@ wrong schema.
 
 - **Separate frontend and admin instances.** Build once and run two instances
   with different `DEPLOYMENT_MODE` values; run `db upgrade` and the background
-  jobs only on the admin instance. See [Deployment](./DEPLOYMENT.md).
+  jobs only on the admin instance. See [Deployment](./19-deployment.md).
 - **An existing database from before the ledger.** Adopt it once with
   `modulus db adopt --through <script>`; see
-  [Deployment](./DEPLOYMENT.md#adopting-an-existing-database).
+  [Deployment](./19-deployment.md#adopting-an-existing-database).
 - **A monorepo.** The packages install into a workspace application the same
   way. Keep the `allowBuilds` entries in the workspace's `pnpm-workspace.yaml`.
 
 ## Honest Notes & Open Questions
 
-- **Not yet on npm.** `@modulus-learning/core` and
-  `@modulus-learning/host-tanstack-start` have not been published; the first
-  release will be a prerelease under the `next` dist-tag. Until then,
-  `scripts/packed-install.sh` shows the same installation from packed tarballs.
+- **Release selection.** Use one published version across the Modulus packages
+  and read its release notes before following this draft. The packed-install
+  fixture checks local tarballs; it does not establish registry availability or
+  validate an independent installation.
 - **No route manifest or doctor yet.** The route set is "copy
   `apps/gradebook/src/routes`". A packaged manifest and a check that reports
   missing or moved route files are planned in
@@ -343,23 +353,20 @@ wrong schema.
 - **Branding is minimal.** The root route takes a title, icons, and analytics.
   The admin and learner chrome still shows the Modulus logo, and colour tokens
   are not yet a documented contract.
-- **The LMS adapter will change the composition.** Canvas support currently
-  lives inside core. Extracting it into `@modulus-learning/lms-canvas` will make
-  the adapter an explicit part of your server configuration — a planned breaking
-  change, described in `specs/2026-10-25-canvas-lti-package-extraction-spec.md`.
-- **Licensing is under review.** The server packages are AGPL-3.0-only today;
-  the project owners are considering MPL-2.0. The agent is MIT. Each
-  institution should take its own view on how the licence applies to its
-  installation.
+- **LMS composition.** Canvas support is provided by `@modulus-learning/lms-canvas`,
+  selected explicitly in the server entry shown above. Additional LMS adapters
+  remain future work; [LMS Integration](./08-lms-integration.md) describes the boundary.
+- **Licensing.** The repository and server packages use MPL-2.0. The browser
+  agent and demos remain MIT. Each package includes its applicable licence.
 
 ## Where to go next
 
-- [Deployment](./DEPLOYMENT.md) explains the deployment modes, the background
+- [Deployment](./19-deployment.md) explains the deployment modes, the background
   jobs, and how the schema is applied and checked at each release.
-- [LTI](./LTI.md) covers registering your LMS and the launch and grade flows your
+- [LTI](./13-lti.md) covers registering your LMS and the launch and grade flows your
   installation serves.
-- [Agent](./AGENT.md) describes the library activity pages embed to report
+- [Agent](./15-agent.md) describes the library activity pages embed to report
   progress to your installation.
-- [Security & Privacy](./SECURITY-AND-PRIVACY.md) sets out what your installation
+- [Security & Privacy](./21-security-and-privacy.md) sets out what your installation
   stores and the privacy boundary between Modulus and activities.
-- [Architecture](./ARCHITECTURE.md) explains the design the packages implement.
+- [Architecture](./09-architecture.md) explains the design the packages implement.

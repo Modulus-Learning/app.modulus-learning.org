@@ -12,7 +12,7 @@
 #
 # Shutdown: no background jobs run here, so Nitro closes in-flight HTTP within
 # SERVER_SHUTDOWN_TIMEOUT (25 s on the image), inside kill_timeout (30 s).
-# See docs/DEPLOYMENT.md.
+# See docs/19-deployment.md.
 
 app = 'modulus-restless-snowflake-2677'
 primary_region = 'sin'

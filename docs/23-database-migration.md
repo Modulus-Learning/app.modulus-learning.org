@@ -16,9 +16,9 @@ You have authenticated Neon and Fly CLIs, PostgreSQL 18 client tools, and an
 approved maintenance window. Use a direct Neon endpoint for administrative
 commands and the application connection. A direct hostname omits `-pooler`.
 
-The backend runs the [score-submission worker](./LTI-SCORE-SUBMISSION.md).
+The backend runs the [score-submission worker](./14-lti-score-submission.md).
 Keep exactly one backend machine; frontend machines must have
-`JOB_QUEUE_ENABLED=false`. See [Deployment](./DEPLOYMENT.md) for the runtime modes.
+`JOB_QUEUE_ENABLED=false`. See [Deployment](./19-deployment.md) for the runtime modes.
 
 Production backups belong in the ignored `postgres/backups/` directory. Keep
 credentials in private files or a password manager, outside command history and
@@ -206,6 +206,6 @@ record private; the repository is public.
 
 ## Where to go next
 
-- [Deployment](./DEPLOYMENT.md) explains the frontend and backend runtime modes.
-- [LTI Score Submission](./LTI-SCORE-SUBMISSION.md) describes the grade-passback worker.
-- [Security & Privacy](./SECURITY-AND-PRIVACY.md) explains the data-handling boundaries.
+- [Deployment](./19-deployment.md) explains the frontend and backend runtime modes.
+- [LTI Score Submission](./14-lti-score-submission.md) describes the grade-passback worker.
+- [Security & Privacy](./21-security-and-privacy.md) explains the data-handling boundaries.

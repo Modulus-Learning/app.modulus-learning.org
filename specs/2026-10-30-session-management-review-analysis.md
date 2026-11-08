@@ -69,7 +69,7 @@ All paths below are under `packages/host-tanstack-start/src/` unless stated.
 | Public-page soft recovery | `lib/session/session-recovery.tsx`, mounted in `apps/gradebook/src/routes/$lng/_public/route.tsx` |
 | LMS-framed terminal state | `bootstrapStep` returns `session-unavailable` for a framed learner instead of sign-in (LTI learners have no password) |
 
-`docs/AUTHN-AUTHZ.md` § "Host Sessions: Verification and Explicit Renewal"
+`docs/12-authn-authz.md` § "Host Sessions: Verification and Explicit Renewal"
 documents this model.
 
 ## Gaps
@@ -487,7 +487,7 @@ points, all adopted:
 
 - infonomic.io and www.forru.org were not reviewed.
 - Agent refresh-token rotation (`agent_refresh_tokens.used_at`) was not traced;
-  `docs/AUTHN-AUTHZ.md` § "Honest Notes & Open Questions" already flags it.
+  `docs/12-authn-authz.md` § "Honest Notes & Open Questions" already flags it.
 - Failed-login throttling (also flagged in that section) is a separate item;
   Byline handled it in its password sign-in admission work.
 - The `Partitioned` (CHIPS) cookie decision for the LMS iframe (GitHub issue #10)
@@ -522,7 +522,7 @@ For the reviewing agent, the claims most worth verifying:
 
 ## Where to Go Next
 
-- `docs/AUTHN-AUTHZ.md` — current Modulus session documentation.
+- `docs/12-authn-authz.md` — current Modulus session documentation.
 - bylinecms.dev `docs/07-auth-and-security/01-authn-authz.md` — the reference model.
 - The next deliverable is a spec and implementation plan under `specs/` for
   Phase 1, following [Implementation Handoff](#implementation-handoff).

@@ -8,8 +8,8 @@ summary: "How Modulus passes scores back to the LMS: a level-triggered work queu
 
 This is the reference for how Modulus reports learner progress back to the LMS
 gradebook over LTI Assignment & Grade Services (AGS). It is the Tier 1 ↔ Tier 2
-"score passback" surface introduced in [ARCHITECTURE](./ARCHITECTURE.md) (decision
-3) and [LTI](./LTI.md): a **queued, worker-driven subsystem**, deliberately *not*
+"score passback" surface introduced in [ARCHITECTURE](./09-architecture.md) (decision
+3) and [LTI](./13-lti.md): a **queued, worker-driven subsystem**, deliberately *not*
 an inline call during a request, because at OSU scale several thousand learners
 may report progress at nearly the same moment and **no score may be lost**.
 
@@ -28,7 +28,7 @@ that feeds the queue). The schema is in
 
 ## The model
 
-Progress originates in [the agent](./AGENT.md) as a normalized value in `[0, 1]`
+Progress originates in [the agent](./15-agent.md) as a normalized value in `[0, 1]`
 and flows through four tables:
 
 ```
@@ -48,7 +48,7 @@ and flows through four tables:
   tuple, so one term cannot advance another.
 - **`progress_events`** is the append-only history: one row each time the HWM
   advances in the same scope, stamped with the database `NOW()` at write time. See
-  [DATA-MODEL](./DATA-MODEL.md). Its timestamp being server-assigned is
+  [DATA-MODEL](./11-data-model.md). Its timestamp being server-assigned is
   load-bearing (see [Cutoffs](#cutoffs-and-high-water-marks)).
 - **`lti_lineitems`** is the unit of submission and the work queue. One row binds
   a `(user, activity, scope)` to a specific LMS line item (`lineitem_url`,
@@ -330,7 +330,7 @@ drives platform-level behavior.
 > later event, so per-item stamps stay monotonically increasing). It is not yet done
 > because the submitter only has the HWM *value*, not the establishing event's time — that
 > would need a persisted `submittable_progress_at` column fed by the ingestion and launch
-> paths. Tracked in [SCORE-SUBMISSION-TODO](./SCORE-SUBMISSION-TODO.md). We also do not
+> paths. This remains an open item. We also do not
 > send the optional `submission.submittedAt`; deliberately, as it buys little for our model.
 
 ## Error handling, in three tiers
@@ -587,14 +587,14 @@ durable cross-process enforcement of `paused_until`; **retention / partitioning*
 `lti_submission_failures`. Honouring a **downward `cutoff_at`** change within the same
 scope (clawing a score back) is **decided against**: same-scope launch reconciliation
 uses monotonic `GREATEST`. A verified scope rebind is different and deliberately seeds
-the new scope's exact high-water mark. Smaller open items and known issues are
-tracked in [SCORE-SUBMISSION-TODO](./SCORE-SUBMISSION-TODO.md); this document should be
-updated as these land.
+the new scope's exact high-water mark. The smaller open items and known issues
+described above should be reviewed against the refactored packages and updated
+as they land.
 
 ---
 
 ## Where to go next
 
-- [LTI](./LTI.md) — verified launch scope resolution and AGS platform trust.
-- [AGENT](./AGENT.md) — the scoped progress producer that feeds this queue.
-- [DATA-MODEL](./DATA-MODEL.md) — scope, progress-event, and line-item schema.
+- [LTI](./13-lti.md) — verified launch scope resolution and AGS platform trust.
+- [AGENT](./15-agent.md) — the scoped progress producer that feeds this queue.
+- [DATA-MODEL](./11-data-model.md) — scope, progress-event, and line-item schema.

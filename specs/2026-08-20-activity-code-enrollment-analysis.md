@@ -4,10 +4,10 @@ Date: 2026-08-20
 Status: approved; implemented on `feat/activity-code-enrollment`
 Related:
 
-- `docs/DATA-MODEL.md` — current activity, code, enrollment, scope, and learner-signal tables
-- `docs/CUMMULATIVE-PROGRESS.md` — shipped multi-activity progress behaviour
-- `docs/DYNAMIC-ACTIVITIES.md` — lazy-created activities without code associations
-- `docs/LTI.md` — deep-link and resource-link launch flows
+- `docs/11-data-model.md` — current activity, code, enrollment, scope, and learner-signal tables
+- `docs/17-cumulative-progress.md` — shipped multi-activity progress behaviour
+- `docs/16-dynamic-activities.md` — lazy-created activities without code associations
+- `docs/13-lti.md` — deep-link and resource-link launch flows
 - `packages/core/src/database/schema/source/enrollment.ts` — current enrollment schema
 - `packages/core/src/modules/app/activities` — current enrollment and reporting behaviour
 
@@ -125,7 +125,7 @@ Modulus deliberately stores no formal parent/child relationship between those
 pages. If a learner starts activity X under code C and later reaches related
 activity Y, Modulus cannot infer the correct code when X is associated with both
 C and D. Propagating both codes would turn content navigation into an implicit
-mutation of the enrollment graph. [Cumulative Progress](../docs/CUMMULATIVE-PROGRESS.md)
+mutation of the enrollment graph. [Cumulative Progress](../docs/17-cumulative-progress.md)
 explains why activity codes are otherwise orthogonal to page-to-page reporting.
 
 The current enrollment tuple has a second integrity defect. Neither
@@ -227,7 +227,7 @@ navigation:
 | none | C | No |
 
 Lazy-created cumulative targets initially have no activity-code association, as
-described in [Dynamic Activities](../docs/DYNAMIC-ACTIVITIES.md). Their progress is
+described in [Dynamic Activities](../docs/16-dynamic-activities.md). Their progress is
 therefore not included in any code-scoped instructor report until an instructor
 explicitly associates the activity with a code. Enrollment itself does not need
 to change when that association is added or removed.
@@ -351,9 +351,9 @@ tasks and verification steps:
   of scope;
 - update enrollment seeds and add enough `activity_activity_code` seed data for
   the placeholder report to return a useful non-empty result in development;
-- revise all three affected parts of `DATA-MODEL.md` (the activity graph, the
-  `enrollment` definition, and the reporting paragraph), plus `LTI.md`,
-  `AGENT.md`, and relevant source comments.
+- revise all three affected parts of `11-data-model.md` (the activity graph, the
+  `enrollment` definition, and the reporting paragraph), plus `13-lti.md`,
+  `15-agent.md`, and relevant source comments.
 
 No agent API, access-token claim, cumulative-progress payload, or page-state
 contract needs to change.

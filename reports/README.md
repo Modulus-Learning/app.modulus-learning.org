@@ -6,7 +6,7 @@ Auditor-facing reports for the project.
 
 Response to the MODULUS website accessibility audit (report 02) — the status and
 resolution of all 33 findings. The companion working tracker is
-[`docs/ACCESSIBILITY-AUDIT.md`](../docs/ACCESSIBILITY-AUDIT.md).
+[`docs/24-accessibility-audit.md`](../docs/24-accessibility-audit.md).
 
 - **`accessibility-audit-response.html`** is the source of truth. It is
   self-contained (inline CSS, no external assets) and theme-aware (light/dark).

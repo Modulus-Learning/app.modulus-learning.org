@@ -44,7 +44,7 @@ All workspace Vitest `test` scripts use `vitest run` and execute both modes.
 or packed installations:
 
 - `pnpm test:integration` needs PostgreSQL 18 and `packages/core/.env.test`
-  (copy `.env.test.example` and initialise the test database as in `docs/TESTING.md`).
+  (copy `.env.test.example` and initialise the test database as in `docs/22-testing.md`).
 - `pnpm test:session` builds the gradebook and runs its session HTTP suite
   against the `_test` database.
 - `pnpm -F @modulus-learning/gradebook test:contract` tests a server you start;

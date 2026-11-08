@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Build the gradebook image ONCE and deploy it to BOTH Fly apps -- the frontend
 # (DEPLOYMENT_MODE=frontend) and the admin instance (DEPLOYMENT_MODE=admin). Both run the
-# identical image; the mode is a runtime env switch (see docs/DEPLOYMENT.md).
+# identical image; the mode is a runtime env switch (see docs/19-deployment.md).
 # Extra args are forwarded to each `fly deploy` (e.g. --build-only is NOT useful
 # here; use the per-app scripts to deploy a single app).
 

@@ -17,6 +17,6 @@ apt search postgresql.*-18
 sudo apt install postgresql-client-18
 
 # Production database moves and backup/restore commands:
-# See docs/DATABASE-MIGRATION.md. Use PostgreSQL 18 client tools.
+# See docs/23-database-migration.md. Use PostgreSQL 18 client tools.
 # Keep timestamped production dumps and migration evidence in postgres/backups/ (ignored).
 # Use direct Neon hosts; credentials belong in private environment variables/files.

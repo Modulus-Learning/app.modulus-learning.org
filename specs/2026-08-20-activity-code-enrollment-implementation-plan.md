@@ -6,11 +6,11 @@ Related:
 
 - `specs/2026-08-20-activity-code-enrollment-analysis.md` — approved analysis and
   the source of every invariant below
-- `docs/DATA-MODEL.md` — activity graph, `enrollment` definition, and the
+- `docs/11-data-model.md` — activity graph, `enrollment` definition, and the
   reporting paragraph that this change revises
-- `docs/LTI.md` — Flow 2 resource-link launch, which gains an enrollment step
-- `docs/AGENT.md` — the honest note describing the enrollment cohort
-- `docs/CUMMULATIVE-PROGRESS.md`, `docs/DYNAMIC-ACTIVITIES.md` — why navigation
+- `docs/13-lti.md` — Flow 2 resource-link launch, which gains an enrollment step
+- `docs/15-agent.md` — the honest note describing the enrollment cohort
+- `docs/17-cumulative-progress.md`, `docs/16-dynamic-activities.md` — why navigation
   and lazy activity creation must not write enrollment
 - `packages/core/src/database/schema/source/enrollment.ts`
 - `packages/core/src/modules/app/activities/repository/index.ts`
@@ -49,7 +49,7 @@ The work is complete when:
    selected code;
 8. development seeds produce a non-empty learners/progress view under the new
    model; and
-9. `DATA-MODEL.md`, `LTI.md`, `AGENT.md`, `ARCHITECTURE.md`, and the affected
+9. `11-data-model.md`, `13-lti.md`, `15-agent.md`, `09-architecture.md`, and the affected
    source comments describe code-level enrollment rather than the three-way
    relation.
 
@@ -127,7 +127,7 @@ confirmed at review before Task 2 begins.
 6. **Activity/code associations are seeded from `10_activities.ts`,** which
    receives the activity-code ids that `index.ts` already holds. Adding a new
    numbered seed file between `10` and `11` would renumber the chain documented
-   in `DATA-MODEL.md` for no behavioural gain.
+   in `11-data-model.md` for no behavioural gain.
 7. **The report query keeps aggregate-before-join** by filtering the progress
    aggregate with two `EXISTS` predicates — one for code enrollment, one for
    `activity_activity_code` — instead of joining enrollment into the aggregate.
@@ -664,39 +664,39 @@ Proposed commit: `docs: documented activity code enrollment`
 
 Files:
 
-- revise `docs/DATA-MODEL.md`;
-- revise `docs/LTI.md`;
-- revise `docs/AGENT.md`;
-- revise `docs/ARCHITECTURE.md`; and
+- revise `docs/11-data-model.md`;
+- revise `docs/13-lti.md`;
+- revise `docs/15-agent.md`;
+- revise `docs/09-architecture.md`; and
 - revise the affected source comments if any survive Tasks 2–3.
 
 Work:
 
-- `DATA-MODEL.md` §3 — redraw the activity graph so `enrollment` connects
+- `11-data-model.md` §3 — redraw the activity graph so `enrollment` connects
   `activity_codes` to `users` only, and drop the `(code, activity, user)`
   caption; rewrite the `enrollment` bullet as the two-column learner membership
   relation with immutable `created_at`, contrasting it with
   `activity_code_member` as instructor access; note that scope independence is
   deliberate;
-- `DATA-MODEL.md` §8 — rewrite the reporting paragraph: progress is aggregated
+- `11-data-model.md` §8 — rewrite the reporting paragraph: progress is aggregated
   across scopes to one row per `(user_id, activity_id)`, then intersected with
   code enrollment and `activity_activity_code`; totals and pagination operate on
   learner × associated-activity pairs; a null means no progress in any scope;
   state plainly that the view is a placeholder whose long-term semantics are
   deferred;
-- `DATA-MODEL.md` "Migrations & Seeds" — update the migration range and note
+- `11-data-model.md` "Migrations & Seeds" — update the migration range and note
   that associations are seeded alongside activities at step `10`;
-- `LTI.md` Flow 2 — add the enrollment step to `handleActivityLaunch`: after
+- `13-lti.md` Flow 2 — add the enrollment step to `handleActivityLaunch`: after
   sign-in and before any AGS work, Modulus resolves the public code and enrolls
   the learner in it when the activity is still associated with that code; an
   unresolvable code or a removed association warns, skips, and leaves the launch
   response unchanged; an AGS failure cannot undo it;
-- `LTI.md` Flow 3 — note that deep linking is what creates the association the
+- `13-lti.md` Flow 3 — note that deep linking is what creates the association the
   later launch checks;
-- `AGENT.md` — revise the "Latest state is scoped" honest note so the cohort is
+- `15-agent.md` — revise the "Latest state is scoped" honest note so the cohort is
   the code-level enrollment relation, and state that activity codes never cross
   the Tier 2 ↔ Tier 3 boundary;
-- `ARCHITECTURE.md` — no structural change; confirm the Tier 2 bullet
+- `09-architecture.md` — no structural change; confirm the Tier 2 bullet
   "Activity codes, enrollment" still reads correctly and adjust only if it
   implies an activity-level relation;
 - follow `.agents/skills/writing-docs/SKILL.md`: front matter, Title Case
@@ -704,7 +704,7 @@ Work:
 - document that current policy enrolls instructors who perform a verified
   resource-link launch alongside learners, without presenting that policy as a
   new role or agent contract; and
-- confirm `docs/DOCUMENTATION-PLAN.md` needs no status change because this task
+- confirm `docs/00-documentation-plan.md` needs no status change because this task
   revises existing published documents rather than adding one.
 
 Acceptance criteria:

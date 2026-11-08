@@ -4,7 +4,7 @@ Date: 2026-08-03
 Status: baseline implemented on `chore/testing-refactor`; draft PR #2 is open
 against `develop` and its hosted CI validation is green; follow-up phases proposed
 Related:
-- `docs/TESTING.md` — operational guide for the adopted baseline
+- `docs/22-testing.md` — operational guide for the adopted baseline
 - `packages/core/src/test-support` — current core integration harness and fixtures
 - `.github/workflows/ci.yml` — shared push and pull-request validation workflow
 - GitHub PR #2 — `chore(testing): add testing and CI baseline`

@@ -76,8 +76,9 @@ Deliberately left for later:
   LTI verification in Phase B.
 - The email-linking policy questions in the
   [email linking analysis](./2026-10-28-lti-email-account-linking-analysis.md).
-- The licence decision (AGPL-3.0 or MPL-2.0 for the server packages; the agent
-  stays MIT), with the project owners.
+
+The licence decision is resolved: the repository and server packages use
+MPL-2.0, while the agent and demos remain MIT. See `LICENSING.md`.
 
 ## Before Deploying `develop`
 
@@ -87,7 +88,7 @@ In production the schema check defaults to `enforce`
 deployment mode, so an instance against a database without the ledger exits
 and `/routes/elb-status` never reports healthy.
 
-The procedure is in `docs/DEPLOYMENT.md` under Adopting an Existing Database.
+The procedure is in `docs/19-deployment.md` under Adopting an Existing Database.
 The owner's preferred rehearsal: restore a production backup locally, run
 `modulus db adopt --through <last applied script>` and `modulus db status`
 against it, then repeat on production. The reference production installation

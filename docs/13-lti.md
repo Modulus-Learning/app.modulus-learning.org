@@ -7,7 +7,7 @@ summary: "How Modulus is an LTI 1.3 tool for an institutional LMS: the three key
 # LTI 1.3 Integration
 
 LTI 1.3 is the **Tier 1 ↔ Tier 2** surface from
-[ARCHITECTURE → System Context](./ARCHITECTURE.md#system-context-three-tiers): the
+[ARCHITECTURE → System Context](./09-architecture.md#system-context-three-tiers): the
 standards-based connection between the institutional LMS (OSU Canvas / "Carmen")
 and Modulus. It is the reason Modulus exists — replacing Ximera's legacy LTI link
 with a modern one that supports deep linking, resource-link launches, and
@@ -16,7 +16,7 @@ Assignment & Grade Services (AGS) grade passback.
 The implementation lives in `packages/core/src/modules/app/lti/`, with the
 tool keystore in `lib/lti-keystore.ts` and the passback worker in
 `workers/score-submission.ts`. The schema it drives is in
-[DATA-MODEL → LTI integration](./DATA-MODEL.md#6-lti-integration).
+[DATA-MODEL → LTI integration](./11-data-model.md#6-lti-integration).
 
 This doc maps onto the data-flow table in the institutional summary; the eight
 flows there correspond to the sections below.
@@ -28,7 +28,7 @@ understanding the rest:
 
 | Keypair | Source | Used to | Reference |
 | --- | --- | --- | --- |
-| **Modulus session keys** | `config.jwt` | sign/verify learner, admin, agent session tokens | [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) |
+| **Modulus session keys** | `config.jwt` | sign/verify learner, admin, agent session tokens | [AUTHN-AUTHZ](./12-authn-authz.md) |
 | **Tool LTI keys** | `config.lti.jwks` | sign *tool-originating* LTI messages and AGS client-assertions; published as our JWKS | this doc |
 | **Platform keys** | remote, per platform | verify *incoming* `id_token` launches | this doc |
 
@@ -98,7 +98,7 @@ modulus_launch_type)` — only known combinations are accepted:
 All three resolve the launching user through **`LtiSignInService`** (resolve by
 `(iss, sub)` → by email → auto-provision; instructor vs. learner decided by
 `isInstructor()` over the LTI roles claim — see
-[AUTHN-AUTHZ → Learner sessions](./AUTHN-AUTHZ.md#learner-sessions-appsession))
+[AUTHN-AUTHZ → Learner sessions](./12-authn-authz.md#learner-sessions-appsession))
 and mint Modulus session tokens.
 
 `handleActivityLaunch` also resolves an academic scope from the **verified**
@@ -119,7 +119,7 @@ it. The write is idempotent, so a learner who opens the same link every week
 keeps one enrollment row with its original `created_at`. Under current policy no
 role distinction is made here: an instructor performing a resource-link launch is
 enrolled in the same cohort as a learner. Enrollment is defined in
-[DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping).
+[DATA-MODEL → Activities & grouping](./11-data-model.md#3-activities--grouping).
 
 Two conditions skip the write without disturbing the launch. A public code that
 no longer resolves, and an activity that has been removed from the code since the
@@ -151,7 +151,7 @@ No score is sent inline; that is the worker's job (Flow 4).
 The host sets the learner's session cookies and then redirects. Where it
 redirects is a deployment choice, made by `LTI_LAUNCH_INTERSTITIAL` and
 documented in
-[DEPLOYMENT → Launch Interstitial](./DEPLOYMENT.md#launch-interstitial):
+[DEPLOYMENT → Launch Interstitial](./19-deployment.md#launch-interstitial):
 
 | Mode | The browser goes to | Hops to the activity |
 | --- | --- | --- |
@@ -270,7 +270,7 @@ with `FOR UPDATE SKIP LOCKED`, persists an expiring lease and fencing token,
 posts the row's `submittable_progress`, then records the outcome only if its
 fencing token still matches. Per-item throttling/backoff and the per-platform
 circuit breaker are described in the canonical
-[LTI Score Submission](./LTI-SCORE-SUBMISSION.md) reference.
+[LTI Score Submission](./14-lti-score-submission.md) reference.
 
 ### Why this survives scale and crashes
 
@@ -297,10 +297,10 @@ hour).
 
 The three platform-to-platform commands are **`auth: { mode: 'none' }`** — they
 are authenticated by JWT signatures and nonces, not by a Modulus session
-([CORE-COMPOSITION → The Command Pattern](./CORE-COMPOSITION.md#the-command-pattern)).
+([CORE-COMPOSITION → The Command Pattern](./10-core-composition.md#the-command-pattern)).
 `handleDeepLink` is the exception: it is submitted by a signed-in instructor from
 a Modulus form, so it requires a user session and an ability
-([AUTHN-AUTHZ](./AUTHN-AUTHZ.md)).
+([AUTHN-AUTHZ](./12-authn-authz.md)).
 
 | Command | Host route | Auth | Purpose |
 | --- | --- | --- | --- |
@@ -369,9 +369,9 @@ that case.
 
 ## Where to go next
 
-- [AGENT](./AGENT.md) — how normalized progress reaches the `progress` table that
+- [AGENT](./15-agent.md) — how normalized progress reaches the `progress` table that
   feeds passback.
-- [DATA-MODEL → LTI integration](./DATA-MODEL.md#6-lti-integration) — the table
+- [DATA-MODEL → LTI integration](./11-data-model.md#6-lti-integration) — the table
   definitions, including the `lti_lineitems` submission-tracking columns.
-- [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) — auto-provisioning and the session tokens
+- [AUTHN-AUTHZ](./12-authn-authz.md) — auto-provisioning and the session tokens
   minted at launch.

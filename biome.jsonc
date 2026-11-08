@@ -75,8 +75,8 @@
         "useNumberNamespace": "error",
         "noInferrableTypes": "error",
         "noUselessElse": "error",
-        // The gradebook runs on TanStack Start; Next was removed in the
-        // migration (specs/2026-10-23-gradebook-tanstack-start-migration-plan.md).
+        // The gradebook uses the TanStack Start host adapter
+        // (docs/07-host-tanstack-start.md); Next imports are not supported.
         "noRestrictedImports": {
           "level": "error",
           "options": {

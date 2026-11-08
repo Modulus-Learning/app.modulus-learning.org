@@ -16,7 +16,7 @@ const redirect307 = (url: URL) =>
 
 /**
  * The agent's OAuth 2.0 authorization endpoint (authorization code + PKCE).
- * See `docs/AUTHN-AUTHZ.md` → "The Authorization Endpoint's Branch Ordering"
+ * See `docs/12-authn-authz.md` → "The Authorization Endpoint's Branch Ordering"
  * for why the checks run in this order; ported unchanged from the Next handler.
  */
 export const handleAgentAuthorize = async (request: Request): Promise<Response> => {

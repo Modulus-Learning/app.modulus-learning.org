@@ -42,9 +42,9 @@ activity report a *calculation of its own progress* against one or more **other*
 activities, so a course/unit landing page can show an aggregate roll-up of the
 activities that report into it.
 
-It builds directly on [The Modulus Agent](./AGENT.md) (the client library and the
+It builds directly on [The Modulus Agent](./15-agent.md) (the client library and the
 server-side activity-state ingestion) and touches the
-[data model](./DATA-MODEL.md) for progress.
+[data model](./11-data-model.md) for progress.
 
 ## The mental model: everything is an activity
 
@@ -69,7 +69,7 @@ the platform.
 
 ## Today's behaviour (baseline)
 
-For the full picture see [AGENT.md](./AGENT.md); the parts this work changes:
+For the full picture see [15-agent.md](./15-agent.md); the parts this work changes:
 
 - **Transport.** `apps/agent`'s `ApiClient` hits **two** endpoints —
   `/routes/agent/activity/progress` and `/routes/agent/activity/page-state` —
@@ -459,7 +459,7 @@ context every core log line carries by design: `request_id`, `command`, and, in
 `prepareLogContext` establishes at the command boundary
 (`packages/core/src/lib/utils.ts`). That `user_id` is Modulus's own opaque
 identifier, which is exactly the identifier the
-[data-isolation boundary](./DATA-MODEL.md#the-data-isolation-boundary-in-schema-terms)
+[data-isolation boundary](./11-data-model.md#the-data-isolation-boundary-in-schema-terms)
 is built around. What never reaches the line is a token, an auth code, a PKCE
 value, or the rejected URL's query string or fragment.
 
@@ -480,13 +480,13 @@ Settled during Phase 1 implementation (open to revision in review):
 
 ## Where to go next
 
-- [AGENT](./AGENT.md) — the client library that expands one `setProgress` call
+- [AGENT](./15-agent.md) — the client library that expands one `setProgress` call
   into this submission, and the server-side ingestion that receives it.
-- [DATA-MODEL](./DATA-MODEL.md) — the `progress`, `progress_events` and
+- [DATA-MODEL](./11-data-model.md) — the `progress`, `progress_events` and
   `activity_url_allowlist_rules` tables this design writes and reads.
-- [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) — how the token-bound
+- [AUTHN-AUTHZ](./12-authn-authz.md) — how the token-bound
   `(user, activity, scope)` tuple that identifies the reporting activity is
   issued, and how the same allowlist gates the OAuth path.
-- [Dynamic Activities](./DYNAMIC-ACTIVITIES.md) — why a created activity carries
+- [Dynamic Activities](./16-dynamic-activities.md) — why a created activity carries
   no activity-code association, and what the earlier allowlist proposal got
   wrong.

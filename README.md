@@ -1,57 +1,53 @@
 # Modulus
 
+Modulus connects a learning management system (LMS) to open learning activities
+through LTI 1.3. It handles authenticated launches, progress recording, and
+score passback so that platforms such as Ximera can focus on delivering content.
+
 > [!NOTE]
-> Modulus is in active development. Contributions may be initially limited to core maintainers while the project settles on a final governance and license structure. 
+> Documentation is actively being worked on following the package refactor.
+> Downstream installation instructions are drafts until they have been validated
+> against a working independent installation.
 
-This is the monorepo for the Modulus project. Modulus is a learning platform monorepo (pnpm + Turborepo) targeting higher education with LTI integration support. The application is built on a **modular, package-based architecture** centered around a core registry and dependency injection framework in `packages/core`.
+## Apps and Packages
 
-### Core Architectural Philosophy
+| Location | Purpose |
+| --- | --- |
+| `packages/core` | Business operations, data access, schema scripts, and the `modulus` CLI |
+| `packages/lti` | Shared LTI vocabulary and the LMS adapter contract |
+| `packages/lms-canvas` | The Canvas LMS adapter |
+| `packages/host-tanstack-start` | TanStack Start integration, route factories, server functions, UI, and styles |
+| `apps/agent` | The published browser instrumentation library |
+| `apps/gradebook` | This repository's reference installation |
+| `apps/agent-demo` | React and vanilla examples of instrumented content |
+| `fixtures/host-minimal` | A downstream package-installation test fixture |
 
-NOTE: Our Gradebook application is hosted on [TanStack Start](https://tanstack.com/start/latest), having moved from Next.js 16. One of our design goals is to make Modulus easy to install on 'right-size' infrastructure — from self-hosted to cloud services, and the key architectural principle below is what made that move possible without changes to core's business logic.
+The five published packages release in lockstep. Applications consume their
+public exports; core exposes business operations through `CoreCommands`, with
+`app`, `admin`, and `agent` branches. The TanStack Start host composes core in
+process and receives the installation's LMS adapter. A remote connector remains
+planned work.
 
-The key architectural principle is that `packages/core` exposes all business logic, data access, and services through **class contracts (interfaces)** resolved via a DI registry (`AsyncRegistry`). The consuming application (the TanStack Start gradebook) uses core directly in-process, leveraging the framework's **native routing system** — there is no separate API server. Server routes and server functions in `apps/gradebook` are thin handlers that delegate to core services.
+## Documentation
 
-This design enables **single-instance deploys** for smaller installations where the web app and backend logic run in the same process, which is a unique and important aspect of the project.
+Start with the [documentation overview](./docs/00-documentation-plan.md), then:
 
-### Planned: Remote Connector
+- [Getting Started](./docs/02-getting-started.md) distinguishes evaluating this
+  repository from building a downstream installation.
+- [Packages](./docs/03-packages.md) maps responsibilities and package boundaries.
+- [CLI](./docs/06-cli.md) describes the operational command supplied by core.
+- [Architecture](./docs/09-architecture.md) explains the system design.
+- [Agent](./docs/15-agent.md) covers instrumenting activity pages.
 
-A planned remote connector will allow `packages/core` to communicate with an **external API** for larger or distributed deployments. This will consist of:
+## Working on This Repository
 
-- A **thin HTTP API wrapper** around core's service layer (exposing core functionality over HTTP)
-- **Proxy implementations** of core's class contracts that forward calls to the remote API instead of executing locally
+Read [AGENTS.md](./AGENTS.md) for prerequisites, local commands, environment
+files, and package-specific test runners. [Testing Strategy](./docs/22-testing.md)
+describes local and hosted CI. The contributing workflow is in
+[CONTRIBUTING.md](./CONTRIBUTING.md).
 
-This means consuming applications can swap between local (in-process) and remote (HTTP) implementations transparently, without changing application code. The contract-based DI architecture makes this possible.
+## Licence
 
-### Apps and Packages
-
-- `/apps/agent`: Modulus Client Agent - for 'instrumenting' Modulus-aware curriculum content. This application will include a working example of Modulus-aware content.
-- `/apps/agent-demo`: Modulus Client Agent demos - with plain HTML/CSS/JS and React versions.
-- `/apps/gradebook`: Modulus Gradebook - a [TanStack Start](https://tanstack.com/start/latest) application for the frontend and admin grade book application.
-- `/packages/core`: the core Modulus learning module and package.
-
-
-### Utilities
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [Biome](https://biomejs.dev/) for code linting and formatting
-- [Turborepo](https://turborepo.org/) for running monorepo builds and scripts in a DX friendly and parallel manner
-
-## Setup and Develop
-
-Get started by running
-
-1. `pnpm install` from the root of the monorepo.
-2. Create `/apps/gradebook/.env.local` based on `/apps/gradebook/.env.example` (contact current maintainers for 'secrets'). The committed `/apps/gradebook/.env` holds only public `VITE_*` values; secrets belong in `.env.local`, which is gitignored.
-3. `pnpm build` - from the root
-4. `pnpm dev`- to start all dev servers
-
-## Build
-
-To build all apps and packages, run `pnpm build` from the root of the monorepo. Turborepo will take care of running the build scripts in the correct order based on the combined package.json dependency graph.
-
-If you want to serve your production build locally, run `pnpm start` from the root of the monorepo.
-
-## Deploy
-
-We currently use Docker images deployed to [Fly.io](https://fly.io) for shared test deployments.
-
+Project-owned source uses **MPL-2.0**, except `apps/agent` and `apps/agent-demo`,
+which remain **MIT**. Bundled third-party assets retain their own licences.
+See [LICENSE](./LICENSE) and [Licensing](./LICENSING.md) for the scope and terms.

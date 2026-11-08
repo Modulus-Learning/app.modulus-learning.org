@@ -702,17 +702,17 @@ by the existence of this draft alone.
 - [Modulus Packaging and Distribution](./2026-10-28-modulus-packaging-and-distribution-spec.md)
   defines the published package set, host package, release process, and
   downstream installation model this extraction fits into.
-- [Documentation Overview](../docs/DOCUMENTATION-PLAN.md) records this draft and
+- [Documentation Overview](../docs/00-documentation-plan.md) records this draft and
   distinguishes the available proposal from planned implementation/reference work.
-- [Architecture](../docs/ARCHITECTURE.md) explains the core boundary and the
+- [Architecture](../docs/09-architecture.md) explains the core boundary and the
   separation between LMS connectivity and activity instrumentation.
-- [Core Composition](../docs/CORE-COMPOSITION.md) describes the typed registry
+- [Core Composition](../docs/10-core-composition.md) describes the typed registry
   and commands facade that will receive the selected adapter.
-- [LTI](../docs/LTI.md) describes the existing integration flows; implementation
+- [LTI](../docs/13-lti.md) describes the existing integration flows; implementation
   details should be checked against source when refining this draft.
-- [LTI Score Submission](../docs/LTI-SCORE-SUBMISSION.md) explains queue,
+- [LTI Score Submission](../docs/14-lti-score-submission.md) explains queue,
   retry, lease, and incident behaviour that extraction must preserve.
-- [Testing Strategy](../docs/TESTING.md) describes the package, database, and
+- [Testing Strategy](../docs/22-testing.md) describes the package, database, and
   host HTTP test boundaries.
-- [Security & Privacy](../docs/SECURITY-AND-PRIVACY.md) explains the activity
+- [Security & Privacy](../docs/21-security-and-privacy.md) explains the activity
   data-isolation constraint that applies to every LMS adapter.

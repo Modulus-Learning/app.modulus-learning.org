@@ -101,7 +101,7 @@ The following inventory is based on source at `develop` (`e7a8c24`).
 | Database | Drizzle Kit migrations `0000`–`0016` with journal for development; reviewed, idempotent release scripts under `src/database/sql/` (`YYYY-MM-DD-NNN-*.sql`) applied by hand in production; no record in the database of which scripts ran | A downstream has no supported way to create a fresh schema, apply release scripts, or verify the schema at boot. The same directory also tracks `pg_dump` snapshots (`modulus-deploy-*.sql`) and a collation maintenance script that must never ship |
 | Release | `.changeset/config.json` has an empty `fixed` group; `publish-packages.sh` hard-codes the single agent package | Cannot release a coherent multi-package set |
 | Seeds | `src/database/seeds/index.ts` deletes progress, enrollment, activities, activity codes, permissions, and role assignments before rebuilding fixtures | Cannot be run against a live installation; a bootstrap must be a different, non-destructive operation |
-| Licence | Root, core, and gradebook are AGPL-3.0; agent is MIT | Packages must declare licence metadata; the owners are considering MPL-2.0 for the server packages |
+| Licence | Root, server packages, and gradebook use MPL-2.0; agent and demos use MIT | Each package declares its licence and includes the applicable licence text |
 
 Two existing constraints shape the host package directly:
 
@@ -163,7 +163,7 @@ import in its server configuration.
 ### Why the Host Package Is Separate From Core
 
 Core must stay framework-neutral so that the HTTP proxy layer planned in
-`docs/DOCUMENTATION-PLAN.md` and any later host can reuse it. Everything that
+`docs/00-documentation-plan.md` and any later host can reuse it. Everything that
 imports `@tanstack/react-start`, React, or Vite belongs in the host package. The
 dependency rule is the one Byline enforces: the host package may import core;
 core never imports the host package.
@@ -694,15 +694,11 @@ Publish to the public npm registry under `@modulus-learning`, as the agent
 already is. The repository is public, so a private registry adds operational
 cost — tokens in every downstream pipeline — without concealing anything.
 
-The server packages are AGPL-3.0 today. The maintainers prefer MPL-2.0 and will
-take that to the project owners; the agent stays MIT either way. The licence is
-an adoption decision for each installation's institution, and packaging does
-not resolve it. Under AGPL, an operator who modifies the packages and offers
-the result over a network must offer those users the modified source; MPL-2.0
-would limit source obligations to modified package files. Whatever the outcome,
-keep downstream changes to configuration, branding, and content where possible,
-and upstream functional changes instead of patching packages locally. Set each
-manifest's `license` field once the decision is made.
+The licence decision is now MPL-2.0 for the repository and server packages;
+the browser agent and its demos remain MIT. See `LICENSING.md` for the scope
+and third-party exceptions. Keep downstream changes to configuration, branding,
+and content where possible, and upstream functional changes instead of patching
+packages locally. Each manifest declares the applicable licence.
 
 Each downstream installation lives in its own repository, which may be private.
 Institution-specific hostnames, LMS client and deployment IDs, keys, branding
@@ -810,7 +806,7 @@ deployment pipeline without forking, which is the requirement here.
 
 **One package containing everything.** Fewer manifests, but it would force
 Canvas onto every installation and couple core to TanStack Start, undoing the
-framework-neutral core that `docs/ARCHITECTURE.md` describes.
+framework-neutral core that `docs/09-architecture.md` describes.
 
 **TanStack virtual file routes instead of re-export files.** A package could
 contribute route configuration programmatically, removing the 73 small files.
@@ -822,7 +818,7 @@ files; follow it, and revisit if route-file maintenance becomes a real cost.
 maintain. A route manifest and `doctor` cover the drift problem for a handful
 of installations.
 
-**Private registry.** Hides nothing in a public AGPL repository and adds token
+**Private registry.** Hides nothing in a public repository and adds token
 management to every downstream pipeline.
 
 ## Honest Notes & Open Questions
@@ -842,8 +838,8 @@ management to every downstream pipeline.
   become optional host features. A disabled feature requires no credentials and
   exposes no working entry point. Social sign-in is distinct from the agent's
   OAuth-style token flow, which is always present.
-- **Licence.** Owners to decide between AGPL-3.0 and MPL-2.0 for the server
-  packages; the agent stays MIT.
+- **Resolved: licence.** Repository and server packages use MPL-2.0; the agent
+  and its demos remain MIT. See `LICENSING.md`.
 - **Password hashing dependencies.** `argon2`, `bcrypt`, and `bcryptjs` all appear
   in the gradebook. Establish which are needed for existing hashes before
   declaring native dependencies a downstream must build.
@@ -855,7 +851,7 @@ management to every downstream pipeline.
 - **Agent-protocol versioning.** Choose the version carrier (a header, a token
   claim, or the agent endpoint path) and the support window; unmarked agents
   are the legacy version.
-- **Documentation.** `docs/DEPLOYMENT.md` describes this repository's Fly.io
+- **Documentation.** `docs/19-deployment.md` describes this repository's Fly.io
   deployment. A downstream needs an installation guide, a configuration
   reference, and upgrade notes; plan these with the writing-docs standard.
 
@@ -866,15 +862,15 @@ existence of this draft alone.
 
 - [Canvas and LTI Package Extraction](./2026-10-25-canvas-lti-package-extraction-spec.md)
   defines the LMS boundary inside this package set.
-- [Architecture](../docs/ARCHITECTURE.md) explains the framework-neutral core
+- [Architecture](../docs/09-architecture.md) explains the framework-neutral core
   boundary the host package depends on.
-- [Core Composition](../docs/CORE-COMPOSITION.md) describes `initCore`, the typed
+- [Core Composition](../docs/10-core-composition.md) describes `initCore`, the typed
   registry, and the commands facade that downstream composition calls.
-- [Deployment](../docs/DEPLOYMENT.md) describes deployment modes and the
+- [Deployment](../docs/19-deployment.md) describes deployment modes and the
   frontend/admin split each installation inherits.
-- [Data Model](../docs/DATA-MODEL.md) describes the schema and migrations that
+- [Data Model](../docs/11-data-model.md) describes the schema and migrations that
   core ships.
-- [Testing Strategy](../docs/TESTING.md) describes the suites the packed-install
+- [Testing Strategy](../docs/22-testing.md) describes the suites the packed-install
   smoke test builds on.
 - [Release Instructions](../RELEASE-INSTRUCTIONS.md) describes the current
   single-package release that this specification generalises.

@@ -7,7 +7,7 @@ summary: "How packages/core is wired: the type-checked DI registry, the compose(
 # Core Composition
 
 This is the deep dive behind decisions 1, 2, and 5 in
-[ARCHITECTURE](./ARCHITECTURE.md). It covers how `packages/core` is assembled:
+[ARCHITECTURE](./09-architecture.md). It covers how `packages/core` is assembled:
 the dependency-injection registry, the `compose()` lifecycle, how modules nest
 into the core graph, and the shared machinery — commands, logging, transactions —
 that every service is built on.
@@ -404,7 +404,7 @@ initCore({
 ```
 
 `initCore` first runs the database schema check described in
-[Deployment](./DEPLOYMENT.md#database-schema-at-release), refuses an LMS
+[Deployment](./19-deployment.md#database-schema-at-release), refuses an LMS
 adapter built for a different contract version, and registers the adapter as
 the `lmsAdapter` value so every LTI service can depend on it. Then:
 
@@ -420,7 +420,7 @@ const commands: CoreCommands = {
 ```
 
 The host holds the result as a singleton and calls commands per request — see
-[ARCHITECTURE → Single-instance](./ARCHITECTURE.md#3-single-instance-no-separate-api-server)
+[ARCHITECTURE → Single-instance](./09-architecture.md#3-single-instance-no-separate-api-server)
 and `packages/host-tanstack-start/src/core-adapter.ts`.
 
 ### The LMS Adapter
@@ -464,7 +464,7 @@ entry point and is what `getCoreTokenVerifiers` in the host adapter uses.
 - **Contracts, not constructions.** Services depend on named contracts in the
   context, not on concrete imports they `new` up themselves. This is exactly what
   makes implementations swappable, and is the foundation the planned
-  [remote connector](./REMOTE-CONNECTOR.md) builds on — a proxy implementation of
+  [remote connector](./25-remote-connector.md) builds on — a proxy implementation of
   a contract can be registered in place of the in-process one.
 - **Uniformity.** Every module has the same four-part shape and every service the
   same logging/transaction story, so the codebase reads the same everywhere.
@@ -478,7 +478,7 @@ is written once and checked forever after.
 
 ## Where to go next
 
-- [ARCHITECTURE](./ARCHITECTURE.md) — the decisions this document expands on.
-- [DATA-MODEL](./DATA-MODEL.md) — what the repositories read and write.
-- [AUTHN-AUTHZ](./AUTHN-AUTHZ.md) — `RequestContext`, the actor auth objects, and
+- [ARCHITECTURE](./09-architecture.md) — the decisions this document expands on.
+- [DATA-MODEL](./11-data-model.md) — what the repositories read and write.
+- [AUTHN-AUTHZ](./12-authn-authz.md) — `RequestContext`, the actor auth objects, and
   how `assertAbilities` enforces the abilities declared on each command.

@@ -16,7 +16,7 @@ scores to Canvas over LTI Assignment & Grade Services (AGS).
 A hard constraint runs through the design: **no learner PII crosses the boundary
 into activities.** Activities receive an opaque user UUID, a display name, the
 activity context, and normalized scores — never an email, institutional student
-ID, or LMS gradebook data. Read `docs/ARCHITECTURE.md` before making structural
+ID, or LMS gradebook data. Read `docs/09-architecture.md` before making structural
 changes.
 
 ## Repo map
@@ -37,7 +37,7 @@ CI uses Node 22; supported Node versions are declared in `package.json`.
 
 Core exposes a single **commands facade** (`CoreCommands`, with `app` / `admin` /
 `agent` branches) assembled by a compile-time-checked DI registry. Consumers never
-touch services or repositories directly. See `docs/CORE-COMPOSITION.md`.
+touch services or repositories directly. See `docs/10-core-composition.md`.
 
 ## Running locally
 
@@ -108,7 +108,7 @@ pnpm -F @modulus-learning/agent exec vitest run <path>
 
 `pnpm test` does **not** cover core's `*.itest.ts` integration tests.
 Run them from the root with `pnpm test:integration`, or run the main CI job with
-`pnpm run ci`. See `docs/TESTING.md` for test database setup and file naming
+`pnpm run ci`. See `docs/22-testing.md` for test database setup and file naming
 conventions.
 
 ### Database
@@ -128,6 +128,9 @@ refuse a database name that does not end in `_test`.
 
 ## Conventions
 
+- **Licensing.** Project-owned source uses MPL-2.0 except `apps/agent` and
+  `apps/agent-demo`, which remain MIT. Preserve third-party asset licences.
+  See `LICENSING.md`; do not add named project ownership statements.
 - **Conventional commits**, lowercase, past tense: `feat(lti): added …`. The full
   reference is `.agents/rules/conventional-commits.md`.
 - **No commit trailers of any kind.** No `Co-Authored-By`, no AI attribution, no
@@ -149,6 +152,8 @@ refuse a database name that does not end in `_test`.
 - Documentation in `docs/` has its own house standard — front matter
   (`title`/`path`/`summary`), Title Case headings, a closing `## Where to go next`
   — encoded in the `writing-docs` skill.
+  Files use `NN-topic.md` names to control CMS import order; keep frontmatter
+  paths stable when reordering and update repository references after renaming.
 
 ## Things that bite
 
@@ -194,15 +199,19 @@ refuse a database name that does not end in `_test`.
 
 | Question | Read |
 |---|---|
-| How is the system shaped? | `docs/ARCHITECTURE.md` |
-| How is core assembled? | `docs/CORE-COMPOSITION.md` |
-| Database schema | `docs/DATA-MODEL.md` |
-| Auth for learners, admins, agents | `docs/AUTHN-AUTHZ.md` |
-| LTI flows and score passback | `docs/LTI.md`, `docs/LTI-SCORE-SUBMISSION.md` |
-| The agent library and ingestion | `docs/AGENT.md` |
-| Deployment modes and Fly.io | `docs/DEPLOYMENT.md`, `scripts/fly-deploy-*.sh` |
-| Privacy posture and threat model | `docs/SECURITY-AND-PRIVACY.md` |
-| The full doc index | `docs/DOCUMENTATION-PLAN.md` |
+| Where should a new installation start? | `docs/02-getting-started.md` (draft; downstream validation pending) |
+| What does each published package own? | `docs/03-packages.md` |
+| Where is the `modulus` CLI? | `packages/core`, `docs/06-cli.md` |
+| Which licence applies? | `LICENSING.md` |
+| How is the system shaped? | `docs/09-architecture.md` |
+| How is core assembled? | `docs/10-core-composition.md` |
+| Database schema | `docs/11-data-model.md` |
+| Auth for learners, admins, agents | `docs/12-authn-authz.md` |
+| LTI flows and score passback | `docs/13-lti.md`, `docs/14-lti-score-submission.md` |
+| The agent library and ingestion | `docs/15-agent.md` |
+| Deployment modes and Fly.io | `docs/19-deployment.md`, `scripts/fly-deploy-*.sh` |
+| Privacy posture and threat model | `docs/21-security-and-privacy.md` |
+| The full doc index | `docs/00-documentation-plan.md` |
 
 ## Agent workflows
 
