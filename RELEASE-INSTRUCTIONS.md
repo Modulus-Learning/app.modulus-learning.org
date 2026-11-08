@@ -7,10 +7,10 @@ version. Read that configuration when preparing a release; the current set is:
 | Package | Path | Licence |
 | --- | --- | --- |
 | `@modulus-learning/agent` | `apps/agent` | MIT |
-| `@modulus-learning/core` | `packages/core` | AGPL-3.0-only |
-| `@modulus-learning/lti` | `packages/lti` | AGPL-3.0-only |
-| `@modulus-learning/lms-canvas` | `packages/lms-canvas` | AGPL-3.0-only |
-| `@modulus-learning/host-tanstack-start` | `packages/host-tanstack-start` | AGPL-3.0-only |
+| `@modulus-learning/core` | `packages/core` | MPL-2.0 |
+| `@modulus-learning/lti` | `packages/lti` | MPL-2.0 |
+| `@modulus-learning/lms-canvas` | `packages/lms-canvas` | MPL-2.0 |
+| `@modulus-learning/host-tanstack-start` | `packages/host-tanstack-start` | MPL-2.0 |
 
 `apps/gradebook` and the agent demos are private and listed under `ignore`.
 The root `VERSION`, used to tag the gradebook image, follows the lockstep version.

@@ -14,10 +14,9 @@ describe('translations (Start loader)', () => {
     expect(await getTranslations('xx' as never)).toBe(await getTranslations('en'))
   })
 
-  test('ICU interpolation (the audited copyright message)', async () => {
-    const { t } = await createTranslator('en', 'common')
-    expect(t('copyright', { date: 2026 })).toContain('© 2026')
-    expect(t('copyright', { date: 2026 })).not.toContain('{')
+  test('ICU interpolation substitutes named values', async () => {
+    const { t } = await createTranslator('en', 'test')
+    expect(t('Welcome', { name: 'Learner' })).toBe('Welcome, Learner')
   })
 
   test('a missing key returns the key itself from the translator', async () => {

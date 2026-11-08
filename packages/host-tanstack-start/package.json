@@ -3,7 +3,7 @@
   "version": "0.11.1",
   "private": false,
   "description": "TanStack Start host for Modulus — route factories, server functions, UI, and server-entry helpers",
-  "license": "AGPL-3.0-only",
+  "license": "MPL-2.0",
   "type": "module",
   "homepage": "https://github.com/Modulus-Learning/app.modulus-learning.org",
   "bugs": {
