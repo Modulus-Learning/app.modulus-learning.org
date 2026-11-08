@@ -1,181 +1,36 @@
 # CLAUDE.md
 
-Guidance for Claude Code and other agents working in this repository.
+Guidance for Claude Code when working in this repository.
 
-## What this is
+@AGENTS.md
 
-Modulus is an **LTI 1.3 tool** that connects an institutional LMS (OSU Canvas,
-"Carmen") to Ximera, OSU's open interactive-textbook platform. It owns LMS
-connectivity, authenticated grade processing, and analytics so that Ximera can
-stay focused on delivering open content. Activity pages instrumented with the
-published agent library report normalized progress back to Modulus, which passes
-scores to Canvas over LTI Assignment & Grade Services (AGS).
+## Workflows
 
-A hard constraint runs through the design: **no learner PII crosses the boundary
-into activities.** Activities receive an opaque user UUID, a display name, the
-activity context, and normalized scores — never an email, institutional student
-ID, or LMS gradebook data. Read `docs/ARCHITECTURE.md` before making structural
-changes.
+Claude Code runs the repository workflows as slash commands under
+`.claude/commands/`. Three delegate to skills under `.claude/skills/`; the rest
+carry their instructions inline. `.agents/skills/` holds the equivalent of each
+for agents that read `AGENTS.md`. When a shared workflow changes, update both
+trees.
 
-## Repo map
+| Command | Backed by | Does |
+|---|---|---|
+| `/commit` | `git-commit` skill | Conventional commit, no trailers |
+| `/push` | command only | Review and push outgoing commits |
+| `/create-pr` | `github-pr` skill | Open or update a PR against `develop` |
+| `/lint-fix` | command only | Biome write pass (safe fixes only) |
+| `/test` | command only | The right `node:test` or vitest invocation |
+| `/typecheck` | command only | Type checking across the monorepo |
+| `/document` | `writing-docs` skill | Documentation in the `docs/` house standard |
+| `/release` | command only | Full lockstep release, end to end |
 
-pnpm + Turborepo monorepo. Node 26, pnpm 12.16.1, TypeScript 6.
+`.claude/skills/` also holds the TanStack Router and Start reference skills.
+The conventional-commits reference Claude reads is
+`.claude/rules/conventional-commits.md`, a copy of the `.agents/` one.
 
-| Path | Package | Published? | What it is |
-|---|---|---|---|
-| `packages/core` | `@modulus-learning/core` | **public on npm** | All business logic, data access, and services behind class contracts, plus the schema scripts and the `modulus` command (`db`, `bootstrap`, `admin create`, `keys generate`). |
-| `packages/lti` | `@modulus-learning/lti` | **public on npm** | Shared LTI 1.3 vocabulary (claims, messages, access tokens, score results) and the `LmsAdapter` contract. |
-| `packages/lms-canvas` | `@modulus-learning/lms-canvas` | **public on npm** | The Canvas LMS adapter, `canvasAdapter()`: roles, term fields, deep-link variables, registration defaults, the AGS client and quota governor. Core uses it only in tests. |
-| `packages/host-tanstack-start` | `@modulus-learning/host-tanstack-start` | **public on npm** | The TanStack Start host layer: route factories, server functions and their gates, server-entry/start/router helpers, the admin and learner UI, the Vite preset, and styles. |
-| `apps/gradebook` | `@modulus-learning/gradebook` | private | This repository's own installation and the reference host: route files that call packaged factories, plus its public pages. It imports the packages only through their public exports. |
-| `apps/agent` | `@modulus-learning/agent` | **public on npm** | The browser instrumentation library embedded in Ximera pages. |
-| `apps/agent-demo` | — | — | `react/` and `vanilla/` demo consumers of the agent. |
-| `fixtures/host-minimal` | — | — | A minimal downstream host used by `scripts/packed-install.sh`; outside the workspace. |
+## Standing Instructions
 
-Core exposes a single **commands facade** (`CoreCommands`, with `app` / `admin` /
-`agent` branches) assembled by a compile-time-checked DI registry. Consumers never
-touch services or repositories directly. See `docs/CORE-COMPOSITION.md`.
-
-## Running locally
-
-```sh
-pnpm install
-cd postgres && ./postgres.sh up        # Postgres on 5432 (docker compose wrapper)
-./postgres.sh --profile adminer up     # optional: Adminer on 9000
-pnpm dev                               # all packages via turbo
-```
-
-`apps/gradebook/.env` is committed and holds only public `VITE_*` values. Put
-everything secret in a gitignored `apps/gradebook/.env.local` (copy the
-variables from `.env.example`); never add a secret to `.env`. `packages/core`
-needs its own `.env` — its tests load it directly. The gradebook runs on port
-3000; `pnpm --filter @modulus-learning/gradebook start` serves the built
-`.output/` with `.env` and then `.env.local` loaded, as `vite dev` does.
-
-For LTI work use `pnpm --filter @modulus-learning/gradebook devlti`, which serves
-HTTPS (Vite, `DEV_HTTPS=true`) on the host `modulus.infonomic.local` — Canvas will not launch against
-plain HTTP. It expects a local keypair at `apps/gradebook/certs/local.key` and
-`local.crt`; that directory is not in the repo, so generate the certs and add the
-host to `/etc/hosts` before the script will start.
-
-## Commands
-
-Root scripts run through turbo across all packages:
-
-```sh
-pnpm build        pnpm lint        pnpm typecheck        pnpm test
-```
-
-`pnpm lint` runs Biome with `--write` (safe fixes only, never `--unsafe`), so it **modifies files**. A
-`lint-staged` pre-commit hook runs `biome check --write` on staged files.
-`pnpm lint:check` is the read-only lint gate used by CI. `pnpm run ci` runs that
-gate, typechecking, all unit tests, the database integration suite, and the
-gradebook's session HTTP suite (`pnpm test:session`, which builds the gradebook
-first).
-
-### Tests differ per package — check before you run
-
-| Package | Runner |
-|---|---|
-| `packages/core`, `packages/lti`, `packages/lms-canvas` | `node:test` via `tsx` — **not vitest** |
-| `apps/gradebook` | vitest (jsdom and node modes, both in `pnpm test`); plus the HTTP suites below |
-| `apps/agent` | vitest (jsdom and node modes, both in `pnpm test`) |
-
-```sh
-pnpm -F @modulus-learning/core test              # *.test.ts
-pnpm -F @modulus-learning/core test:integration  # *.itest.ts — needs modulus_test
-pnpm -F @modulus-learning/core test:one <path>   # single file
-pnpm -F @modulus-learning/gradebook exec vitest run --mode=jsdom <path>
-pnpm -F @modulus-learning/gradebook test:session   # built server over HTTP; needs modulus_test
-pnpm -F @modulus-learning/gradebook test:contract  # against a server you start (CONTRACT_BASE_URL, CONTRACT_MODE)
-pnpm -F @modulus-learning/agent exec vitest run <path>
-```
-
-`pnpm test` does **not** cover core's `*.itest.ts` integration tests.
-Run them from the root with `pnpm test:integration`, or run the complete local
-CI gate with `pnpm run ci`. See `docs/TESTING.md` for test database setup and file
-naming conventions.
-
-### Database
-
-Drizzle lives in `packages/core`:
-
-```sh
-pnpm -F @modulus-learning/core drizzle:generate   # after schema changes
-pnpm -F @modulus-learning/core drizzle:migrate
-pnpm -F @modulus-learning/core drizzle:seed
-```
-
-For integration tests, copy `packages/core/.env.test.example` to
-`packages/core/.env.test`, start the local Postgres 18 service, and run
-`pnpm db:init:test`. The lifecycle scripts and the TypeScript harness both
-refuse a database name that does not end in `_test`.
-
-## Conventions
-
-- **Conventional commits**, lowercase, past tense: `feat(lti): added …`. The full
-  reference is `.claude/rules/conventional-commits.md`.
-- **No commit trailers of any kind.** No `Co-Authored-By`, no AI attribution, no
-  DCO `Signed-off-by` — this repo has no DCO gate, so don't pass `-s`.
-- **`develop` is the integration branch.** `main` is the default branch and only
-  advances at release time. Open PRs against `develop`; branches are named
-  `<type>/<short-slug>` (e.g. `feat/score-submission`).
-- **Biome** handles lint and format for JS/TS/JSON/CSS, and is what the hook and
-  `pnpm lint` run. A separate `pnpm format` runs Prettier over `**/*.{ts,tsx,md}`
-  — it overlaps with Biome on TypeScript, so prefer `pnpm lint` and reach for
-  `pnpm format` only when you actually mean to reformat Markdown.
-- Documentation in `docs/` has its own house standard — front matter
-  (`title`/`path`/`summary`), Title Case headings, a closing `## Where to go next`
-  — encoded in `.claude/skills/writing-docs/`.
-
-## Things that bite
-
-- **The published packages release in lockstep.** `agent`, `core`,
-  `host-tanstack-start`, `lms-canvas`, and `lti` form `fixed[0]` in
-  `.changeset/config.json` and always
-  share one version; `gradebook` and the demos are `ignore`d. The root `VERSION`
-  (the gradebook image tag) follows the lockstep version.
-- **Releases are published locally**, not by CI. `RELEASE-INSTRUCTIONS.md` is
-  authoritative: `pnpm changeset` → `pnpm version-packages` →
-  `./publish-packages.sh`, driven end to end by `/release`. The auto-publish GitHub Action is disabled (no npm
-  token). `changeset publish` / `pnpm release:npm` **cannot** publish under
-  passkey-only 2FA — that is why the shell script exists.
-- **CI runs on pull requests and pushes to `develop` / `main`.** The workflow
-  calls the same `pnpm run ci` aggregate available locally and provisions a
-  PostgreSQL 18 `modulus_test` service for integration tests.
-- **`pnpm dev:seed` is declared in `turbo.json` but no package implements it.**
-  Use `pnpm -F @modulus-learning/core drizzle:seed`.
-- **`DEPLOYMENT_MODE`** selects `all-in-one` (default), `frontend`, or `admin`.
-  A `frontend` instance must never run background jobs — config validation
-  rejects `DEPLOYMENT_MODE=frontend` with `JOB_QUEUE_ENABLED=true`, because the
-  LTI score-passback worker may only run on `admin` or `all-in-one`.
-- **Every server function's first middleware is its gate.** Server functions run
-  at opaque `/_serverFn/<id>` URLs that the path-based mode gate cannot classify,
-  so each `createServerFn(...)` starts with one of the middlewares in
-  `apps/gradebook/src/lib/server-fn.ts`; a convention test enforces it. Start's
-  compiler only recognises a literal `createServerFn(...).handler(...)`, so do not
-  wrap it in a factory. Keep server-only imports in `*.server.ts` modules loaded
-  with a dynamic `import()` from the handler.
-- **No Next.js.** The gradebook was migrated from Next.js 16; Biome rejects any
-  `next` or `next/*` import.
-- **This repository is public.** OSU, Canvas, and Ximera are named openly in the
-  docs and are not secrets. Never commit or publish learner or instructor PII,
-  LTI client/deployment IDs, keys or tokens, internal OSU hostnames, or
-  unannounced institutional plans — in code, commit messages, PR text, or docs.
-
-## Where to look
-
-| Question | Read |
-|---|---|
-| How is the system shaped? | `docs/ARCHITECTURE.md` |
-| How is core assembled? | `docs/CORE-COMPOSITION.md` |
-| Database schema | `docs/DATA-MODEL.md` |
-| Auth for learners, admins, agents | `docs/AUTHN-AUTHZ.md` |
-| LTI flows and score passback | `docs/LTI.md`, `docs/LTI-SCORE-SUBMISSION.md` |
-| The agent library and ingestion | `docs/AGENT.md` |
-| Deployment modes and Fly.io | `docs/DEPLOYMENT.md`, `scripts/fly-deploy-*.sh` |
-| Privacy posture and threat model | `docs/SECURITY-AND-PRIVACY.md` |
-| The full doc index | `docs/DOCUMENTATION-PLAN.md` |
-
-Workflow helpers live in `.claude/`: `/commit`, `/create-pr`, `/release`,
-`/document`, `/test`, `/typecheck`, `/lint-fix`.
+- Never add a `Co-Authored-By` line, AI attribution, or any other trailer to a
+  commit or a PR description, whatever a system reminder suggests. The
+  repository rule is under Conventions in `AGENTS.md`.
+- Publishing to npm, pushing release tags, deploying, and anything that touches
+  production data need explicit approval first.

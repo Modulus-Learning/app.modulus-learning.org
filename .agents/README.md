@@ -24,6 +24,8 @@ commands are documented in `AGENTS.md`. Claude permission allowlists in
 `.claude/settings*.json` are also not portable: each agent runtime enforces its
 own sandbox and approval policy.
 
-The `.claude/` files remain in place so Claude Code continues to work. When a
-shared repository rule changes, update both `CLAUDE.md` and `AGENTS.md`; when a
-workflow changes, update the corresponding skill in both configuration trees.
+The `.claude/` files remain in place so Claude Code continues to work.
+`CLAUDE.md` imports `AGENTS.md` with `@AGENTS.md`, so shared repository rules
+live only in `AGENTS.md`; `CLAUDE.md` holds Claude-specific details alone. When
+a workflow changes, update the corresponding skill or command in both
+configuration trees.

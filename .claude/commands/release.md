@@ -8,10 +8,10 @@ argument-hint: [optional bump level: patch|minor|major]
 Drive the full release loop for the `@modulus-learning/*` lockstep set, end to
 end. The publishable packages listed under `fixed` in `.changeset/config.json`
 always move together to the same version. Always read the current set from that
-file rather than trusting a count — it grows as packages are extracted (`lti`
-and `lms-canvas` are planned).
+file rather than trusting a count — it grows as packages are extracted.
 
-The set lives in `packages/*` (`core`, `host-tanstack-start`) and `apps/agent`.
+The set lives in `packages/*` (`core`, `host-tanstack-start`, `lms-canvas`,
+`lti`) and `apps/agent`.
 `apps/gradebook` and the agent demos are private and listed under `ignore`; they
 are never published and never part of a changeset.
 
