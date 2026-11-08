@@ -16,28 +16,33 @@
 #
 # This script is meant to run AFTER the release commit (`chore(release): X.Y.Z`)
 # is made and pushed — i.e. between Step 7 and the umbrella release of /release.
-# It builds, packs, publishes, and pushes per-package tags. It is idempotent:
-# packages already live at the current version are skipped, and existing tags
-# are not recreated — so re-running after a partial failure just finishes the job.
+# It builds, packs, publishes, and pushes per-package tags. Resume from the same
+# clean release commit with the same --anchor: published versions are skipped,
+# and existing local and remote tags must point to that commit.
 #
 # The npm dist-tag follows the version: a prerelease (`X.Y.Z-next.N`) publishes
 # under `next`, anything else under `latest`. `--tag` overrides that, but a
 # prerelease is never published under `latest`.
 #
 # Usage:
-#   ./publish-packages.sh            # build, publish, tag, push (prompts before publishing)
+#   ./publish-packages.sh --anchor <release-commit> # build, publish, tag, push
 #   ./publish-packages.sh --dry-run  # pack + verify only; no publish, no tags, no push
-#   ./publish-packages.sh --no-build # skip the turbo build (use existing dist/)
-#   ./publish-packages.sh --yes      # skip the confirmation prompt
-#   ./publish-packages.sh --tag next # override the inferred dist-tag
+# Add --no-build to reuse dist/, --yes to skip confirmation, or --tag next.
+# Real publication requires Bash 4+ and an explicit release commit.
 #
 set -euo pipefail
+
+if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
+  echo "error: publish-packages.sh requires Bash 4 or later" >&2
+  exit 2
+fi
 
 # ---- options --------------------------------------------------------------
 DRY_RUN=0
 DO_BUILD=1
 ASSUME_YES=0
 DIST_TAG=""
+RELEASE_ANCHOR=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
@@ -45,6 +50,8 @@ while [ $# -gt 0 ]; do
     --yes|-y) ASSUME_YES=1 ;;
     --tag) shift; DIST_TAG="${1:-}" ;;
     --tag=*) DIST_TAG="${1#--tag=}" ;;
+    --anchor) shift; RELEASE_ANCHOR="${1:-}" ;;
+    --anchor=*) RELEASE_ANCHOR="${1#--anchor=}" ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
   shift
@@ -138,17 +145,42 @@ echo "  packages: ${#PKG_LINES[@]}  (from .changeset/config.json fixed[0], in de
 [ "$DRY_RUN" -eq 1 ] && warn "  mode:     DRY RUN (no publish / no tags / no push)"
 echo
 
-# Soft check: HEAD should be the release commit.
-case "$HEAD_SUBJECT" in
-  "chore(release): $VERSION") : ;;
-  *) warn "HEAD subject is not 'chore(release): $VERSION' — make sure you're on the release commit before tagging." ;;
-esac
+# Validate the complete tag set BEFORE any package is published. A later
+# package's conflicting tag must not leave an earlier package published.
+REMOTE_TAGS=""
+remote_tag_commit() {
+  local tag="$1"
+  printf '%s\n' "$REMOTE_TAGS" | awk -v ref="refs/tags/$tag" '
+    $2 == ref { direct = $1 }
+    $2 == ref "^{}" { peeled = $1 }
+    END { print (peeled != "" ? peeled : direct) }
+  '
+}
 
-if [ -n "$(git status --porcelain)" ]; then
-  warn "Working tree is not clean:"
-  git status --short
-  warn "Tags will point at $ANCHOR_SHORT regardless. Commit the version bump (and stash/revert unrelated changes) before tagging."
-  echo
+if [ "$DRY_RUN" -eq 0 ]; then
+  [ -n "$RELEASE_ANCHOR" ] || die "publication requires --anchor <release-commit>; use --dry-run to inspect a working tree"
+  EXPECTED_ANCHOR="$(git rev-parse --verify "${RELEASE_ANCHOR}^{commit}")" \
+    || die "invalid release anchor: $RELEASE_ANCHOR"
+  [ "$ANCHOR" = "$EXPECTED_ANCHOR" ] || die "HEAD is not the requested release anchor; resume from that commit"
+  [ "$HEAD_SUBJECT" = "chore(release): $VERSION" ] \
+    || die "release anchor must have subject 'chore(release): $VERSION'"
+  [ -z "$(git status --porcelain)" ] || die "working tree must be clean before publication"
+  [ -f VERSION ] && [ "$(cat VERSION)" = "$VERSION" ] \
+    || die "root VERSION must match the lockstep package version"
+  REMOTE_TAGS="$(git ls-remote --tags origin)" || die "cannot verify remote release tags"
+  RELEASE_TAGS=("v${VERSION}")
+  for line in "${PKG_LINES[@]}"; do
+    RELEASE_TAGS+=("${line%%$'\t'*}@${VERSION}")
+  done
+  for tag in "${RELEASE_TAGS[@]}"; do
+    if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null 2>&1; then
+      at="$(git rev-parse --verify "refs/tags/${tag}^{commit}")"
+      [ "$at" = "$ANCHOR" ] || die "local tag ${tag} does not point at the release anchor"
+    fi
+    at="$(remote_tag_commit "$tag")"
+    [ -z "$at" ] || [ "$at" = "$ANCHOR" ] \
+      || die "remote tag ${tag} does not point at the release anchor"
+  done
 fi
 
 # ---- determine work: what's already published -----------------------------
@@ -209,10 +241,18 @@ TAGS_TO_PUSH=()
 
 ensure_tag() {
   local tag="$1"
+  if [ -n "$(remote_tag_commit "$tag")" ]; then
+    # Preserve annotated remote tags rather than trying to replace them with a
+    # lightweight local tag at the same commit. Preflight checked their target.
+    if ! git rev-parse -q --verify "refs/tags/${tag}" >/dev/null 2>&1; then
+      git fetch origin "refs/tags/${tag}:refs/tags/${tag}"
+    fi
+    return
+  fi
   if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null 2>&1; then
     local at; at="$(git rev-list -n1 "${tag}")"
     if [ "$at" != "$ANCHOR" ]; then
-      warn "tag ${tag} exists but points at ${at:0:8}, not ${ANCHOR_SHORT} — leaving as-is"
+      die "tag ${tag} no longer points at the release anchor"
     fi
   else
     git tag "${tag}" "${ANCHOR}"
@@ -296,10 +336,16 @@ else
   echo "  ${DIM}npm's registry views are CDN-cached. Wait and re-check before${RESET}"
   echo "  ${DIM}re-running this script. A real failure exits non-zero here instead.${RESET}"
   echo
-  info "Next — hand back to Claude for the umbrella release:"
-  echo "  • fast-forward main to ${ANCHOR_SHORT} (if not already) and push"
+  info "Next — finish the release workflow:"
+  case "$VERSION" in
+    *-*) echo "  • keep the prerelease on develop; do not advance main" ;;
+    *) echo "  • fast-forward main to ${ANCHOR_SHORT} (if not already) and push" ;;
+  esac
   echo "  • create + push the umbrella tag  v${VERSION}"
-  echo "  • create the GitHub release  v${VERSION}  with the cycle notes"
+  case "$VERSION" in
+    *-*) echo "  • create the GitHub release with --prerelease --latest=false and the cycle notes" ;;
+    *) echo "  • create the GitHub release  v${VERSION}  with the cycle notes" ;;
+  esac
   echo
   echo "  ${DIM}(or finish /release at Step 10 onward)${RESET}"
 fi

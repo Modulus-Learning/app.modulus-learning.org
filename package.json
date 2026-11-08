@@ -19,7 +19,7 @@
     "typecheck": "turbo run typecheck --continue",
     "test": "turbo run test",
     "test:integration": "turbo run test:integration --concurrency=1",
-    "ci": "pnpm lint:check && pnpm typecheck && pnpm test && pnpm test:integration && pnpm test:session && pnpm check:packages",
+    "ci": "pnpm lint:check && pnpm test:release && pnpm typecheck && pnpm test && pnpm test:integration && pnpm test:session && pnpm check:packages",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "version-packages": "changeset version",
     "release:tag": "turbo run build --filter=@modulus-learning/agent && changeset tag",
@@ -27,7 +27,8 @@
     "prepare": "simple-git-hooks || true",
     "test:session": "turbo run build --filter=@modulus-learning/gradebook && pnpm -F @modulus-learning/gradebook test:session",
     "check:packages": "./scripts/check-packages.sh",
-    "test:packed": "./scripts/packed-install.sh"
+    "test:packed": "./scripts/packed-install.sh",
+    "test:release": "node --test scripts/release-safety.test.mjs"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged"
