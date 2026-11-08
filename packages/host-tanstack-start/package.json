@@ -1,6 +1,6 @@
 {
   "name": "@modulus-learning/host-tanstack-start",
-  "version": "0.11.1",
+  "version": "0.11.2",
   "private": false,
   "description": "TanStack Start host for Modulus — route factories, server functions, UI, and server-entry helpers",
   "license": "MPL-2.0",

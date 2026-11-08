@@ -1,5 +1,11 @@
 # @modulus-learning/lti
 
+## 0.11.2
+
+### Patch Changes
+
+- 431da36: changed the server packages to mpl-2.0 and removed project-specific ownership claims; retained mit for the browser agent and demos
+
 ## 0.11.1
 
 ### Patch Changes
