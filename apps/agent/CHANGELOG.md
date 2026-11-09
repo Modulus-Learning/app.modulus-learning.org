@@ -1,5 +1,11 @@
 # @modulus-learning/agent
 
+## 0.11.3
+
+### Patch Changes
+
+- fixed **`@modulus-learning/host-tanstack-start`** so a Response thrown from a gated server function keeps its 400/401/409 status under Nitro 3.0.261029-rc and later, by turning off Nitro's `fastResponse` polyfill in `modulusNitroOptions()`
+
 ## 0.11.2
 
 ### Patch Changes

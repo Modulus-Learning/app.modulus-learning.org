@@ -1,6 +1,6 @@
 {
   "name": "@modulus-learning/core",
-  "version": "0.11.2",
+  "version": "0.11.3",
   "private": false,
   "description": "Modulus core: business logic, data access, schema scripts and the modulus command",
   "license": "MPL-2.0",
