@@ -42,6 +42,7 @@ const eagerBootPlugin = fileURLToPath(new URL('../nitro/eager-boot.js', import.m
 
 type NitroOptions = {
   plugins?: string[]
+  features?: { [key: string]: unknown }
   rolldownConfig?: { external?: unknown[]; [key: string]: unknown }
   [key: string]: unknown
 }
@@ -51,9 +52,18 @@ type NitroOptions = {
  * the eager-boot plugin (config validation, jobs and shutdown handlers at
  * process start rather than on the first request), React externalised by
  * pattern so SSR never runs two React instances, and the native externals.
+ *
+ * It also turns off Nitro's `fastResponse` feature, which Node builds enable
+ * by default and which replaces the global `Response` with srvx's
+ * `FastResponse`. Start copies a Response thrown from a server function with
+ * `new Response(response.body, response)` and then sets headers on the copy;
+ * `FastResponse` keeps the original as its init object and later spreads it,
+ * which drops the inherited `status`. A gate's 401, 409 or 400 then reaches
+ * the client as 200. The session HTTP suite covers this.
  */
 export const modulusNitroOptions = <T extends NitroOptions>(options: T): T => ({
   ...options,
+  features: { ...options.features, fastResponse: false },
   plugins: [eagerBootPlugin, ...(options.plugins ?? [])],
   rolldownConfig: {
     ...options.rolldownConfig,
