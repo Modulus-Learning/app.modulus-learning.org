@@ -1,12 +1,11 @@
-import { getLogger } from 'nodemailer/lib/shared'
-
 import { getCoreCommands, getCoreUserRequestContext } from '@/core-adapter'
+import { getServerLogger } from '@/lib/server-logger'
 import type { ActivityCode } from './@types'
 
 // TODO: implement standard API response object, including paged list
 // responses etc.
 export async function getActivityCodes(): Promise<{ activity_codes: ActivityCode[] }> {
-  const logger = getLogger()
+  const logger = getServerLogger()
 
   const userAuth = await getCoreUserRequestContext()
   if (userAuth == null) {
