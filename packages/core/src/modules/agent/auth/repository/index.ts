@@ -42,6 +42,14 @@ export class AgentAuthQueries extends BaseService {
       .catch(this.utils.wrapDbErrorNew())
   }
 
+  /**
+   * Resolves an activity by its exact URL.
+   *
+   * `url` is a canonical activity URL key, already produced by the calling
+   * service with `normalizeActivityUrl()`. This is SQL equality over the
+   * stored canonical form; passing a raw OAuth `redirect_uri` would miss an
+   * activity whose callback carries a query or a non-canonical spelling.
+   */
   @method
   async findActivityByUrl(url: string): Promise<ActivityRecord | undefined> {
     return await this.db

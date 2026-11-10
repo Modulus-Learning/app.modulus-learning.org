@@ -6,6 +6,12 @@ export {
 } from './core.js'
 export { DEFAULT_SCOPE_ID } from './database/schema/constants.js'
 export { AdminAuth, AgentAuth, UserAuth } from './lib/auth.js'
+export {
+  type InstructorActivityUrlResult,
+  matchesActivityUrlPrefix,
+  normalizeActivityUrl,
+  validateInstructorActivityUrl,
+} from './modules/activity-registration/activity-url.js'
 export { isUsableRedirectUri } from './modules/activity-registration/url-policy.js'
 export type { Config, UrlBuilder } from './config.js'
 export type {

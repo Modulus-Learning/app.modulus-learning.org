@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { instructorActivityUrlSchema } from '../activities/schemas.js'
 import { userTokensSchema } from '../session/schemas.js'
 
 // ====================================================
@@ -76,7 +77,9 @@ export type LaunchRequest = z.infer<typeof launchRequestSchema>
 export const deepLinkRequestSchema = z.strictObject({
   launch_id: z.string(),
   activity_code_id: z.uuid(),
-  activity_url: z.url(),
+  // The submitted spelling, validated but not canonicalized -- see
+  // `instructorActivityUrlSchema`.
+  activity_url: instructorActivityUrlSchema,
 })
 
 export type DeepLinkRequest = z.infer<typeof deepLinkRequestSchema>

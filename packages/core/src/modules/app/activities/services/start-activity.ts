@@ -1,4 +1,5 @@
 import { BaseService, method } from '@/lib/base-service.js'
+import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
 import {
   ERR_ACTIVITY_CODE_NOT_FOUND,
   ERR_ACTIVITY_NOT_FOUND,
@@ -48,7 +49,14 @@ export class StartActivityService extends BaseService {
       }).log(this.logger)
     }
 
-    const activity = await this.queries.findActivityByURL(activity_url)
+    // The activity is resolved by its canonical key, so a spelling variant or
+    // a query/fragment finds the registered activity; the response carries the
+    // stored `activity.url`, never the requested spelling.  A URL the parser
+    // rejects cannot name an activity and is not found without a lookup.  This
+    // is a read: nothing is registered and the allowlist is not consulted.
+    const activityKey = normalizeActivityUrl(activity_url)
+    const activity =
+      activityKey === null ? undefined : await this.queries.findActivityByURL(activityKey)
     if (activity == null) {
       throw ERR_ACTIVITY_NOT_FOUND({
         message: 'activity not found',

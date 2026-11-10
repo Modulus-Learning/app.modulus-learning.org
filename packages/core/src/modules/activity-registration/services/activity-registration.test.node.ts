@@ -51,9 +51,12 @@ const makeService = ({
   logLines?: string[]
 } = {}) => {
   const rows = new Map(known.map((url) => [url, activityRecord(url)]))
-  let evaluations = 0
-  let inserts = 0
-  let reads = 0
+  // The exact key each collaborator received, in call order. Asserting these,
+  // rather than only the outcome, is what shows that lookup, policy, insert and
+  // re-read all agree on the canonical key rather than the submitted spelling.
+  const lookups: string[] = []
+  const evaluated: string[] = []
+  const insertedKeys: string[] = []
 
   const logger = createCoreLogger({
     pinoLogger:
@@ -72,7 +75,7 @@ const makeService = ({
   const policy = {
     loadPolicy: async () => snapshot('https://content.example'),
     evaluate: (url: string, policySnapshot: PolicySnapshot) => {
-      evaluations += 1
+      evaluated.push(url)
       let candidate: URL
       try {
         candidate = new URL(url)
@@ -93,13 +96,13 @@ const makeService = ({
     logger,
     queries: {
       findActivityByUrl: async (url: string) => {
-        reads += 1
+        lookups.push(url)
         return rows.get(url)
       },
     } as unknown as ActivityUrlAllowlistQueries,
     mutations: {
       insertActivity: async (url: string) => {
-        inserts += 1
+        insertedKeys.push(url)
         if (!insertWins) {
           // A concurrent registration won; the caller must re-read.
           if (winnerAfterConflict) {
@@ -117,7 +120,12 @@ const makeService = ({
 
   return {
     service,
-    counts: () => ({ evaluations, inserts, reads }),
+    counts: () => ({
+      evaluations: evaluated.length,
+      inserts: insertedKeys.length,
+      reads: lookups.length,
+    }),
+    keys: () => ({ lookups, evaluated, inserted: insertedKeys }),
   }
 }
 
@@ -248,6 +256,168 @@ describe('ActivityRegistrationService.register', () => {
   })
 })
 
+describe('ActivityRegistrationService canonical keys', () => {
+  const CANONICAL = 'https://content.example/course/calculus'
+  const VARIANT = 'HTTPS://Content.Example:443/course/./calculus?week=3#top'
+
+  it('looks up, evaluates, inserts and re-reads the canonical key', async () => {
+    const { service, keys } = makeService({ insertWins: false })
+
+    const outcome = await service.register(VARIANT, snapshot('https://content.example'))
+
+    assert.equal(outcome.ok, true)
+    assert.equal(outcome.ok && outcome.activity.url, CANONICAL)
+    assert.deepEqual(keys(), {
+      lookups: [CANONICAL, CANONICAL],
+      evaluated: [CANONICAL],
+      inserted: [CANONICAL],
+    })
+  })
+
+  it('stores the canonical key when the insert wins', async () => {
+    const { service, keys } = makeService()
+
+    const outcome = await service.register(VARIANT, { rules: [] })
+
+    assert.equal(outcome.ok && outcome.activity.url, CANONICAL)
+    assert.deepEqual(keys().inserted, [CANONICAL])
+  })
+
+  it('resolves an equivalent spelling of a known activity without loading policy', async () => {
+    const { service, counts, keys } = makeService({ known: [CANONICAL] })
+
+    const outcome = await service.register(VARIANT, async () => {
+      assert.fail('known activities must not load policy')
+    })
+
+    assert.equal(outcome.ok && outcome.activity.url, CANONICAL)
+    assert.deepEqual(keys().lookups, [CANONICAL])
+    assert.equal(counts().evaluations, 0)
+    assert.equal(counts().inserts, 0)
+  })
+
+  it('resolves a raw-space spelling to its encoded key, with no instructor space rule', async () => {
+    // Literal-space rejection is instructor input policy, applied by the
+    // command schemas. Shared registration still accepts the parser's encoding.
+    const encoded = 'https://content.example/course/lesson%20one'
+    const { service, keys } = makeService({ known: [encoded] })
+
+    const outcome = await service.register('https://content.example/course/lesson one', {
+      rules: [],
+    })
+
+    assert.equal(outcome.ok && outcome.activity.url, encoded)
+    assert.deepEqual(keys().lookups, [encoded])
+  })
+
+  it('does not treat a known row as a match for a distinct canonical path', async () => {
+    // The fake only resolves the keys it holds, so a trailing slash is looked
+    // up as its own activity and faces the policy.
+    const { service, keys } = makeService({ known: [CANONICAL] })
+
+    const outcome = await service.register(`${CANONICAL}/`, snapshot('https://elsewhere.example'))
+
+    assert.deepEqual(outcome, {
+      ok: false,
+      url: `${CANONICAL}/`,
+      reason: 'activity_url_not_allowed',
+    })
+    assert.deepEqual(keys().evaluated, [`${CANONICAL}/`])
+  })
+
+  it('reports malformed_url for an unparseable url before any lookup or policy read', async () => {
+    const url = 'not a url'
+    const { service, keys } = makeService()
+
+    const outcome = await service.register(url, async () => {
+      assert.fail('an unparseable url must not load policy')
+    })
+
+    assert.deepEqual(outcome, { ok: false, url, reason: 'malformed_url' })
+    assert.deepEqual(keys(), { lookups: [], evaluated: [], inserted: [] })
+  })
+
+  it('evaluates the canonical key and returns the submitted url on a policy denial', async () => {
+    const url = 'https://ELSEWHERE.example:443/course?week=3#top'
+    const { service, keys } = makeService()
+
+    const outcome = await service.register(url, snapshot('https://content.example'))
+
+    assert.deepEqual(outcome, { ok: false, url, reason: 'activity_url_not_allowed' })
+    assert.deepEqual(keys(), {
+      lookups: ['https://elsewhere.example/course'],
+      evaluated: ['https://elsewhere.example/course'],
+      inserted: [],
+    })
+  })
+
+  it('propagates a failed policy read and inserts nothing', async () => {
+    const { service, counts } = makeService()
+    const failure = new Error('policy read failed')
+
+    await assert.rejects(
+      service.register(VARIANT, async () => {
+        throw failure
+      }),
+      (error) => error === failure
+    )
+    assert.equal(counts().evaluations, 0)
+    assert.equal(counts().inserts, 0)
+  })
+
+  it('accepts a canonical key of exactly 255 characters and denies 256', async () => {
+    const base = 'HTTPS://CONTENT.EXAMPLE:443/'
+    const canonicalBase = 'https://content.example/'
+    const fits = `${base}${'a'.repeat(255 - canonicalBase.length)}`
+    const overflows = `${base}${'a'.repeat(256 - canonicalBase.length)}`
+    const { service, keys } = makeService()
+
+    const accepted = await service.register(fits, snapshot('https://content.example'))
+    assert.equal(accepted.ok && accepted.activity.url.length, 255)
+
+    const denied = await service.register(overflows, snapshot('https://content.example'))
+    assert.deepEqual(denied, { ok: false, url: overflows, reason: 'url_too_long' })
+    // The oversized key was looked up but never evaluated or stored.
+    assert.equal(keys().evaluated.length, 1)
+    assert.equal(keys().inserted.length, 1)
+  })
+
+  it('admits a long submitted url whose canonical key fits the column', async () => {
+    const url = `HTTPS://CONTENT.EXAMPLE:443/drop/../${'a'.repeat(231)}`
+    assert.ok(url.length > 255)
+    const { service, keys } = makeService()
+
+    const outcome = await service.register(url, snapshot('https://content.example'))
+
+    assert.equal(outcome.ok, true)
+    assert.deepEqual(keys().inserted, [`https://content.example/${'a'.repeat(231)}`])
+    assert.equal(keys().inserted[0]?.length, 255)
+  })
+
+  it('does not count a query or fragment towards the storage bound', async () => {
+    const url = `${CANONICAL}?state=${'q'.repeat(300)}#${'f'.repeat(300)}`
+    const { service, keys } = makeService()
+
+    const outcome = await service.register(url, snapshot('https://content.example'))
+
+    assert.equal(outcome.ok && outcome.activity.url, CANONICAL)
+    assert.deepEqual(keys().inserted, [CANONICAL])
+  })
+
+  it('reports url_too_long when Unicode encoding expands the key past the bound', async () => {
+    // Each é is one character submitted and six (%C3%A9) once serialized.
+    const url = `https://content.example/${'é'.repeat(40)}`
+    assert.ok(url.length <= 255)
+    const { service, counts } = makeService()
+
+    const outcome = await service.register(url, snapshot('https://content.example'))
+
+    assert.deepEqual(outcome, { ok: false, url, reason: 'url_too_long' })
+    assert.equal(counts().evaluations, 0)
+    assert.equal(counts().inserts, 0)
+  })
+})
+
 describe('ActivityRegistrationService denial diagnostics', () => {
   it('logs the origin and path of a denied url, and no learner identity', async () => {
     // The denial log is the one place a refusal is recorded, and a refusal is
@@ -284,6 +454,43 @@ describe('ActivityRegistrationService denial diagnostics', () => {
     const line = logLines[0] ?? ''
     assert.match(line, /malformed_url/)
     assert.doesNotMatch(line, /alert/)
+  })
+
+  it('logs an unparseable url denial with its reason only', async () => {
+    const logLines: string[] = []
+    const { service } = makeService({ logLines })
+
+    await service.register('not a url secret-value', snapshot('https://content.example'))
+
+    assert.equal(logLines.length, 1)
+    const line = logLines[0] ?? ''
+    assert.match(line, /malformed_url/)
+    assert.doesNotMatch(line, /secret-value/)
+  })
+
+  it('logs the unhandled registration failure without the submitted url', async () => {
+    const logLines: string[] = []
+    const { service } = makeService({
+      logLines,
+      insertWins: false,
+      winnerAfterConflict: false,
+    })
+
+    await assert.rejects(
+      service.register(
+        'https://user:pass@content.example/private-path?token=secret-token-value#frag',
+        { rules: [] }
+      ),
+      (error: CoreError) => {
+        assert.equal(error.details, undefined)
+        return true
+      }
+    )
+
+    assert.equal(logLines.length, 1)
+    const line = logLines[0] ?? ''
+    assert.match(line, /ERR_UNHANDLED|neither inserted nor resolved/)
+    assert.doesNotMatch(line, /content\.example|private-path|secret-token-value|user:pass/)
   })
 
   it('logs nothing when a url is admitted', async () => {
