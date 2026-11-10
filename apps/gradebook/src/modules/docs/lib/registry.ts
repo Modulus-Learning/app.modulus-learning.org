@@ -17,7 +17,7 @@ export interface DocEntry {
   frontmatter: DocFrontmatter
 }
 
-function parseFilename(file: string): { slug: string; order?: number } {
+export function parseFilename(file: string): { slug: string; order?: number } {
   const stem = basename(file, extname(file))
   const match = stem.match(ORDER_PREFIX)
   const order = match ? Number.parseInt(match[1], 10) : undefined

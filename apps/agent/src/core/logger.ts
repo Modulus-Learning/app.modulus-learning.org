@@ -24,7 +24,7 @@ export const createConsoleLogger = (): Logger => {
 
 export const createDebugLogger = (): Logger => {
   const stepButton = document.createElement('button')
-  stepButton.innerText = 'Next'
+  stepButton.textContent = 'Next'
   stepButton.disabled = true
   Object.assign(stepButton.style, {
     backgroundColor: 'gray',

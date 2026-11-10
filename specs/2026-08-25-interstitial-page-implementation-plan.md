@@ -6,9 +6,9 @@ Related:
 
 - `specs/2026-08-25-interstitial-page-analysis.md` — the approved analysis and
   the source of every contract below
-- `docs/LTI.md` — Flow 2 resource-link launch, which changes shape here
-- `docs/AGENT.md` — the OAuth hop the learner lands in after the redirect
-- `docs/DEPLOYMENT.md` — where the new configuration key is documented
+- `docs/13-lti.md` — Flow 2 resource-link launch, which changes shape here
+- `docs/15-agent.md` — the OAuth hop the learner lands in after the redirect
+- `docs/19-deployment.md` — where the new configuration key is documented
 - `apps/gradebook/src/app/routes/lti/launch/route.ts`
 - `apps/gradebook/src/app/lti/launch/[...go]/page.tsx`
 - `apps/gradebook/src/modules/lti/components/lti-launch-activity.tsx`
@@ -863,16 +863,16 @@ Proposed commit: `docs: documented the optional launch interstitial`
 Follow `.claude/skills/writing-docs/` — front matter, Title Case headings, and a
 closing `## Where to go next`.
 
-- **`docs/LTI.md`** — Flow 2 gains the mode switch and the one-hop redirect. The
+- **`docs/13-lti.md`** — Flow 2 gains the mode switch and the one-hop redirect. The
   paragraph describing the readable nested URL is amended to say it governs the
   direct `/start-activity` path only, and the round-trip caveat moves with it.
   The endpoint table gains `/lti/error`, and the sentence naming
   `app/lti/launch/[...go]` is updated to the id-keyed route. Update the
   deep-linking step to say the content item carries the generic launch URL.
-- **`docs/DEPLOYMENT.md`** — document `LTI_LAUNCH_INTERSTITIAL`, presenting
+- **`docs/19-deployment.md`** — document `LTI_LAUNCH_INTERSTITIAL`, presenting
   `always` as a supported configuration rather than a legacy one, with a sentence
   on what an operator gives up by choosing `never`.
-- **`docs/AUTHN-AUTHZ.md`** — if it describes the interstitial as part of the
+- **`docs/12-authn-authz.md`** — if it describes the interstitial as part of the
   session hand-off, correct it; the session is established by the launch route
   and does not depend on the page.
 - **`specs/2026-08-25-interstitial-page-analysis.md`** — set the status line to
@@ -909,7 +909,7 @@ Every criterion in the analysis, mapped to the task that satisfies it.
 
 | Criterion | Task |
 | --- | --- |
-| `LTI_LAUNCH_INTERSTITIAL` boot-validated enum, default `never`, in `.env.example` and `docs/DEPLOYMENT.md` | 5, 7 |
+| `LTI_LAUNCH_INTERSTITIAL` boot-validated enum, default `never`, in `.env.example` and `docs/19-deployment.md` | 5, 7 |
 | `never` redirects once, directly, with only `modulus` and `scope_id` | 5 |
 | `always` shows the interstitial and reaches the same activity URL | 4, 5 |
 | Neither mode branches on `isInstructor` | 5 |
@@ -937,7 +937,7 @@ Every criterion in the analysis, mapped to the task that satisfies it.
 | Countdown is the only scripting-dependent launch behaviour | 4 |
 | Destination logic in a directly unit-tested helper, both modes | 5 |
 | `/start-activity` and `extractActivityLaunchParameters` unchanged, tests pass | 5, 8 |
-| `docs/LTI.md` updated, readable-URL note scoped to `/start-activity` | 7 |
+| `docs/13-lti.md` updated, readable-URL note scoped to `/start-activity` | 7 |
 
 ## Out Of Scope
 

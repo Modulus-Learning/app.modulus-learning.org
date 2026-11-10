@@ -1,6 +1,8 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { canvasAdapter } from '@modulus-learning/lms-canvas'
+import type { LtiAgsClient } from '@modulus-learning/lti'
 import { config as loadEnv } from 'dotenv'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
@@ -44,7 +46,6 @@ import type { Config, UrlBuilder } from '@/config.js'
 import type { DB } from '@/database/index.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
 import type { AgentTokenIssuer } from '@/modules/agent/auth/services/token-issuer.js'
-import type { LtiAgsClient } from '@/modules/app/lti/score-submission/ags-client.js'
 import type { LtiSignInService } from '@/modules/app/session/services/lti-sign-in.js'
 import type { TokenIssuer } from '@/modules/app/session/services/token-issuer.js'
 
@@ -236,6 +237,7 @@ export async function setupTestHarness(): Promise<TestHarness> {
         activities: { queries: repos.appActivityQueries, mutations: repos.appActivityMutations },
         ltiKeyStore,
         activityRegistration: { service: activityRegistration },
+        lmsAdapter: canvasAdapter(),
       }),
     makeAgentAuth: ({ config, tokenIssuer }) =>
       new AgentAuthService({
@@ -255,6 +257,7 @@ export async function setupTestHarness(): Promise<TestHarness> {
         mutations: repos.ltiMutations,
         activities: { queries: repos.appActivityQueries, enrollmentService: enrollment },
         session: { ltiSignInService, tokenIssuer },
+        lmsAdapter: canvasAdapter(),
       }),
     makeSubmitter: (agsClient) =>
       new LtiScoreSubmitter({

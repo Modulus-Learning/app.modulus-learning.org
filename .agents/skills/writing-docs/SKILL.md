@@ -1,6 +1,6 @@
 ---
 name: writing-docs
-description: Use when creating, rewriting, tightening, or reviewing any Modulus documentation — the documents under docs/ (introduction, architecture, core composition, data model, authn/authz, LTI, agent, deployment, security and privacy) and any per-package design notes. Trigger whenever the user asks to write, draft, improve, or review a doc; add a setup or getting-started section; document a subsystem, package, or API; or turn design notes into reference. Also use whenever a new subsystem ships and needs documenting, or a Planned document in DOCUMENTATION-PLAN.md is being written. This skill encodes Modulus's documentation standard — doc-type selection, required structure, definition-before-use, runnable code examples, and house voice — so new and revised docs match the existing set rather than drifting from it.
+description: Use when creating, rewriting, tightening, or reviewing any Modulus documentation — the documents under docs/ (introduction, architecture, core composition, data model, authn/authz, LTI, agent, deployment, security and privacy) and any per-package design notes. Trigger whenever the user asks to write, draft, improve, or review a doc; add a setup or getting-started section; document a subsystem, package, or API; or turn design notes into reference. Also use whenever a new subsystem ships and needs documenting, or a Planned document in 00-documentation-plan.md is being written. This skill encodes Modulus's documentation standard — doc-type selection, required structure, definition-before-use, runnable code examples, and house voice — so new and revised docs match the existing set rather than drifting from it.
 ---
 
 # Writing Modulus docs
@@ -8,7 +8,7 @@ description: Use when creating, rewriting, tightening, or reviewing any Modulus 
 Modulus's docs are unusually good for a project this young: they orient the
 reader before explaining, define their vocabulary before using it, show real code
 from the repo rather than pseudocode, and are honest about what is not yet built.
-`docs/ARCHITECTURE.md`, `docs/CORE-COMPOSITION.md`, and `docs/LTI.md` set the bar.
+`docs/09-architecture.md`, `docs/10-core-composition.md`, and `docs/13-lti.md` set the bar.
 
 That makes your job specific: **match the existing set, don't drift from it.** The
 risk here is not a bad doc, it's an inconsistent one — a new page in a different
@@ -28,7 +28,7 @@ When the user provides a Markdown path, create or revise that exact file. When n
 path is provided, infer it from the request; if more than one destination is
 plausible, ask before writing. Treat the rest of the request as the documentation
 brief. Before reporting completion, run `git diff --check`, verify relative links
-and anchors manually, and confirm `docs/DOCUMENTATION-PLAN.md` reflects the
+and anchors manually, and confirm `docs/00-documentation-plan.md` reflects the
 document's current status.
 
 ## Step 1 — Pick the doc type first
@@ -39,13 +39,13 @@ single section.
 
 | Type | Job | Modulus examples |
 |------|-----|------------------|
-| **Tutorial** | Teach a newcomer by walking them through a guaranteed-to-work path. Learning-oriented. | the Planned "Getting Started" doc; the local setup path in `docs/DEPLOYMENT.md` |
-| **How-to / recipe** | Get a competent user to an outcome for a specific task. Assumes background. | the per-flow walkthroughs in `docs/LTI.md`, the platform-registration steps |
-| **Reference** | Let a working developer look up exact facts fast. No narrative. | the entity-group listings in `docs/DATA-MODEL.md`, the provider kinds in `docs/CORE-COMPOSITION.md` |
-| **Explanation** | Build understanding — the "why", the tradeoffs, the rejected alternatives. | `docs/ARCHITECTURE.md`, `docs/INTRODUCTION.md`, `docs/DYNAMIC-ACTIVITIES.md` |
+| **Tutorial** | Teach a newcomer by walking them through a guaranteed-to-work path. Learning-oriented. | the Planned "Getting Started" doc; the local setup path in `docs/19-deployment.md` |
+| **How-to / recipe** | Get a competent user to an outcome for a specific task. Assumes background. | the per-flow walkthroughs in `docs/13-lti.md`, the platform-registration steps |
+| **Reference** | Let a working developer look up exact facts fast. No narrative. | the entity-group listings in `docs/11-data-model.md`, the provider kinds in `docs/10-core-composition.md` |
+| **Explanation** | Build understanding — the "why", the tradeoffs, the rejected alternatives. | `docs/09-architecture.md`, `docs/01-introduction.md`, `docs/16-dynamic-activities.md` |
 
-The subsystem docs (`docs/LTI.md`, `docs/AUTHN-AUTHZ.md`, `docs/AGENT.md`,
-`docs/CORE-COMPOSITION.md`, `docs/DATA-MODEL.md`) are deliberately **reference +
+The subsystem docs (`docs/13-lti.md`, `docs/12-authn-authz.md`, `docs/15-agent.md`,
+`docs/10-core-composition.md`, `docs/11-data-model.md`) are deliberately **reference +
 explanation hybrids**. That's allowed — but section them so the two stay separate:
 an explanation part ("how it works and why") and a reference part ("the exact
 surface"). Do not answer a "why" question in the middle of a lookup table, or drop
@@ -74,15 +74,14 @@ summary: "One sentence describing what the document explains."
 ```
 
 - **Write all three keys.** `title`, `path`, and `summary` are the house contract
-  (`docs/DOCUMENTATION-PLAN.md` states it explicitly). There is no automated
+  (`docs/00-documentation-plan.md` states it explicitly). There is no automated
   checker in this repo, so nothing will catch a missing key for you.
-- **`path` is the published URL slug and must be unique across `docs/`.** It is
-  *not* derived from the filename — it is chosen. Usually it is the lowercased
-  filename (`ARCHITECTURE.md` → `architecture`, `LTI-SCORE-SUBMISSION.md` →
-  `lti-score-submission`), but not always: `DOCUMENTATION-PLAN.md` publishes as
-  `documentation-overview`, and `CUMMULATIVE-PROGRESS.md` publishes as
-  `cumulative-progress` — correcting the typo in the filename. Grep the other
-  docs' front matter (`grep -h '^path:' docs/*.md`) before choosing one.
+- **`path` is the published URL slug and must be unique across `docs/`.** The
+  importer takes it from frontmatter; numeric filename prefixes never enter the
+  slug. For example, `09-architecture.md` has `path: "architecture"`, while
+  `00-documentation-plan.md` has `path: "documentation-overview"`. Preserve
+  existing paths when renaming or reordering files. Check the other docs with
+  `rg '^path:' docs` before choosing a new one.
 - **`summary` is one long, concrete sentence**, not a teaser — it lists what the
   document actually covers. Match the density of the existing summaries.
 - **The front-matter `title` and the first H1 must match**, or the rendered page
@@ -91,37 +90,50 @@ summary: "One sentence describing what the document explains."
 - **Close with `## Where to go next`** — a short list of related documents, each
   with a one-line reason to click. Every system and subsystem doc ends this way:
   `ARCHITECTURE`, `CORE-COMPOSITION`, `DATA-MODEL`, `AUTHN-AUTHZ`, `LTI`,
-  `AGENT`, `DEPLOYMENT`, and `SECURITY-AND-PRIVACY` all do. (`INTRODUCTION.md`
-  closes on `## Status` and `DYNAMIC-ACTIVITIES.md` on an appendix — both are
-  special cases, not licence to skip it.) This is where cross-document navigation
+  `AGENT`, `DEPLOYMENT`, and `SECURITY-AND-PRIVACY` all do. (`16-dynamic-activities.md` closes
+  on an appendix — an existing exception, not licence to skip it.) This is where cross-document navigation
   lives — link a companion rather than repeating its explanation.
 
 ### Where the file goes
 
-`docs/` is **flat** — no numbered directories, no per-section `index.md`. Files
-are named in SCREAMING-KEBAB-CASE after their subject:
+`docs/` currently uses a **flat, ordered layout**. Name files in lowercase
+kebab-case with a two-digit prefix (`NN-topic.md`):
 
 ```text
-docs/INTRODUCTION.md   ARCHITECTURE.md   CORE-COMPOSITION.md   DATA-MODEL.md
-docs/AUTHN-AUTHZ.md    LTI.md   LTI-SCORE-SUBMISSION.md   AGENT.md
-docs/DYNAMIC-ACTIVITIES.md   CUMMULATIVE-PROGRESS.md   DEPLOYMENT.md
-docs/SECURITY-AND-PRIVACY.md   ACCESSIBILITY-AUDIT.md   DOCUMENTATION-PLAN.md
+docs/00-documentation-plan.md
+docs/01-introduction.md
+docs/02-getting-started.md
+docs/03-packages.md
+docs/04-installation.md
 ```
 
-`docs/DOCUMENTATION-PLAN.md` is the index of the whole set. It organises documents
+The website's Byline `byline/scripts/import-docs.ts` sorts source paths.
+Use its `--tree` option to apply that order to the imported navigation, including
+flat root documents. Choose prefixes for reading order and update references
+across the repository whenever a filename changes.
+
+The importer also supports sections through `NN-section/index.md` with numbered
+children. Add folders when a section needs its own landing page; they are not
+required for the current drafts. An index becomes the parent of its folder's
+documents and contributes its frontmatter `path` to their canonical URLs, so
+introducing nesting requires reviewing public URLs as well as source links.
+Import linked documents together: relative Markdown links are resolved through
+the batch's source-path map, and targets outside the batch become plain text.
+
+`docs/00-documentation-plan.md` is the index of the whole set. It organises documents
 into three tiers — **Tier 1** system documents (orientation and architecture),
 **Tier 2** subsystem reference (one per subsystem), **Tier 3** operational and
-process — and marks each as **Available** or **Planned**.
+process — and marks each as **Available**, **Draft**, or **Planned**.
 
 Two obligations follow:
 
 1. **Register the document.** A new doc gets an entry in the right tier with a
    two-to-four-line description in the same style as its neighbours.
-2. **Flip Planned to Available.** Most new docs are already listed as Planned
-   there. Writing one means changing its heading from `### Name — Planned` to
-   `### [Name](./NAME.md) — Available` and replacing the placeholder description
-   with what the document actually covers. Forgetting this is the most common
-   miss.
+2. **Update its status.** Link the actual numbered filename and describe what
+   the document covers. Mark incomplete guidance **Draft**, with a short
+   documentation-in-progress note. Detailed installation recipes remain drafts
+   until validated against a working independent installation. Use **Available**
+   for completed references and **Planned** for documents not yet written.
 
 If the subject fits no tier, say so and ask rather than inventing one.
 
@@ -130,8 +142,8 @@ If the subject fits no tier, say so and ask rather than inventing one.
 There is **no `docs:check` script and no automated docs pipeline in this repo** —
 link integrity is entirely manual. Before finishing:
 
-- Every relative link target (`](./FILE.md`) must be a file that exists in `docs/`.
-- Every anchor (`](./FILE.md#some-heading`) must match a real heading in the
+- Every relative link target (`](./NN-topic.md`) must be a file that exists in `docs/`.
+- Every anchor (`](./NN-topic.md#some-heading`) must match a real heading in the
   target document, including same-document anchors. Anchors are derived from the
   heading text, so a Title Case heading like `## System Context: Three Tiers`
   anchors as `#system-context-three-tiers`.
@@ -214,22 +226,22 @@ or revise one:
 
 1. **Orientation first.** One or two paragraphs placing the subsystem in the
    system — often by tier ("LTI 1.3 is the Tier 1 ↔ Tier 2 surface") and with a
-   link to `docs/ARCHITECTURE.md`. This is what a reader arriving from a search
+   link to `docs/09-architecture.md`. This is what a reader arriving from a search
    result gets.
 2. **Vocabulary or conventions block** where the subsystem has its own terms —
-   `docs/DATA-MODEL.md` opens with `## Conventions`, `docs/ARCHITECTURE.md` with
+   `docs/11-data-model.md` opens with `## Conventions`, `docs/09-architecture.md` with
    the three-tier diagram.
 3. **The detailed sections**, one concept each. Numbered flows where there is a
-   sequence (`## Flow 1 — OIDC Login (third-party initiated)` in `docs/LTI.md`).
+   sequence (`## Flow 1 — OIDC Login (third-party initiated)` in `docs/13-lti.md`).
 4. **An honest-notes section** — what is unbuilt, undecided, or rough. Most docs
-   title it `## Honest Notes & Open Questions`; `docs/DATA-MODEL.md` uses
-   `## Open Questions` and `docs/SECURITY-AND-PRIVACY.md` uses
+   title it `## Honest Notes & Open Questions`; `docs/11-data-model.md` uses
+   `## Open Questions` and `docs/21-security-and-privacy.md` uses
    `## Open Questions / Needs Institutional Policy`. Prefer the first unless the
    doc has a reason to narrow it. Keep this convention — it is one of the best
    things about this corpus.
 5. **`## Where to go next`** — always last.
 
-`docs/LTI.md` is the cleanest example of the full pattern.
+`docs/13-lti.md` is the cleanest example of the full pattern.
 
 ## Step 3 — Apply the universal bar (every type)
 
@@ -286,7 +298,7 @@ flourishes, and nothing that asks the reader to infer unstated context.
   intact. A doc that reads easily but softens a guarantee — especially a privacy
   or auth guarantee — is wrong.
 - **Signpost a link with a complete sentence that says what the reader will
-  find.** "The full agent authorization flow is described in [AGENT](./AGENT.md)"
+  find.** "The full agent authorization flow is described in [AGENT](./15-agent.md)"
   — not a teaser fragment ending in a colon and a link. The same applies to
   `## Where to go next` entries.
 
@@ -311,7 +323,7 @@ flourishes, and nothing that asks the reader to infer unstated context.
   sees, so make it say something specific. Use them sparingly; a paragraph that
   could sit in the body should stay in the body.
 - ASCII diagrams in fenced blocks are used and welcome for structural overviews
-  (see the three-tier diagram in `docs/ARCHITECTURE.md`).
+  (see the three-tier diagram in `docs/09-architecture.md`).
 
 ## Anti-patterns — what "not first-class" looks like here
 
@@ -338,7 +350,7 @@ Name these when reviewing; avoid them when writing.
    the first H1.
 10. **Drifting from house conventions** — sentence-case headings, a missing
     `## Where to go next`, or a doc that never gets registered in
-    `docs/DOCUMENTATION-PLAN.md`.
+    `docs/00-documentation-plan.md`.
 11. **Leaking what must not be public** — learner PII, credentials, real
     deployment IDs, or internal hostnames in an example.
 
@@ -379,7 +391,7 @@ Name these when reviewing; avoid them when writing.
 >
 > The boundary between an application and core is therefore small, explicit, and
 > self-describing: a fixed set of validated, typed, auth-aware calls. See
-> [Core Composition](./CORE-COMPOSITION.md) for how the facade is projected out
+> [Core Composition](./10-core-composition.md) for how the facade is projected out
 > of each module registry.
 
 Note what the code does that the prose can't: it shows that the auth mode
@@ -402,7 +414,8 @@ Run this against the draft. If any answer is "no", fix it before delivering.
 - [ ] Are headings Title Case, and does the doc end with `## Where to go next`?
 - [ ] Do all relative links point at files that exist in `docs/`, and does every anchor name a heading that exists?
 - [ ] Does every admonition carry a specific title (`:::note[…]`, `:::warning[…]`)?
-- [ ] Is the document registered in `docs/DOCUMENTATION-PLAN.md`, under the right tier, flipped from Planned to Available?
+- [ ] Is the numbered filename in the intended reading order, with references updated and the existing frontmatter path preserved?
+- [ ] Is the document registered in `docs/00-documentation-plan.md` with its current Available, Draft, or Planned status?
 - [ ] Is the example free of PII, credentials, real deployment IDs, and internal hostnames?
 - [ ] Are code symbols, paths, commands, limits, and behavioural claims verified against the current repo, not memory?
 - [ ] Would this doc, as written, actually let someone *do the thing* without opening the source?
@@ -412,19 +425,19 @@ Run this against the draft. If any answer is "no", fix it before delivering.
 Read at least one of these before writing. A concrete exemplar calibrates tone and
 depth better than any rule above.
 
-- **[`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md) — the primary model
+- **[`docs/09-architecture.md`](../../../docs/09-architecture.md) — the primary model
   for voice and register.** Read it first. It places the system in its three-tier
   context before any internal detail, states the constraints that drive the design
   (the no-PII boundary, the thousands-of-concurrent-submissions requirement),
   numbers each decision, shows real excerpts from `packages/core` for every claim,
   and closes with `## Where to go next`. When in doubt about tone or how much to
   show versus tell, match this.
-- [`docs/CORE-COMPOSITION.md`](../../../docs/CORE-COMPOSITION.md) — the model for
+- [`docs/10-core-composition.md`](../../../docs/10-core-composition.md) — the model for
   **depth** in a reference + explanation hybrid: it takes the most distinctive
   part of the codebase and works through it from provider kinds to compile-time
   validation to the composition lifecycle, without ever blurring the "how it
   works" and "why it's shaped this way" registers.
-- [`docs/LTI.md`](../../../docs/LTI.md) — the model for **structure** in a
+- [`docs/13-lti.md`](../../../docs/13-lti.md) — the model for **structure** in a
   flow-heavy subsystem doc: orientation by tier, then keys and trust, then
   numbered flows in the order they occur, then honest notes.
 

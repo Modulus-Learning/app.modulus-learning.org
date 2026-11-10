@@ -1,13 +1,22 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
-    "useIgnoreFile": true,
+    "useIgnoreFile": true
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!**/tailwind.css", "!**/email-templates/**"],
+    "includes": [
+      "**",
+      "!**/tailwind.css",
+      "!**/email-templates",
+      "!**/routeTree.gen.ts",
+      "!**/.output",
+      "!**/.nitro",
+      "!**/.tanstack",
+      "!**/pnpm-lock.yaml"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -19,13 +28,7 @@
     "lineWidth": 100,
     "attributePosition": "auto",
     "bracketSpacing": true,
-    "includes": [
-      "**",
-      "!**/dist",
-      "!**/build",
-      "!**/node_modules",
-      "!**/.cache",
-    ],
+    "includes": ["**", "!**/dist", "!**/build", "!**/node_modules", "!**/.cache"]
   },
   "assist": {
     "enabled": true,
@@ -39,26 +42,26 @@
               ":URL:",
               ":BLANK_LINE:",
               ["react"],
-              ["next/**", "@tanstack/**"],
+              ["@tanstack/**"],
               ":BLANK_LINE:",
               ":PACKAGE:",
               ":BLANK_LINE:",
               {
-                "type": false,
-              },
-            ],
-          },
-        },
-      },
-    },
+                "type": false
+              }
+            ]
+          }
+        }
+      }
+    }
   },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "correctness": {
         "noUnusedVariables": "warn",
-        "useUniqueElementIds": "off",
+        "useUniqueElementIds": "off"
       },
       "style": {
         "noNonNullAssertion": { "level": "info", "fix": "none" },
@@ -72,19 +75,36 @@
         "useNumberNamespace": "error",
         "noInferrableTypes": "error",
         "noUselessElse": "error",
+        // The gradebook uses the TanStack Start host adapter
+        // (docs/07-host-tanstack-start.md); Next imports are not supported.
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "next": "Next.js was removed; use TanStack Start / @tanstack/react-router.",
+              "react-cookie": "Read cookies on the server (@/lib/server-request)."
+            },
+            "patterns": [
+              {
+                "group": ["next/*"],
+                "message": "Next.js was removed; use TanStack Start / @tanstack/react-router."
+              }
+            ]
+          }
+        }
       },
       "suspicious": {
         "noExplicitAny": "off",
         "noConfusingVoidType": "off",
-        "noArrayIndexKey": "warn",
+        "noArrayIndexKey": "warn"
       },
       "performance": {
-        "noDelete": "off",
+        "noDelete": "off"
       },
       "a11y": {
-        "useSemanticElements": "off",
-      },
-    },
+        "useSemanticElements": "off"
+      }
+    }
   },
   "javascript": {
     "formatter": {
@@ -96,17 +116,21 @@
       "bracketSameLine": false,
       "quoteStyle": "single",
       "attributePosition": "auto",
-      "bracketSpacing": true,
-    },
+      "bracketSpacing": true
+    }
   },
   "json": {
     "formatter": {
-      "trailingCommas": "none",
-    },
+      "trailingCommas": "none"
+    }
   },
+  // Biome 2.6 formats Markdown and YAML by default; its Markdown output pads
+  // tables and rewrites front matter, so both are left alone.
+  "markdown": { "formatter": { "enabled": false }, "linter": { "enabled": false } },
+  "yaml": { "formatter": { "enabled": false }, "linter": { "enabled": false } },
   "css": {
     "parser": {
-      "cssModules": true,
-    },
-  },
+      "cssModules": true
+    }
+  }
 }

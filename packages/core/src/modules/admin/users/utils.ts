@@ -1,5 +1,9 @@
-import type { RoleRecord, UserRecordWithRoles } from './repository/index.js'
-import type { AddUserResponse, Role, User, UserResponse } from './schemas.js'
+import type {
+  RoleRecord,
+  UserRecordWithRoles,
+  UserRecordWithRolesAndLti,
+} from './repository/index.js'
+import type { AddUserResponse, LtiIdentity, Role, User, UserResponse } from './schemas.js'
 
 export const toUser = ({
   id,
@@ -43,13 +47,27 @@ export const toRole = ({
   updated_at: updated_at.toISOString(),
 })
 
+/**
+ * The stored LTI identity, or null when neither column is set. A half-set pair
+ * is returned with `linked: false`, matching the sign-in code, which treats it
+ * as unlinked.
+ */
+export const toLtiIdentity = ({
+  lti_iss,
+  lti_sub,
+}: Pick<UserRecordWithRolesAndLti, 'lti_iss' | 'lti_sub'>): LtiIdentity | null =>
+  lti_iss == null && lti_sub == null
+    ? null
+    : { issuer: lti_iss, subject: lti_sub, linked: lti_iss != null && lti_sub != null }
+
 export const toUserResponse = (
-  user: UserRecordWithRoles,
+  { lti_iss, lti_sub, ...user }: UserRecordWithRolesAndLti,
   includedRoles: RoleRecord[]
 ): UserResponse => ({
   user: toUser(user),
   included: {
     roles: includedRoles.map(toRole),
+    lti: toLtiIdentity({ lti_iss, lti_sub }),
   },
 })
 

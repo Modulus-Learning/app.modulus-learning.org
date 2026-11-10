@@ -9,8 +9,8 @@ Related:
   analysis, including the foreground-context model superseded here
 - `specs/2026-08-04-activity-scopes-implementation-plan.md` — completed plan
   that implemented the original model
-- `docs/AGENT.md` — shipped browser-agent authentication and storage behaviour
-- `docs/AUTHN-AUTHZ.md` — agent authorization-code, token, and renewal contracts
+- `docs/15-agent.md` — shipped browser-agent authentication and storage behaviour
+- `docs/12-authn-authz.md` — agent authorization-code, token, and renewal contracts
 - `apps/agent/src/core/activity-context.ts` — current versioned context records
   and foreground publication
 - `apps/agent/src/core/auth.ts` — current context resolution and OAuth with Proof
@@ -504,7 +504,7 @@ implementation will:
   read nor written; activity-scope persistence has not reached production, so
   compatibility cleanup is unnecessary;
 - update the pending Changesets entry for the published agent; and
-- revise `docs/AGENT.md` and related authentication/privacy documentation so no
+- revise `docs/15-agent.md` and related authentication/privacy documentation so no
   shipped reference describes foreground inheritance.
 
 The implementation plan should not reopen server-side scope identity, schema,

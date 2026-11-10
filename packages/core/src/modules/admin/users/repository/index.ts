@@ -2,6 +2,7 @@ import { and, asc, desc, eq, ilike, inArray, or, type SQL, sql } from 'drizzle-o
 
 import { permissions, roles, roleUser, users } from '@/database/schema/index.js'
 import { BaseService, method } from '@/lib/base-service.js'
+import { ERR_DATABASE } from '@/lib/errors.js'
 import type { DBManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { CoreUtils } from '@/lib/utils.js'
@@ -15,6 +16,37 @@ export type UserRecordWithRoles = Pick<
   'id' | 'vid' | 'full_name' | 'username' | 'email' | 'is_enabled' | 'created_at' | 'updated_at'
 > & {
   roles: string[]
+}
+
+export type UserRecordWithRolesAndLti = UserRecordWithRoles &
+  Pick<UserRecord, 'lti_iss' | 'lti_sub'>
+
+export type UserLtiIdentityRecord = Pick<UserRecord, 'id' | 'vid' | 'lti_iss' | 'lti_sub'>
+
+export type UnlinkLtiIdentityParams = {
+  id: string
+  vid: number
+  lti_iss: string | null
+  lti_sub: string | null
+}
+
+const SQLSTATE = /^[0-9A-Z]{5}$/
+
+/**
+ * The Postgres SQLSTATE of a database error, or null. Walks the `cause` chain
+ * (Drizzle wraps the driver error) and accepts only a five-character code, so
+ * nothing else from the error can reach a log through this value.
+ */
+export const sqlStateOf = (error: unknown): string | null => {
+  let current: unknown = error
+  for (let depth = 0; depth < 5 && current != null && typeof current === 'object'; depth++) {
+    const code = (current as { code?: unknown }).code
+    if (typeof code === 'string' && SQLSTATE.test(code)) {
+      return code
+    }
+    current = (current as { cause?: unknown }).cause
+  }
+  return null
 }
 
 export type RoleRecord = typeof roles.$inferSelect
@@ -136,7 +168,7 @@ export class UserQueries extends BaseService {
   }
 
   @method
-  async getUserWithRoles(id: string): Promise<UserRecordWithRoles | undefined> {
+  async getUserWithRoles(id: string): Promise<UserRecordWithRolesAndLti | undefined> {
     const [user] = await this.db
       .get()
       .select({
@@ -146,6 +178,8 @@ export class UserQueries extends BaseService {
         username: users.username,
         email: users.email,
         is_enabled: users.is_enabled,
+        lti_iss: users.lti_iss,
+        lti_sub: users.lti_sub,
         created_at: users.created_at,
         updated_at: users.created_at,
         // NOTE: FILTER below which we need if we don't want roles: [null] since
@@ -280,6 +314,75 @@ export class UserMutations extends BaseService {
         .execute()
         .catch(this.utils.wrapDbError('UserMutations.addUserToRoles'))
     }
+  }
+
+  /**
+   * The current LTI identity and version of a user, for the unlink path.
+   * Errors are handled as in `unlinkLtiIdentity`.
+   */
+  @method
+  async getUserLtiIdentity(id: string): Promise<UserLtiIdentityRecord | undefined> {
+    const [user] = await this.db
+      .get()
+      .select({ id: users.id, vid: users.vid, lti_iss: users.lti_iss, lti_sub: users.lti_sub })
+      .from(users)
+      .where(eq(users.id, id))
+      .catch(this.privateDbError('UserMutations.getUserLtiIdentity', id))
+
+    return user
+  }
+
+  /**
+   * Clears a user's LTI identity while the version and both identity columns
+   * still hold the values the caller was shown. Returns the new version, or
+   * undefined when no row matched.
+   *
+   * The query's parameters include the raw LTI subject, and a Drizzle query
+   * error carries its full parameter list. So this path does not use the
+   * shared `wrapDbError`: see `privateDbError`.
+   */
+  @method
+  async unlinkLtiIdentity({
+    id,
+    vid,
+    lti_iss,
+    lti_sub,
+  }: UnlinkLtiIdentityParams): Promise<{ vid: number } | undefined> {
+    const [updated] = await this.db
+      .get()
+      .update(users)
+      .set({ lti_iss: null, lti_sub: null, vid: sql`${users.vid} + 1`, updated_at: new Date() })
+      .where(
+        and(
+          eq(users.id, id),
+          eq(users.vid, vid),
+          sql`${users.lti_iss} IS NOT DISTINCT FROM ${lti_iss}`,
+          sql`${users.lti_sub} IS NOT DISTINCT FROM ${lti_sub}`
+        )
+      )
+      .returning({ vid: users.vid })
+      .catch(this.privateDbError('UserMutations.unlinkLtiIdentity', id))
+
+    return updated
+  }
+
+  /**
+   * A database error handler for queries whose parameters hold an LTI subject.
+   * It throws `ERR_DATABASE` with a fixed message and no `cause`, and logs only
+   * the method, the target user id and the SQLSTATE, so neither the log nor
+   * the public error can carry the query's parameters.
+   */
+  private privateDbError(method: string, target_user_id: string) {
+    const wrapper = (error: unknown): never => {
+      throw ERR_DATABASE(
+        {
+          message: `database error in ${method}`,
+          logExtra: { target_user_id, pg_code: sqlStateOf(error) },
+        },
+        wrapper
+      ).log(this.logger)
+    }
+    return wrapper
   }
 
   @method

@@ -41,3 +41,14 @@ export async function renderMarkdown(body: string, title: string): Promise<Rende
   const content = toJsxRuntime(hast, { Fragment, jsx, jsxs, components })
   return { content }
 }
+
+/**
+ * Synchronous variant for client rendering (the TanStack Start docs pages render
+ * from serialisable loader data): `remark-rehype` has no async plugins here.
+ */
+export function renderMarkdownSync(body: string, title: string): ReactNode {
+  const mdast = unified().use(remarkParse).use(remarkGfm).parse(body) as MdastRoot
+  const cleaned = stripLeadingH1IfMatches(mdast, title)
+  const hast = unified().use(remarkRehype).runSync(cleaned) as HastRoot
+  return toJsxRuntime(hast, { Fragment, jsx, jsxs, components })
+}

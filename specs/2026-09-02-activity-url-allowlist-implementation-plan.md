@@ -5,12 +5,12 @@ Status: implemented on `feat/activity-url-allowlist`; final-review fixes validat
 Related:
 
 - `specs/2026-09-02-activity-url-allowlist-analysis.md` — the approved analysis and the source of every contract below
-- `docs/DYNAMIC-ACTIVITIES.md` — the earlier allow-all proposal this feature supersedes
-- `docs/CUMMULATIVE-PROGRESS.md` — the cumulative-target contract the rejected-target outcome extends
-- `docs/AUTHN-AUTHZ.md` — the agent OAuth + PKCE flow whose authorization branch is reordered
-- `docs/DATA-MODEL.md` — where the new rules table is documented
-- `docs/SECURITY-AND-PRIVACY.md` — the activity trust claims this feature changes
-- `docs/CORE-COMPOSITION.md` — the registry rules the new root-composed module must follow
+- `docs/16-dynamic-activities.md` — the earlier allow-all proposal this feature supersedes
+- `docs/17-cumulative-progress.md` — the cumulative-target contract the rejected-target outcome extends
+- `docs/12-authn-authz.md` — the agent OAuth + PKCE flow whose authorization branch is reordered
+- `docs/11-data-model.md` — where the new rules table is documented
+- `docs/21-security-and-privacy.md` — the activity trust claims this feature changes
+- `docs/10-core-composition.md` — the registry rules the new root-composed module must follow
 - `packages/core/src/core.ts` — the composition root that gains the policy and registration module
 - `packages/core/src/database/schema/source/activities.ts` — `activities.url` is `varchar(255)`, the bound the whole feature inherits
 - `packages/core/src/modules/app/activities/services/activity.ts` — `createActivityCode` / `updateActivityCode`
@@ -81,8 +81,8 @@ canonicalization remains separate, planned work.
 Validation on 2026-09-08: `pnpm run ci` passed — read-only lint, typechecking,
 487 unit tests passed with one existing skip, and 117 database integration tests
 passed. Biome formatted the changed code; `git diff --check` passed. The two
-affected passages in `docs/CUMMULATIVE-PROGRESS.md` and
-`docs/SECURITY-AND-PRIVACY.md` now describe lazy policy loading and the prospective
+affected passages in `docs/17-cumulative-progress.md` and
+`docs/21-security-and-privacy.md` now describe lazy policy loading and the prospective
 preview respectively.
 
 ## Outcome
@@ -163,7 +163,7 @@ Carried from the analysis. No task may weaken these.
   turns a configuration edit into a data-retention and live-access change with
   learner-support consequences the feature has no semantics for.
 - **The policy is deny-by-default.** Zero enabled rules deny everything new.
-  This deliberately supersedes `docs/DYNAMIC-ACTIVITIES.md`. Breaking this leaves
+  This deliberately supersedes `docs/16-dynamic-activities.md`. Breaking this leaves
   a new installation accepting arbitrary redirect targets until someone happens
   to add a rule.
 - **One writer.** `ActivityRegistrationService` is the only code path that
@@ -391,7 +391,7 @@ export const activityUrlAllowlistRules = pgTable(
 ```
 
 `created_by`/`updated_by` reference `admin_users`, **not** `users`. This is the
-first correction to `docs/DYNAMIC-ACTIVITIES.md`'s proposal, and it is what makes
+first correction to `docs/16-dynamic-activities.md`'s proposal, and it is what makes
 the table hold no learner or instructor data at all. `on delete set null` keeps a
 rule alive when an administrator account is removed — a rule outliving its author
 is correct; losing the rule is not.
@@ -680,7 +680,7 @@ fake `queries` object as `agent-auth.test.ts` does:
 
 - `loadPolicy` returns only enabled rules, normalized;
 - `evaluate` denies every candidate when the snapshot is empty — deny-by-default,
-  the contract that supersedes `docs/DYNAMIC-ACTIVITIES.md`;
+  the contract that supersedes `docs/16-dynamic-activities.md`;
 - `evaluate` denies when rules exist but the snapshot came back empty because all
   are disabled;
 - `evaluate` allows a candidate under a whole-origin rule and one under a subtree
@@ -1905,14 +1905,14 @@ which is why it is one task here and appears in no earlier one. Follow
 
 Files:
 
-- revise `docs/DYNAMIC-ACTIVITIES.md`;
-- revise `docs/CUMMULATIVE-PROGRESS.md`;
-- revise `docs/AUTHN-AUTHZ.md`;
-- revise `docs/DATA-MODEL.md`;
-- revise `docs/SECURITY-AND-PRIVACY.md`; and
+- revise `docs/16-dynamic-activities.md`;
+- revise `docs/17-cumulative-progress.md`;
+- revise `docs/12-authn-authz.md`;
+- revise `docs/11-data-model.md`;
+- revise `docs/21-security-and-privacy.md`; and
 - revise `specs/2026-09-02-activity-url-allowlist-analysis.md`.
 
-- **`docs/DYNAMIC-ACTIVITIES.md`** — its unimplemented allowlist sections are
+- **`docs/16-dynamic-activities.md`** — its unimplemented allowlist sections are
   superseded on all four points: deny-all replaces allow-all when there are zero
   rules; parsed origin plus path-segment matching replaces host plus raw
   `pathname.startsWith`; `created_by` references `admin_users`, not learner/
@@ -1920,22 +1920,22 @@ Files:
   agent lazy creation. Mark those sections superseded and point at the shipped
   behaviour rather than deleting the history — the "why lazy create exists"
   rationale and the activity-code-association decision remain current.
-- **`docs/CUMMULATIVE-PROGRESS.md`** — document `rejected_targets`: its closed
+- **`docs/17-cumulative-progress.md`** — document `rejected_targets`: its closed
   reason union, that it is omitted when empty, that it accompanies a successful
   response, that a rejected target never fails the submission carrying it, and
   that the two errors which previously failed the whole request now take this
   route. Say plainly why: the target is authored into the page, so failing would
   stop that page reporting permanently.
-- **`docs/AUTHN-AUTHZ.md`** — the agent OAuth section gains the four-branch
+- **`docs/12-authn-authz.md`** — the agent OAuth section gains the four-branch
   authorization ordering, the syntactic `redirect_uri` gate, `/agent/error`, the
   `unauthorized_client` mapping and why it is not `access_denied`, and the two
   new admin abilities in the abilities section. State that the remaining open
   redirect is narrowed, not closed, and that closing it is deferred.
-- **`docs/DATA-MODEL.md`** — add `activity_url_allowlist_rules` to the entity
+- **`docs/11-data-model.md`** — add `activity_url_allowlist_rules` to the entity
   groups with its columns, its `unique (origin, path_prefix)` constraint, its
   `admin_users` provenance, and a note that it holds no learner data. Add to
   Migrations & Seeds that seeds deliberately create no rules.
-- **`docs/SECURITY-AND-PRIVACY.md`** — the activity trust claims change: URL
+- **`docs/21-security-and-privacy.md`** — the activity trust claims change: URL
   admission is now an administrator decision, admission is recorded by the
   `activities` row, and grandfathering means rule removal is not revocation.
   Record the deferred emergency-block capability as deferred and the narrowed

@@ -1,12 +1,9 @@
-# Node LTS on Debian Slim (glibc). Automatically tracks the active LTS line (currently 24.x).
+# Node LTS on Debian Slim (glibc). Automatically tracks the active LTS line (currently 26.x).
 FROM node:lts-slim AS base
 
 # PNPM ENVs
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-
-# See: https://github.com/nodejs/corepack/issues/612
-ENV COREPACK_INTEGRITY_KEYS=0
 
 # Create nginx user/group to match Alpine convention used throughout this Dockerfile
 RUN groupadd --system nginx && useradd --system --gid nginx --no-create-home --shell /usr/sbin/nologin nginx
@@ -15,6 +12,10 @@ RUN groupadd --system nginx && useradd --system --gid nginx --no-create-home --s
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx supervisor netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
+
+# Install the pnpm version pinned by packageManager in package.json.
+RUN --mount=type=bind,source=package.json,target=/tmp/package.json \
+    npm install --global --allow-scripts=pnpm "pnpm@$(node -p "require('/tmp/package.json').packageManager.split('@')[1].split('+')[0]")"
 
 WORKDIR /app
 
@@ -27,10 +28,13 @@ WORKDIR /app
 
 COPY apps/gradebook/package.json ./apps/gradebook/package.json
 COPY packages/core/package.json ./packages/core/package.json
+COPY packages/host-tanstack-start/package.json ./packages/host-tanstack-start/package.json
+COPY packages/lti/package.json ./packages/lti/package.json
+COPY packages/lms-canvas/package.json ./packages/lms-canvas/package.json
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    corepack enable pnpm && pnpm install --frozen-lockfile
+    pnpm install --frozen-lockfile
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # production-deps
@@ -48,11 +52,14 @@ WORKDIR /app
 
 COPY apps/gradebook/package.json ./apps/gradebook/package.json
 COPY packages/core/package.json ./packages/core/package.json
+COPY packages/host-tanstack-start/package.json ./packages/host-tanstack-start/package.json
+COPY packages/lti/package.json ./packages/lti/package.json
+COPY packages/lms-canvas/package.json ./packages/lms-canvas/package.json
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 
 # RUN pnpm install --prod;
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    corepack enable pnpm && pnpm install --prod --frozen-lockfile
+    pnpm install --prod --frozen-lockfile
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -62,25 +69,29 @@ FROM base AS build
 
 WORKDIR /app
 
-# Likely only required here during build - but also included in the
-# final stage below
-ENV NEXT_TELEMETRY_DISABLED=1
 ENV TURBO_TELEMETRY_DISABLED=1
-ENV NODE_OPTIONS="--max-old-space-size=6144"
+# A local `vite build` peaks near 2 GB resident; 3 GB of heap leaves headroom.
+ENV NODE_OPTIONS="--max-old-space-size=3072"
 
 COPY --from=deps /app/apps/gradebook/node_modules /app/apps/gradebook/node_modules
 COPY --from=deps /app/packages/core/node_modules /app/packages/core/node_modules
+COPY --from=deps /app/packages/host-tanstack-start/node_modules /app/packages/host-tanstack-start/node_modules
+COPY --from=deps /app/packages/lti/node_modules /app/packages/lti/node_modules
+COPY --from=deps /app/packages/lms-canvas/node_modules /app/packages/lms-canvas/node_modules
 COPY --from=deps /app/node_modules /app/node_modules
 
 # Copy source code for the project (manually excluding _docker)
 COPY apps/gradebook apps/gradebook
 COPY packages/core packages/core
+COPY packages/host-tanstack-start packages/host-tanstack-start
+COPY packages/lti packages/lti
+COPY packages/lms-canvas packages/lms-canvas
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 
-# Setup pnpm and global tools in a separate layer to reduce peak memory during build
-RUN corepack enable pnpm
-
-# Run build
+# Run build (turbo): lti, lms-canvas, core and the host package with `tsc`, then the gradebook's
+# TanStack Start build into
+# apps/gradebook/.output. The client bundle inlines the public VITE_* values
+# from the committed apps/gradebook/.env; .env.local never enters the image.
 RUN pnpm run build
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -92,7 +103,6 @@ RUN pnpm run build
 # but the code hasn't changed.
 FROM base
 
-ARG IMAGE_VOLUME
 ARG APP_VOLUME
 ARG VERSION
 
@@ -102,18 +112,17 @@ LABEL io.infonomic.name="modulus_web" \
       io.infonomic.description="Modulus website app container."
 
 ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
 ENV TURBO_TELEMETRY_DISABLED=1
-ENV NEW_RELIC_NO_CONFIG_FILE=true
-ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true \
-NEW_RELIC_LOG=stdout
+# Nitro's graceful close: in-flight HTTP gets 25 s after SIGTERM, inside the
+# app's job drain (SHUTDOWN_DRAIN_SECONDS) and supervisord's stopwaitsecs.
+ENV SERVER_SHUTDOWN_TIMEOUT=25
 
 RUN set -eux; \
   mkdir -p /app; \
   mkdir -p /app/node_modules/.cache; \
   mkdir -p /app/apps/gradebook; \
-  mkdir -p /app/apps/gradebook/.next/cache/images; \
   mkdir -p /app/packages/core; \
+  mkdir -p /app/packages/lti; \
   mkdir -p /var/run/nginx-cache; \
   chown -R nginx:nginx /app;  \
   chown -R nginx:nginx /run; \
@@ -135,15 +144,20 @@ COPY --from=production-deps /app/node_modules /app/node_modules
 COPY --from=build --chown=nginx:nginx /app/packages/core/dist /app/packages/core/dist
 COPY --from=build --chown=nginx:nginx /app/packages/core/package.json /app/packages/core/package.json
 
-# main app
+# lti package: a runtime dependency of core's dist (the `modulus` command).
+# The Nitro bundle inlines the @modulus-learning packages, so lms-canvas and
+# the host package are not needed at runtime.
+COPY --from=production-deps /app/packages/lti/node_modules /app/packages/lti/node_modules
+COPY --from=build --chown=nginx:nginx /app/packages/lti/dist /app/packages/lti/dist
+COPY --from=build --chown=nginx:nginx /app/packages/lti/package.json /app/packages/lti/package.json
+
+# main app: the Nitro server bundle and its public assets (.output), plus the
+# production node_modules its externals (React and friends) resolve from. Docs
+# content is bundled into .output, so src/content is not copied.
 COPY --from=production-deps --chown=nginx:nginx /app/apps/gradebook/node_modules /app/apps/gradebook/node_modules
-COPY --from=build --chown=nginx:nginx /app/apps/gradebook/.next/standalone/apps/gradebook/.next /app/apps/gradebook/.next
-COPY --from=build --chown=nginx:nginx /app/apps/gradebook/.next/standalone/apps/gradebook/package.json /app/apps/gradebook/package.json
-COPY --from=build --chown=nginx:nginx /app/apps/gradebook/.next/standalone/apps/gradebook/server.js /app/apps/gradebook/server.js
-COPY --from=build --chown=nginx:nginx /app/apps/gradebook/.next/static /app/apps/gradebook/.next/static
-COPY --from=build --chown=nginx:nginx /app/apps/gradebook/public /app/apps/gradebook/public
+COPY --from=build --chown=nginx:nginx /app/apps/gradebook/.output /app/apps/gradebook/.output
+COPY --from=build --chown=nginx:nginx /app/apps/gradebook/package.json /app/apps/gradebook/package.json
 COPY --from=build --chown=nginx:nginx /app/apps/gradebook/email-templates /app/apps/gradebook/email-templates
-COPY --from=build --chown=nginx:nginx /app/apps/gradebook/src/content /app/apps/gradebook/src/content
 
 # Root package.json and files
 COPY --from=build /app/package.json /app/package.json
@@ -153,8 +167,6 @@ COPY --from=build /app/turbo.json /app/turbo.json
 
 COPY _docker/gradebook/start-nginx.sh /app/start-nginx.sh
 COPY _docker/gradebook/start-node.sh /app/start-node.sh
-
-VOLUME ${IMAGE_VOLUME}
 
 EXPOSE 8000
 

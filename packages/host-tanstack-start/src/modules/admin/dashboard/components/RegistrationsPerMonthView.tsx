@@ -1,0 +1,69 @@
+import { Card, Select } from '@infonomic/uikit/react'
+
+import { useLangNavigation, useSearchParams } from '@/framework'
+import { AccessibleBarChart } from '@/ui/components/bar-chart'
+import { summarizeRegistrations } from '../chart-summaries'
+import type { Locale } from '@/i18n/i18n-config'
+import type { RegistrationsPerMonth } from '../@types'
+
+export function RegistrationsPerMonthView({
+  result,
+  lng,
+}: {
+  result: RegistrationsPerMonth
+  lng: Locale
+}) {
+  const { navigate } = useLangNavigation(lng)
+  const readOnlySearchParams = useSearchParams()
+  const searchParams = new URLSearchParams(readOnlySearchParams)
+
+  function handleOnYearChange(value: unknown): void {
+    const v = value as string
+    if (v != null && v.length > 0) {
+      searchParams.delete('month')
+      searchParams.set('year', v)
+      navigate({
+        href: `/admin?${searchParams?.toString()}` as string,
+        scroll: true,
+        smoothScrollToTop: true,
+      })
+    }
+  }
+
+  return (
+    <Card>
+      <Card.Header>
+        <Card.Title className="text-[1.3rem] font-semibold flex items-center justify-between">
+          <h2 style={{ font: 'inherit', color: 'inherit', margin: 0 }}>Registrations Per Month</h2>
+          <Select
+            size="sm"
+            id="year"
+            ariaLabel="Year"
+            variant="outlined"
+            defaultValue=""
+            placeholder="Year"
+            className="dark:text-gray-300"
+            onValueChange={handleOnYearChange}
+            value={result.meta.year.toString()}
+            items={result.included.years.map((year) => ({
+              value: year.toString(),
+              label: year.toString(),
+            }))}
+          />
+        </Card.Title>
+      </Card.Header>
+      <Card.Content>
+        <AccessibleBarChart
+          className="w-full h-[200px]"
+          status="idle"
+          data={result.data}
+          title="Registrations Per Month"
+          description={`Monthly registration counts for ${result.meta.year}.`}
+          summary={summarizeRegistrations(result.data, result.meta.year.toString())}
+          category={{ dataKey: 'name', label: 'Month' }}
+          series={{ dataKey: 'value', label: 'Registrations', unit: 'registrations' }}
+        />
+      </Card.Content>
+    </Card>
+  )
+}

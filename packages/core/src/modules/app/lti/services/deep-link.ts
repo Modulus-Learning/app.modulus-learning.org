@@ -1,5 +1,15 @@
 import * as crypto from 'node:crypto'
 
+import type { DeepLinkingContentItem, DeepLinkingResponse, LmsAdapter } from '@modulus-learning/lti'
+import {
+  CLAIM_DEEP_LINKING_CONTENT,
+  CLAIM_DEEP_LINKING_DATA,
+  CLAIM_DEEP_LINKING_MSG,
+  CLAIM_DEPLOYMENT_ID,
+  CLAIM_MESSAGE_TYPE,
+  CLAIM_VERSION,
+} from '@modulus-learning/lti'
+
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_FORBIDDEN, ERR_VALIDATION } from '@/lib/errors.js'
 import {
@@ -8,14 +18,6 @@ import {
 } from '@/modules/activity-registration/activity-url.js'
 import { activityUrlNotAllowed } from '@/modules/activity-registration/errors.js'
 import { INSTRUCTOR_ACTIVITY_URL_MESSAGES } from '@/modules/app/activities/schemas.js'
-import {
-  CLAIM_DEEP_LINKING_CONTENT,
-  CLAIM_DEEP_LINKING_DATA,
-  CLAIM_DEEP_LINKING_MSG,
-  CLAIM_DEPLOYMENT_ID,
-  CLAIM_MESSAGE_TYPE,
-  CLAIM_VERSION,
-} from '../constants.js'
 import {
   ERR_DEEP_LINK_PREFIX_INVALID,
   ERR_DEEP_LINK_PREFIX_MISMATCH,
@@ -32,10 +34,6 @@ import type {
 } from '@/modules/app/activities/repository/index.js'
 import type { LtiQueries } from '../repository/index.js'
 import type { DeepLinkRequest, DeepLinkResponse } from '../schemas.js'
-import type {
-  DeepLinkingContentItem,
-  DeepLinkingResponse,
-} from '../types/messages/tool-originating/deep-linking-response.js'
 
 export class LtiDeepLinkingService extends BaseService {
   private urlBuilder: UrlBuilder
@@ -44,6 +42,7 @@ export class LtiDeepLinkingService extends BaseService {
   private activityMutations: ActivityMutations
   private ltiKeyStore: LtiKeyStore
   private registration: ActivityRegistrationService
+  private lms: LmsAdapter
 
   constructor(deps: {
     logger: CoreLogger
@@ -52,6 +51,7 @@ export class LtiDeepLinkingService extends BaseService {
     activities: { queries: ActivityQueries; mutations: ActivityMutations }
     ltiKeyStore: LtiKeyStore
     activityRegistration: { service: ActivityRegistrationService }
+    lmsAdapter: LmsAdapter
   }) {
     super(deps.logger, 'app', 'lti')
     this.urlBuilder = deps.urlBuilder
@@ -60,6 +60,7 @@ export class LtiDeepLinkingService extends BaseService {
     this.activityMutations = deps.activities.mutations
     this.ltiKeyStore = deps.ltiKeyStore
     this.registration = deps.activityRegistration.service
+    this.lms = deps.lmsAdapter
   }
 
   @method
@@ -213,15 +214,17 @@ export class LtiDeepLinkingService extends BaseService {
 
     const nonce = crypto.randomBytes(30).toString('base64url')
 
-    // The durable fields name the resolved activity, never the submitted
-    // spelling: `activity.url` is its canonical URL, so equivalent spellings
-    // of one activity produce identical content items, and the launch reader
-    // resolves exactly the row registered here.
+    // The adapter's fields first, then Modulus's own: a vendor field can never
+    // overwrite the resource identity the launch reads. The durable fields name
+    // the resolved activity, never the submitted spelling: `activity.url` is its
+    // canonical URL, so equivalent spellings of one activity produce identical
+    // content items, and the launch reader resolves exactly the row registered
+    // here.
     const customFields = {
+      ...this.lms.deepLinkCustomFields(),
       modulus_launch_type: 'start-activity',
       modulus_activity_code: activity_code,
       modulus_activity_url: activity.url,
-      ...CANVAS_CUSTOM_LAUNCH_FIELDS,
     }
 
     const link: DeepLinkingContentItem = {
@@ -265,81 +268,4 @@ export class LtiDeepLinkingService extends BaseService {
 
     return { jwt, return_url: pending.return_url }
   }
-}
-
-// For now, every field that might eventually be useful is listed here;
-// once things settle down, we can remove the ones that aren't being used,
-// and rename the ones we are.
-const CANVAS_CUSTOM_LAUNCH_FIELDS = {
-  'User.id': '$User.id',
-  'User.username': '$User.username',
-
-  // Canvas doesn't include the next two
-  'ActualUser.id': '$ActualUser.id',
-  'ActualUser.username': '$ActualUser.username',
-
-  'Context.id': '$Context.id',
-  'Context.title': '$Context.title',
-  // Canvas doesn't include the next two
-  // 'Context.type': '$Context.type',
-  // 'Context.label': '$Context.label',
-
-  'ResourceLink.id': '$ResourceLink.id',
-  'ResourceLink.title': '$ResourceLink.title',
-  'ResourceLink.description': '$ResourceLink.description',
-  'ResourceLink.available.startDateTime': '$ResourceLink.available.startDateTime',
-  'ResourceLink.available.endDateTime': '$ResourceLink.available.endDateTime',
-  'ResourceLink.submission.startDateTime': '$ResourceLink.submission.startDateTime',
-  'ResourceLink.submission.endDateTime': '$ResourceLink.submission.endDateTime',
-  // Canvas doesn't include the next four
-  // 'ResourceLink.available.user.startDateTime': '$ResourceLink.available.user.startDateTime',
-  // 'ResourceLink.available.user.endDateTime': '$ResourceLink.available.user.endDateTime',
-  // 'ResourceLink.submission.user.startDateTime': '$ResourceLink.submission.user.startDateTime',
-  // 'ResourceLink.submission.user.endDateTime': '$ResourceLink.submission.user.endDateTime',
-
-  // Canvas-specific properties
-  'Message.locale': '$Message.locale',
-
-  'Canvas.account.id': '$Canvas.account.id',
-  'Canvas.account.name': '$Canvas.account.name',
-  'Canvas.user.id': '$Canvas.user.id',
-  'Canvas.user.loginId': '$Canvas.user.loginId',
-  'Canvas.masqueradingUser.id': '$Canvas.masqueradingUser.id',
-  'Canvas.masqueradingUser.userId': '$Canvas.masqueradingUser.userId',
-  'Canvas.course.id': '$Canvas.course.id',
-  'Canvas.course.name': '$Canvas.course.name',
-  'Canvas.course.startAt': '$Canvas.course.startAt',
-  'Canvas.course.endAt': '$Canvas.course.endAt',
-  'Canvas.course.gradePassbackSetting': '$Canvas.course.gradePassbackSetting',
-  'Canvas.term.id': '$Canvas.term.id',
-  'Canvas.term.name': '$Canvas.term.name',
-  'Canvas.term.startAt': '$Canvas.term.startAt',
-  'Canvas.term.endAt': '$Canvas.term.endAt',
-  'Canvas.enrollment.enrollmentState': '$Canvas.enrollment.enrollmentState',
-  'Canvas.module.id': '$Canvas.module.id',
-  'Canvas.moduleItem.id': '$Canvas.moduleItem.id',
-  'Canvas.assignment.id': '$Canvas.assignment.id',
-  'Canvas.assignment.title': '$Canvas.assignment.title',
-  'Canvas.assignment.description': '$Canvas.assignment.description',
-  'Canvas.assignment.published': '$Canvas.assignment.published',
-  'Canvas.assignment.pointsPossible': '$Canvas.assignment.pointsPossible',
-  'Canvas.assignment.unlockAt.iso8601': '$Canvas.assignment.unlockAt.iso8601',
-  'Canvas.assignment.lockAt.iso8601': '$Canvas.assignment.lockAt.iso8601',
-  'Canvas.assignment.dueAt.iso8601': '$Canvas.assignment.dueAt.iso8601',
-  'Canvas.assignment.allowedAttempts': '$Canvas.assignment.allowedAttempts',
-  'Canvas.assignment.submission.studentAttempts': '$Canvas.assignment.submission.studentAttempts',
-
-  'com.instructure.User.student_view': '$com.instructure.User.student_view',
-  'com.instructure.Assignment.lti.id': '$com.instructure.Assignment.lti.id',
-  'com.instructure.Assignment.description': '$com.instructure.Assignment.description',
-  'com.instructure.Submission.id': '$com.instructure.Submission.id',
-  'com.instructure.Context.globalId': '$com.instructure.Context.globalId',
-  'com.instructure.Context.uuid': '$com.instructure.Context.uuid',
-  'com.instructure.contextLabel': '$com.instructure.contextLabel',
-
-  'vnd.instructure.Course.uuid': '$vnd.instructure.Course.uuid',
-  'vnd.instructure.User.uuid': '$vnd.instructure.User.uuid',
-  'vnd.instructure.User.current_uuid': '$vnd.instructure.User.current_uuid',
-
-  'LineItem.resultValue.max': '$LineItem.resultValue.max',
 }

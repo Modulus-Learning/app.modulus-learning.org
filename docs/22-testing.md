@@ -1,0 +1,231 @@
+---
+title: "Testing Strategy"
+path: "testing-strategy"
+summary: "The baseline Modulus testing strategy — suite boundaries, runtime modes, database isolation, the gradebook's HTTP-level session and route-contract suites, local commands, fixture responsibilities, and the minimum continuous-integration gate."
+---
+
+# Testing Strategy
+
+Modulus separates fast, dependency-free unit tests from integration tests that
+exercise real PostgreSQL behavior. This is a baseline for the current codebase,
+not a promise that today’s package boundaries or test runners will survive the
+planned refactor. The durable parts are the suite boundaries, database safety
+rules, deterministic fixtures, and the requirement that local and hosted CI run
+the same commands.
+
+## Test suites
+
+| Suite | File convention | Runtime | External dependencies |
+|---|---|---|---|
+| Core and Canvas adapter unit | `*.test.node.ts` | Vitest `node` mode | None |
+| Core integration | `src/**/tests/*.test.ts` | Vitest `integration` mode, one file at a time | PostgreSQL 18 `_test` database |
+| App browser unit | `*.test.ts` / `*.test.tsx` | Vitest `jsdom` mode | None |
+| App server unit | `*.test.node.ts` / `*.test.node.tsx` | Vitest `node` mode | None |
+| Gradebook session HTTP | `src/session-http/*.session.ts` | Vitest, against the built server | PostgreSQL 18 `_test` database |
+| Gradebook route contract | `src/contract/*.contract.ts` | Vitest, against a running server | A running gradebook instance |
+
+Every package runs Vitest, and the file name selects the mode. App packages run
+both `jsdom` and `node` modes, so a server-only test cannot silently execute
+with browser globals, and browser tests do not inherit Node-only assumptions.
+Core and the Canvas adapter have no browser code and run `node` mode only.
+
+Core's integration mode (`packages/core/vitest.config.ts`) loads `.env.test`
+and refuses a non-`_test` database twice: once in global setup, before any file
+loads, and again in each worker's setup file. Files run serially
+(`fileParallelism: false`, one worker). Core uses TC39 decorators, which Vite's
+default transform leaves in place, so its configuration compiles files that
+contain them with esbuild first, as `tsx` did.
+
+`pnpm test` runs every unit mode and never starts or modifies a database.
+`pnpm test:integration` runs database-backed tests separately and serially.
+
+### The Gradebook's HTTP Suites
+
+Two suites test the gradebook over HTTP rather than through its modules, because
+the behaviour they protect — cookies, redirects, the session boundary, deployment
+modes — only exists once a request has passed through the whole server.
+
+**The session suite** (`pnpm test:session`) builds the gradebook, then its global
+setup (`apps/gradebook/src/session-http/global-setup.ts`) boots the built server
+itself with a synthetic environment: the throwaway keys of
+`packages/host-tanstack-start/src/config/fixtures/mode-env.ts`, no developer env file, jobs off
+and CSP on. It seeds the `_test` database with one learner, one admin, the
+standard roles and one LTI platform, and serves that platform's signing keys from
+an in-process mock. Every identity is synthetic. The suite covers:
+
+- signed-in server rendering for learner and admin pages;
+- the renewal boundary and expected-principal checks on server functions —
+  missing, mismatched, malformed and cross-domain calls;
+- password sign-in and renewal, asserting each raw `Set-Cookie` header;
+- a complete LTI 1.3 launch: login initiation, the state cookie, the signed
+  launch, the learner session cookies, and a refused replay;
+- the CSP headers of ordinary and LMS-framed pages.
+
+Server functions are called the way the browser calls them, at their opaque
+`/_serverFn/<id>` URLs; `serverFnId` in `src/session-http/harness.ts` reads the id
+from the built bundle by the function's name and fails if the name is missing or
+ambiguous.
+
+**The route-contract suite** (`pnpm -F @modulus-learning/gradebook test:contract`)
+pins the gradebook's externally visible behaviour — status codes, `Location`,
+`Set-Cookie` attributes, CORS headers and JSON shapes — per deployment mode,
+against a server you start yourself:
+
+```sh
+cd apps/gradebook
+pnpm build
+DEPLOYMENT_MODE=frontend JOB_QUEUE_ENABLED=false pnpm start &
+CONTRACT_BASE_URL=http://localhost:3000 CONTRACT_MODE=frontend pnpm test:contract
+```
+
+`CONTRACT_MODE` must match the server's `DEPLOYMENT_MODE`. The suite was written
+against the former Next.js host and run against both hosts during the migration;
+its `next` expectations remain as the record of each deliberate change. Run it
+through the production image's nginx as well when you change the Docker or nginx
+configuration.
+
+## Test database lifecycle
+
+Integration tests use a dedicated database on an already-running PostgreSQL 18
+server. Locally that server can be the same Docker Compose service used for
+development; CI provides an equivalent service container. The database name
+must end in `_test`. Both the destructive shell scripts and the TypeScript test
+harness enforce that suffix before doing any work.
+
+Set up the local database once:
+
+```sh
+cd postgres
+./postgres.sh up -d
+cd ..
+
+cp packages/core/.env.test.example packages/core/.env.test
+pnpm db:init:test
+```
+
+`pnpm db:init:test` drops and recreates the configured `_test` database and may
+prompt for the PostgreSQL administrator password. It is an explicit reset tool,
+not a prerequisite for every run. The ordinary integration command applies all
+committed Drizzle migrations idempotently before tests begin.
+
+Each integration test file opens its own pool, applies migrations, and closes
+the pool during teardown. Before every test case, the harness discovers and
+truncates every user table in `public` with `RESTART IDENTITY CASCADE`; teardown
+truncates once more so a completed run does not leave its final fixture behind.
+This is self-maintaining as tables are added. Integration files execute serially
+because they share one database and a concurrent truncate could erase another
+test’s fixtures.
+
+Run the database suite with:
+
+```sh
+pnpm test:integration
+```
+
+To run one core integration file:
+
+```sh
+pnpm --filter @modulus-learning/core test:integration:one \
+  src/modules/agent/activity-state/repository/tests/index.test.ts
+```
+
+The compatibility variable `TEST_POSTGRES_CONNECTION_STRING` overrides
+`POSTGRES_CONNECTION_STRING` when present, but new local and CI configuration
+should use `POSTGRES_CONNECTION_STRING` in `.env.test`.
+
+## Fixtures and test-support code
+
+Shared test code belongs in `packages/core/src/test-support` only when it
+represents a stable testing capability used by multiple files:
+
+- database setup, safety checks, truncation, and composed repositories belong
+  in the harness;
+- small domain builders insert the minimum valid records and return identifiers
+  that tests actually use;
+- external-service fakes record calls and expose scripted outcomes without
+  performing network requests;
+- timing and concurrency helpers make ordering explicit rather than relying on
+  arbitrary sleeps.
+
+A fixture should describe valid domain state, accept focused overrides, and
+avoid assertions. Assertions remain in the test so the behavior under test is
+visible. Prefer a local helper when only one file needs it. Do not add a broad
+“world” fixture that mirrors the production dependency graph; that would make
+tests fragile during the upcoming refactor.
+
+Database integration tests should use real repositories and SQL for the behavior
+being verified, while replacing outbound systems such as an LMS or email
+provider with narrow fakes. Unit tests should construct explicit configuration
+values rather than loading application environment files.
+
+## Local and Hosted CI
+
+Run the main CI job locally with:
+
+```sh
+pnpm run ci
+```
+
+It runs, in order:
+
+1. `pnpm lint:check` — read-only Biome validation of TypeScript sources;
+2. `pnpm test:release` — publishing guards, partial-release recovery, and SQL
+   immutability, using temporary Git repositories and mocked npm/pnpm commands;
+3. `pnpm typecheck`;
+4. `pnpm test` — all unit modes;
+5. `pnpm test:integration` — serialized PostgreSQL integration tests;
+6. `pnpm test:session` — the gradebook build and its session HTTP suite;
+7. `pnpm check:packages` — publint and arethetypeswrong against packed tarballs.
+
+The GitHub Actions workflow calls this same aggregate command on every pull
+request and on pushes to `develop` and `main`. Runs for the same ref cancel older
+in-flight runs. CI provisions PostgreSQL 18 with a `modulus_test` database and
+passes its connection string through the same variable used locally.
+
+A separate CI job runs `pnpm test:packed`, which builds and installs tarballs
+into `fixtures/host-minimal`, then checks the downstream host. To reproduce
+both jobs locally, also run that command with `FIXTURE_DATABASE_URL` set to a
+fresh, empty PostgreSQL 18 database whose name ends in `_test`. Without that
+variable, the script checks packaging and deployment-mode gating but skips
+real core startup. It must not be reported as equivalent to the hosted job.
+
+The release-script suite can run independently with `pnpm test:release`. Its
+registry clients are mocks and its Git remotes are local temporary directories;
+it does not publish packages or contact GitHub.
+
+The pre-commit hook remains intentionally fast and only formats/checks staged
+files. Run both CI jobs locally before pushing; the hosted workflow is the required merge
+gate.
+
+## Baseline limits and next phases
+
+This phase does not introduce coverage thresholds, end-to-end browser tests,
+per-test database schemas, or a common runner across every package. Those should
+follow observed gaps and the emerging post-refactor architecture.
+
+The initial read-only lint gate covers TypeScript sources. Legacy SVG, HTML, and
+CSS assets contain existing Biome findings and remain outside this minimum gate;
+they should be corrected and added deliberately rather than making the new CI
+workflow fail on unrelated baseline debt.
+
+The next useful improvements are:
+
+1. add unit coverage around the database-name guard and fixture builders;
+2. split the test harness’s repository/service composition into smaller domain
+   harnesses as core boundaries stabilize;
+3. add migration boot and schema-drift checks if committed migrations diverge
+   from the Drizzle schema source;
+4. extend HTTP-level coverage only for stable public workflows, and add browser
+   tests where behaviour depends on a real browser (LMS iframes, storage
+   partitioning, Safari);
+5. add coverage reporting after the suite is broad enough that a threshold
+   measures regressions rather than initial test-writing progress.
+
+## Where to go next
+
+- [Architecture](./09-architecture.md) explains the boundaries tests should
+  protect without coupling to host-framework details.
+- [Core Composition](./10-core-composition.md) describes the registry and
+  dependency assembly that future domain harnesses may target.
+- [Data Model](./11-data-model.md) documents the PostgreSQL entities used by the
+  integration fixtures.

@@ -1,0 +1,36 @@
+{
+  "name": "host-minimal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3100",
+    "build": "vite build",
+    "start": "node .output/server/index.mjs"
+  },
+  "dependencies": {
+    "@google-cloud/recaptcha-enterprise": "^7.3.0",
+    "@modulus-learning/core": "file:../../.packed/modulus-learning-core.tgz",
+    "@modulus-learning/host-tanstack-start": "file:../../.packed/modulus-learning-host-tanstack-start.tgz",
+    "@modulus-learning/lms-canvas": "file:../../.packed/modulus-learning-lms-canvas.tgz",
+    "@tanstack/react-router": "1.170.46",
+    "@tanstack/react-start": "1.169.4",
+    "argon2": "^0.45.1",
+    "bcrypt": "^6.0.0",
+    "googleapis": "^188.0.0",
+    "nitro": "3.0.261029-rc",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "tailwindcss": "4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "8.3.5"
+  },
+  "license": "MPL-2.0"
+}

@@ -12,14 +12,14 @@ Related:
 
 - `specs/2026-08-04-activity-scopes-analysis.md` — approved design analysis and
   source of the required invariants
-- `docs/ARCHITECTURE.md` — the three-tier model and Tier 2 ↔ Tier 3 privacy
+- `docs/09-architecture.md` — the three-tier model and Tier 2 ↔ Tier 3 privacy
   boundary
-- `docs/AUTHN-AUTHZ.md` — current learner and agent token model
-- `docs/AGENT.md` — current browser authentication and activity-state flow
-- `docs/DATA-MODEL.md` — current learner-state and Learning Tools
+- `docs/12-authn-authz.md` — current learner and agent token model
+- `docs/15-agent.md` — current browser authentication and activity-state flow
+- `docs/11-data-model.md` — current learner-state and Learning Tools
   Interoperability (LTI) tables
-- `docs/LTI.md` — launch and deep-linking flows
-- `docs/LTI-SCORE-SUBMISSION.md` — Assignment & Grade Services (AGS) score
+- `docs/13-lti.md` — launch and deep-linking flows
+- `docs/14-lti-score-submission.md` — Assignment & Grade Services (AGS) score
   passback
 
 ## Outcome
@@ -906,12 +906,12 @@ the documentation commit.
 
 Files:
 
-- revise `docs/DATA-MODEL.md`;
-- revise `docs/AUTHN-AUTHZ.md`;
-- revise `docs/LTI.md`;
-- revise `docs/LTI-SCORE-SUBMISSION.md`;
-- revise `docs/AGENT.md`;
-- revise `docs/SECURITY-AND-PRIVACY.md` only if the activity-visible nullable
+- revise `docs/11-data-model.md`;
+- revise `docs/12-authn-authz.md`;
+- revise `docs/13-lti.md`;
+- revise `docs/14-lti-score-submission.md`;
+- revise `docs/15-agent.md`;
+- revise `docs/21-security-and-privacy.md` only if the activity-visible nullable
   term name needs clarification;
 - verify the pending Changesets entry and both agent demos reflect the final
   public contract; and

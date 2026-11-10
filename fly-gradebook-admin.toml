@@ -1,0 +1,143 @@
+# Fly.io configuration for the Modulus gradebook ADMIN instance.
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+# The Fly app keeps its original name, `modulus-gradebook-backend`: Fly app names
+# cannot be changed in place. Everywhere the repo controls the name it is the
+# "admin instance" (DEPLOYMENT_MODE=admin).
+#
+# ADMIN (admin + background jobs) deployment. Serves the administrative surface
+# only -- the public/learner and LTI surface is blocked (404) -- and runs the
+# background workers (LTI score submission, housekeeping). The learner/LTI
+# surface is served by the companion fly-gradebook-frontend.toml app. See
+# docs/19-deployment.md.
+#
+# SAME IMAGE, both apps. DEPLOYMENT_MODE / JOB_QUEUE_ENABLED and all server-side
+# config are read at RUNTIME from process.env, so this app and the frontend app
+# deploy the identical image; the mode is purely an env switch. Only variables
+# an admin instance needs are listed: the learner cookies, API base URL,
+# reCAPTCHA and OAuth settings belong to the frontend.
+#
+# Public config reaches the browser from the server at runtime (the root
+# loader), so VITE_PUBLIC_SERVER_URL below is correct for this instance's own
+# origin even though both apps share one client build.
+#
+# Shutdown: kill_timeout (90 s) outlasts supervisord's stopwaitsecs (80 s),
+# which outlasts the app's SHUTDOWN_DRAIN_SECONDS (70 s), which outlasts a
+# score submission's request timeout (60 s). A rolling deploy therefore lets an
+# in-flight submission finish. See docs/19-deployment.md.
+#
+# This admin instance serves https://admin.modulus-learning.org -- you must add
+# the DNS record and a Fly certificate for that subdomain.
+app = 'modulus-gradebook-backend'
+primary_region = 'sin'
+kill_timeout = 90
+swap_size_mb = 512
+
+[build]
+dockerfile = '_docker/gradebook/production/Dockerfile'
+
+[build.args]
+APP_VOLUME = '/app/storage'
+
+[deploy]
+strategy = 'rolling'
+# Apply any unapplied release scripts before the new build serves traffic. Fly
+# runs this on a temporary machine from the new image, with this app's secrets
+# (POSTGRES_CONNECTION_STRING), and aborts the deploy if it fails. Only this
+# admin app migrates; the frontend never does. The database must already have
+# been adopted (`modulus db adopt`) -- see docs/19-deployment.md.
+release_command = 'node /app/packages/core/dist/cli/index.js db upgrade'
+
+[env]
+PORT = '3000'
+# Serve the admin surface only, and run the background workers on this instance.
+DEPLOYMENT_MODE = 'admin'
+JOB_QUEUE_ENABLED = 'true'
+
+VITE_SITE_NAME = 'MODULUS'
+VITE_SITE_DESCRIPTION = 'Modulus - an open source educational analytics system for distributed learning content.'
+# This instance's own origin (see header).
+VITE_PUBLIC_SERVER_URL = 'https://admin.modulus-learning.org'
+VITE_CSP_ENABLED = 'false'
+DATA_REQUEST_CACHING = 'true'
+ANALYTICS_ENABLED = 'true'
+
+ADMIN_SESSION_COOKIE_NAME = 'admin_session'
+ADMIN_SESSION_COOKIE_SAME_SITE = 'lax'
+ADMIN_SESSION_COOKIE_HTTP_ONLY = 'true'
+ADMIN_SESSION_COOKIE_SECURE = 'true'
+
+ADMIN_REFRESH_COOKIE_NAME = 'admin_refresh'
+ADMIN_REFRESH_COOKIE_SAME_SITE = 'lax'
+ADMIN_REFRESH_COOKIE_HTTP_ONLY = 'true'
+ADMIN_REFRESH_COOKIE_SECURE = 'true'
+
+FLASH_COOKIE_NAME = 'flash'
+FLASH_COOKIE_SAME_SITE = 'lax'
+FLASH_COOKIE_HTTP_ONLY = 'true'
+FLASH_COOKIE_SECURE = 'true'
+
+API_JWT_PUBLIC_KEY = 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF0WUtmS3JFYnpqcEYxSERXZkUxTAoxYnBiRmNPZkRDc2VBZnhIVzVSY2JGVHpENGNkT1JvYU5BcmZ0VWR1QnVCcjBZdnRrc0Z1RjBMdG1NZ0ZPQW1mCmUrbURJUHA3RCtYZFdQOU1kOTB5Ui9jSkF0bHJ6U2g0MUxaeEkwTWtHeW9kLzcwOEZFZmZtb3QyWURtMElsSzQKN3E3V2M0WVNMZ1I3cUljNkh2dkd0cFZkTjM5dmVaeWM5NVE3REhwWDYrRllhcWlyYzR0VUZ3RzYzMkp1dmZINApVY1VqQTdJRTBTeTRWd3dtWS8xRHMvWTVQc0cyQWNHWkU4aWg1Q0srRVNGckdEemFraHpmTElOR05vcDE5VHd3Ci9iTEQ1VUR4WGVwTnFwYjlYNHg1NWNsakUvSmhzb3Y3eElsWURKTmhNUTFRSngxSk0vem4yVk1JQXgydlg1TmQKWlFJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=='
+# JWT issuer/audience are kept IDENTICAL to the frontend (same signing key), so
+# tokens stay interchangeable across both apps -- they are opaque claim strings
+# that need only match between mint and verify, not the serving origin.
+API_JWT_ISSUER = 'https://app.modulus-learning.org'
+API_JWT_AUDIENCE = 'https://app.modulus-learning.org'
+
+SYSTEM_EMAIL_FROM_ADDRESS = 'Modulus Learning <info@infonomic.io>'
+CONTACT_SUBMISSION_FROM_ADDRESS = 'Modulus Learning <info@infonomic.io>'
+
+EMAIL_DEBUG_ONLY=false
+SMTP_HOST = 'email-smtp.ap-southeast-1.amazonaws.com'
+SMTP_PORT = '465'
+SMTP_SECURE = 'true'
+SMTP_USER = 'AKIA3NCF7XCVCQSBJRU5'
+
+S3_ACCESS_KEY_ID = 'AKIA3NCF7XCVBH2HXICF'
+S3_BUCKET = 'origin.modulus-learning.org'
+S3_CDN_DOMAIN = 'https://cdn.modulus-learning.org'
+
+# @modulus/core configuration -- expect changes here
+# POSTGRES_CONNECTION_STRING in fly secrets
+LTI_REDIRECT_URI = 'https://app.modulus-learning.org/routes/lti/launch'
+LTI_JWKS_KEY_ID = '1m05tSyzxzwX'
+# LTI_JWKS_PRIVATE_KEY in fly secrets
+LTI_JWKS_PUBLIC_KEY = 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF0V3JYa084V0prS3J5aS9HcERZYgpVS1BTYmFlQ0ZybmVtR2hzM1AydHlRUVpzZS9ZSmVER0pwTGM2Zjdtd2xwQXJwN2thQ2VHRnhGK0xVNnFabHo5ClRYZHFFeDZSYk53aHVJVEd0Q0ZhdnVZaHhuS09RZUNkZm1vSXB6LzNmWFg2NG81djVVQlVDZjhib2ZTV0FFSU8KaDNGQjVVaUM2ZStWOEFzS3MzRk52TzcvSDg5OXFtY1RiMGorQ1A3M0piRXZxR2NEa3ZDTkdJN3BLa1dzYm5sYwo2a3VsYWRDTERwSkIwVkcxQm1zbksxZWl5ZjBmUDZSMHZhaEx5N1g3TU1ydEpBeFlURnZpalRLcWQydE1Pd2ZTCkpiNDF3bjI5NWdQbWMwbEtIVWJOaExDZ3FVS3RCRENKMTN5WUs0Skw1Y0VHTGFidXlib043NEF4WndnOVBMQkgKendJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=='
+SERVER_HOST = 'admin.modulus-learning.org'
+SERVER_BASE_URL = 'https://admin.modulus-learning.org'
+# API_JWT_PRIVATE_KEY in fly secrets
+API_JWT_ACCESS_TOKEN_EXPIRES_IN = 600
+API_JWT_REFRESH_TOKEN_EXPIRES_IN = 2592000
+
+# SINGLE MACHINE ONLY. This instance runs the background workers (LTI score
+# submission), so it must be exactly one always-running instance:
+#   - auto_stop_machines = false: never stop the machine on idle HTTP traffic --
+#     it would also stop the background workers.
+#   - auto_start_machines = false: never auto-start additional machines.
+#   - min_machines_running = 1: keep the one machine running.
+# Fly does not cap machine count from this file, and `fly deploy` on an app with an
+# [http_service] creates a 2-machine HA pair BY DEFAULT. The admin deploy passes
+# `--ha=false` (see scripts/fly-deploy-gradebook-admin.sh) to create just one.
+# Operationally also keep a single region (primary_region above) and verify with
+# `fly scale show` / `fly scale count 1` -- never `fly machine clone` this app.
+[http_service]
+internal_port = 8000
+force_https = true
+auto_stop_machines = false
+auto_start_machines = false
+min_machines_running = 1
+processes = ['app']
+
+[[http_service.checks]]
+interval = '30s'
+timeout = '5s'
+grace_period = '10s'
+method = 'GET'
+path = '/routes/elb-status'
+
+[[vm]]
+size = 'shared-cpu-2x'
+memory = "1024mb"
+cpu_kind = 'shared'
+cpus = 2

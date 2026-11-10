@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
   "root": false,
   "extends": ["../../biome.jsonc"],
   "linter": {
@@ -24,6 +24,7 @@
       "!**/dist",
       "!**/node_modules",
       "!src/database/migrations",
+      "!src/database/schema-scripts/manifest.gen.ts",
       "!src/modules/lti/constants.ts"
     ]
   }

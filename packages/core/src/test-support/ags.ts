@@ -1,12 +1,10 @@
+import type { RateLimitReading } from '@modulus-learning/lms-canvas'
 import type {
   LtiAgsClient,
   PublishScoreInput,
   PublishScoreOutcome,
-} from '@/modules/app/lti/score-submission/ags-client.js'
-import type {
-  RateLimitReading,
   SubmissionResult,
-} from '@/modules/app/lti/score-submission/types.js'
+} from '@modulus-learning/lti'
 
 // Outcome builders mirroring what a real platform round-trip would yield, so the
 // submitter's mark* selection (success / dead / retryable-failure) can be

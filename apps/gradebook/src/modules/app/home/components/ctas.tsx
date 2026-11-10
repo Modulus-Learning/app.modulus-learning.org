@@ -1,9 +1,6 @@
-'use client'
-
 import { Button } from '@infonomic/uikit/react'
-
-import { LangLink } from '@/i18n/components/lang-link'
-import type { Locale } from '@/i18n/i18n-config'
+import { LangLink } from '@modulus-learning/host-tanstack-start/framework/index'
+import type { Locale } from '@modulus-learning/host-tanstack-start/i18n/i18n-config'
 
 export function Ctas({ lng }: { lng: Locale }) {
   return (

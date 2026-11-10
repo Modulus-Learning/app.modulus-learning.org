@@ -9,11 +9,11 @@ contracts in this analysis are superseded by
 implementation plan. The server-side scope identity, token binding, learner
 state, reporting, and score-passback contracts remain in force.
 Related:
-- `docs/ARCHITECTURE.md` — three-tier model and the Tier 2 ↔ Tier 3 privacy boundary
-- `docs/AUTHN-AUTHZ.md` — current learner, administrator, and agent token model
-- `docs/AGENT.md` — current four-path browser authentication flow
-- `docs/DATA-MODEL.md` — current learner-state and LTI tables
-- `docs/LTI-SCORE-SUBMISSION.md` — score-passback queue and line-item lifecycle
+- `docs/09-architecture.md` — three-tier model and the Tier 2 ↔ Tier 3 privacy boundary
+- `docs/12-authn-authz.md` — current learner, administrator, and agent token model
+- `docs/15-agent.md` — current four-path browser authentication flow
+- `docs/11-data-model.md` — current learner-state and LTI tables
+- `docs/14-lti-score-submission.md` — score-passback queue and line-item lifecycle
 - `apps/agent/src/core/auth.ts` — current issuer transport and OAuth + PKCE client
 - `packages/core/src/modules/agent/auth` — current agent authorization-code and token services
 - `packages/core/src/modules/agent/activity-state` — current progress and page-state predicates

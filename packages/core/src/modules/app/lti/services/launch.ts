@@ -1,23 +1,26 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose'
-import { v7 as uuidv7 } from 'uuid'
-import { z } from 'zod'
-
-import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
-import { BaseService, method } from '@/lib/base-service.js'
-import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
+import type {
+  DeepLinkingRequest,
+  LmsAdapter,
+  ResourceLinkLaunchRequest,
+  TermInspection,
+} from '@modulus-learning/lti'
 import {
   CLAIM_AGS_ENDPOINT,
   CLAIM_CUSTOM,
   CLAIM_DEEP_LINKING_SETTINGS,
   CLAIM_DEPLOYMENT_ID,
   CLAIM_MESSAGE_TYPE,
-  CLAIM_ROLES,
-} from '../constants.js'
-import { ERR_INVALID_LAUNCH } from '../errors.js'
-import {
+  effectiveCutoff,
   type PlatformMessage,
   platformMessageSchema,
-} from '../types/messages/platform-originating/platform-message.js'
+} from '@modulus-learning/lti'
+import { createRemoteJWKSet, jwtVerify } from 'jose'
+import { v7 as uuidv7 } from 'uuid'
+
+import { DEFAULT_SCOPE_ID } from '@/database/schema/index.js'
+import { BaseService, method } from '@/lib/base-service.js'
+import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
+import { ERR_INVALID_LAUNCH } from '../errors.js'
 import type { Config } from '@/config.js'
 import type { TXManager } from '@/lib/db-manager.js'
 import type { CoreLogger } from '@/lib/logger.js'
@@ -27,105 +30,13 @@ import type { LtiSignInService } from '@/modules/app/session/services/lti-sign-i
 import type { TokenIssuer } from '@/modules/app/session/services/token-issuer.js'
 import type { LtiMutations, LtiQueries, PlatformRecord } from '../repository/index.js'
 import type { LaunchRequest, LaunchResponse } from '../schemas.js'
-import type { DeepLinkingRequest } from '../types/messages/platform-originating/deep-linking-request.js'
-import type { ResourceLinkLaunchRequest } from '../types/messages/platform-originating/resource-link-launch-request.js'
 
 type RemoteJWKSet = ReturnType<typeof createRemoteJWKSet>
-
-type CustomFields = PlatformMessage[typeof CLAIM_CUSTOM]
-
-type CanvasTermFieldQuality = 'missing' | 'empty' | 'unexpanded' | 'malformed' | 'usable'
-
-type NormalizedCanvasField<T> = {
-  value?: T
-  quality: CanvasTermFieldQuality
-}
-
-type CanvasTermInspection = {
-  term?: NormalizedCanvasTerm
-  quality: {
-    term_id: CanvasTermFieldQuality
-    name: CanvasTermFieldQuality
-    starts_at: CanvasTermFieldQuality
-    ends_at: CanvasTermFieldQuality
-  }
-}
-
-export type NormalizedCanvasTerm = {
-  external_id: string
-  name?: string
-  starts_at?: Date
-  ends_at?: Date
-}
 
 export type VerifiedLaunchScope = {
   scope_id: string
   scope_name: string | null
 }
-
-const canvasTermDateSchema = z.iso.datetime({ offset: true })
-
-const inspectCanvasString = (custom: CustomFields, key: string): NormalizedCanvasField<string> => {
-  const value = custom[key]
-  if (value == null) {
-    return { quality: 'missing' }
-  }
-  if (typeof value !== 'string') {
-    return { quality: 'malformed' }
-  }
-
-  const normalized = value.trim()
-  if (normalized.length === 0) {
-    return { quality: 'empty' }
-  }
-  if (normalized === `$${key}`) {
-    return { quality: 'unexpanded' }
-  }
-
-  return { value: normalized, quality: 'usable' }
-}
-
-const inspectCanvasDate = (custom: CustomFields, key: string): NormalizedCanvasField<Date> => {
-  const inspected = inspectCanvasString(custom, key)
-  if (inspected.value == null) {
-    return { quality: inspected.quality }
-  }
-  if (!canvasTermDateSchema.safeParse(inspected.value).success) {
-    return { quality: 'malformed' }
-  }
-
-  return { value: new Date(inspected.value), quality: 'usable' }
-}
-
-const inspectCanvasTerm = (custom: CustomFields): CanvasTermInspection => {
-  const externalId = inspectCanvasString(custom, 'Canvas.term.id')
-  const name = inspectCanvasString(custom, 'Canvas.term.name')
-  const startsAt = inspectCanvasDate(custom, 'Canvas.term.startAt')
-  const endsAt = inspectCanvasDate(custom, 'Canvas.term.endAt')
-  const quality = {
-    term_id: externalId.quality,
-    name: name.quality,
-    starts_at: startsAt.quality,
-    ends_at: endsAt.quality,
-  }
-
-  if (externalId.value == null) {
-    return { quality }
-  }
-
-  return {
-    term: {
-      external_id: externalId.value,
-      name: name.value,
-      starts_at: startsAt.value,
-      ends_at: endsAt.value,
-    },
-    quality,
-  }
-}
-
-export const normalizeCanvasTerm = (custom: CustomFields): NormalizedCanvasTerm | undefined =>
-  inspectCanvasTerm(custom).term
 
 type ScopeResolutionOptions = {
   verified_at?: Date
@@ -135,10 +46,10 @@ type ScopeResolutionOptions = {
 export const resolveVerifiedLaunchScope = async (
   mutations: Pick<LtiMutations, 'resolvePlatformScope'>,
   platform_id: string,
-  custom: CustomFields,
+  inspection: TermInspection,
   options: ScopeResolutionOptions = {}
 ): Promise<VerifiedLaunchScope> => {
-  const { term, quality } = inspectCanvasTerm(custom)
+  const { term, quality } = inspection
   if (term == null) {
     const resolved = { scope_id: DEFAULT_SCOPE_ID, scope_name: null }
     options.logger?.info(
@@ -169,7 +80,7 @@ type VerifiedLaunch = {
 
 export class LtiLaunchService extends BaseService {
   // TODO: Move this to a seprate service
-  private platformJWKS: Record<string, RemoteJWKSet> = {}
+  private platformJWKS: Record<string, { jwks: RemoteJWKSet; jwks_uri: string }> = {}
 
   private config: Config
   private tx: TXManager
@@ -179,6 +90,7 @@ export class LtiLaunchService extends BaseService {
   private enrollmentService: EnrollmentService
   private ltiSignInService: LtiSignInService
   private tokens: TokenIssuer
+  private lms: LmsAdapter
 
   constructor(deps: {
     logger: CoreLogger
@@ -188,6 +100,7 @@ export class LtiLaunchService extends BaseService {
     mutations: LtiMutations
     activities: { queries: ActivityQueries; enrollmentService: EnrollmentService }
     session: { ltiSignInService: LtiSignInService; tokenIssuer: TokenIssuer }
+    lmsAdapter: LmsAdapter
   }) {
     super(deps.logger, 'app', 'lti')
     this.config = deps.config
@@ -198,6 +111,7 @@ export class LtiLaunchService extends BaseService {
     this.enrollmentService = deps.activities.enrollmentService
     this.ltiSignInService = deps.session.ltiSignInService
     this.tokens = deps.session.tokenIssuer
+    this.lms = deps.lmsAdapter
   }
 
   /**
@@ -214,6 +128,11 @@ export class LtiLaunchService extends BaseService {
   @method
   async handleLaunch(request: LaunchRequest): Promise<LaunchResponse> {
     const { launch, platform } = await this.validateLaunch(request)
+
+    // Record the deployment (if new) once the launch is verified. Verification
+    // itself writes only the nonce claim, so a rejected launch writes nothing
+    // else; this is the point to apply a future deployment allowlist.
+    await this.ltiMutations.upsertPlatformDeployment(launch.iss, launch[CLAIM_DEPLOYMENT_ID])
 
     const messageType = launch[CLAIM_MESSAGE_TYPE]
     const launchType = launch[CLAIM_CUSTOM].modulus_launch_type
@@ -276,15 +195,16 @@ export class LtiLaunchService extends BaseService {
       }).log(this.logger)
     }
 
+    const interpretation = this.lms.interpretLaunch(launch)
     const scope = await resolveVerifiedLaunchScope(
       this.ltiMutations,
       platform.id,
-      launch[CLAIM_CUSTOM],
+      interpretation.term,
       { logger: this.logger }
     )
 
     // Sign the user in.
-    const signIn = await this.ltiSignInService.signInLti(launch, isInstructor(launch[CLAIM_ROLES]))
+    const signIn = await this.ltiSignInService.signInLti(launch, interpretation.isInstructor)
 
     // Enroll the launching user in the activity code.  This is the earliest
     // point with a trusted learner id, and it deliberately runs before the
@@ -305,10 +225,8 @@ export class LtiLaunchService extends BaseService {
 
     const lineitem_url = launch[CLAIM_AGS_ENDPOINT]?.lineitem
     if (lineitem_url != null) {
-      const cutoff_at = parseDateFromArray([
-        launch[CLAIM_CUSTOM]['ResourceLink.available.endDateTime'],
-        launch[CLAIM_CUSTOM]['Canvas.assignment.lockAt.iso8601'],
-      ])
+      // The standard field first, then the adapter's own fallback.
+      const cutoff_at = effectiveCutoff(launch[CLAIM_CUSTOM], interpretation.cutoffFallback)
 
       await this.tx.withTransaction(async () => {
         await this.ltiMutations.upsertProgress(activity.id, signIn.user.id, scope.scope_id)
@@ -371,7 +289,10 @@ export class LtiLaunchService extends BaseService {
   private async handleDeepLinkLaunch(launch: DeepLinkingRequest): Promise<LaunchResponse> {
     // Sign the user in first, so we can record who the pending deep-link belongs
     // to (checked when they complete the deep-link form).
-    const signIn = await this.ltiSignInService.signInLti(launch, isInstructor(launch[CLAIM_ROLES]))
+    const signIn = await this.ltiSignInService.signInLti(
+      launch,
+      this.lms.interpretLaunch(launch).isInstructor
+    )
 
     // Persist only the fields the deep-link response is built from (see
     // LtiDeepLinkingService.handleDeepLink), not the whole id_token.
@@ -400,7 +321,10 @@ export class LtiLaunchService extends BaseService {
   }
 
   private async handleDashboardLaunch(launch: ResourceLinkLaunchRequest): Promise<LaunchResponse> {
-    const signIn = await this.ltiSignInService.signInLti(launch, isInstructor(launch[CLAIM_ROLES]))
+    const signIn = await this.ltiSignInService.signInLti(
+      launch,
+      this.lms.interpretLaunch(launch).isInstructor
+    )
     const tokens = await this.tokens.createTokens(signIn)
 
     return {
@@ -415,13 +339,17 @@ export class LtiLaunchService extends BaseService {
    * TODO: Should these keysets be persisted?  They're pretty cheap to fetch, so
    * in-memory is probably fine on node, but on some serverless / edge runtimes
    * the cache would be reset on every request.
+   *
+   * Each entry is bound to the registration's `jwks_uri`: a corrected key-set
+   * URL replaces the resolver on the next launch.
    */
   private async getPlatformJWKS(platform: PlatformRecord): Promise<RemoteJWKSet> {
-    let jwks = this.platformJWKS[platform.id]
-    if (!jwks) {
-      jwks = createRemoteJWKSet(new URL(platform.jwks_uri))
-      this.platformJWKS[platform.id] = jwks
+    const cached = this.platformJWKS[platform.id]
+    if (cached?.jwks_uri === platform.jwks_uri) {
+      return cached.jwks
     }
+    const jwks = createRemoteJWKSet(new URL(platform.jwks_uri))
+    this.platformJWKS[platform.id] = { jwks, jwks_uri: platform.jwks_uri }
     return jwks
   }
 
@@ -495,57 +423,6 @@ export class LtiLaunchService extends BaseService {
       }).log(this.logger)
     }
 
-    // Create a platform deployment record (if one doesn't already exist).
-    // Deliberately done only after the nonce is claimed, so a rejected replay
-    // performs no writes.
-    await this.ltiMutations.upsertPlatformDeployment(issuer, launch[CLAIM_DEPLOYMENT_ID])
-
     return { launch, platform }
-  }
-}
-
-// LTI roles that should indicate the user is an instructor for our purposes.
-// The LTI spec defines a number of roles without specifying their meaning, so
-// for now this list just includes roles that Canvas appears to use.  See:
-// https://www.imsglobal.org/spec/lti/v1p3/#role-vocabularies
-// https://developerdocs.instructure.com/services/canvas/external-tools/file.canvas_roles
-const INSTRUCTOR_LTI_ROLES = [
-  // A system / site admin.
-  'http://purl.imsglobal.org/vocab/lis/v2/system/person#SysAdmin',
-
-  // Not used by Canvas, but maybe appropriate for other platforms?
-  //'http://purl.imsglobal.org/vocab/lis/v2/system/person#Administrator',
-
-  // An instructor within the overal institution / organization.
-  'http://purl.imsglobal.org/vocab/lis/v2/institution/person#Instructor',
-
-  // An administrator within the overall institution / organization.
-  'http://purl.imsglobal.org/vocab/lis/v2/institution/person#Administrator',
-
-  // An instructor within the context (course / assignment) the user launched from.
-  'http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor',
-
-  // A content developer / designer within the context the user launched from.
-  'http://purl.imsglobal.org/vocab/lis/v2/membership#ContentDeveloper',
-]
-
-const isInstructor = (ltiRoles: string[]): boolean => {
-  const ltiRoleSet = new Set(ltiRoles)
-
-  // TODO: Should we also look for the TestUser role?  In Canvas, it indicates
-  // that a Canvas instructor / admin is using the 'view as student' feature.
-  // const isTestUser = ltiRoleSet.has('http://purl.imsglobal.org/vocab/lis/v2/system/person#TestUser')
-
-  return INSTRUCTOR_LTI_ROLES.some((role) => ltiRoleSet.has(role))
-}
-
-const parseDateFromArray = (array: any[]): Date | undefined => {
-  for (const value of array) {
-    if (typeof value === 'string') {
-      const timestamp = Date.parse(value)
-      if (!Number.isNaN(timestamp)) {
-        return new Date(timestamp)
-      }
-    }
   }
 }

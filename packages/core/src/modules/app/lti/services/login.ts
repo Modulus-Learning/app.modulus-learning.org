@@ -1,12 +1,13 @@
 import * as crypto from 'node:crypto'
 
+import type { AuthenticationRequest } from '@modulus-learning/lti'
+
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_INVALID_LOGIN } from '../errors.js'
 import type { Config } from '@/config.js'
 import type { CoreLogger } from '@/lib/logger.js'
 import type { LtiMutations, LtiQueries } from '../repository/index.js'
 import type { InitLoginRequest, InitLoginResponse } from '../schemas.js'
-import type { AuthenticationRequest } from '../types/launch.js'
 
 export class LtiLoginService extends BaseService {
   private config: Config

@@ -4,12 +4,12 @@ Date: 2026-09-02
 Status: implemented on feat/activity-url-allowlist
 Related:
 
-- `docs/ARCHITECTURE.md` — actor separation and the Tier 2 ↔ Tier 3 boundary
-- `docs/SECURITY-AND-PRIVACY.md` — current activity trust claims
-- `docs/DYNAMIC-ACTIVITIES.md` — the earlier, partially superseded lazy-create
+- `docs/09-architecture.md` — actor separation and the Tier 2 ↔ Tier 3 boundary
+- `docs/21-security-and-privacy.md` — current activity trust claims
+- `docs/16-dynamic-activities.md` — the earlier, partially superseded lazy-create
   allowlist proposal
-- `docs/CUMMULATIVE-PROGRESS.md` — current multi-activity progress semantics
-- `docs/AUTHN-AUTHZ.md` — agent OAuth 2.0 + PKCE and token binding
+- `docs/17-cumulative-progress.md` — current multi-activity progress semantics
+- `docs/12-authn-authz.md` — agent OAuth 2.0 + PKCE and token binding
 - `packages/core/src/modules/app/activities` — instructor activity-code CRUD
 - `packages/core/src/modules/app/lti/services/deep-link.ts` — LTI deep-link
   registration
@@ -78,7 +78,7 @@ The recommended contracts are:
    edit, disable, or remove allowlist rules.
 2. **The policy is strict and deny-by-default.** With no enabled rules, no new
    activity URL can be registered. This deliberately supersedes the earlier
-   `docs/DYNAMIC-ACTIVITIES.md` proposal in which zero rules meant allow all.
+   `docs/16-dynamic-activities.md` proposal in which zero rules meant allow all.
 3. **One rule is an exact origin or an origin plus a path subtree.** A whole-site
    rule such as `https://ximera.osu.edu` accepts every path on that exact origin.
    A base rule such as `https://ximera.osu.edu/course/calculus/` accepts that
@@ -276,7 +276,7 @@ verified agent token and cannot register or write another activity.
 
 ### The earlier dynamic-activities policy is not sufficient as written
 
-`docs/DYNAMIC-ACTIVITIES.md` remains useful history, but its unimplemented
+`docs/16-dynamic-activities.md` remains useful history, but its unimplemented
 allowlist section predates this broader requirement. It proposes:
 
 - allow-all when there are zero rules;
@@ -288,7 +288,7 @@ This proposal changes all four points. A real allowlist must fail closed, path
 matching must respect path boundaries, administrators belong to `admin_users`,
 and instructor registration is part of the enforcement surface. If this
 analysis is approved, its allowlist sections supersede the corresponding future
-plan in `docs/DYNAMIC-ACTIVITIES.md`.
+plan in `docs/16-dynamic-activities.md`.
 
 ## Who May Manage the Allowlist
 
@@ -1281,6 +1281,6 @@ into ordered tasks for:
    schema, the agent's handling of it, and its changeset and release;
 8. single-snapshot evaluation and the deep-link create-race fix;
 9. unit, integration, route, and agent regression tests; and
-10. updates to `DYNAMIC-ACTIVITIES.md`, `CUMMULATIVE-PROGRESS.md`,
-    `AUTHN-AUTHZ.md`, `DATA-MODEL.md`, and `SECURITY-AND-PRIVACY.md` after the
+10. updates to `16-dynamic-activities.md`, `17-cumulative-progress.md`,
+    `12-authn-authz.md`, `11-data-model.md`, and `21-security-and-privacy.md` after the
     implementation is accepted.

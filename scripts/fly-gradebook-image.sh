@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Shared build/deploy helpers for the Modulus gradebook Fly.io deploys.
-# Sourced by fly-deploy-gradebook-{frontend,backend}.sh and fly-deploy-gradebook.sh
+# Sourced by fly-deploy-gradebook-{frontend,admin}.sh and fly-deploy-gradebook.sh
 # -- not meant to be run directly.
 #
-# Build-once / deploy-twice: the frontend (DEPLOYMENT_MODE=frontend) and backend
+# Build-once / deploy-twice: the frontend (DEPLOYMENT_MODE=frontend) and admin
 # (DEPLOYMENT_MODE=admin) apps run the SAME image; the mode is purely a runtime env
-# switch (see docs/DEPLOYMENT.md). build_image() builds a single local image; both
+# switch (see docs/19-deployment.md). build_image() builds a single local image; both
 # deploys retag that identical image into each app's Fly registry namespace and
 # release it -- no per-app rebuild. Within one invocation build_image is called
 # once, so the two-app deploy still builds only once. build_image always runs
@@ -37,13 +37,14 @@ build_image() {
   local platform="${DOCKER_PLATFORM:-linux/amd64}"
   echo "🔨 Building image: ${IMAGE_TAG} (platform ${platform})"
 
+  # --pull refreshes the floating node:lts-slim base instead of reusing a cached one.
   ( cd "${REPO_ROOT}" && DOCKER_BUILDKIT=1 docker build \
+      --pull \
       --platform="${platform}" \
       --network=host \
       --file _docker/gradebook/production/Dockerfile \
       --build-arg APP_VOLUME=/app/storage \
       --build-arg VERSION="${VERSION}" \
-      --build-arg IMAGE_VOLUME=/app/apps/gradebook/.next/cache/images \
       --tag "${IMAGE_TAG}" \
       . )
 }

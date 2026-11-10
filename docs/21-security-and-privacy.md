@@ -1,0 +1,312 @@
+---
+title: "Security & Privacy"
+path: "security-and-privacy"
+summary: "Modulus's security and privacy posture for IT and security staff: the FERPA-aligned data-isolation boundary, what learner data is and isn't stored, the authentication and trust mechanisms across LTI, sessions, and the agent, canonical activity URL lookup before allowlist admission and the restricted diagnostics around it, and the open questions (retention windows, throttling) that need institutional policy."
+---
+
+# Security & Privacy
+
+This document describes how Modulus protects learner data and how it
+authenticates the parties it talks to. It is written for the audience the
+institutional summary calls "IT and Security Staff," and it consolidates
+mechanisms documented in detail elsewhere — [AUTHN-AUTHZ](./12-authn-authz.md),
+[LTI](./13-lti.md), and [AGENT](./15-agent.md).
+
+:::note[Status]
+The *technical* controls below are implemented and described from the code. The
+*policy* items — data-retention windows, the formal threat model, and
+institutional accessibility/privacy statements — are not yet settled and are
+flagged as [open questions](#open-questions--needs-institutional-policy). Treat
+those sections as placeholders pending OSU input.
+:::
+
+## Design Principles
+
+Two privacy principles, stated in [Introduction](./01-introduction.md), drive the
+design:
+
+- **Store as little as possible.** Modulus retains assignment-interaction data,
+  not a student record. Learner identity is abstracted through LTI, and only the
+  minimum needed to make the data useful is kept.
+- **Stay out of the way.** Learners use Ximera as they always have; there is no
+  new account system layered on top of the LMS. The LMS remains the system of
+  record for who a student is.
+
+## The Data-Isolation Boundary (FERPA)
+
+The single most important control is the boundary between Modulus (Tier 2) and
+the instrumented activities it observes (Tier 3): **no learner PII crosses it.**
+Activities authenticate to Modulus and receive only an opaque identifier and a
+display name — never institutional identity.
+
+| ✅ May cross to an activity | ❌ Must not cross |
+| --- | --- |
+| Opaque user id (UUID) | Email address |
+| Display name | Institutional student id |
+| Activity context / URL | Course id or name |
+| Opaque scope id and nullable display name | Raw LMS term id or term dates |
+| Normalized progress (0–1.0) | LMS gradebook data |
+| Page state (activity-specific) | Any other institutional PII |
+
+This is what keeps Modulus FERPA-compatible: learner PII stays within the local
+Modulus deployment, and the LMS gradebook data flows *one way* (Modulus → LMS via
+AGS), never out to third-party content.
+
+The boundary is enforced in code at three points (detailed in
+[AGENT → Data-Isolation Guarantee](./15-agent.md#the-data-isolation-guarantee-end-to-end)):
+
+1. **The token** an agent receives carries only `{ user: {id, full_name?},
+   activity_id, scope_id, renew_after }`.
+2. **The API** only ever exposes *this* learner's progress/page state for *this*
+   activity and scope, because the ingestion services read `user_id`,
+   `activity_id`, and `scope_id` from the verified token, never from the request body
+   ([AGENT → Server-Side Ingestion](./15-agent.md#server-side-ingestion)).
+3. **The agent validates the server** against a central registry before sending
+   anything (below).
+
+## What Modulus Stores About a Learner
+
+Identity lives in the `users` table ([DATA-MODEL](./11-data-model.md#1-identity--access--learners)).
+For an LTI-provisioned learner this is deliberately thin: the LTI `iss`/`sub`
+pair, and whatever name/email the launch supplied. LTI identity is *abstracted* —
+the `sub` is the LMS's opaque subject identifier, and downstream (to activities)
+even that is replaced by Modulus's own UUID.
+
+The learner-activity signals themselves — `progress` and `page_state` — are keyed
+by `(user, activity, scope)` and hold the latest value within that opaque bucket,
+normalized to 0–1.0 for progress. `progress_events` retains the append-only
+history of progress advances. These are interaction data, not personal records.
+
+## Authentication & Trust Mechanisms
+
+Modulus authenticates three classes of party, each with its own mechanism. The
+following mirrors the summary doc's "Security Highlights," grounded in the code.
+
+### Learner & admin sessions
+
+- **Passwords** (where used) are hashed with **Argon2** (`argon2`); plaintext is
+  never stored.
+- **Sessions** are RS256 JWTs ([AUTHN-AUTHZ → JWT layer](./12-authn-authz.md#the-jwt-layer)),
+  delivered to the browser in cookies whose `httpOnly`, `secure`, and `sameSite`
+  attributes are configurable per cookie (separate access/refresh cookies for
+  user and admin).
+- **Refresh is re-validated, not blind.** Token refresh re-reads the account,
+  rejects a disabled user, and re-fetches abilities — so a disabled account or
+  revoked role takes effect at the next refresh
+  ([AUTHN-AUTHZ → Sessions](./12-authn-authz.md#sessions--token-refresh)).
+- **Bot mitigation.** Public self-service flows (self-registration, password
+  sign-in) currently have **no bot mitigation** — no CAPTCHA and no failed-login
+  lockout. In practice nearly all accounts are provisioned via trusted LTI
+  launches rather than public self-registration, but hardening the
+  public paths remains an open item (see Open Questions).
+- **Actor separation.** Learner, admin, and agent tokens are distinguished by
+  payload schema (and the admin discriminator), so a token minted for one actor
+  cannot be used as another.
+
+### LTI platform trust (Tier 1 ↔ Tier 2)
+
+- **Signed launches.** Every `id_token` launch is verified against the platform's
+  **JWKS**, with `iss` and `aud` (must equal our `client_id`) checked
+  ([LTI → Launch & Validation](./13-lti.md#flow-2--launch--validation)).
+- **Replay protection.** Each launch carries a one-time **nonce** that must exist
+  and be unused; it is marked used on acceptance.
+- **No shared secrets for AGS.** Outbound grade passback obtains an access token
+  via the OAuth **client-credentials grant with a signed JWT client-assertion**,
+  using the tool's own keypair — there is no static API secret to leak
+  ([LTI → Platform access tokens](./13-lti.md#platform-access-tokens)).
+- **Published key set.** The tool exposes its public keys at a JWKS endpoint; the
+  private key signs tool-originating messages and client-assertions.
+
+### Agent / activity trust (Tier 2 ↔ Tier 3)
+
+- **OAuth 2.0 + PKCE.** The agent authenticates with the Authorization Code flow
+  and PKCE (S256), so an intercepted authorization code is useless without the
+  `code_verifier` ([AGENT → Connecting to Modulus](./15-agent.md#connecting-to-modulus)).
+- **Registry validation (anti-spoofing).** Before authenticating, the agent
+  confirms the Modulus server's identity against the central registry at
+  `modulus-learning.org/api/registry`, preventing a rogue page from redirecting
+  instrumented content to an impostor server.
+- **Activity-and-scope-bound, PII-free tokens.** The issued token is bound to one
+  activity and one opaque scope label and carries no learner PII; it renews
+  transparently on the back of normal traffic via a `new_token` roll-forward.
+- **Activity URL admission is an administrator decision.** Whether Modulus will
+  record a *new* activity URL at all is governed by the **sitewide activity URL
+  allowlist** — administrator-managed rules, each an exact normalized origin plus
+  a path-segment-bounded subtree, held in `activity_url_allowlist_rules`
+  ([DATA-MODEL → Activities](./11-data-model.md#3-activities--grouping)) and managed
+  at `/admin/activities`. With **no enabled rules**, every valid new activity URL
+  is admitted, including when all stored rules are disabled. With one or more
+  enabled rules, a new URL must match one of them. Disabling or deleting the last
+  enabled rule restores allow-all. URL syntax and length checks always apply.
+  The policy applies to every path that can add an
+  activity — instructor activity-code creation and editing, LTI deep linking,
+  agent authorization, and cumulative progress targets — through a single
+  registration service that is the only writer of `activities` rows outside seeds
+  and fixtures.
+- **Admission is recorded by the `activities` row itself, and admission is not
+  use.** A URL that already has an `activities` row is resolved without the
+  policy being consulted, so **removing or disabling a rule is not revocation**:
+  existing activities keep working, keep accepting progress, and may still be
+  added to activity codes and used in new deep links. Administrators are shown
+  that consequence in the admin surface, where a disable or delete preview
+  counts activities outside the proposed policy and calls them **grandfathered** —
+  not blocked, disabled, invalid, or noncompliant. Withdrawing access to an
+  activity already accepted is a separate capability that does not exist (see
+  Open Questions).
+
+  **Lookup happens before admission, and the lookup key is canonical.**
+  `activities.url` holds a **canonical activity URL** — the `URL` serialization
+  with query and fragment removed — and every reader derives that same key before
+  looking a URL up
+  ([DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping)).
+  Grandfathering therefore covers every equivalent spelling of an activity
+  Modulus has accepted, not only the spelling that was first submitted: an
+  uppercase host, an explicit default port, or an added query string resolves to
+  the existing activity rather than being evaluated as a new registration.
+
+  Two bounds on that, stated plainly:
+
+  - **It resolves spellings, not standards equivalence.** Percent-escape case
+    and escaped unreserved characters remain significant, so `/%7euser` and
+    `/~user` are two activities. Path case, non-root trailing slashes, repeated
+    slashes, and host aliases are all preserved as distinct. Modulus does not
+    claim to merge every standards-equivalent URL, and the conservative
+    direction is deliberate: a false merge would combine two learners' progress
+    and page state under one activity, which is worse than a missed equivalence.
+  - **No equivalence is established over the network.** Modulus follows no
+    redirects, resolves no DNS aliases, and reads no HTML canonical link to
+    decide that two URLs serve one page. Those answers depend on a publisher's
+    routing and can change under Modulus without notice.
+
+  Canonicalization never relaxes admission. It produces a lookup key; whether a
+  previously unseen URL has an acceptable scheme and no embedded credentials is
+  still decided by `parseAdmissibleUrl()`, and **credentials are never stripped
+  to make a URL admissible**. Keeping the two separate is what preserves
+  grandfathering for a stored URL that would not pass today's admission syntax:
+  running the admission gate before every lookup would add a new rejection where
+  none exists today.
+- **Instructor input is validated more strictly than identity, and separately.**
+  Where an instructor types an activity URL — activity-code creation and editing,
+  and LTI deep linking — surrounding whitespace is trimmed, an internal literal
+  space is rejected rather than percent-encoded, and a query string or fragment
+  is rejected outright. Failed input is preserved in the form with a per-field
+  message. This is **input policy only**: it governs what a person may submit,
+  not what counts as the same activity, and it does not tighten the canonical
+  lookup or apply to the agent and OAuth paths
+  ([LTI → Instructor Activity URL Validation](./LTI.md#instructor-activity-url-validation)).
+  Because it is separate from admission, an activity already recorded stays
+  usable even if its stored URL would fail these input rules today.
+- **Diagnostics stay restricted.** A denial is logged with its refusal reason and
+  the candidate's normalized origin and path — the URL is split so the query
+  string and fragment are dropped — plus the `request_id`, `command`, and opaque
+  `user_id` every core log line carries. Rejected component values are not added
+  anywhere: the two per-code prefix failures log an activity code id and a
+  reason, never the prefix or the submitted URL; the duplicate-target validation
+  message names the field, not the URLs; and the registration service's
+  unhandled-race error carries a fixed message with no URL at all. The full list
+  of rejected URLs is returned to the submitter so a form can mark the offending
+  lines, and is deliberately excluded from the log.
+- **Activity codes remain a second, independent constraint.** Institutions also
+  control which activities a given course grouping covers through **activity
+  codes**, and deep linking enforces a code's `url_prefix`. That comparison is
+  made on the canonical form of both sides, so an instructor cannot evade a
+  prefix by respelling the host or adding a default port. A code's `url_prefix`
+  cannot broaden the sitewide policy, and the sitewide policy does not replace it.
+
+### Score integrity
+
+All activity scores are **normalized to 0–1.0** before storage and passback, so
+grade reporting is consistent regardless of an activity's internal scoring model,
+and AGS submissions always use `scoreMaximum: 1`.
+
+**Progress is client-asserted.** Progress and page state are computed in the
+learner's browser by the agent and submitted under the learner's own
+activity-and-scope-bound token; the server does not independently verify them. A
+learner can assert any progress (up to 1.0) for their *own* launched activity and
+chosen existing scope label — this is
+inherent to instrumenting third-party content. The security boundary is
+**isolation** (a learner can only ever write their own progress for the activity
+in the token), not tamper-proof grading, so instructors should treat Modulus
+progress as self-reported.
+
+## Auditing
+
+The `user_logins` table is an **append-only** audit of authentication events —
+time, (nullable) user id, provider, IP address, and a typed outcome
+(`success` / `failed_no_password` / `failed_bad_password` / `failed_disabled`).
+It is intentionally not foreign-keyed so it can be pruned by age and, in future,
+moved to a time-series store ([DATA-MODEL → Identity](./11-data-model.md#1-identity--access--learners)).
+The summary doc lists "full audit capability for launches, scores, and data
+access" as a goal; the login audit exists today, and launch/score auditing is a
+candidate area to extend.
+
+## Open Questions / Needs Institutional Policy
+
+These require decisions or hardening before a security sign-off, and several are
+flagged directly in the code:
+
+- **Framing policy for learner pages under CSP.** With `VITE_CSP_ENABLED=true`,
+  learner pages other than the LTI, agent and renewal pages send
+  `frame-ancestors 'none'`, so a dashboard launched from an LMS cannot display
+  inside the LMS iframe ([DEPLOYMENT → Content Security Policy](./19-deployment.md#content-security-policy)).
+  Allowing it means choosing which origins may frame those pages — for example,
+  the registered platforms' origins. CSP is off in the current deployments.
+- **Learner and LTI state cookies under third-party-cookie blocking.** A separate
+  decision from the framing policy above, tracked as GitHub issue #10: whether to
+  add `Partitioned` (CHIPS) to the learner session cookies and the LTI state
+  cookie, without which a launch inside the LMS iframe fails once the browser
+  blocks third-party cookies.
+
+- **Data-retention windows.** How long `progress`, `page_state`, `user_logins`,
+  and pending `registrations` / `email_change_requests` are kept is **not yet
+  defined**. The schema is built to support age-based pruning; the policy is
+  yours to set.
+- **Bot mitigation & failed-login throttling.** Public self-service flows have no
+  CAPTCHA, and while `failed_login_attempts` is recorded, lockout / back-off and
+  timing-attack mitigations are not yet enforced
+  ([AUTHN-AUTHZ → Honest Notes](./12-authn-authz.md#honest-notes--open-questions)).
+- **Key persistence.** The LTI tool keystore and the agent's per-platform JWKS
+  caches are in-memory and reset on restart; persistence (and rotation strategy)
+  is a noted `TODO` ([LTI → Keys & Trust](./13-lti.md#keys--trust)).
+- **Nonce / token housekeeping.** Used LTI nonces are marked but not yet pruned;
+  agent refresh-token rotation (`used_at`) should be confirmed end-to-end.
+- **Emergency blocking is deferred.** The activity URL allowlist admits; nothing
+  revokes. Withdrawing access to an activity Modulus has already accepted has a
+  much larger decision surface than deleting a rule — whether an LTI launch stops
+  before or after sign-in and enrolment, whether live agent access and refresh
+  tokens are rejected immediately, whether reads as well as writes stop, whether
+  queued AGS submissions proceed, what a learner is told, and how an
+  administrator undoes it. That needs an explicit activity/origin status model,
+  an audit trail, and a recovery workflow. Overloading allowlist deletion with it
+  would hide all of that behind an ordinary configuration edit, so it is
+  deliberately **not** built.
+- **The agent authorization endpoint is a knowingly retained open redirect.**
+  `/routes/agent/authorize` returns the browser to the `redirect_uri` it was
+  given on three of its four branches without consulting the allowlist, so it can
+  be pointed at any `https` origin. A syntactic gate **narrows** this — it rejects
+  the credentialed-host disguise (`https://modulus.example@evil.example/`),
+  `javascript:` and `data:` destinations, and a value `new URL()` cannot parse,
+  sending those to a Modulus error page instead. The rejected value does not reach
+  that page, and the safety there is structural rather than a matter of what the
+  page renders: the route redirects with a fixed slug and never with the rejected
+  URI, and the error page admits only its closed slug union. None of that closes
+  the redirect. Leaving it open
+  is an accepted risk, not an oversight: closing the bounce means replacing it
+  with a Modulus page and a return link, and session expiry is the common path
+  through this endpoint and today resolves with no learner action at all. See
+  [AUTHN-AUTHZ → The Authorization Endpoint's Branch Ordering](./12-authn-authz.md#the-authorization-endpoints-branch-ordering).
+- **Formal threat model & pen-test.** A written threat model and an independent
+  review are not yet part of the repository.
+- **Transport & secrets.** TLS termination, secret management, and key
+  distribution are deployment concerns — see [DEPLOYMENT](./19-deployment.md).
+
+---
+
+## Where to go next
+
+- [AUTHN-AUTHZ](./12-authn-authz.md) — the authentication and authorization
+  mechanics in full.
+- [LTI](./13-lti.md) and [AGENT](./15-agent.md) — the two trust boundaries.
+- [DATA-MODEL](./11-data-model.md) — exactly what is stored, and where.
+- [DEPLOYMENT](./19-deployment.md) — transport security, secrets, and operational
+  hardening.

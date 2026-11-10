@@ -8,6 +8,8 @@ import {
   deleteUserRequestSchema,
   getUserRequestSchema,
   listUsersRequestSchema,
+  unlinkUserLtiIdentityRequestSchema,
+  unlinkUserLtiIdentityResponseSchema,
   updateUserRequestSchema,
   userListResponseSchema,
   userResponseSchema,
@@ -95,6 +97,21 @@ export class UserCommands {
         output: z.void(),
       },
       handler: this.service.updateUser.bind(this.service),
+    })
+  }
+
+  @cached get unlinkUserLtiIdentity() {
+    return this.utils.createCommand({
+      method: 'unlinkUserLtiIdentity',
+      auth: {
+        mode: 'admin',
+        abilities: ['users:edit'],
+      },
+      schemas: {
+        input: unlinkUserLtiIdentityRequestSchema,
+        output: unlinkUserLtiIdentityResponseSchema,
+      },
+      handler: this.service.unlinkLtiIdentity.bind(this.service),
     })
   }
 

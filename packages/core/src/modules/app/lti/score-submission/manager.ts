@@ -1,6 +1,7 @@
+import { type LmsAdapter, registrationFingerprint } from '@modulus-learning/lti'
+
 import { BaseService, method } from '@/lib/base-service.js'
 import { ERR_NOT_FOUND } from '@/lib/errors.js'
-import { HttpLtiAgsClient } from './ags-client.js'
 import { LoggingIncidentSink } from './incident-sink.js'
 import { LtiIncidentNotifier } from './notifier.js'
 import { LtiScoreSubmissionProcessor } from './processor.js'
@@ -20,9 +21,12 @@ export class LtiScoreSubmissionManager extends BaseService {
   private queries: LtiScoreSubmissionQueries
   private mutations: LtiScoreSubmissionMutations
   private accessTokenManager: AccessTokenManager
+  private lms: LmsAdapter
   private tx: TXManager
 
   private processors: Record<string, LtiScoreSubmissionProcessor>
+  /** The registration values each processor's score client was built from. */
+  private fingerprints: Record<string, string> = {}
   private notifier: LtiIncidentNotifier
 
   // Reconcile loop lifecycle (mirrors the notifier's desired-vs-actual idiom).
@@ -37,8 +41,10 @@ export class LtiScoreSubmissionManager extends BaseService {
     scoreSubmissionQueries: LtiScoreSubmissionQueries
     scoreSubmissionMutations: LtiScoreSubmissionMutations
     accessTokenManager: AccessTokenManager
+    lmsAdapter: LmsAdapter
   }) {
     super(deps.logger, 'app', 'lti')
+    this.lms = deps.lmsAdapter
     this.config = deps.config
     this.tx = deps.tx
     this.queries = deps.scoreSubmissionQueries
@@ -105,18 +111,33 @@ export class LtiScoreSubmissionManager extends BaseService {
 
   /**
    * Diffs the `platforms` table against the running processors: starts one for
-   * each new platform, and stops+drops one whose platform has disappeared.
-   * Existing processors are left alone — each self-heals a crashed run loop via
-   * its own `ensureRunning`. If several instances run this loop, each reconciles
-   * independently; per-item work stays safe across them via lease fencing.
+   * each new platform, stops+drops one whose platform has disappeared, and
+   * replaces one whose registration values changed (a corrected client id or
+   * endpoint). The old processor drains before its replacement starts, so the
+   * two never submit concurrently. Unchanged processors are left alone — each
+   * self-heals a crashed run loop via its own `ensureRunning`. If several
+   * instances run this loop, each reconciles independently; per-item work stays
+   * safe across them via lease fencing.
    */
   private async reconcile(): Promise<void> {
     const platforms = await this.queries.getAllPlatforms()
     const live = new Set(platforms.map((platform) => platform.id))
 
     for (const platform of platforms) {
-      if (this.processors[platform.id] == null) {
+      const running = this.processors[platform.id]
+      if (running == null) {
         this.addProcessor(platform)
+      } else if (this.fingerprints[platform.id] !== registrationFingerprint(platform)) {
+        this.logger.info(
+          { issuer: platform.issuer },
+          'lti registration changed; replacing its score submission processor'
+        )
+        delete this.processors[platform.id]
+        await running.stop()
+        this.accessTokenManager.forgetRegistration(platform.id)
+        if (this.desiredRunning && this.processors[platform.id] == null) {
+          this.addProcessor(platform)
+        }
       }
     }
 
@@ -125,6 +146,8 @@ export class LtiScoreSubmissionManager extends BaseService {
         // Fire-and-forget the drain; full shutdown is handled by stop().
         this.stopPlatform(id)
         delete this.processors[id]
+        delete this.fingerprints[id]
+        this.accessTokenManager.forgetRegistration(id)
       }
     }
   }
@@ -149,11 +172,20 @@ export class LtiScoreSubmissionManager extends BaseService {
   }
 
   private addProcessor(platform: PlatformRecord) {
-    const agsClient = new HttpLtiAgsClient({
+    // The adapter supplies the registration-bound transport and its pacing
+    // policy; core keeps claiming, fencing, retries, incidents and the cap.
+    const scoreSubmission = this.config.lti.score_submission
+    const { client: agsClient, scheduling } = this.lms.createScoreClient({
+      registration: platform,
+      accessTokens: this.accessTokenManager,
       logger: this.logger,
-      config: this.config,
-      platform,
-      accessTokenManager: this.accessTokenManager,
+      settings: {
+        requestTimeoutSeconds: scoreSubmission.request_timeout_seconds,
+        maxConcurrentSubmissions: scoreSubmission.max_concurrent_submissions,
+        quotaReserveRequests: scoreSubmission.quota_reserve_requests,
+        quotaWindowMs: scoreSubmission.quota_window_ms,
+        quotaRampIntervalMs: scoreSubmission.quota_ramp_interval_ms,
+      },
     })
 
     const submitter = new LtiScoreSubmitter({
@@ -167,12 +199,14 @@ export class LtiScoreSubmissionManager extends BaseService {
       logger: this.logger,
       config: this.config,
       submitter,
+      scheduling,
       mutations: this.mutations,
       queries: this.queries,
     })
     processor.start()
 
     this.processors[platform.id] = processor
+    this.fingerprints[platform.id] = registrationFingerprint(platform)
   }
 
   /** Interruptible sleep so `stop()` returns promptly. */

@@ -1,8 +1,22 @@
 {
   "name": "@modulus-learning/core",
-  "version": "0.9.1",
-  "private": true,
+  "version": "0.11.3",
+  "private": false,
+  "description": "Modulus core: business logic, data access, schema scripts and the modulus command",
+  "license": "MPL-2.0",
   "type": "module",
+  "homepage": "https://github.com/Modulus-Learning/app.modulus-learning.org",
+  "bugs": {
+    "url": "https://github.com/Modulus-Learning/app.modulus-learning.org/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Modulus-Learning/app.modulus-learning.org.git",
+    "directory": "packages/core"
+  },
+  "engines": {
+    "node": "^22.18.0 || ^24.11.0 || >=26.0.0"
+  },
   "sideEffects": false,
   "exports": {
     ".": {
@@ -17,7 +31,14 @@
       "types": "./dist/public/activity-url.d.ts",
       "import": "./dist/public/activity-url.js"
     },
+    "./env": {
+      "types": "./dist/public/env.d.ts",
+      "import": "./dist/public/env.js"
+    },
     "./package.json": "./package.json"
+  },
+  "bin": {
+    "modulus": "./dist/cli/index.js"
   },
   "files": [
     "dist"
@@ -26,51 +47,62 @@
     "clean": "rm -rf node_modules dist build .turbo",
     "dev": "chokidar 'src/**/*' -c 'npm-run-all build'",
     "devlti": "chokidar 'src/**/*' -c 'npm-run-all build'",
-    "build": "tsc -p tsconfig.json && tsc-alias",
-    "lint": "biome check --write --unsafe --diagnostic-level=error",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json && node scripts/copy-sql.mjs",
+    "lint": "biome check --write --diagnostic-level=error",
     "typecheck": "tsc --noEmit",
-    "test": "LOG_LEVEL=off tsx --test $(find src -name \"*.test.ts\")",
-    "test:integration": "LOG_LEVEL=off tsx --test --test-concurrency=1 $(find src -name \"*.itest.ts\")",
-    "test:one": "LOG_LEVEL=off tsx --no-warnings --test",
-    "test:integration:one": "LOG_LEVEL=off tsx --no-warnings --test --test-concurrency=1",
+    "test": "LOG_LEVEL=off vitest run --mode=node",
+    "test:integration": "LOG_LEVEL=off vitest run --mode=integration",
+    "test:one": "LOG_LEVEL=off vitest run --mode=node",
+    "test:integration:one": "LOG_LEVEL=off vitest run --mode=integration",
     "db:init": "cd src/database && ./db_init.sh",
     "db:init:test": "cd src/database && ./db_init_test.sh",
     "drizzle:generate": "tsc -p tsconfig.json && drizzle-kit generate --config=drizzle.config.ts",
     "drizzle:push": "tsc -p tsconfig.json && drizzle-kit push --config=drizzle.config.ts",
     "drizzle:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "drizzle:drop": "drizzle-kit drop --config=drizzle.config.ts",
-    "drizzle:seed": "tsx --no-warnings --env-file=.env ./src/database/seeds/index.ts"
+    "drizzle:seed": "tsx --no-warnings --env-file=.env ./src/database/seeds/index.ts",
+    "schema:baseline": "tsc -p tsconfig.json && { printf -- '-- Baseline: the complete Modulus schema for a fresh, empty database.\\n-- Generated from the Drizzle schema with `pnpm schema:baseline`; review before\\n-- committing. Applied only by `modulus db init`, which records every release\\n-- script shipped with the same build as already applied.\\n\\n'; drizzle-kit export --config drizzle.config.ts --sql; } > src/database/sql/baseline.sql",
+    "schema:manifest": "tsx scripts/schema-manifest.ts",
+    "schema:manifest:check": "tsx scripts/schema-manifest.ts --check",
+    "modulus": "tsx src/cli/index.ts"
   },
   "dependencies": {
     "@infonomic/schemas": "^2.4.0",
+    "@modulus-learning/lti": "workspace:*",
     "argon2": "^0.45.1",
-    "dotenv": "^17.4.2",
-    "drizzle-orm": "^0.45.2",
-    "googleapis": "^174.0.1",
-    "handlebars": "^4.7.9",
-    "jose": "^6.2.9",
-    "nodemailer": "^9.0.5",
+    "dotenv": "^18.0.9",
+    "drizzle-orm": "^0.45.4",
+    "googleapis": "^188.0.0",
+    "handlebars": "^4.7.10",
+    "jose": "^6.2.14",
+    "nodemailer": "^10.3.1",
     "nodemailer-html-to-text": "^3.2.0",
-    "pg": "^8.23.0",
-    "pino": "^10.3.1",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
     "unique-names-generator": "^4.7.1",
-    "uuid": "^14.0.1",
-    "zod": "^4.4.3"
+    "uuid": "^14.0.3",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.8",
+    "@biomejs/biome": "^2.6.4",
     "@faker-js/faker": "^10.6.0",
-    "@types/node": "^26.2.0",
-    "@types/nodemailer": "^8.0.1",
+    "@modulus-learning/lms-canvas": "workspace:*",
+    "@types/node": "^26.6.6",
+    "@types/nodemailer": "^8.0.2",
     "@types/nodemailer-html-to-text": "^3.1.3",
-    "@types/pg": "^8.21.0",
-    "chokidar": "^5.0.0",
+    "@types/pg": "^8.23.1",
+    "chokidar": "^6.0.0",
     "chokidar-cli": "^3.0.0",
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
     "npm-run-all": "^4.1.5",
     "rimraf": "^6.1.3",
-    "tsc-alias": "^1.9.1",
-    "tsx": "^4.23.12",
-    "typescript": "^7.0.2"
+    "tsc-alias": "^1.9.9",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

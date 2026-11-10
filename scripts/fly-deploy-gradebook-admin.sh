@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Build (once) and deploy the ADMIN (admin + background jobs) gradebook app to Fly.io.
+# DEPLOYMENT_MODE=admin / JOB_QUEUE_ENABLED=true come from fly-gradebook-admin.toml.
+# Builds the shared image (always; Docker's layer cache keeps unchanged rebuilds
+# fast); the frontend deploys the same image via fly-deploy-gradebook-frontend.sh.
+# Extra args are forwarded to `fly deploy`. See docs/19-deployment.md.
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=./fly-gradebook-image.sh
+source "${SCRIPT_DIR}/fly-gradebook-image.sh"
+
+build_image
+# --ha=false: the admin instance runs the background workers and must be a SINGLE machine,
+# so suppress Fly's default 2-machine HA pair (see fly-gradebook-admin.toml).
+deploy_app "${REPO_ROOT}/fly-gradebook-admin.toml" --ha=false "$@"
