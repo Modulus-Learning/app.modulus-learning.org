@@ -293,6 +293,50 @@ no shared secret. It signs a short-lived assertion with the tool keystore
 in-memory per platform, refreshing ~30s before expiry (Canvas tokens last an
 hour).
 
+## Unlinking an LTI Identity
+
+A Modulus account holds at most one LTI identity, the `(lti_iss, lti_sub)` pair
+on `users`. When a launch's email matches an account that is already linked to a
+*different* identity, sign-in refuses with `ERR_LTI_IDENTITY_CONFLICT`, and the
+learner sees the "Account Already Linked" page. The remedy is for an
+administrator to unlink the account.
+
+On a user's admin page (`/admin/users/{id}`), the **LTI identity** panel shows
+the stored issuer and subject. An administrator holding `users:edit` can unlink
+it there. Seeing the panel needs `users:read`, which the page already requires.
+Behind the panel is the core command `core.admin.users.unlinkUserLtiIdentity`,
+which enforces `users:edit` itself.
+
+- **It clears only the identity.** The account, its email, enrollments,
+  progress, page state and line items are unchanged.
+- **The write is conditional.** It applies only while the account's `vid` and
+  both identity columns still hold the values the page showed, so a stale page
+  cannot clear a link made after it was loaded. A mismatch returns
+  `ERR_VERSION_CONFLICT`, and the page asks for a refresh. An account that is
+  already unlinked is a successful no-op.
+- **It reopens email linking.** The first eligible launch whose email matches
+  the account links its identity to it, whichever launch arrives first. That is
+  usually the learner's new identity, but it can equally be the previous one.
+- **It is support recovery, not containment.** Unlinking signs no one out.
+  `refreshTokens` checks that the user exists and is enabled, not the user's LTI
+  identity, so an existing session keeps renewing. Nor does unlinking block the
+  previous identity. To keep someone out, disable the account instead. That
+  stops new sign-ins and refreshes, but access tokens already issued remain valid
+  until they expire. Server-side revocation is not built yet; see the
+  [session management review](../specs/2026-10-30-session-management-review-analysis.md).
+
+Each unlink that changes a row emits one `info` log event, `lti identity
+unlinked`. Its fields are `actor_admin_id`, `target_user_id`, the cleared
+`issuer`, and `subject_hash`, a SHA-256 prefix of the cleared subject. The hash
+lets an operator correlate events for one identity; it is not anonymisation.
+This is an operational record, not a durable audit trail.
+
+No raw LTI subject or email is logged on this path, on success or on failure.
+Its queries carry the subject as a parameter, and a database error would carry
+its parameters with it. So the path throws `ERR_DATABASE` without the
+underlying error, and logs only the method, the target user id and the Postgres
+SQLSTATE.
+
 ## Commands & Host Routes
 
 The three platform-to-platform commands are **`auth: { mode: 'none' }`** — they

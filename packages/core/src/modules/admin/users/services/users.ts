@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import argon2 from 'argon2'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -18,10 +20,19 @@ import type {
   DeleteUserRequest,
   GetUserRequest,
   ListUsersRequest,
+  UnlinkUserLtiIdentityRequest,
+  UnlinkUserLtiIdentityResponse,
   UpdateUserRequest,
   UserListResponse,
   UserResponse,
 } from '../schemas.js'
+
+/**
+ * A correlation value for an LTI subject in logs: a SHA-256 prefix. It lets
+ * an operator match events for one identity; it is not anonymisation.
+ */
+export const ltiSubjectHash = (subject: string | null): string | null =>
+  subject == null ? null : createHash('sha256').update(subject).digest('hex').slice(0, 16)
 
 export class UserService extends BaseService {
   private tx: TXManager
@@ -68,6 +79,53 @@ export class UserService extends BaseService {
     const roles = await this.queries.getAllRoles()
 
     return toUserResponse(user, roles)
+  }
+
+  /**
+   * Clears a learner's LTI identity, as support recovery for a learner refused
+   * with ERR_LTI_IDENTITY_CONFLICT. The account and its data are unchanged.
+   * This reopens email-based linking for whichever eligible launch arrives
+   * first, and it neither ends sessions nor blocks the previous identity; see
+   * specs/2026-11-10-admin-lti-identity-unlink-plan.md.
+   */
+  @method
+  async unlinkLtiIdentity(
+    adminAuth: AdminAuth,
+    request: UnlinkUserLtiIdentityRequest
+  ): Promise<UnlinkUserLtiIdentityResponse> {
+    const current = await this.mutations.getUserLtiIdentity(request.id)
+    if (current == null) {
+      throw ERR_NOT_FOUND({ message: 'User not found' })
+    }
+
+    if (current.lti_iss == null && current.lti_sub == null) {
+      // Already unlinked: nothing to write, and nothing to audit.
+      return { changed: false, vid: current.vid }
+    }
+
+    const updated = await this.mutations.unlinkLtiIdentity({
+      id: request.id,
+      vid: request.vid,
+      lti_iss: request.lti_iss,
+      lti_sub: request.lti_sub,
+    })
+    if (updated == null) {
+      throw ERR_VERSION_CONFLICT({ message: 'Stale data - please refresh and try again' })
+    }
+
+    // Operational audit event, emitted only for a confirmed changed row. The
+    // cleared values are the ones the conditional update matched.
+    this.logger.info(
+      {
+        actor_admin_id: adminAuth.admin_id,
+        target_user_id: request.id,
+        issuer: request.lti_iss,
+        subject_hash: ltiSubjectHash(request.lti_sub),
+      },
+      'lti identity unlinked'
+    )
+
+    return { changed: true, vid: updated.vid }
   }
 
   @method

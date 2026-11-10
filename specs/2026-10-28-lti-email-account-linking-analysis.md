@@ -47,6 +47,12 @@ re-points one that has.
 
 ### 1. No Recovery Path for a Refused Learner
 
+**Resolved 2026-11-10.** Administrators can now view and unlink an account's LTI
+identity from its admin page. See
+[LTI → Unlinking an LTI Identity](../docs/13-lti.md#unlinking-an-lti-identity)
+and the [implementation plan](./2026-11-10-admin-lti-identity-unlink-plan.md).
+The original description follows.
+
 A refused learner is told to contact their Modulus administrator, but there is
 no admin page or `modulus` command that shows an account's LTI identity or
 clears it. Today the only remedy is a manual `UPDATE users SET lti_iss = NULL,
@@ -115,7 +121,8 @@ Remaining Against the Extraction Spec).
 
 ## Recommended Order
 
-1. Admin view-and-unlink action with an audit entry (issue 1).
+1. ~~Admin view-and-unlink action with an audit entry (issue 1).~~ Done
+   2026-11-10, with an operational log event rather than a durable audit record.
 2. Decide the email-sync rule (issue 3) together with case normalisation
    (issue 5), since both change how step 2 matches.
 3. Record link provenance (issue 4) when the installation binding is built

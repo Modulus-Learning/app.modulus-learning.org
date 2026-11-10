@@ -54,12 +54,42 @@ export interface Role {
   updated_at: string
 }
 
+/**
+ * A user's stored LTI identity. `linked` is true only when both values are
+ * set; a half-set pair is incomplete data, which sign-in treats as unlinked.
+ */
+export interface LtiIdentity {
+  issuer: string | null
+  subject: string | null
+  linked: boolean
+}
+
 export interface UserResponse {
   user: User | null
   included: {
     roles: Role[]
+    // Null when the account has no LTI identity data; absent on a failed load.
+    lti?: LtiIdentity | null
   }
 }
+
+export interface UnlinkLtiState {
+  status: 'idle' | 'success' | 'conflict' | 'failed'
+  message?: string
+}
+
+// Empty strings stand for null: a stored LTI value is never empty.
+const nullableIdentityValue = z
+  .string()
+  .max(2048)
+  .transform((value) => (value === '' ? null : value))
+
+export const unlinkLtiFormSchema = z.object({
+  id: uuidSchema,
+  vid: integerFromStringSchema,
+  lti_iss: nullableIdentityValue,
+  lti_sub: nullableIdentityValue,
+})
 
 export interface UserAddResponse {
   included: {

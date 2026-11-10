@@ -65,6 +65,20 @@ export const deleteUserRequestSchema = z.object({
 
 export type DeleteUserRequest = z.infer<typeof deleteUserRequestSchema>
 
+/**
+ * Clears a learner's LTI identity. `vid`, `lti_iss` and `lti_sub` are the
+ * values the administrator was shown; the write applies only while they still
+ * match, so a stale page cannot clear a link made after it was loaded.
+ */
+export const unlinkUserLtiIdentityRequestSchema = z.strictObject({
+  id: z.uuid(),
+  vid: z.number().int(),
+  lti_iss: z.string().max(2048).nullable(),
+  lti_sub: z.string().max(255).nullable(),
+})
+
+export type UnlinkUserLtiIdentityRequest = z.infer<typeof unlinkUserLtiIdentityRequestSchema>
+
 //////////////////////////////////////////////////
 // Responses
 //////////////////////////////////////////////////
@@ -114,10 +128,25 @@ export const userListResponseSchema = z.object({
 export type UserListResponse = z.infer<typeof userListResponseSchema>
 
 // TODO: rename fields to admin_user and possibly included.admin_roles?
+/**
+ * A user's LTI identity as stored. `linked` is true only when both columns are
+ * set: the sign-in code treats an account with either column null as unlinked,
+ * so a half-set pair is shown as incomplete data rather than a link.
+ */
+export const ltiIdentitySchema = z.object({
+  issuer: z.string().nullable(),
+  subject: z.string().nullable(),
+  linked: z.boolean(),
+})
+
+export type LtiIdentity = z.infer<typeof ltiIdentitySchema>
+
 export const userResponseSchema = z.object({
   user: userSchema,
   included: z.object({
     roles: roleSchema.array(),
+    // Null when the account has no LTI identity data at all.
+    lti: ltiIdentitySchema.nullable(),
   }),
 })
 
@@ -142,3 +171,11 @@ export const addUserResponseSchema = z.object({
 })
 
 export type AddUserResponse = z.infer<typeof addUserResponseSchema>
+
+export const unlinkUserLtiIdentityResponseSchema = z.object({
+  // False when the account was already unlinked and nothing was written.
+  changed: z.boolean(),
+  vid: z.number().int(),
+})
+
+export type UnlinkUserLtiIdentityResponse = z.infer<typeof unlinkUserLtiIdentityResponseSchema>

@@ -2,8 +2,8 @@
 
 Date: 2026-11-10
 
-Status: Revision 2, after review (checkpoint 3: changes requested). Nothing is
-implemented.
+Status: Implemented 2026-11-10 (revision 2 approved at checkpoint 3). See
+[LTI → Unlinking an LTI Identity](../docs/13-lti.md#unlinking-an-lti-identity).
 
 Document type: Implementation plan for issue 1 of the
 [LTI Email Account Linking](./2026-10-28-lti-email-account-linking-analysis.md)
