@@ -17,7 +17,7 @@ shared skill directly. Every entry point follows the canonical workflow under
 | `/push` | shared `git-push` skill | Review and push outgoing commits |
 | `/create-pr` | `github-pr` skill | Open or update a PR against `develop` |
 | `/lint-fix` | shared `lint-fix` skill | Biome write pass (safe fixes only) |
-| `/test` | shared `test` skill | The right `node:test` or vitest invocation |
+| `/test` | shared `test` skill | The right vitest invocation for each package |
 | `/typecheck` | shared `typecheck` skill | Type checking across the monorepo |
 | `/document` | shared `writing-docs` skill | Documentation in the `docs/` house standard |
 | `/release` | shared `release` skill | Full lockstep release or resume |

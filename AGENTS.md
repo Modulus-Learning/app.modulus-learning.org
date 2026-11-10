@@ -91,22 +91,25 @@ variable, the packed-install check skips real database startup.
 
 | Package | Runner |
 |---|---|
-| `packages/core`, `packages/lti`, `packages/lms-canvas` | `node:test` via `tsx` — **not vitest** |
+| `packages/core` | vitest: `--mode=node` for unit (`*.test.node.ts`), `--mode=integration` for the database suite (`src/**/tests/*.test.ts`) |
+| `packages/lms-canvas` | vitest `--mode=node` (`*.test.node.ts`) |
+| `packages/lti` | no tests |
 | `packages/host-tanstack-start` | vitest (jsdom and node modes, both in `pnpm test`) |
 | `apps/gradebook` | vitest (jsdom and node modes, both in `pnpm test`); plus the HTTP suites below |
 | `apps/agent` | vitest (jsdom and node modes, both in `pnpm test`) |
 
 ```sh
-pnpm -F @modulus-learning/core test              # *.test.ts
-pnpm -F @modulus-learning/core test:integration  # *.itest.ts — needs modulus_test
-pnpm -F @modulus-learning/core test:one <path>   # single file
+pnpm -F @modulus-learning/core test                         # *.test.node.ts, no database
+pnpm -F @modulus-learning/core test:integration             # src/**/tests/*.test.ts — needs modulus_test
+pnpm -F @modulus-learning/core test:one <path>              # one unit file
+pnpm -F @modulus-learning/core test:integration:one <path>  # one integration file
 pnpm -F @modulus-learning/gradebook exec vitest run --mode=jsdom <path>
 pnpm -F @modulus-learning/gradebook test:session   # built server over HTTP; needs modulus_test
 pnpm -F @modulus-learning/gradebook test:contract  # against a server you start (CONTRACT_BASE_URL, CONTRACT_MODE)
 pnpm -F @modulus-learning/agent exec vitest run <path>
 ```
 
-`pnpm test` does **not** cover core's `*.itest.ts` integration tests.
+`pnpm test` does **not** cover core's integration tests (`src/**/tests/*.test.ts`).
 Run them from the root with `pnpm test:integration`, or run the main CI job with
 `pnpm run ci`. See `docs/22-testing.md` for test database setup and file naming
 conventions.

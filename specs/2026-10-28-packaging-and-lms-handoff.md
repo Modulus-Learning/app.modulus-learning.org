@@ -133,9 +133,9 @@ to apply migrations).
   configuration need the owner's go-ahead.
 - **Build gotcha:** a stale `NODE_ENV=test` in the shell breaks `vite build`;
   run builds with `env -u NODE_ENV`.
-- **Testing gotcha:** core and the two LMS packages use `node:test` through
-  `tsx`, not vitest. Integration tests need `packages/core/.env.test` and the
-  local Postgres (`postgres/postgres.sh up`).
+- **Testing gotcha:** *(superseded 2026-11-10: core and `lms-canvas` now use
+  Vitest; see `AGENTS.md`.)* Integration tests need `packages/core/.env.test`
+  and the local Postgres (`postgres/postgres.sh up`).
 - **Adapter wiring:** the host package depends on `lti` for types only and never
   on `lms-canvas`; core has `lms-canvas` only as a dev dependency, and
   `packages/core/src/lms/boundary.test.ts` fails on a runtime import of it.

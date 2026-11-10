@@ -47,8 +47,8 @@ follow [Release Instructions](./RELEASE-INSTRUCTIONS.md).
 
 ## Verification
 
-Use the package's actual test runner: core, LTI, and the Canvas adapter use
-`node:test` through `tsx`; the host, gradebook, and agent use Vitest.
+Every package uses Vitest, in the modes its `package.json` scripts name: core's
+integration suite runs separately with `--mode=integration`.
 [Testing Strategy](./docs/22-testing.md) describes test modes and database setup.
 
 ```sh

@@ -17,18 +17,24 @@ the same commands.
 
 | Suite | File convention | Runtime | External dependencies |
 |---|---|---|---|
-| Core unit | `*.test.ts` | Node.js `node:test` through `tsx` | None |
-| Core integration | `*.itest.ts` | Node.js `node:test` through `tsx` | PostgreSQL 18 `_test` database |
+| Core and Canvas adapter unit | `*.test.node.ts` | Vitest `node` mode | None |
+| Core integration | `src/**/tests/*.test.ts` | Vitest `integration` mode, one file at a time | PostgreSQL 18 `_test` database |
 | App browser unit | `*.test.ts` / `*.test.tsx` | Vitest `jsdom` mode | None |
 | App server unit | `*.test.node.ts` / `*.test.node.tsx` | Vitest `node` mode | None |
 | Gradebook session HTTP | `src/session-http/*.session.ts` | Vitest, against the built server | PostgreSQL 18 `_test` database |
 | Gradebook route contract | `src/contract/*.contract.ts` | Vitest, against a running server | A running gradebook instance |
 
-Core remains on `node:test` during this baseline phase. Moving it to Vitest
-would change mechanics without improving the isolation model and would create
-avoidable churn before the core refactor. App packages run Vitest explicitly in
-both `jsdom` and `node` modes so a server-only test cannot silently execute with
-browser globals, and browser tests do not inherit Node-only assumptions.
+Every package runs Vitest, and the file name selects the mode. App packages run
+both `jsdom` and `node` modes, so a server-only test cannot silently execute
+with browser globals, and browser tests do not inherit Node-only assumptions.
+Core and the Canvas adapter have no browser code and run `node` mode only.
+
+Core's integration mode (`packages/core/vitest.config.ts`) loads `.env.test`
+and refuses a non-`_test` database twice: once in global setup, before any file
+loads, and again in each worker's setup file. Files run serially
+(`fileParallelism: false`, one worker). Core uses TC39 decorators, which Vite's
+default transform leaves in place, so its configuration compiles files that
+contain them with esbuild first, as `tsx` did.
 
 `pnpm test` runs every unit mode and never starts or modifies a database.
 `pnpm test:integration` runs database-backed tests separately and serially.
@@ -120,7 +126,7 @@ To run one core integration file:
 
 ```sh
 pnpm --filter @modulus-learning/core test:integration:one \
-  src/modules/agent/activity-state/repository/index.itest.ts
+  src/modules/agent/activity-state/repository/tests/index.test.ts
 ```
 
 The compatibility variable `TEST_POSTGRES_CONNECTION_STRING` overrides

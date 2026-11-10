@@ -506,10 +506,11 @@ claimed capability must run its full suite; an adapter cannot mark a required
 feature unsupported to obtain a pass. Canvas-specific request fixtures remain
 adapter-owned, while shared assertions describe observable outcomes.
 
-Use Modulus's existing `node:test` through `tsx` for new server package suites
-and core unit tests. Core's PostgreSQL-backed `*.itest.ts` tests also use
-`node:test`, run through `tsx --test --test-concurrency=1`. Retain Vitest for
-gradebook and agent tests; do not introduce it into core. Migrate relevant
+Use Vitest for new server package suites and core tests, in the shape core
+uses: `--mode=node` for unit tests (`*.test.node.ts`) and `--mode=integration`
+for PostgreSQL-backed tests (`src/**/tests/*.test.ts`), run one file at a time.
+(Amended 2026-11-10: this section originally required `node:test` through
+`tsx`; core and the Canvas adapter moved to Vitest under issue #11.) Migrate relevant
 existing tests rather than retaining duplicate suites that can diverge. Keep
 SQL races and browser-cookie assertions at their real boundaries instead of
 replacing them with mocks.

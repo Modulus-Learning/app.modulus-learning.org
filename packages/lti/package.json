@@ -33,8 +33,7 @@
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json --watch",
     "lint": "biome check --write --diagnostic-level=error",
-    "typecheck": "tsc --noEmit",
-    "test": "LOG_LEVEL=off tsx --test $(find src -name \"*.test.ts\")"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "zod": "^4.6.7"

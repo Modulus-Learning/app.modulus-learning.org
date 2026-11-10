@@ -4,8 +4,8 @@
   "extends": "./tsconfig.json",
   "exclude": [
     "node_modules",
-    "src/**/*.test.ts",
-    "src/**/*.itest.ts",
+    "src/**/*.test.node.ts",
+    "src/**/tests/**",
     "src/test-support/**",
     "src/database/seeds/**"
   ]

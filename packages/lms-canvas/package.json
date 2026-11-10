@@ -34,7 +34,7 @@
     "dev": "tsc -p tsconfig.build.json --watch",
     "lint": "biome check --write --diagnostic-level=error",
     "typecheck": "tsc --noEmit",
-    "test": "LOG_LEVEL=off tsx --test $(find src -name \"*.test.ts\")"
+    "test": "LOG_LEVEL=off vitest run --mode=node"
   },
   "dependencies": {
     "@modulus-learning/lti": "workspace:*",
@@ -44,7 +44,8 @@
     "@biomejs/biome": "^2.6.4",
     "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
   },
   "publishConfig": {
     "access": "public"
