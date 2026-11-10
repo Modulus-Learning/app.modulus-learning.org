@@ -5,17 +5,18 @@ import {
   notFound,
 } from '@tanstack/react-router'
 
+import { keepSearch, searchAsStrings } from '@/lib/search-params'
 import { validateSearchParamsSchema } from '@/modules/admin/admin-users/@types/index'
 import { listAdminUsers } from '@/modules/admin/admin-users/list'
 import type { RouteParams } from '@/lib/route-params'
 
 export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) => {
   const Route = createFileRoute(path)({
-    // Search values stay strings, as the Next page received them; the page's own
-    // schema decides validity (an invalid query is a 404, as before).
-    validateSearch: (search: Record<string, unknown>): Record<string, string> =>
-      Object.fromEntries(Object.entries(search).map(([key, value]) => [key, String(value)])),
-    loaderDeps: ({ search }) => search,
+    // The loader receives string values, as the Next page did; the page's own
+    // schema decides validity (an invalid query is a 404, as before). See
+    // `@/lib/search-params` for why the conversion is not in `validateSearch`.
+    validateSearch: keepSearch(),
+    loaderDeps: ({ search }) => searchAsStrings(search),
     loader: async ({ params, deps }) => {
       const { lng } = params as RouteParams
 

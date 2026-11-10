@@ -34,8 +34,9 @@ assert<Equal<Users['allContext']['adminSession']['provider'], 'admin_session'>>(
 // @ts-expect-error the admin area has no learner session in context
 export type NoLearnerSession = Users['allContext']['session']
 
-// Search keeps the packaged validator's output type.
-assert<Same<Users['searchSchema'], Record<string, string>>>()
+// Search keeps the packaged validator's output type: parsed values are kept
+// as they are (see `keepSearch`), so the schema is not string-only.
+assert<Same<Users['searchSchema'], Record<string, unknown>>>()
 // @ts-expect-error the users search schema is not a page-number object
 assert<Same<Users['searchSchema'], { page: number }>>()
 
