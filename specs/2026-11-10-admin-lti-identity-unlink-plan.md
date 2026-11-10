@@ -2,7 +2,8 @@
 
 Date: 2026-11-10
 
-Status: Draft for review. Nothing is implemented.
+Status: Revision 2, after review (checkpoint 3: changes requested). Nothing is
+implemented.
 
 Document type: Implementation plan for issue 1 of the
 [LTI Email Account Linking](./2026-10-28-lti-email-account-linking-analysis.md)
@@ -18,121 +19,176 @@ clears it. Today the only remedy is a manual `UPDATE users`.
 
 ## Outcome
 
-An administrator with the right ability can:
+An administrator with the right abilities can:
 
 1. see, on a learner's admin page, whether the account is linked to an LTI
    identity, and to which issuer and subject; and
 2. unlink it, which clears `users.lti_iss` and `users.lti_sub`.
 
 The account, its email, enrollments, progress, page state and line items are
-unchanged. After unlinking, the learner's next launch is handled by the
-existing sign-in rules:
+unchanged.
 
-- by identity, which no longer matches;
-- then by email, which matches the now-unlinked account, so it links the new
-  identity;
-- otherwise a new account.
+### What Unlinking Does and Does Not Do
+
+Unlinking is **support recovery, not containment of a compromised account.**
+
+- **It reopens email-based linking.** After unlinking, the account has no LTI
+  identity. The first eligible launch whose email matches the account links its
+  identity to it, whichever launch arrives first. That may be the new identity,
+  which is the intended recovery. It may equally be the previous identity
+  returning.
+- **It does not sign anyone out.**
+  - Learner sessions are stateless JWTs.
+  - `refreshTokens` checks that the user exists and is enabled, not the
+    account's LTI identity, and it issues a new refresh token.
+  - An existing learner session can therefore keep renewing after an unlink,
+    beyond its tokens' original expiry.
+  - Server-side revocation belongs to the
+    [session management review](./2026-10-30-session-management-review-analysis.md),
+    and this plan does not attempt it.
+- **It does not block the previous identity.** To keep someone out of an account,
+  an administrator disables the account, which `refreshTokens` does check. That
+  is a separate action from unlinking.
+
+The confirmation step and the docs say this in plain words.
 
 ## Decisions
 
-These are proposed defaults. Each lists its alternative.
+These are the accepted defaults; the review accepted each one.
 
-1. **Ability: reuse `users:edit`.** Unlinking changes a user record, and
-   `users:edit` already gates `updateUser`. A dedicated `users:unlink-lti`
-   ability would mean new reference data, a release script and role grants for
-   one action. Alternative: add the dedicated ability now if admins should be
-   able to edit users without being able to unlink them.
-2. **Concurrency: guard with `vid`, plus the expected identity.**
-   - The command takes `{ id, vid, lti_iss, lti_sub }`, the identity the admin
-     was shown.
-   - The write is one conditional `UPDATE`: it changes the row only while `vid`
-     and both identity columns still match, and it increments `vid`.
-   - No row updated gives `ERR_VERSION_CONFLICT`, the same error `updateUser`
-     uses, and the page asks the admin to refresh. This stops a stale page from
-     clearing a link a concurrent launch has just made.
-   - If the account is already unlinked, the command is a successful no-op.
-3. **Audit: a structured log event now, a table later.**
-   - Core has no audit store, and adding one means a schema migration, a release
-     script and a retention policy.
-   - The command emits one `info` event, `lti identity unlinked`, carrying the
-     admin user id, the target user id, the issuer, and a SHA-256 prefix of the
-     subject.
-   - It does not log the raw subject or any email. `AGENTS.md` forbids
-     committing or publishing learner PII, and the subject is an
-     institution-scoped identifier.
-   - A durable link-provenance record (`linked_at`, `linked_via`) belongs to
-     issue 4 of the analysis, with the installation binding. Alternative: add an
-     `admin_audit_events` table in this change.
-4. **Admin visibility of the subject.** The admin user page shows the issuer and
-   the full subject. Admins already see email addresses on this surface, and
-   support needs the subject to match a Canvas user. Alternative: show only a
-   masked subject.
-5. **Sessions are not revoked.** Learner sessions are stateless JWTs, and
-   revocation is the subject of the
-   [session management review](./2026-10-30-session-management-review-analysis.md).
-   An existing session for the account stays valid until it expires. That is
-   acceptable, because unlinking grants nothing new to anyone.
+1. **Abilities.**
+   - The unlink command requires `users:edit`, which already gates `updateUser`.
+   - The LTI identity on the detail response is visible with `users:read`, the
+     ability `getUser` already requires.
+   - Both are enforced server-side by the commands. Hiding the button is
+     presentation only.
+2. **Concurrency.**
+   - The command takes `{ id, vid, lti_iss, lti_sub }`: the version and the
+     identity values the admin was shown, each possibly null.
+   - The write is one conditional `UPDATE`. It changes the row only while `vid`
+     matches and both identity columns are `IS NOT DISTINCT FROM` the given
+     values. It clears both columns and increments `vid`.
+   - No row updated gives `ERR_VERSION_CONFLICT`, and the page asks the admin to
+     refresh.
+   - If the stored row already has both columns null, the command is a
+     successful no-op and changes nothing, including `vid`.
+3. **Audit: an operational log event, not a durable record.**
+   - After a **confirmed changed row**, and only then, the service emits one
+     `info` event, `lti identity unlinked`.
+   - Its fields are `actor_admin_id`, from the authenticated admin context;
+     `target_user_id`, from the updated row; the cleared `issuer`; and
+     `subject_hash`, a SHA-256 prefix of the cleared subject.
+   - No event is emitted for a no-op or a conflict.
+   - The hash is a correlation value, not anonymisation.
+   - A durable, transactional link-provenance record belongs to analysis issue 4,
+     with the installation binding. There is no audit table in this task.
+4. **No raw subject or email in any log or public error, on success or
+   failure.**
+   - Every query on this path carries the raw subject in its SQL parameters. The
+     shared `wrapDbError` and `wrapDbErrorNew` attach the database error as
+     `cause` and log it, and Drizzle's query error embeds its full parameter list.
+   - So this path does not use the shared wrappers. The repository catches the
+     error and throws `ERR_DATABASE` with a fixed message and **no `cause`**.
+   - It logs only `{ method, target_user_id, pg_code }`, where `pg_code` is the
+     Postgres SQLSTATE read from the driver error, if present.
+   - The same applies to the service's lookup of the current row.
+   - The change is limited to this path. There is no general logging redesign.
+5. **Admins see the full subject** on the authorised detail page. Support needs
+   it to match a Canvas user, and admins already see emails there.
+6. **Partial identity data.**
+   - The linking code treats an account with either column null as unlinked
+     (`SessionMutations.linkLtiIdentity`).
+   - `included.lti` is therefore `{ issuer: string | null, subject: string | null,
+     linked: boolean }`. `linked` is true only when both are non-null, and
+     `included.lti` is null when both are null.
+   - When exactly one column is set, the panel shows "Not linked (incomplete LTI
+     identity data)" with the stored value, and offers the same unlink action to
+     clear it.
+   - The view must not crash on this data.
+7. **Out of scope:** a `modulus` CLI equivalent, an audit table, and session
+   revocation.
 
 ## Implementation Surface
 
 ### Core (`packages/core`)
 
 - **`modules/admin/users/schemas.ts`.**
-  - Add `lti: { issuer: string, subject: string } | null` to `userSchema`, or to
-    the `getUser` response's `included`, so the list response does not grow.
-    Proposed: `included.lti`.
-  - Add `unlinkUserLtiIdentityRequestSchema`, `{ id, vid, lti_iss, lti_sub }`.
-- **`modules/admin/users/repository/index.ts`.** Add an `unlinkLtiIdentity`
-  mutation: a single conditional `UPDATE … SET lti_iss = NULL, lti_sub = NULL,
-  vid = vid + 1, updated_at = now() WHERE id = $1 AND vid = $2 AND lti_iss = $3
-  AND lti_sub = $4 RETURNING id`.
+  - Add `included.lti` to the `getUser` response only. List rows are unchanged.
+  - Add `unlinkUserLtiIdentityRequestSchema`, `{ id: uuid, vid: int, lti_iss:
+    string | null, lti_sub: string | null }`.
+  - Add a response, `{ changed: boolean, vid: number }`.
+- **`modules/admin/users/repository/index.ts`.**
+  - Expose the identity columns on the user lookup that `getUser` uses.
+  - Add an `unlinkLtiIdentity` mutation: a single conditional `UPDATE … SET
+    lti_iss = NULL, lti_sub = NULL, vid = vid + 1, updated_at = now() WHERE id =
+    $1 AND vid = $2 AND lti_iss IS NOT DISTINCT FROM $3 AND lti_sub IS NOT
+    DISTINCT FROM $4 RETURNING id, vid`.
+  - Error handling on this path follows decision 4.
 - **`modules/admin/users/services/users.ts`.** Add `unlinkLtiIdentity`.
   1. Load the user: a missing user gives `ERR_NOT_FOUND`.
-  2. If the account is already unlinked, return success.
+  2. If both identity columns are null, return `{ changed: false, vid }`.
   3. Otherwise apply the conditional update. No row updated gives
      `ERR_VERSION_CONFLICT`.
-  4. On success, log the audit event.
+  4. On a returned row, emit the audit event and return `{ changed: true, vid }`.
 - **`modules/admin/users/commands.ts`.** Add `unlinkUserLtiIdentity`, with
   `auth: { mode: 'admin', abilities: ['users:edit'] }`.
-- **Tests.**
-  - Unit test (`*.test.ts`, `node:test`): the service's not-found, already
-    unlinked, conflict and success paths, and the log event's fields, with no
-    raw subject.
-  - Integration test (`*.itest.ts`):
-    - the conditional update against `modulus_test`;
-    - a stale `vid`, which is refused;
-    - an identity changed between view and unlink, which is refused;
-    - enrollments, progress and line items, which survive;
-    - after unlinking, `signInLti` with a different identity and the same email
-      links that identity to the same account.
+- **Unit tests** (`*.test.ts`, `node:test`).
+  - The service's not-found, already-unlinked no-op, conflict and success paths.
+  - The audit event's fields: emitted only on success, with `actor_admin_id` and
+    `target_user_id`, and no raw subject.
+  - **Failure injection:** a repository double, or a forced database failure,
+    raises an error containing a distinctive synthetic subject. The test asserts
+    that the subject appears neither in the captured log output nor in the thrown
+    public error, including its `cause` chain.
+  - **Command authorisation:** an admin context without `users:edit` is refused
+    by the command itself.
+- **Integration tests** (`*.itest.ts`, `modulus_test`).
+  - The conditional update.
+  - A stale `vid`, which is refused.
+  - An identity changed between view and unlink, which is refused.
+  - A partial identity, cleared successfully.
+  - Enrollments, progress and line items, which survive.
+  - After unlinking, `signInLti` with a different identity and the same email
+    links that identity to the same account.
+  - After unlinking, the previous identity relinks if it arrives first. This pins
+    the documented behaviour.
 
 ### Host (`packages/host-tanstack-start`)
 
 - **Admin user detail view** (`modules/admin/users/components/`).
-  - An "LTI identity" panel: "Not linked", or the issuer and subject with an
-    "Unlink" button.
-  - Confirmation is an in-page step, not a browser `confirm()`: a second button,
-    "Confirm unlink", with text explaining what happens on the next launch.
+  - An "LTI identity" panel with three states: not linked; linked (issuer,
+    subject and an "Unlink" button); and incomplete identity data (decision 6).
+  - The button is shown only when the admin has `users:edit`.
+  - Confirmation is an in-page step, not a browser `confirm()`. A "Confirm
+    unlink" button sits beside text stating the consequences above: it reopens
+    linking for whichever launch arrives first, it does not sign anyone out, and
+    it does not block the previous identity.
+  - **The confirm state resets** when the target user id, `vid` or identity
+    changes, and after a successful invalidation, so a stale confirm cannot carry
+    across users or versions.
 - **Server function.**
   - `unlinkUserLtiIdentity` in its own module. Its first middleware is the admin
     gate (`server-fn-convention.test.node.ts` enforces this), and server-only
     imports go in a `*.server.ts` loaded with a dynamic `import()`.
-  - On success it invalidates the route. On `ERR_VERSION_CONFLICT` it shows the
-    "refresh and try again" message.
-- **Tests.**
-  - jsdom: the panel in its two states, and the confirm step.
-  - The existing server-function convention test covers the gate.
+  - On success it invalidates the route. On `ERR_VERSION_CONFLICT` it shows
+    "refresh and try again".
+- **Tests** (jsdom).
+  - The panel's three states, including incomplete data without a crash.
+  - The confirm step and its consequence text.
+  - The confirm reset on a change of user or `vid`.
+  - The button hidden without `users:edit`.
 
 ### Docs
 
-- `docs/12-authn-authz.md` or `docs/13-lti.md`: a short "Unlinking an LTI
-  identity" section. It describes the effect on the next launch, says sessions
-  are not revoked, and covers the audit event.
+- `docs/12-authn-authz.md`, or `docs/13-lti.md`: a short "Unlinking an LTI
+  identity" section. It gives the consequences above, covers the operational
+  audit event, and says to disable the account instead when containment is the
+  goal.
 - The email linking analysis: mark issue 1 as resolved, linking to the commits.
 
 ## Order and Review
 
-One checkpoint, after core, host and docs are complete and tested:
+One code checkpoint, after core, host and docs are complete and tested:
 
 1. core schema, repository and service, with unit and integration tests;
 2. the host server function and view, with jsdom tests;
@@ -140,12 +196,18 @@ One checkpoint, after core, host and docs are complete and tested:
 
 ## Acceptance
 
-- An admin with `users:edit` can view and unlink. An admin without it gets the
-  command's ability refusal, and the panel's button is not shown.
+- An admin with `users:edit` can unlink. Without it, the command refuses, which
+  a test proves, and the button is hidden.
+- The identity is visible with `users:read`.
 - A stale page cannot clear a link made after it was loaded.
-- The learner's data is unchanged, and their next launch from the new identity
-  signs them into the same account.
-- No raw LTI subject or email appears in logs.
+- The learner's data is unchanged. Their next eligible launch with a matching
+  email relinks the account, whichever identity it carries.
+- No raw LTI subject or email appears in logs or public errors, on success or
+  failure. A failure-injection test proves the failure case.
+- The audit event is emitted exactly once per changed row, and never for a no-op
+  or a conflict.
+- The confirmation and docs state that unlinking does not revoke sessions or
+  block the previous identity.
 - `pnpm run ci` passes.
 
 ## Where to go next
