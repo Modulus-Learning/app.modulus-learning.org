@@ -36,11 +36,11 @@ for instructional use. A **canonical activity URL** is the activity's stored
 URL spelling: parse with the platform `URL` constructor without a base, remove
 query and fragment, and serialise `href`. **Grandfathering** means that resolving
 an existing activity does not re-evaluate its admission under current rules.
-The [data model](../docs/DATA-MODEL.md) describes these records.
+The [data model](../docs/11-data-model.md) describes these records.
 
 Core owns registration and identity resolution. Host code calls the commands
 facade, the typed `app` / `admin` / `agent` entry points described in
-[Core Composition](../docs/CORE-COMPOSITION.md), and may import pure URL helpers
+[Core Composition](../docs/10-core-composition.md), and may import pure URL helpers
 for form feedback. Host code must not import repositories or services.
 
 Implement the canonical writer and all corresponding readers in one coordinated
@@ -85,7 +85,7 @@ Learning Tools Interoperability (LTI) deep linking publishes a content item to t
 learning management system (LMS). A later resource-link launch resolves that
 item and its Assignment & Grade Services (AGS) line item. OAuth and Proof Key
 for Code Exchange (PKCE) bind the browser agent to the resolved activity. See
-[LTI](../docs/LTI.md) and [Authentication & Authorization](../docs/AUTHN-AUTHZ.md)
+[LTI](../docs/13-lti.md) and [Authentication & Authorization](../docs/12-authn-authz.md)
 for the existing flows that these tasks preserve.
 
 ## Execution Rules
@@ -767,18 +767,18 @@ new browser-test framework.
 
 ## Task 11 — Update Documentation And Audit All URL Paths
 
-- [ ] Update `docs/DATA-MODEL.md` to define canonical `activities.url` identity,
+- [ ] Update `docs/11-data-model.md` to define canonical `activities.url` identity,
   the unique-key/length contract, and preserved path distinctions.
-- [ ] Update `docs/AUTHN-AUTHZ.md` to distinguish canonical activity resolution
+- [ ] Update `docs/12-authn-authz.md` to distinguish canonical activity resolution
   from original OAuth protocol values and unchanged redirect safety checks.
-- [ ] Update `docs/CUMMULATIVE-PROGRESS.md` for canonical target resolution,
+- [ ] Update `docs/17-cumulative-progress.md` for canonical target resolution,
   whole-request duplicate validation, raw response correlation, read
   multiplicity/order, and resolved-ID self-reference.
-- [ ] Update `docs/AGENT.md` with the authoring contract: query/fragment variants
+- [ ] Update `docs/15-agent.md` with the authoring contract: query/fragment variants
   must share compatible progress and page state; separately graded activities
   require distinct paths. Explain browser-location preservation and unchanged
   learner/scope isolation.
-- [ ] Document duplicate contribution targets in `docs/AGENT.md`, with a concrete
+- [ ] Document duplicate contribution targets in `docs/15-agent.md`, with a concrete
   example such as `https://content.test/total?exercise=17` and
   `https://content.test/total?exercise=18` resolving to one canonical target.
   Explain that the entire `set-progress` submission fails, including its self
@@ -795,7 +795,7 @@ new browser-test framework.
   from `rejected_targets`, and describe the existing server warnings available
   for diagnosis without promising a URL-bearing diagnostic or author-facing
   warning in the HTTP response.
-- [ ] Update `docs/LTI.md` for instructor validation, canonical custom fields,
+- [ ] Update `docs/13-lti.md` for instructor validation, canonical custom fields,
   stable window targets, and stored launch destinations. Document the known
   direct-link limitation alongside any generated-link instructions.
 - [ ] Document Task 8a's instructor-input rule in the authoring guidance: trim
@@ -926,7 +926,7 @@ above is required future work.
   defines the approved identity profile, instructor contract, and deferred work.
 - The [allowlist implementation plan](./2026-09-02-activity-url-allowlist-implementation-plan.md)
   records the existing registration architecture and zero-rule policy amendment.
-- [Core Composition](../docs/CORE-COMPOSITION.md) explains service and command
+- [Core Composition](../docs/10-core-composition.md) explains service and command
   boundaries that the implementation preserves.
 - [Testing Strategy](../docs/TESTING.md) explains the unit/integration runners,
   database harness, and complete validation gate.

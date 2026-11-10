@@ -158,7 +158,7 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
   `activities.url` holds a **canonical activity URL** — the `URL` serialization
   with query and fragment removed — and every reader derives that same key before
   looking a URL up
-  ([DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping)).
+  ([DATA-MODEL → Activities & grouping](./11-data-model.md#3-activities--grouping)).
   Grandfathering therefore covers every equivalent spelling of an activity
   Modulus has accepted, not only the spelling that was first submitted: an
   uppercase host, an explicit default port, or an added query string resolves to
@@ -193,7 +193,7 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
   message. This is **input policy only**: it governs what a person may submit,
   not what counts as the same activity, and it does not tighten the canonical
   lookup or apply to the agent and OAuth paths
-  ([LTI → Instructor Activity URL Validation](./LTI.md#instructor-activity-url-validation)).
+  ([LTI → Instructor Activity URL Validation](./13-lti.md#instructor-activity-url-validation)).
   Because it is separate from admission, an activity already recorded stays
   usable even if its stored URL would fail these input rules today.
 - **Diagnostics stay restricted.** A denial is logged with its refusal reason and

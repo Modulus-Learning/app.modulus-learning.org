@@ -108,6 +108,14 @@ This is the graph that connects learners to Ximera content.
   serialization of the submitted string with query and fragment removed. One
   pure function produces it, and every reader and the single writer use it:
 
+  Removing the query and fragment is a **Modulus authoring contract**, not a
+  claim that URLs differing only in those components serve the same content.
+  An activity is addressed by its path, which is how the agent already reports
+  it. A page that needs distinct activities authors distinct paths. That is
+  why instructor input carrying a query or fragment is rejected rather than
+  stripped: silently dropping it would merge content the instructor meant to
+  keep apart.
+
   ```ts
   // packages/core/src/modules/activity-registration/activity-url.ts
   export const normalizeActivityUrl = (value: string): string | null => {
@@ -170,7 +178,7 @@ This is the graph that connects learners to Ximera content.
   and percent-encoding or punycode can grow one out of it. Only a previously
   unseen activity is measured against it — the lookup-before-admission order is
   described in
-  [AUTHN-AUTHZ → Admitting the Activity URL](./AUTHN-AUTHZ.md#admitting-the-activity-url).
+  [AUTHN-AUTHZ → Admitting the Activity URL](./12-authn-authz.md#admitting-the-activity-url).
 
 - **`activity_codes`** — the institutional grouping/whitelist mechanism described
   in the summary doc: a public `code` and a `private_code`, an optional

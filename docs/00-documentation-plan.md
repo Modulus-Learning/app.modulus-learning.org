@@ -104,7 +104,8 @@ The canonical reference for the database schema. Covers the entity groups and
 how they relate — identity and roles, enrollment and membership, the
 activity-tracking core, LTI tables, and agent authentication — and explains the
 two recorded signal shapes: time-series progress and the latest page-state
-snapshot. Includes the migration and seed story.
+snapshot. Defines canonical activity URL identity, the spelling distinctions it
+preserves, and the per-code URL prefix. Includes the migration and seed story.
 
 ### [Authentication & Authorization](./12-authn-authz.md) — Available
 How Modulus answers *who are you?* and *what may you do?* for its three actor
@@ -116,15 +117,18 @@ worked login-to-authorized-call path for each actor.
 
 ### [LTI](./13-lti.md) — Available
 Modulus as an LTI 1.3 tool: OIDC login initiation, resource-link launch,
-deep-linking, the platform and deployment data model, the keystore, and
-Assignment & Grade Services score passback. The primary reference for any
-institution integrating Modulus through their LMS.
+deep-linking with instructor activity URL validation, the platform and
+deployment data model, the keystore, and Assignment & Grade Services score
+passback. The primary reference for any institution integrating Modulus through
+their LMS.
 
 ### [Agent / Instrumentation](./15-agent.md) — Available
 The instrumentation story across both the published client and the server: how a
 Ximera page is instrumented, the agent's OAuth-style authorization, and the
-ingestion endpoints that record activity state. The natural companion to the LTI
-doc — together they are the two integration surfaces.
+ingestion endpoints that record activity state. Carries the activity URL
+contract content authors work to — which URL variants share progress and page
+state, and why independently graded content needs distinct paths. The natural
+companion to the LTI doc — together they are the two integration surfaces.
 
 ### [Dynamic Activities (Lazy Create)](./16-dynamic-activities.md) — Available
 How new activities are materialized on demand from agent traffic. Records the

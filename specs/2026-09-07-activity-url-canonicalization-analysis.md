@@ -34,7 +34,7 @@ remains the baseline: an **activity** is a row in `activities`, an **activity
 code** groups activities for instructional use, and the **allowlist** decides
 whether an unseen activity may be registered. **Grandfathering** means an
 existing activity remains usable regardless of later allowlist changes. The
-[data model](../docs/DATA-MODEL.md) describes the records and their relationships.
+[data model](../docs/11-data-model.md) describes the records and their relationships.
 
 ## Problem
 
@@ -464,7 +464,7 @@ resolve the canonical activity.
 Token exchange must not register an activity or re-evaluate the allowlist.
 Normalisation changes activity resolution, not authorisation-code lifetime,
 Proof Key for Code Exchange (PKCE), scope checks, or token binding to an
-activity ID. The [authentication reference](../docs/AUTHN-AUTHZ.md) describes
+activity ID. The [authentication reference](../docs/12-authn-authz.md) describes
 those contracts.
 
 ### Cumulative Progress
@@ -490,7 +490,7 @@ Keep the self-reference check on the resolved activity ID. A target that differs
 from self only by a normalised spelling, query, or fragment must resolve to self
 and receive `self_reference`, with no additional activity, contribution event, or line-item
 update. Other admitted targets and self progress retain the existing transaction
-semantics described in [Cumulative Progress](../docs/CUMMULATIVE-PROGRESS.md).
+semantics described in [Cumulative Progress](../docs/17-cumulative-progress.md).
 
 Canonical duplicates follow the existing request-validation contract. Today two
 identical target strings invalidate the request at schema validation. After normalisation,
@@ -641,6 +641,12 @@ redirects, and sign-in; extractor-only tests cannot detect information lost
 before the page receives its parameters.
 
 ## Existing Data And Grandfathering
+
+> **Update 2026-11-10 (port onto the TanStack Start `develop`):** reference
+> deployments now exist, so the statement below is historical. There are still
+> **zero downstream installations**, so the no-migration, no-backfill and
+> no-raw-fallback scope stands. The staging audit described below is not
+> current evidence about any deployed database.
 
 The maintainer confirmed on 2026-09-08 that there are still no live deployments
 and reported inspecting the staging activity URLs. A few URLs without the root
@@ -806,9 +812,9 @@ this file remains a design analysis under `specs/`.
 - The [allowlist implementation plan](./2026-09-02-activity-url-allowlist-implementation-plan.md)
   records the existing admission and registration contracts that canonicalisation
   builds on.
-- The [authentication reference](../docs/AUTHN-AUTHZ.md) explains OAuth and
+- The [authentication reference](../docs/12-authn-authz.md) explains OAuth and
   activity-bound tokens.
-- The [cumulative progress reference](../docs/CUMMULATIVE-PROGRESS.md) explains
+- The [cumulative progress reference](../docs/17-cumulative-progress.md) explains
   target contributions, self progress, and rejection behaviour.
-- The [data model](../docs/DATA-MODEL.md) describes the dependent records that
+- The [data model](../docs/11-data-model.md) describes the dependent records that
   use activity IDs for associations, progress, page state, and grading.

@@ -209,12 +209,16 @@ them.
 `/{lng}/start-activity/{code}/{activity-url}` — the non-LTI path, for a learner
 who arrives with an activity code rather than through an LMS link — still nests
 the target activity URL in the route, readable and unencoded, at stakeholder
-request. Nesting it there exposes the activity URL to Next.js's outer-path
-handling, which collapses repeated slashes before application middleware runs
-and, under the current configuration, removes a trailing slash. The extractor in
-`apps/gradebook/src/modules/app/activity/launch-url.ts` restores the known `//`
-after the scheme, but it cannot recover a slash lost from the activity's own
-path, and canonicalizing the reconstructed URL cannot recover it either.
+request. The route's loader
+(`packages/host-tanstack-start/src/routes/$lng/_forms/start-activity/$.route.tsx`)
+splits the raw path into its **non-empty** segments, as the earlier Next.js
+catch-all route delivered them. That drops a trailing slash and collapses
+repeated slashes before any activity lookup. The extractor in
+`packages/host-tanstack-start/src/modules/app/activity/launch-url.ts` restores
+the known `//` after the scheme, but it cannot recover a slash lost from the
+activity's own path, and canonicalizing the reconstructed URL cannot recover it
+either. (This is read from the current code. It has not yet been confirmed in a
+browser against a deployed TanStack Start build.)
 
 | Activity path | What lookup receives | Result |
 | --- | --- | --- |
@@ -387,7 +391,7 @@ In plain terms:
 This is **input policy, not admission and not identity**. Scheme, credentials,
 the 255-character storage bound, and the sitewide allowlist are admission rules
 that apply only to an activity Modulus has not seen, and they are decided by
-registration ([AUTHN-AUTHZ → Admitting the Activity URL](./AUTHN-AUTHZ.md#admitting-the-activity-url)).
+registration ([AUTHN-AUTHZ → Admitting the Activity URL](./12-authn-authz.md#admitting-the-activity-url)).
 A grandfathered activity whose stored URL would fail today's admission syntax
 stays usable. Nor does this rule reach the agent or OAuth paths: the agent
 submits a `redirect_uri` derived from `window.location`, and a learner's query

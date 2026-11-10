@@ -152,7 +152,7 @@ matching how `others` is already handled. See [Refused targets](#refused-targets
 **Duplicate targets fail the whole request, before the handler runs.** Every
 target URL resolves to an activity by its **canonical activity URL** — the `URL`
 serialization with query and fragment removed
-([DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping)) —
+([DATA-MODEL → Activities & grouping](./11-data-model.md#3-activities--grouping)) —
 so two spellings can name one activity. When they do, there is no sound way to
 choose between their `factor` values or to combine them: the page's authored
 markup is wrong, so the request is refused rather than guessed at. The check
@@ -181,7 +181,7 @@ consequences differ from every other refusal on this path: the submission fails
 with HTTP 400 and `{ "status": "error", "code": "ERR_VALIDATION" }`, **including
 the learner's own self-progress update**, and `rejected_targets` does not appear.
 The author-facing consequence, and the correction, are in
-[AGENT → Duplicate Contribution Targets](./AGENT.md#duplicate-contribution-targets).
+[AGENT → Duplicate Contribution Targets](./15-agent.md#duplicate-contribution-targets).
 
 `getProgress` takes an **optional list of URLs** rather than `void`:
 

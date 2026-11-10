@@ -45,7 +45,7 @@ summary: "Why Modulus materializes an activity row on demand ('lazy create') fro
 > happening on the canonical key rather than on the submitted string. The
 > identity contract, including the distinctions it deliberately preserves, is
 > defined in
-> [DATA-MODEL → Activities & Grouping](./DATA-MODEL.md#3-activities--grouping).
+> [DATA-MODEL → Activities & Grouping](./11-data-model.md#3-activities--grouping).
 
 This document describes **lazy activity creation** — letting Modulus materialize
 an `activities` row on demand when an agent reports against a URL that is not yet

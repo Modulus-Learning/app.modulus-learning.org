@@ -365,7 +365,7 @@ if (!activity) {
 In practice both legs already send one spelling: the agent derives
 `redirect_uri` and `client_id` from `window.location` with query and fragment
 cleared, so a learner arriving at `/lesson?tab=2#part-3` authorizes as
-`/lesson` ([AGENT → Connecting to Modulus](./AGENT.md#connecting-to-modulus)).
+`/lesson` ([AGENT → Connecting to Modulus](./15-agent.md#connecting-to-modulus)).
 The canonical lookup is what makes the resolution correct anyway, rather than
 dependent on that client behaviour. The **syntactic `redirect_uri` gate** in the
 host route is unchanged and independent of all of this: `isUsableRedirectUri`
@@ -414,7 +414,7 @@ by administrators, each a normalized origin plus a path prefix, stored in
 
 Every step of that service works on the **canonical activity URL** — the `URL`
 serialization with query and fragment removed, defined in
-[DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping).
+[DATA-MODEL → Activities & grouping](./11-data-model.md#3-activities--grouping).
 The lookup, the length bound, the policy evaluation, the insert, and the re-read
 after a conflict all use that one key, so equivalent spellings of a page resolve
 to one activity. A submitted URL with no canonical form is denied as
@@ -599,7 +599,7 @@ Flagged in the code, worth knowing before relying on these paths:
   that differ only by percent-escape case, or by an unreserved character being
   escaped, remain two activities, and no network check is made for redirects or
   host aliases. The limits are listed in
-  [DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping).
+  [DATA-MODEL → Activities & grouping](./11-data-model.md#3-activities--grouping).
 - **Withdrawing an admitted activity is not implemented.** The allowlist admits;
   nothing revokes. An emergency block — stopping launches, tokens, or passback
   for an activity already accepted — is a separate deferred feature with its own

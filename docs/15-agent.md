@@ -112,7 +112,7 @@ HTTPS://CONTENT.TEST:443/lesson
 The full set of spellings that merge, and the distinctions that are preserved —
 path case, non-root trailing slashes, repeated slashes, percent-escape spelling —
 is in
-[DATA-MODEL → Activities & grouping](./DATA-MODEL.md#3-activities--grouping).
+[DATA-MODEL → Activities & grouping](./11-data-model.md#3-activities--grouping).
 
 Two obligations follow for you as an author:
 
@@ -229,7 +229,7 @@ entirely:
 | Agent event | `error` with `type: 'request-rejected'` | logged by `ModulusAgent`, no error |
 
 `rejected_targets` and its reason vocabulary are described in
-[Cumulative Progress → Refused targets](./CUMMULATIVE-PROGRESS.md#refused-targets).
+[Cumulative Progress → Refused targets](./17-cumulative-progress.md#refused-targets).
 
 For diagnosis, the server-side record is the reliable one: core logs a warning
 for the failed submission and, separately, a sanitized warning for each denied
@@ -321,7 +321,7 @@ own URL (query/fragment stripped) as both `redirect_uri` and `client_id` — the
 same canonical form Modulus stores the activity under, so both legs of the
 exchange send one spelling and the server can compare the protocol values
 byte for byte while resolving the activity canonically
-([AUTHN-AUTHZ → The Agent Flow](./AUTHN-AUTHZ.md#the-agent-flow-oauth-20--pkce)).
+([AUTHN-AUTHZ → The Agent Flow](./12-authn-authz.md#the-agent-flow-oauth-20--pkce)).
 It then redirects to
 `{issuer}/routes/agent/authorize`. After the server issues a code and redirects
 back, the agent POSTs to `{issuer}/routes/agent/token` with the `code_verifier`;
