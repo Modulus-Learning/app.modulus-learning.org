@@ -3,8 +3,8 @@ import { startTransition, useActionState, useEffect, useState } from 'react'
 import { Alert, Button } from '@infonomic/uikit/react'
 
 import { useRouter } from '@/framework'
+import { encodeExpectedLtiIdentity, type LtiIdentity, type UnlinkLtiState } from '../@types'
 import { unlinkUserLtiIdentity } from '../unlink-lti'
-import type { LtiIdentity, UnlinkLtiState } from '../@types'
 
 export interface LtiIdentityPanelProps {
   userId: string
@@ -24,7 +24,9 @@ export const ltiIdentityPanelKey = ({
   vid,
   lti,
 }: Omit<LtiIdentityPanelProps, 'canUnlink'>) =>
-  `${userId}:${vid}:${lti?.issuer ?? ''}:${lti?.subject ?? ''}`
+  // A JSON tuple, so values containing separators cannot collide and null
+  // stays distinct from the empty string.
+  JSON.stringify([userId, vid, lti?.issuer ?? null, lti?.subject ?? null])
 
 const initialState: UnlinkLtiState = { status: 'idle' }
 
@@ -50,8 +52,10 @@ export function LtiIdentityPanel({ userId, vid, lti, canUnlink }: LtiIdentityPan
     const formData = new FormData()
     formData.append('id', userId)
     formData.append('vid', String(vid))
-    formData.append('lti_iss', lti?.issuer ?? '')
-    formData.append('lti_sub', lti?.subject ?? '')
+    formData.append(
+      'expected',
+      encodeExpectedLtiIdentity({ issuer: lti?.issuer ?? null, subject: lti?.subject ?? null })
+    )
     startTransition(() => formAction(formData))
   }
 

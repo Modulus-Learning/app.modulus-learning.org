@@ -18,15 +18,20 @@ export async function unlinkUserLtiIdentity(
   const parsed = unlinkLtiFormSchema.safeParse({
     id: formData.get('id'),
     vid: formData.get('vid'),
-    lti_iss: formData.get('lti_iss') ?? '',
-    lti_sub: formData.get('lti_sub') ?? '',
+    expected: formData.get('expected'),
   })
   if (!parsed.success) {
     return { status: 'failed', message: 'Unable to unlink the LTI identity.' }
   }
 
   const core = await getCoreCommands()
-  const result = await core.admin.users.unlinkUserLtiIdentity(adminAuth, parsed.data)
+  const { id, vid, expected } = parsed.data
+  const result = await core.admin.users.unlinkUserLtiIdentity(adminAuth, {
+    id,
+    vid,
+    lti_iss: expected.issuer,
+    lti_sub: expected.subject,
+  })
 
   if (result.ok) {
     return {

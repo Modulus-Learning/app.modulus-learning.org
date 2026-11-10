@@ -7,9 +7,16 @@ import type { LtiIdentity } from '../@types'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
-const mocks = vi.hoisted(() => ({ refresh: vi.fn(), unlink: vi.fn() }))
+const mocks = vi.hoisted(() => ({ refresh: vi.fn(), unlink: vi.fn(), coreUnlink: vi.fn() }))
 
 vi.mock('@/framework', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }))
+// The server logic's only dependency: core, which records what it was asked.
+vi.mock('@/core-adapter', () => ({
+  getCoreAdminRequestContext: async () => ({ admin_id: 'admin-1' }),
+  getCoreCommands: async () => ({
+    admin: { users: { unlinkUserLtiIdentity: mocks.coreUnlink } },
+  }),
+}))
 vi.mock('../unlink-lti', () => ({ unlinkUserLtiIdentity: mocks.unlink }))
 // The uikit ships CSS modules the test runner cannot load.
 vi.mock('@infonomic/uikit/react', () => ({
@@ -39,6 +46,7 @@ afterEach(() => {
   container?.remove()
   mocks.refresh.mockReset()
   mocks.unlink.mockReset()
+  mocks.coreUnlink.mockReset()
 })
 
 type Props = { vid?: number; lti?: LtiIdentity | null; canUnlink?: boolean; userId?: string }
@@ -117,8 +125,7 @@ describe('LtiIdentityPanel confirmation', () => {
     expect(Object.fromEntries(formData.entries())).toEqual({
       id: USER_ID,
       vid: '3',
-      lti_iss: 'https://canvas.test',
-      lti_sub: 'subject-1',
+      expected: JSON.stringify({ issuer: 'https://canvas.test', subject: 'subject-1' }),
     })
     expect(mocks.refresh).toHaveBeenCalled()
   })
@@ -146,5 +153,81 @@ describe('LtiIdentityPanel confirmation', () => {
 
     expect(view.querySelector('[data-testid="lti-confirm"]')).toBeNull()
     expect(button(view, 'Unlink')).toBeDefined()
+  })
+})
+
+describe('LtiIdentityPanel to server transport', () => {
+  // Review finding: null and the empty string must arrive at core as they were
+  // shown, or the conditional unlink can never match a stored empty value.
+  test.each([
+    ['an empty subject', { issuer: 'https://canvas.test', subject: '' }],
+    ['a null subject', { issuer: 'https://canvas.test', subject: null }],
+    ['a null issuer', { issuer: null, subject: 'subject-1' }],
+    ['an empty issuer and null subject', { issuer: '', subject: null }],
+  ])('%s reaches core unchanged', async (_label, identity) => {
+    const server =
+      await vi.importActual<typeof import('../unlink-lti.server')>('../unlink-lti.server')
+    mocks.unlink.mockImplementation(server.unlinkUserLtiIdentity)
+    mocks.coreUnlink.mockResolvedValue({ ok: true, data: { changed: true, vid: 4 } })
+
+    const lti: LtiIdentity = {
+      ...identity,
+      linked: identity.issuer != null && identity.subject != null,
+    }
+    const view = render({ lti })
+    act(() => button(view, 'Unlink')?.click())
+    await act(async () => button(view, 'Confirm unlink')?.click())
+
+    expect(mocks.coreUnlink).toHaveBeenCalledTimes(1)
+    expect(mocks.coreUnlink.mock.calls[0]?.[1]).toEqual({
+      id: USER_ID,
+      vid: 3,
+      lti_iss: identity.issuer,
+      lti_sub: identity.subject,
+    })
+  })
+
+  test('a malformed expected identity is refused before core', async () => {
+    const server =
+      await vi.importActual<typeof import('../unlink-lti.server')>('../unlink-lti.server')
+    const formData = new FormData()
+    formData.append('id', USER_ID)
+    formData.append('vid', '3')
+    formData.append('expected', '{"issuer":')
+
+    const state = await server.unlinkUserLtiIdentity({ status: 'idle' }, formData)
+
+    expect(state.status).toBe('failed')
+    expect(mocks.coreUnlink).not.toHaveBeenCalled()
+  })
+})
+
+describe('ltiIdentityPanelKey', () => {
+  test('values containing separators do not collide', () => {
+    const a = ltiIdentityPanelKey({
+      userId: USER_ID,
+      vid: 1,
+      lti: { issuer: 'https://canvas.test/a:b', subject: 'c', linked: true },
+    })
+    const b = ltiIdentityPanelKey({
+      userId: USER_ID,
+      vid: 1,
+      lti: { issuer: 'https://canvas.test/a', subject: 'b:c', linked: true },
+    })
+    expect(a).not.toBe(b)
+  })
+
+  test('null and the empty string give different keys', () => {
+    const empty = ltiIdentityPanelKey({
+      userId: USER_ID,
+      vid: 1,
+      lti: { issuer: 'https://canvas.test', subject: '', linked: true },
+    })
+    const missing = ltiIdentityPanelKey({
+      userId: USER_ID,
+      vid: 1,
+      lti: { issuer: 'https://canvas.test', subject: null, linked: false },
+    })
+    expect(empty).not.toBe(missing)
   })
 })

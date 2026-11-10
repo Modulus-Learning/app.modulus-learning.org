@@ -78,17 +78,37 @@ export interface UnlinkLtiState {
   message?: string
 }
 
-// Empty strings stand for null: a stored LTI value is never empty.
-const nullableIdentityValue = z
+/**
+ * The identity the admin was shown, as the form carries it: one JSON field,
+ * so null and the empty string stay distinct. Neither is ruled out for a
+ * stored value, and the conditional unlink must match exactly what is stored.
+ */
+export const expectedLtiIdentitySchema = z.strictObject({
+  issuer: z.string().max(2048).nullable(),
+  subject: z.string().max(255).nullable(),
+})
+
+export type ExpectedLtiIdentity = z.infer<typeof expectedLtiIdentitySchema>
+
+export const encodeExpectedLtiIdentity = (identity: ExpectedLtiIdentity): string =>
+  JSON.stringify({ issuer: identity.issuer, subject: identity.subject })
+
+const expectedLtiIdentityField = z
   .string()
-  .max(2048)
-  .transform((value) => (value === '' ? null : value))
+  .transform((value, ctx) => {
+    try {
+      return JSON.parse(value) as unknown
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'expected identity is not valid JSON' })
+      return z.NEVER
+    }
+  })
+  .pipe(expectedLtiIdentitySchema)
 
 export const unlinkLtiFormSchema = z.object({
   id: uuidSchema,
   vid: integerFromStringSchema,
-  lti_iss: nullableIdentityValue,
-  lti_sub: nullableIdentityValue,
+  expected: expectedLtiIdentityField,
 })
 
 export interface UserAddResponse {
