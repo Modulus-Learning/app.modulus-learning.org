@@ -838,7 +838,7 @@ and verification in this plan when the work is actually complete.
   `dist`; perform a gradebook production build to catch client-import or export
   packaging errors that service tests cannot detect.
 - [ ] Use the dedicated PostgreSQL 18 `_test` database for integration tests,
-  following [Testing Strategy](../docs/TESTING.md). Do not reset or reseed
+  following [Testing Strategy](../docs/22-testing.md). Do not reset or reseed
   staging, and do not treat test-database setup as a feature data migration.
 - [ ] Run `git diff --check` and verify documentation links/anchors. Keep the
   review diff limited to implementation, meaningful tests, and related docs.
@@ -928,5 +928,5 @@ above is required future work.
   records the existing registration architecture and zero-rule policy amendment.
 - [Core Composition](../docs/10-core-composition.md) explains service and command
   boundaries that the implementation preserves.
-- [Testing Strategy](../docs/TESTING.md) explains the unit/integration runners,
+- [Testing Strategy](../docs/22-testing.md) explains the unit/integration runners,
   database harness, and complete validation gate.

@@ -318,10 +318,10 @@ registration returned:
 ```ts
 // packages/core/src/modules/app/lti/services/deep-link.ts (excerpt)
 const customFields = {
+  ...this.lms.deepLinkCustomFields(),
   modulus_launch_type: 'start-activity',
   modulus_activity_code: activity_code,
   modulus_activity_url: activity.url,
-  ...CANVAS_CUSTOM_LAUNCH_FIELDS,
 }
 // …
 window: { targetName: `modulus-${activity_code}-${activity.id}` },
@@ -549,10 +549,11 @@ that case.
   instead reaches the endpoint registered as `LTI_REDIRECT_URI` — a separate
   configuration key, conventionally set to the same URL, but free to diverge
   from it.
-- **Generated direct links cannot carry every activity path.** A non-root
-  trailing slash or a repeated slash is lost before the `/start-activity` route
-  receives its parameters, so those activities do not launch correctly through a
-  generated link. The replacement transport is deferred and unchosen — see the
+- **Generated direct links cannot carry every activity path.** The
+  `/start-activity` loader keeps only non-empty path segments, so a non-root
+  trailing slash or a repeated slash is lost before lookup, and those activities
+  do not launch correctly through a generated link. This is confirmed from the
+  route code, not yet in a browser against a deployed build. The replacement transport is deferred and unchosen — see the
   warning in [Where The Learner Lands](#where-the-learner-lands). A later fix
   must be verified through actual routing, locale redirects, and sign-in;
   extractor-only tests cannot detect information lost upstream of the page.

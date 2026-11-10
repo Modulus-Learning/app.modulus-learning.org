@@ -171,8 +171,10 @@ following mirrors the summary doc's "Security Highlights," grounded in the code.
     `/~user` are two activities. Path case, non-root trailing slashes, repeated
     slashes, and host aliases are all preserved as distinct. Modulus does not
     claim to merge every standards-equivalent URL, and the conservative
-    direction is deliberate: a false merge would combine two learners' progress
-    and page state under one activity, which is worse than a missed equivalence.
+    direction is deliberate: a false merge would combine two distinct
+    activities' progress and page state into one, for a given learner and
+    scope. It never combines different learners' data, because the state is
+    still keyed by user and scope. That is worse than a missed equivalence.
   - **No equivalence is established over the network.** Modulus follows no
     redirects, resolves no DNS aliases, and reads no HTML canonical link to
     decide that two URLs serve one page. Those answers depend on a publisher's
