@@ -10,7 +10,12 @@ import type { Activity, ActivityCode } from '../@types'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
-const mocks = vi.hoisted(() => ({ navigate: vi.fn(), searchString: '' }))
+const mocks = vi.hoisted(() => ({
+  navigate: vi.fn(),
+  searchString: '',
+  // The Search widget's callbacks from the latest render, so a test can submit.
+  searchBox: {} as { onSearch?: (value: string) => void; onClear?: () => void },
+}))
 
 vi.mock('@/framework', () => ({
   useLangNavigation: () => ({ navigate: mocks.navigate }),
@@ -48,11 +53,25 @@ vi.mock('@infonomic/uikit/react', () => {
     LoaderRing: () => null,
     CopyButton: () => null,
     Button: ({ children }: { children?: ReactNode }) => createElement('span', {}, children),
-    Search: ({ defaultValue }: { defaultValue?: string }) =>
-      createElement('input', { 'data-testid': 'search', defaultValue }),
+    Search: ({
+      defaultValue,
+      onSearch,
+      onClear,
+    }: {
+      defaultValue?: string
+      onSearch?: (value: string) => void
+      onClear?: () => void
+    }) => {
+      mocks.searchBox = { onSearch, onClear }
+      return createElement('input', { 'data-testid': 'search', defaultValue })
+    },
   }
 })
 
+import { defaultParseSearch } from '@tanstack/react-router'
+
+import { readListView } from '@/lib/list-view'
+import { activitiesListConfig, activityCodesListConfig } from '../list-views'
 import { ActivitiesView } from './activities-view'
 import { ActivityCodesView } from './activity-codes-view'
 
@@ -239,5 +258,82 @@ describe('ActivitiesView', () => {
     expect(
       activitiesView({}, []).querySelector('[data-testid="activities-empty"]')?.textContent
     ).toBe('No activities are registered for this activity code yet.')
+  })
+})
+
+describe('search submission through the real router parser', () => {
+  // Review finding: user text is JSON-parsed by the router, so `true`, `null`
+  // or `1e3` written raw would come back as a boolean, null or 1000.
+  const submit = (value: string) => {
+    act(() => mocks.searchBox.onSearch?.(value))
+    return mocks.navigate.mock.calls.at(-1)?.[0].href as string
+  }
+
+  const parsed = (href: string) => {
+    const url = new URL(href, 'https://x.test')
+    return {
+      path: url.pathname,
+      search: defaultParseSearch(url.search) as Record<string, unknown>,
+      raw: url.search,
+    }
+  }
+
+  const SPELLINGS = ['true', 'false', 'null', '1e3', '1.0', '2026', 'casual-cow', '"quoted"']
+
+  test.each(SPELLINGS)('activity codes: %s survives as the literal query', (text) => {
+    const { path, search } = parsed(submit_codes(text))
+    expect(path).toBe('/dashboard')
+    expect(readListView(search, activityCodesListConfig).query).toBe(text)
+  })
+
+  test.each(SPELLINGS)('activities: %s survives as the literal query', (text) => {
+    render(
+      createElement(ActivitiesView, {
+        activityCode: CODES[0] as ActivityCode,
+        activities: ACTIVITIES,
+        search: {},
+        lng: 'en',
+      })
+    )
+    const { path, search } = parsed(submit(text))
+    expect(path).toBe('/dashboard/activity-code/1/activities')
+    expect(readListView(search, activitiesListConfig).query).toBe(text)
+  })
+
+  function submit_codes(text: string) {
+    codesView({ order: 'code', desc: false })
+    return submit(text)
+  }
+
+  test('a quoted query survives a heading click and a clear keeps the sort', () => {
+    // Search for `true` with a sort in place.
+    const searched = parsed(submit_codes('true'))
+    expect(searched.search.desc).toBe(false)
+    act(() => root?.unmount())
+
+    // Render the resulting page: the router's parsed search and its raw string.
+    mocks.searchString = searched.raw
+    const view = render(
+      createElement(ActivityCodesView, { activityCodes: CODES, search: searched.search, lng: 'en' })
+    )
+    expect(view.querySelector('[data-testid="search"]')?.getAttribute('value')).toBe('true')
+
+    const clicked = parsed(clickHeading(view, 'Created'))
+    expect(readListView(clicked.search, activityCodesListConfig)).toEqual({
+      query: 'true',
+      order: 'created_at',
+      desc: true,
+    })
+
+    act(() => mocks.searchBox.onClear?.())
+    const cleared = parsed(mocks.navigate.mock.calls.at(-1)?.[0].href as string)
+    expect(cleared.search).toEqual({ order: 'code', desc: false })
+  })
+
+  test('a default view searches to a bare query, and clears to a bare path', () => {
+    codesView({})
+    expect(submit('cow')).toBe('/dashboard?query=cow')
+    act(() => mocks.searchBox.onClear?.())
+    expect(mocks.navigate.mock.calls.at(-1)?.[0].href).toBe('/dashboard')
   })
 })

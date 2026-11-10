@@ -14,7 +14,7 @@ import cx from 'clsx'
 import { usePublicConfig } from '@/config/provider'
 import { useProgressBarContext } from '@/context/progress-bar-provider'
 import { LangLink, useLangNavigation, useSearchParams } from '@/framework'
-import { applyListView, readListView } from '@/lib/list-view'
+import { applyListView, listViewHref, readListView } from '@/lib/list-view'
 // import { RouterPager } from '@/ui/components/router-pager'
 import {
   TableHeadingCellSortable,
@@ -135,24 +135,24 @@ export function ActivitiesView({
   const readOnlySearchParams = useSearchParams()
   const searchParams = new URLSearchParams(readOnlySearchParams)
 
+  // Search and clear keep the sort (only when the URL names one). See
+  // `listViewHref` for why the text is serialised by the router's own rules.
+  const activitiesPath = `/dashboard/activity-code/${activityCode?.id}/activities`
+  const hrefWith = (query: string | null) =>
+    listViewHref(activitiesPath, {
+      query,
+      order: search.order != null ? view.order : undefined,
+      desc: search.desc != null ? view.desc : undefined,
+    })
+
   const handleOnSearch = (query: string): void => {
-    if (query != null && query.length > 0) {
-      searchParams.delete('page')
-      searchParams.set('query', query)
-      navigate({
-        href: `/dashboard/activity-code/${activityCode?.id}/activities?${searchParams?.toString()}` as string,
-        scroll: false,
-      })
+    if (query != null && query.trim().length > 0) {
+      navigate({ href: hrefWith(query.trim()), scroll: false })
     }
   }
 
   const handleOnClear = (): void => {
-    searchParams.delete('page')
-    searchParams.delete('query')
-    navigate({
-      href: `/dashboard/activity-code/${activityCode?.id}/activities?${searchParams?.toString()}` as string,
-      scroll: false,
-    })
+    navigate({ href: hrefWith(null), scroll: false })
   }
 
   function _handleOnPageSizeChange(value: string): void {

@@ -1,7 +1,7 @@
 import { Button, CopyButton, Search, Table } from '@infonomic/uikit/react'
 
 import { LangLink, useLangNavigation } from '@/framework'
-import { applyListView, readListView } from '@/lib/list-view'
+import { applyListView, listViewHref, readListView } from '@/lib/list-view'
 import { LocalDateTime } from '@/ui/components/local-date-time'
 import { TableHeadingCellSortable } from '@/ui/components/th-sortable'
 import { activityCodesListConfig } from '../list-views'
@@ -29,15 +29,15 @@ export function ActivityCodesView({
   const view = readListView(search, activityCodesListConfig)
   const rows = applyListView(activityCodes, view, activityCodesListConfig)
 
-  // Search and clear keep the sort; a heading click keeps the search.
-  const hrefWith = (query: string | null) => {
-    const params = new URLSearchParams()
-    if (query != null && query.length > 0) params.set('query', query)
-    if (search.order != null) params.set('order', view.order)
-    if (search.desc != null) params.set('desc', String(view.desc))
-    const qs = params.toString()
-    return qs.length > 0 ? `${PATH}?${qs}` : PATH
-  }
+  // Search and clear keep the sort (only when the URL names one); a heading
+  // click keeps the search. See `listViewHref` for why the text is serialised
+  // by the router's own rules.
+  const hrefWith = (query: string | null) =>
+    listViewHref(PATH, {
+      query,
+      order: search.order != null ? view.order : undefined,
+      desc: search.desc != null ? view.desc : undefined,
+    })
 
   const handleOnSearch = (query: string): void => {
     if (query != null && query.trim().length > 0) {

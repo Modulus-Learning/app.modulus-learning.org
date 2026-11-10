@@ -10,6 +10,8 @@
 // process's locale); dates compare by parsed time; missing values, and dates
 // that do not parse, sort last in both directions; ties keep input order.
 
+import { defaultStringifySearch } from '@tanstack/react-router'
+
 export type ListColumn<Row> =
   | { kind: 'string'; value: (row: Row) => string | null | undefined }
   | { kind: 'date'; value: (row: Row) => string | null | undefined }
@@ -91,4 +93,23 @@ export function applyListView<Row, Order extends string>(
       return a.index - b.index
     })
     .map(({ row }) => row)
+}
+
+/**
+ * The href for a list view, serialised as the router will parse it. The router
+ * JSON-parses each search value, so user text such as `true`, `null` or `1e3`
+ * written raw would come back as a boolean, null or 1000. The router's own
+ * stringifier quotes exactly those strings, and leaves `desc` a plain boolean.
+ * `order` and `desc` are written only when given, so a default view keeps a
+ * bare URL.
+ */
+export function listViewHref(
+  path: string,
+  { query, order, desc }: { query?: string | null; order?: string; desc?: boolean }
+): string {
+  const search: Record<string, string | boolean> = {}
+  if (query != null && query.length > 0) search.query = query
+  if (order != null) search.order = order
+  if (desc != null) search.desc = desc
+  return `${path}${defaultStringifySearch(search)}`
 }
