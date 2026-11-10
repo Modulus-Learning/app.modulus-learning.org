@@ -187,7 +187,7 @@ export function LearnersProgressView({ data, lng }: { data: ProgressResponse; ln
             <Table.Header>
               <Table.Row>
                 {getTableColumnDefs(
-                  `/dashboard/metrics/${data?.included?.activity_code?.id}/learners`
+                  `/dashboard/activity-code/${data?.included?.activity_code?.id}/learners`
                 ).map((column) => {
                   return (
                     <TableHeadingCellSortable
