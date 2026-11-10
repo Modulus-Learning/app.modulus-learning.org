@@ -12,10 +12,10 @@ vi.mock('../actions/deep-linking-action', () => ({ deepLinking: mocks.deepLinkin
 vi.mock('./deep-linking-return-form', () => ({
   DeepLinkingReturnForm: ({ jwt }: { jwt: string }) => <p data-testid="return-form">{jwt}</p>,
 }))
-vi.mock('next/image', () => ({ default: () => null }))
-vi.mock('@/images/logo/modulus-logo-symbol-black.svg', () => ({ default: 'logo.svg' }))
-vi.mock('@/config', () => ({
-  getPublicConfig: () => ({ publicServerUrl: 'https://modulus.test/' }),
+vi.mock('@/framework', () => ({ Image: () => null }))
+vi.mock('../../../images/logo/modulus-logo-symbol-black.svg', () => ({ default: 'logo.svg' }))
+vi.mock('@/config/provider', () => ({
+  usePublicConfig: () => ({ publicServerUrl: 'https://modulus.test/' }),
 }))
 
 // The real Autocomplete, so selection runs through UIKit and Base UI exactly

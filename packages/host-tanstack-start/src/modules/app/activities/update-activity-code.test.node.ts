@@ -15,12 +15,12 @@ vi.mock('@/core-adapter', () => ({
 vi.mock('@/lib/logger', () => ({
   getLogger: () => ({ error: mocks.loggerError }),
 }))
-vi.mock('next/navigation', () => ({
+vi.mock('@/lib/server-request', () => ({
   redirect: mocks.redirect,
 }))
 
 import { ACTIVITY_URL_MESSAGES, URL_PREFIX_MESSAGES } from './@types/validate-urls'
-import { updateActivityCode } from './update-activity-code'
+import { updateActivityCode } from './update-activity-code.server'
 import type { ActivityCodeFormState } from './@types'
 
 const IDLE: ActivityCodeFormState = { errors: {}, status: 'idle' }

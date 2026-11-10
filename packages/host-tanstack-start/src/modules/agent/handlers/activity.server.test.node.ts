@@ -1,5 +1,3 @@
-import { NextRequest } from 'next/server'
-
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -10,20 +8,20 @@ const mocks = vi.hoisted(() => ({
   loggerWarn: vi.fn(),
 }))
 
-vi.mock('@/core-adapter', () => ({
+vi.mock('@/lib/core/start-adapter', () => ({
   getCoreCommands: mocks.getCoreCommands,
   getCoreAgentRequestContext: mocks.getCoreAgentRequestContext,
 }))
-vi.mock('@/lib/logger', () => ({
-  getLogger: () => ({ error: mocks.loggerError, warn: mocks.loggerWarn }),
+vi.mock('@/lib/server-logger', () => ({
+  getServerLogger: () => ({ error: mocks.loggerError, warn: mocks.loggerWarn }),
 }))
 
-import { POST } from './route'
+import { handleAgentActivity as POST } from './activity.server'
 
 const DUPLICATE_MESSAGE = 'increments_for_other_pages contains duplicate target URLs'
 
-const makeRequest = (body: unknown): NextRequest =>
-  new NextRequest('https://gradebook.test/routes/agent/activity', {
+const makeRequest = (body: unknown): Request =>
+  new Request('https://gradebook.test/routes/agent/activity', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
