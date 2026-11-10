@@ -445,7 +445,7 @@ quota governor. The host passes it to `createModulusFetch`, which hands it to
 
 Core depends on `@modulus-learning/lti` and has `@modulus-learning/lms-canvas`
 only as a development dependency, for tests. A boundary test
-(`packages/core/src/lms/boundary.test.ts`) fails if a core runtime module
+(`packages/core/src/lms/boundary.test.node.ts`) fails if a core runtime module
 imports the Canvas package, and a deliberately non-Canvas test adapter
 (`packages/core/src/test-support/lms.ts`) runs the launch, deep-linking, and
 registration services without Canvas.

@@ -5,8 +5,8 @@ description: Use when asked to run or verify tests in this repository. Run one t
 
 Run tests via Turbo or per-package.
 
-The workspace uses **two different test runners** — check which package the
-path belongs to before choosing a command.
+Every package uses **Vitest**, but in different modes — check which package
+the path belongs to, and its file name, before choosing a command.
 
 Read the owning `package.json` and test configuration before choosing a command;
 they are authoritative if the table changes.
