@@ -82,6 +82,27 @@ export class LtiScoreSubmitter extends BaseService {
     })
     const leaseValid = await this.recordResult(lineitem, result)
 
+    // One operational event per submission that reached a final platform
+    // answer, so a completed passback is visible in the worker's logs. It is
+    // emitted after the recording attempt returns; a database error thrown
+    // while recording means no event. `outcome` separates the score reaching
+    // the platform ('accepted') from the platform keeping a newer score it
+    // already had ('superseded'); `recorded` separates either from Modulus
+    // recording it under the lease. Internal ids only: no score, user, LTI
+    // user id, line item URL, deployment id or response text. Failures keep
+    // their existing paths.
+    if (result.ok || result.category === 'superseded') {
+      this.logger.info(
+        {
+          lineitem_id: lineitem.id,
+          scope_id: lineitem.scope_id,
+          outcome: result.ok ? 'accepted' : 'superseded',
+          recorded: leaseValid,
+        },
+        'score submission completed'
+      )
+    }
+
     if (!leaseValid) {
       this.logger.warn(
         { lineitem_id: lineitem.id, scope_id: lineitem.scope_id },

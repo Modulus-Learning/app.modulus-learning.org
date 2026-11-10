@@ -319,6 +319,19 @@ Only the first two rows are "clean round-trips" that reset the breaker's failure
 counter; every other row increments it. The next section explains how that counter
 drives platform-level behavior.
 
+A submission in the first row emits one `info` log event, `score submission
+completed`, once the recording attempt returns. Its fields are:
+
+- `lineitem_id` and `scope_id`, internal ids for correlation;
+- `outcome`, either `accepted` (the score reached the platform) or `superseded`
+  (Canvas kept a newer score it already had);
+- `recorded`, which is false when lease fencing kept Modulus from recording the
+  result. The fencing warning is logged as well.
+
+The event carries no score, user, LTI user id, line item URL, deployment id or
+response text. If recording throws a database error, no event is emitted. Other
+outcomes keep their existing logging.
+
 > **Known issue — `timestamp` is POST-time, not earned-time.** The `timestamp` we send
 > is `new Date().toISOString()` (submission time), whereas AGS defines it as "when the
 > score was *modified in the tool*" — i.e. when the learner reached the high-water mark,
