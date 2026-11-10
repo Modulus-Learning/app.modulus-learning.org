@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'vitest'
 
 import { pino } from 'pino'
 import { v7 as uuidv7 } from 'uuid'
+import { describe, it } from 'vitest'
 
 import { UserAuth } from '@/lib/auth.js'
 import { createCoreLogger } from '@/lib/logger.js'

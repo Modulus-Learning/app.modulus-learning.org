@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 
+import type { DeepLinkingContentItem } from '@modulus-learning/lti'
+import { CLAIM_DEEP_LINKING_CONTENT } from '@modulus-learning/lti'
 import { v7 as uuidv7 } from 'uuid'
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest'
 
@@ -12,10 +14,8 @@ import {
 } from '@/database/schema/index.js'
 import { UserAuth } from '@/lib/auth.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
-import { CLAIM_DEEP_LINKING_CONTENT } from '@modulus-learning/lti'
 import type { UrlBuilder } from '@/config.js'
 import type { LtiKeyStore } from '@/lib/lti-keystore.js'
-import type { DeepLinkingContentItem } from '@modulus-learning/lti'
 
 let h: TestHarness
 

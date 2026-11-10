@@ -1,11 +1,23 @@
 import assert from 'node:assert/strict'
 import { createHash, randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest'
 
+import type { DeepLinkingContentItem } from '@modulus-learning/lti'
+import {
+  CLAIM_AGS_ENDPOINT,
+  CLAIM_CUSTOM,
+  CLAIM_DEEP_LINKING_CONTENT,
+  CLAIM_DEPLOYMENT_ID,
+  CLAIM_MESSAGE_TYPE,
+  CLAIM_RESOURCE_LINK,
+  CLAIM_ROLES,
+  CLAIM_TARGET_LINK_URI,
+  CLAIM_VERSION,
+} from '@modulus-learning/lti'
 import type { JWK } from 'jose'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { v7 as uuidv7 } from 'uuid'
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest'
 
 import {
   activities,
@@ -19,18 +31,6 @@ import {
   users,
 } from '@/database/schema/index.js'
 import { AgentAuth, UserAuth } from '@/lib/auth.js'
-import {
-  CLAIM_AGS_ENDPOINT,
-  CLAIM_CUSTOM,
-  CLAIM_DEEP_LINKING_CONTENT,
-  CLAIM_DEPLOYMENT_ID,
-  CLAIM_MESSAGE_TYPE,
-  CLAIM_RESOURCE_LINK,
-  CLAIM_ROLES,
-  CLAIM_TARGET_LINK_URI,
-  CLAIM_VERSION,
-} from '@modulus-learning/lti'
-import type { DeepLinkingContentItem } from '@modulus-learning/lti'
 import { seedScope, seedUser } from '@/test-support/fixtures.js'
 import { setupTestHarness, type TestHarness } from '@/test-support/pg.js'
 import type { Config, UrlBuilder } from '@/config.js'

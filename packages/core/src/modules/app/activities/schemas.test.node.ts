@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'vitest'
 
 import { v7 as uuidv7 } from 'uuid'
+import { describe, it } from 'vitest'
 import type { z } from 'zod'
 
 import { normalizeActivityUrl } from '@/modules/activity-registration/activity-url.js'
