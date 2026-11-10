@@ -42,11 +42,17 @@ vi.mock('@infonomic/uikit/react', () => {
     Section: el('section'),
     LoaderRing: () => null,
     Search: () => null,
-    Select: () => null,
+    Select: ({ defaultValue, items }: { defaultValue?: string; items?: { value: string }[] }) =>
+      createElement('select', {
+        'data-testid': 'page-size',
+        'data-default-value': defaultValue,
+        'data-items': items?.map((item) => item.value).join(','),
+      }),
     Table,
   }
 })
 
+import { formatDateTime } from '@/utils/utils.general'
 import { LearnersProgressView } from './learners-progress-view'
 
 const ACTIVITY_CODE_ID = '019d27b5-ce97-751b-ba8c-ac3fccc26929'
@@ -93,5 +99,61 @@ describe('LearnersProgressView sortable headings', () => {
     expect(mocks.navigate).toHaveBeenCalledTimes(1)
     const href: string = mocks.navigate.mock.calls[0]?.[0].href
     expect(href.split('?')[0]).toBe(`/dashboard/activity-code/${ACTIVITY_CODE_ID}/learners`)
+  })
+})
+
+describe('LearnersProgressView rows', () => {
+  test('the Updated column shows updated_at, the field it sorts by', () => {
+    const created_at = '2026-06-01T00:00:00.000Z'
+    const updated_at = '2026-06-23T05:43:00.000Z'
+    const view = render(
+      createElement(LearnersProgressView, {
+        lng: 'en',
+        data: {
+          ...data,
+          meta: { ...data.meta, total: 1 },
+          progress: [
+            {
+              user_id: '019d27b5-ce97-751b-ba8c-ac3fccc26930',
+              full_name: 'Bob Brown',
+              activity_code: 'brave-otter',
+              activity_code_id: ACTIVITY_CODE_ID,
+              progress: 1,
+              created_at,
+              updated_at,
+              activity_name: null,
+              activity_url: 'https://content.test/lesson-01',
+            },
+          ],
+        },
+      })
+    )
+    const cells = view.querySelectorAll('tbody tr td')
+    expect(cells[cells.length - 1]?.textContent).toBe(formatDateTime(updated_at))
+  })
+})
+
+describe('LearnersProgressView rows per page', () => {
+  test('the selector shows the page size the server used', () => {
+    const view = render(
+      createElement(LearnersProgressView, {
+        lng: 'en',
+        data: { ...data, meta: { ...data.meta, page_size: 50 } },
+      })
+    )
+    const select = view.querySelector('[data-testid="page-size"]')
+    expect(select?.getAttribute('data-default-value')).toBe('50')
+  })
+
+  test('a page size outside the preset list is still selectable', () => {
+    const view = render(
+      createElement(LearnersProgressView, {
+        lng: 'en',
+        data: { ...data, meta: { ...data.meta, page_size: 25 } },
+      })
+    )
+    const select = view.querySelector('[data-testid="page-size"]')
+    expect(select?.getAttribute('data-default-value')).toBe('25')
+    expect(select?.getAttribute('data-items')?.split(',')).toContain('25')
   })
 })

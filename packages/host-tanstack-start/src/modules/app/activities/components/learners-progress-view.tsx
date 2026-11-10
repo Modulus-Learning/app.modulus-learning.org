@@ -5,6 +5,7 @@ import cx from 'clsx'
 
 import { useProgressBarContext } from '@/context/progress-bar-provider'
 import { useLangNavigation, useSearchParams } from '@/framework'
+import { pageSizeItems } from '@/ui/components/page-size'
 import { RouterPager } from '@/ui/components/router-pager'
 import {
   TableHeadingCellSortable,
@@ -115,6 +116,7 @@ function padRows(value: number) {
 
 export function LearnersProgressView({ data, lng }: { data: ProgressResponse; lng: Locale }) {
   const { navigate } = useLangNavigation(lng)
+  const pageSize = String(data.meta.page_size)
   const readOnlySearchParams = useSearchParams()
   const searchParams = new URLSearchParams(readOnlySearchParams)
 
@@ -214,7 +216,7 @@ export function LearnersProgressView({ data, lng }: { data: ProgressResponse; ln
                       </a>
                     </Table.Cell>
                     <Table.Cell className="text-right">
-                      {progress.created_at == null ? '-' : formatDateTime(progress.created_at)}
+                      {progress.updated_at == null ? '-' : formatDateTime(progress.updated_at)}
                     </Table.Cell>
                   </Table.Row>
                 )
@@ -231,14 +233,12 @@ export function LearnersProgressView({ data, lng }: { data: ProgressResponse; ln
             ariaLabel="Rows per page"
             name="page_size"
             size="sm"
-            defaultValue="15"
+            // Keyed on the effective page size so the uncontrolled selector
+            // follows back/forward navigation and reloads.
+            key={pageSize}
+            defaultValue={pageSize}
             onValueChange={handleOnPageSizeChange}
-            items={[
-              { value: '15', label: '15' },
-              { value: '30', label: '30' },
-              { value: '50', label: '50' },
-              { value: '100', label: '100' },
-            ]}
+            items={pageSizeItems(pageSize)}
           />
           <RouterPager
             smoothScrollToTop={true}

@@ -14,6 +14,7 @@ import cx from 'clsx'
 
 import { useProgressBarContext } from '@/context/progress-bar-provider'
 import { LangLink, useLangNavigation, useSearchParams } from '@/framework'
+import { pageSizeItems } from '@/ui/components/page-size'
 import { RouterPager } from '@/ui/components/router-pager'
 import {
   TableHeadingCellSortable,
@@ -243,14 +244,10 @@ export function UsersListView({ data, lng }: { data: UsersResponse; lng: Locale 
             ariaLabel="Rows per page"
             name="page_size"
             size="sm"
-            defaultValue="15"
+            key={data.meta.page_size}
+            defaultValue={String(data.meta.page_size)}
             onValueChange={handleOnPageSizeChange}
-            items={[
-              { value: '15', label: '15' },
-              { value: '30', label: '30' },
-              { value: '50', label: '50' },
-              { value: '100', label: '100' },
-            ]}
+            items={pageSizeItems(data.meta.page_size)}
           />
           <RouterPager
             smoothScrollToTop={true}
