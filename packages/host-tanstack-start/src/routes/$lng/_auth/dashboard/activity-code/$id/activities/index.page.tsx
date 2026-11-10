@@ -1,4 +1,4 @@
-import { useLoaderData, useParams } from '@tanstack/react-router'
+import { useLoaderData, useParams, useSearch } from '@tanstack/react-router'
 
 import { Container, Section } from '@infonomic/uikit/react'
 
@@ -8,6 +8,7 @@ import { Breadcrumbs } from '@/ui/components/breadcrumbs'
 export const Page = function ActivitiesPage() {
   const { lng, id } = useParams({ strict: false })
   const { activityCode, activities } = useLoaderData({ strict: false })
+  const search = useSearch({ strict: false }) as Record<string, unknown>
   return (
     <>
       <Section className="py-5 pb-2">
@@ -22,7 +23,12 @@ export const Page = function ActivitiesPage() {
           />
         </Container>
       </Section>
-      <ActivitiesView activityCode={activityCode} activities={activities} lng={lng} />
+      <ActivitiesView
+        activityCode={activityCode}
+        activities={activities}
+        search={search}
+        lng={lng}
+      />
     </>
   )
 }

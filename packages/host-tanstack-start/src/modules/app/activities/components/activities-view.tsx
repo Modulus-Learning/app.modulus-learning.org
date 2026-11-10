@@ -14,12 +14,14 @@ import cx from 'clsx'
 import { usePublicConfig } from '@/config/provider'
 import { useProgressBarContext } from '@/context/progress-bar-provider'
 import { LangLink, useLangNavigation, useSearchParams } from '@/framework'
+import { applyListView, readListView } from '@/lib/list-view'
 // import { RouterPager } from '@/ui/components/router-pager'
 import {
   TableHeadingCellSortable,
   type TableHeadingCellSortableProps,
 } from '@/ui/components/th-sortable'
 import { formatDateTime, formatNumber } from '@/utils/utils.general'
+import { activitiesListConfig } from '../list-views'
 import type { Locale } from '@/i18n/i18n-config'
 import type { Activity, ActivityCode } from '../@types'
 
@@ -117,13 +119,18 @@ function padRows(value: number) {
 export function ActivitiesView({
   activityCode,
   activities,
+  search,
   lng,
 }: {
   activityCode: ActivityCode
   activities: Activity[]
+  /** The route's parsed search values; search and sort apply to the loaded rows. */
+  search: Record<string, unknown>
   lng: Locale
 }) {
   const config = usePublicConfig()
+  const view = readListView(search, activitiesListConfig)
+  const rows = applyListView(activities, view, activitiesListConfig)
   const { navigate } = useLangNavigation(lng)
   const readOnlySearchParams = useSearchParams()
   const searchParams = new URLSearchParams(readOnlySearchParams)
@@ -184,12 +191,21 @@ export function ActivitiesView({
         )}
         <div className="options flex flex-col gap-2 sm:flex-row items-start sm:items-center mt-3 mb-3">
           <Search
+            // Keyed on the query so back/forward navigation shows the search in effect.
+            key={view.query}
+            defaultValue={view.query}
             onSearch={handleOnSearch}
             onClear={handleOnClear}
             inputSize="sm"
-            placeholder="Search"
+            placeholder="Search URL or name"
+            ariaLabel="Search activities by URL or name"
             className="mr-auto w-full max-w-[350px]"
           />
+          <p className="text-sm m-0" role="status" data-testid="activities-count">
+            {view.query.length > 0
+              ? `${rows.length} of ${activities.length} activities match “${view.query}”`
+              : ''}
+          </p>
 
           {/* <RouterPager
             lng={lng}
@@ -212,6 +228,8 @@ export function ActivitiesView({
                         key={column.fieldName ?? column.label}
                         lng={lng}
                         {...column}
+                        currentOrder={view.order}
+                        currentDesc={view.desc}
                         ref={undefined}
                       />
                     )
@@ -221,7 +239,7 @@ export function ActivitiesView({
             </Table.Header>
 
             <Table.Body>
-              {activities?.map((activity) => {
+              {rows.map((activity) => {
                 return (
                   <Table.Row key={activity.id}>
                     <Table.Cell className="min-w-0 align-top" style={{ overflowWrap: 'anywhere' }}>
@@ -277,7 +295,14 @@ export function ActivitiesView({
               })}
             </Table.Body>
           </Table>
-          {padRows(6 - (activities?.length ?? 0))}
+          {rows.length === 0 && (
+            <p className="text-sm mt-3" data-testid="activities-empty">
+              {activities.length === 0
+                ? 'No activities are registered for this activity code yet.'
+                : `No activities match “${view.query}”.`}
+            </p>
+          )}
+          {padRows(6 - rows.length)}
         </Table.Container>
         <div className="options flex flex-col gap-2 sm:flex-row items-start sm:items-center mb-5">
           {/* <Select
