@@ -1,7 +1,7 @@
 # Editable LTI Registration Endpoints — Implementation Plan
 
 Date: 2026-11-10
-Status: In progress. Phases 1, 2, 3 and 4 done on 2026-11-12.
+Status: In progress. Phases 1 to 5 done on 2026-11-12; verification remains.
 Revised: 2026-11-12, after rebasing onto `develop`. Core and lms-canvas tests
 moved from `node:test` to vitest, so the test paths below were updated. The
 design was unaffected.
@@ -411,22 +411,24 @@ Integration (`--mode=integration`):
 
 Follow `.agents/skills/writing-docs/SKILL.md` for every file under `docs/`.
 
-- [ ] `docs/13-lti.md`, Platform Registration: an administrator enters or
+- [x] `docs/13-lti.md`, Platform Registration: an administrator enters or
   confirms each endpoint, the adapter only suggests defaults, the issuer is
   immutable, an edit takes effect on next use (login and launch per request,
   score passback through fingerprint reconciliation), and the last save wins.
   Name `lti-platforms:edit` in Commands & Host Routes.
-- [ ] `docs/11-data-model.md`: the four `lti_platforms` endpoint columns are
+- [x] `docs/11-data-model.md`: the four `lti_platforms` endpoint columns are
   administrator-entered.
-- [ ] `docs/08-lms-integration.md`, Documentation Still to Come: the
+- [x] `docs/08-lms-integration.md`, Documentation Still to Come: the
   walkthrough will cover the four fields, the defaults button and the
   hosted-Canvas issuer.
-- [ ] `docs/20-upgrading.md`: if the guide lists release scripts or ability
-  changes, add the grant script. Otherwise leave it.
-- [ ] Spec: set Status to "In progress" when Phase 1 starts. The spec's
+- [x] `docs/20-upgrading.md`: if the guide lists release scripts or ability
+  changes, add the grant script. Otherwise leave it. (Left: the guide is a
+  Planned outline that lists no scripts. `docs/12-authn-authz.md` names the
+  grant script instead.)
+- [x] Spec: set Status to "In progress" when Phase 1 starts. The spec's
   branch name, trailing-slash rule, script scope and session test were
   already corrected on 2026-11-10.
-- [ ] `.changeset/<name>.md`: one minor bump covering `@modulus-learning/lti`,
+- [x] `.changeset/<name>.md`: one minor bump covering `@modulus-learning/lti`,
   `lms-canvas`, `core` and `host-tanstack-start`. The fixed group bumps `agent`
   as well. The body carries the release notes the spec requires:
   - administrators can now edit a registration's endpoints;

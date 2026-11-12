@@ -2,7 +2,8 @@
 
 Date: 2026-11-09
 
-Status: In progress. Phase 1 (core) landed on 2026-11-12.
+Status: In progress. Implementation, docs and changeset landed on 2026-11-12;
+verification remains.
 
 Document type: Explanation and implementation specification.
 

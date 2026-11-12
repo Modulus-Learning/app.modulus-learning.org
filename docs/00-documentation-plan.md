@@ -118,7 +118,7 @@ worked login-to-authorized-call path for each actor.
 ### [LTI](./13-lti.md) — Available
 Modulus as an LTI 1.3 tool: OIDC login initiation, resource-link launch,
 deep-linking with instructor activity URL validation, the platform and
-deployment data model, the keystore, and Assignment & Grade Services score
+deployment data model with administrator-editable registration endpoints, the keystore, and Assignment & Grade Services score
 passback. The primary reference for any institution integrating Modulus through
 their LMS.
 

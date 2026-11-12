@@ -1,7 +1,7 @@
 ---
 title: "LTI 1.3 Integration"
 path: "lti"
-summary: "How Modulus is an LTI 1.3 tool for an institutional LMS: the three keypairs and trust model, platform registration, the OIDC login and launch flows, deep linking for content selection with instructor activity URL validation and canonical custom claims, and the queue-backed AGS score-passback worker built to survive thousands of concurrent submissions."
+summary: "How Modulus is an LTI 1.3 tool for an institutional LMS: the three keypairs and trust model, platform registration with administrator-entered and editable endpoints, the OIDC login and launch flows, deep linking for content selection with instructor activity URL validation and canonical custom claims, and the queue-backed AGS score-passback worker built to survive thousands of concurrent submissions."
 ---
 
 # LTI 1.3 Integration
@@ -51,6 +51,68 @@ For an LMS to be trusted it must exist in `lti_platforms` — `issuer`,
 admin `ltiPlatforms` commands (`modules/admin/lti-platforms/`). Each
 `(issuer, deployment_id)` seen during a launch is upserted into
 `lti_platform_deployments` automatically.
+
+### Who Decides the Endpoints
+
+An administrator enters or confirms each of the four endpoint values. The LMS
+adapter only suggests defaults. On the create form, the "Fill defaults from
+issuer" button calls `suggestLtiPlatformEndpoints`, which returns the adapter's
+`registrationEndpoints(issuer)`, and fills the four fields for the
+administrator to accept or change. `createLtiPlatform` accepts each endpoint
+as optional and fills only the fields left out from the same adapter defaults,
+so a caller that sends none still gets a complete registration. Core stores
+what was submitted; it never rewrites a stored endpoint later.
+
+The Canvas adapter (`canvasRegistrationEndpoints` in
+`packages/lms-canvas/src/registration.ts`) suggests these values:
+
+| Issuer | Authorization endpoint suggested |
+| --- | --- |
+| `https://canvas.instructure.com` | `https://sso.canvaslms.com/api/lti/authorize_redirect` |
+| `https://canvas.beta.instructure.com` | `https://sso.beta.canvaslms.com/api/lti/authorize_redirect` |
+| `https://canvas.test.instructure.com` | `https://sso.test.canvaslms.com/api/lti/authorize_redirect` |
+| any other (self-hosted Canvas) | `/api/lti/authorize_redirect` on the issuer host |
+
+For every issuer the token endpoint and authorization server default to
+`/login/oauth2/token` and the JWKS URI to `/api/lti/security/jwks`, all on the
+issuer host. Instructure documents only the authorization host move, so the
+other three stay issuer-relative until they are verified against Canvas test.
+
+Core validates every submitted value on the server, whatever the form sent:
+
+| Field | Rule |
+| --- | --- |
+| `issuer` | an `https:` URL with no query, fragment or trailing slash |
+| `authorization_endpoint`, `token_endpoint`, `jwks_uri` | an `https:` URL with no fragment; a query is allowed |
+| `authorization_server` | non-empty text up to 2048 characters; it is the token `aud`, which need not be a URL |
+
+The issuer must not end in `/` because logins and launches match it exactly
+against the `iss` claim, which platforms send without one.
+
+### Editing a Registration
+
+`updateLtiPlatform` replaces the name, client ID and four endpoints of an
+existing registration, and requires `lti-platforms:edit`. Its input is a
+complete statement of the registration. The **issuer is immutable**: the update
+schema has no `issuer` field, and one sent by a client is dropped. To change an
+issuer, register a new platform.
+
+An edit takes effect on next use, without a restart:
+
+| Consumer | Values read | When an edit applies |
+| --- | --- | --- |
+| OIDC login (Flow 1) | `client_id`, `authorization_endpoint` | the next login; the platform row is read per request |
+| Launch (Flow 2) | `client_id`, `jwks_uri` | the next launch; the cached remote key set is rebuilt when `jwks_uri` changes |
+| Score passback (Flow 4) | `client_id`, `token_endpoint`, `authorization_server` | the next reconcile, every `LTI_SCORE_SUBMISSION_PLATFORM_RECONCILE_INTERVAL_SECONDS` (default 60) |
+
+Score passback detects an edit by comparing `registrationFingerprint` from
+`@modulus-learning/lti`, which covers all six registration fields, with the
+fingerprint of the running processor. On a change, the score-submission manager
+drains the old processor, discards its cached access token, and starts a
+replacement, so the next token request is signed with the new `aud`.
+
+`lti_platforms` has no version column, so two administrators editing the same
+registration at once are not detected: the last save wins.
 
 ## Flow 1 — OIDC Login (third-party initiated)
 
@@ -520,6 +582,23 @@ core command:
 
 The dynamic-registration helper is a page rather than a handler despite its
 location, at `/routes/lti/register`.
+
+Platform registrations are managed by admin commands, each of which requires
+an admin session and one ability:
+
+| Command | Admin page | Ability | Purpose |
+| --- | --- | --- | --- |
+| `listLtiPlatforms` | `/admin/lti-platforms` | `lti-platforms:list` | list registrations |
+| `getLtiPlatform` | `/admin/lti-platforms/$id` | `lti-platforms:read` | show one registration |
+| `createLtiPlatform` | `/admin/lti-platforms/add` | `lti-platforms:create` | register a platform |
+| `suggestLtiPlatformEndpoints` | the create form's defaults button | `lti-platforms:create` | return the adapter's endpoint defaults for an issuer |
+| `updateLtiPlatform` | `/admin/lti-platforms/$id/edit` | `lti-platforms:edit` | edit name, client ID and endpoints |
+| `generateCanvasConfig` | the create page | `lti-platforms:create` | build the Canvas developer-key JSON |
+
+The details page shows its Edit button only to a session holding
+`lti-platforms:edit`. Abilities are baked into the admin access token, so an
+administrator granted `edit` while signed in may need to sign in again before
+the button appears ([AUTHN-AUTHZ](./12-authn-authz.md)).
 
 The interstitial reads its display data from
 `core.app.activities.getActivityLaunchView`, a read-only command keyed on
