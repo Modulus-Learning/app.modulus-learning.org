@@ -7,9 +7,11 @@ import { useForm } from 'react-hook-form'
 import { LangLink } from '@/framework'
 import { useTheme } from '@/ui/theme/provider-base'
 import { getErrorText, hasErrors } from '@/utils/utils.forms'
-import { ltiPlatformCreateSchema } from '../@types'
+import { ENDPOINT_FIELDS, ltiPlatformCreateSchema } from '../@types'
 import { createLtiPlatform } from '../create'
 import { generateCanvasConfig } from '../generate-canvas-config'
+import { suggestLtiPlatformEndpoints } from '../suggest-endpoints'
+import { EndpointFields } from './endpoint-fields'
 import type { Locale } from '@/i18n/i18n-config'
 import type { LtiPlatformFormState } from '../@types'
 
@@ -24,14 +26,45 @@ export function LtiPlatformCreateForm({ lng }: { lng: Locale }): React.JSX.Eleme
   const resolver = zodResolver(ltiPlatformCreateSchema)
   const {
     register,
-    formState: { errors, isValid },
+    formState: { errors, isValid, isSubmitted },
     handleSubmit,
     setError,
     reset,
+    getValues,
+    setValue,
   } = useForm({ resolver, mode: 'onSubmit' })
   const [submitted, setSubmitted] = useState<boolean>(false)
   const [configStatus, setConfigStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const [isGeneratingConfig, setIsGeneratingConfig] = useState<boolean>(false)
+  const [isSuggesting, setIsSuggesting] = useState<boolean>(false)
+  const [suggestMessage, setSuggestMessage] = useState<string | undefined>(undefined)
+
+  // Fills only the empty endpoint fields, so values already typed are kept.
+  const handleFillDefaults = async (): Promise<void> => {
+    setIsSuggesting(true)
+    setSuggestMessage(undefined)
+    try {
+      const result = await suggestLtiPlatformEndpoints(getValues('issuer') ?? '')
+      if (!result.ok) {
+        setSuggestMessage(result.message)
+        return
+      }
+      for (const field of ENDPOINT_FIELDS) {
+        const current = getValues(field)
+        if (current == null || current.trim() === '') {
+          setValue(field, result.endpoints[field], {
+            shouldDirty: true,
+            shouldValidate: isSubmitted,
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error suggesting endpoints:', error)
+      setSuggestMessage('Failed to suggest endpoints.')
+    } finally {
+      setIsSuggesting(false)
+    }
+  }
 
   const handleCopyCanvasConfig = async (): Promise<void> => {
     setIsGeneratingConfig(true)
@@ -100,8 +133,12 @@ export function LtiPlatformCreateForm({ lng }: { lng: Locale }): React.JSX.Eleme
           </li>
           <li>Find the client ID issued by Canvas.</li>
           <li>
-            Fill in the form below with the platform name, issuer (base Canvas URL), and the client
-            ID issued by Canvas.
+            Fill in the form below with the platform name, the issuer, and the client ID issued by
+            Canvas. For hosted Canvas the issuer is <code>https://canvas.instructure.com</code> (or{' '}
+            <code>https://canvas.beta.instructure.com</code> or{' '}
+            <code>https://canvas.test.instructure.com</code>), not your institution&apos;s Canvas
+            URL. Then fill in the endpoints, or use &quot;Fill defaults from issuer&quot; and
+            confirm each one.
           </li>
         </ol>
       </div>
@@ -158,7 +195,7 @@ export function LtiPlatformCreateForm({ lng }: { lng: Locale }): React.JSX.Eleme
           id="issuer"
           label="Issuer"
           placeHolder="Issuer"
-          helpText="Please enter the platform issuer URL"
+          helpText="The platform's iss claim: an https URL with no trailing slash"
           error={!isValid && hasErrors('issuer', errors, null)}
           errorText={!isValid ? getErrorText('issuer', errors, null) : ''}
           {...register('issuer')}
@@ -173,6 +210,25 @@ export function LtiPlatformCreateForm({ lng }: { lng: Locale }): React.JSX.Eleme
           errorText={!isValid ? getErrorText('client_id', errors, null) : ''}
           {...register('client_id')}
         />
+
+        <EndpointFields register={(name) => register(name)} errors={errors} isValid={isValid}>
+          <div className="mb-2 flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outlined"
+              onClick={handleFillDefaults}
+              disabled={isSuggesting}
+            >
+              Fill defaults from issuer
+            </Button>
+            {suggestMessage != null && (
+              <span role="alert" className="text-sm text-red-700 dark:text-red-500">
+                {suggestMessage}
+              </span>
+            )}
+          </div>
+        </EndpointFields>
 
         <div className="form-actions flex gap-2 justify-end my-4">
           <Button

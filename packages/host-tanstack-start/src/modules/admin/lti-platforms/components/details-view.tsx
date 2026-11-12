@@ -1,6 +1,7 @@
 import { Button, CopyButton, Input } from '@infonomic/uikit/react'
 
 import { LangLink } from '@/framework'
+import { useAdminSession } from '@/modules/admin/session/provider'
 import type { Locale } from '@/i18n/i18n-config'
 import type { LtiPlatformResponse } from '../@types'
 
@@ -16,6 +17,8 @@ export function LtiPlatformDetailsView({
   mode: _mode,
 }: LtiPlatformDetailsProps): React.JSX.Element {
   const platform = data.platform
+  const session = useAdminSession()
+  const canEdit = platform != null && session?.abilities.includes('lti-platforms:edit') === true
 
   return (
     <div className="max-w-[500px] mx-auto rounded-md border border-gray-100 dark:border-gray-700 px-5 pb-1 mb-8 mt-[4vh]">
@@ -91,6 +94,11 @@ export function LtiPlatformDetailsView({
         <Button intent="noeffect" render={<LangLink href="/admin/lti-platforms" lng={lng} />}>
           Close
         </Button>
+        {canEdit && (
+          <Button render={<LangLink href={`/admin/lti-platforms/${platform.id}/edit`} lng={lng} />}>
+            Edit
+          </Button>
+        )}
       </div>
     </div>
   )

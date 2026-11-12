@@ -30,6 +30,7 @@ export const ADMIN = {
   password: 'Synthetic-Admin-1',
 }
 export const PLATFORM = {
+  id: '01900000-0000-7000-8000-00000000a003',
   issuer: 'https://platform.session.test',
   clientId: 'session-client',
   deploymentId: 'session-deployment',
@@ -220,6 +221,27 @@ export const signInLearner = async () => {
   const refresh = setCookieNamed(response, 'user_refresh')
   if (session == null || refresh == null) throw new Error('signInLearner: no cookie pair')
   return { response, session: cookieValue(session), refresh: cookieValue(refresh) }
+}
+
+type Queryable = { query: (text: string, values?: unknown[]) => Promise<{ rows: any[] }> }
+
+/**
+ * Runs `work` with a client on the disposable test database the server under
+ * test uses, through core's own `pg`.
+ */
+export const withDatabase = async <T>(work: (db: Queryable) => Promise<T>): Promise<T> => {
+  const { Client } = createRequire(join(GRADEBOOK, '../../packages/core/package.json'))('pg') as {
+    Client: new (options: {
+      connectionString: string
+    }) => Queryable & { connect(): Promise<void>; end(): Promise<void> }
+  }
+  const db = new Client({ connectionString: inject('databaseUrl') })
+  await db.connect()
+  try {
+    return await work(db)
+  } finally {
+    await db.end()
+  }
 }
 
 /** An access-token `exp` one minute in the past. */

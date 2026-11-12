@@ -73,6 +73,7 @@ import { Route as LngAdminAdminAuthedAdminUsersIdIndexRouteImport } from './rout
 import { Route as LngAdminAdminAuthedAdminUsersIdDeleteRouteImport } from './routes/$lng/_admin/admin/_authed/admin-users/$id/delete'
 import { Route as LngAdminAdminAuthedAdminUsersIdEditRouteImport } from './routes/$lng/_admin/admin/_authed/admin-users/$id/edit'
 import { Route as LngAdminAdminAuthedLtiPlatformsIdIndexRouteImport } from './routes/$lng/_admin/admin/_authed/lti-platforms/$id/index'
+import { Route as LngAdminAdminAuthedLtiPlatformsIdEditRouteImport } from './routes/$lng/_admin/admin/_authed/lti-platforms/$id/edit'
 import { Route as LngAdminAdminAuthedRolesIdIndexRouteImport } from './routes/$lng/_admin/admin/_authed/roles/$id/index'
 import { Route as LngAdminAdminAuthedRolesIdDeleteRouteImport } from './routes/$lng/_admin/admin/_authed/roles/$id/delete'
 import { Route as LngAdminAdminAuthedRolesIdEditRouteImport } from './routes/$lng/_admin/admin/_authed/roles/$id/edit'
@@ -427,6 +428,12 @@ const LngAdminAdminAuthedLtiPlatformsIdIndexRoute =
     path: '/lti-platforms/$id/',
     getParentRoute: () => LngAdminAdminAuthedRouteRoute,
   } as any)
+const LngAdminAdminAuthedLtiPlatformsIdEditRoute =
+  LngAdminAdminAuthedLtiPlatformsIdEditRouteImport.update({
+    id: '/lti-platforms/$id/edit',
+    path: '/lti-platforms/$id/edit',
+    getParentRoute: () => LngAdminAdminAuthedRouteRoute,
+  } as any)
 const LngAdminAdminAuthedRolesIdIndexRoute =
   LngAdminAdminAuthedRolesIdIndexRouteImport.update({
     id: '/roles/$id/',
@@ -534,6 +541,7 @@ export interface FileRoutesByFullPath {
   '/$lng/admin/admin-roles/$id/edit': typeof LngAdminAdminAuthedAdminRolesIdEditRoute
   '/$lng/admin/admin-users/$id/delete': typeof LngAdminAdminAuthedAdminUsersIdDeleteRoute
   '/$lng/admin/admin-users/$id/edit': typeof LngAdminAdminAuthedAdminUsersIdEditRoute
+  '/$lng/admin/lti-platforms/$id/edit': typeof LngAdminAdminAuthedLtiPlatformsIdEditRoute
   '/$lng/admin/roles/$id/delete': typeof LngAdminAdminAuthedRolesIdDeleteRoute
   '/$lng/admin/roles/$id/edit': typeof LngAdminAdminAuthedRolesIdEditRoute
   '/$lng/admin/users/$id/delete': typeof LngAdminAdminAuthedUsersIdDeleteRoute
@@ -602,6 +610,7 @@ export interface FileRoutesByTo {
   '/$lng/admin/admin-roles/$id/edit': typeof LngAdminAdminAuthedAdminRolesIdEditRoute
   '/$lng/admin/admin-users/$id/delete': typeof LngAdminAdminAuthedAdminUsersIdDeleteRoute
   '/$lng/admin/admin-users/$id/edit': typeof LngAdminAdminAuthedAdminUsersIdEditRoute
+  '/$lng/admin/lti-platforms/$id/edit': typeof LngAdminAdminAuthedLtiPlatformsIdEditRoute
   '/$lng/admin/roles/$id/delete': typeof LngAdminAdminAuthedRolesIdDeleteRoute
   '/$lng/admin/roles/$id/edit': typeof LngAdminAdminAuthedRolesIdEditRoute
   '/$lng/admin/users/$id/delete': typeof LngAdminAdminAuthedUsersIdDeleteRoute
@@ -677,6 +686,7 @@ export interface FileRoutesById {
   '/$lng/_admin/admin/_authed/admin-roles/$id/edit': typeof LngAdminAdminAuthedAdminRolesIdEditRoute
   '/$lng/_admin/admin/_authed/admin-users/$id/delete': typeof LngAdminAdminAuthedAdminUsersIdDeleteRoute
   '/$lng/_admin/admin/_authed/admin-users/$id/edit': typeof LngAdminAdminAuthedAdminUsersIdEditRoute
+  '/$lng/_admin/admin/_authed/lti-platforms/$id/edit': typeof LngAdminAdminAuthedLtiPlatformsIdEditRoute
   '/$lng/_admin/admin/_authed/roles/$id/delete': typeof LngAdminAdminAuthedRolesIdDeleteRoute
   '/$lng/_admin/admin/_authed/roles/$id/edit': typeof LngAdminAdminAuthedRolesIdEditRoute
   '/$lng/_admin/admin/_authed/users/$id/delete': typeof LngAdminAdminAuthedUsersIdDeleteRoute
@@ -749,6 +759,7 @@ export interface FileRouteTypes {
     | '/$lng/admin/admin-roles/$id/edit'
     | '/$lng/admin/admin-users/$id/delete'
     | '/$lng/admin/admin-users/$id/edit'
+    | '/$lng/admin/lti-platforms/$id/edit'
     | '/$lng/admin/roles/$id/delete'
     | '/$lng/admin/roles/$id/edit'
     | '/$lng/admin/users/$id/delete'
@@ -817,6 +828,7 @@ export interface FileRouteTypes {
     | '/$lng/admin/admin-roles/$id/edit'
     | '/$lng/admin/admin-users/$id/delete'
     | '/$lng/admin/admin-users/$id/edit'
+    | '/$lng/admin/lti-platforms/$id/edit'
     | '/$lng/admin/roles/$id/delete'
     | '/$lng/admin/roles/$id/edit'
     | '/$lng/admin/users/$id/delete'
@@ -891,6 +903,7 @@ export interface FileRouteTypes {
     | '/$lng/_admin/admin/_authed/admin-roles/$id/edit'
     | '/$lng/_admin/admin/_authed/admin-users/$id/delete'
     | '/$lng/_admin/admin/_authed/admin-users/$id/edit'
+    | '/$lng/_admin/admin/_authed/lti-platforms/$id/edit'
     | '/$lng/_admin/admin/_authed/roles/$id/delete'
     | '/$lng/_admin/admin/_authed/roles/$id/edit'
     | '/$lng/_admin/admin/_authed/users/$id/delete'
@@ -1374,6 +1387,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LngAdminAdminAuthedLtiPlatformsIdIndexRouteImport
       parentRoute: typeof LngAdminAdminAuthedRouteRoute
     }
+    '/$lng/_admin/admin/_authed/lti-platforms/$id/edit': {
+      id: '/$lng/_admin/admin/_authed/lti-platforms/$id/edit'
+      path: '/lti-platforms/$id/edit'
+      fullPath: '/$lng/admin/lti-platforms/$id/edit'
+      preLoaderRoute: typeof LngAdminAdminAuthedLtiPlatformsIdEditRouteImport
+      parentRoute: typeof LngAdminAdminAuthedRouteRoute
+    }
     '/$lng/_admin/admin/_authed/roles/$id/': {
       id: '/$lng/_admin/admin/_authed/roles/$id/'
       path: '/roles/$id'
@@ -1453,6 +1473,7 @@ interface LngAdminAdminAuthedRouteRouteChildren {
   LngAdminAdminAuthedAdminRolesIdEditRoute: typeof LngAdminAdminAuthedAdminRolesIdEditRoute
   LngAdminAdminAuthedAdminUsersIdDeleteRoute: typeof LngAdminAdminAuthedAdminUsersIdDeleteRoute
   LngAdminAdminAuthedAdminUsersIdEditRoute: typeof LngAdminAdminAuthedAdminUsersIdEditRoute
+  LngAdminAdminAuthedLtiPlatformsIdEditRoute: typeof LngAdminAdminAuthedLtiPlatformsIdEditRoute
   LngAdminAdminAuthedRolesIdDeleteRoute: typeof LngAdminAdminAuthedRolesIdDeleteRoute
   LngAdminAdminAuthedRolesIdEditRoute: typeof LngAdminAdminAuthedRolesIdEditRoute
   LngAdminAdminAuthedUsersIdDeleteRoute: typeof LngAdminAdminAuthedUsersIdDeleteRoute
@@ -1498,6 +1519,8 @@ const LngAdminAdminAuthedRouteRouteChildren: LngAdminAdminAuthedRouteRouteChildr
       LngAdminAdminAuthedAdminUsersIdDeleteRoute,
     LngAdminAdminAuthedAdminUsersIdEditRoute:
       LngAdminAdminAuthedAdminUsersIdEditRoute,
+    LngAdminAdminAuthedLtiPlatformsIdEditRoute:
+      LngAdminAdminAuthedLtiPlatformsIdEditRoute,
     LngAdminAdminAuthedRolesIdDeleteRoute:
       LngAdminAdminAuthedRolesIdDeleteRoute,
     LngAdminAdminAuthedRolesIdEditRoute: LngAdminAdminAuthedRolesIdEditRoute,

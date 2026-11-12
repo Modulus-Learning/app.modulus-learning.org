@@ -1,7 +1,7 @@
 # Editable LTI Registration Endpoints — Implementation Plan
 
 Date: 2026-11-10
-Status: In progress. Phases 1 and 2 done on 2026-11-12.
+Status: In progress. Phases 1, 2 and 3 done on 2026-11-12.
 Revised: 2026-11-12, after rebasing onto `develop`. Core and lms-canvas tests
 moved from `node:test` to vitest, so the test paths below were updated. The
 design was unaffected.
@@ -290,22 +290,22 @@ Integration (`--mode=integration`):
 
 **3.1 Types and form schema** (`modules/admin/lti-platforms/@types/index.ts`)
 
-- [ ] Add the four endpoint fields to `LtiPlatformFormState['errors']`.
-- [ ] Add `ltiPlatformEndpointsSchema`, with field-level messages matching
+- [x] Add the four endpoint fields to `LtiPlatformFormState['errors']`.
+- [x] Add `ltiPlatformEndpointsSchema`, with field-level messages matching
   core's rules (https, length, no fragment; audience non-empty). Build
   `ltiPlatformCreateSchema` as the existing schema extended with these fields,
   all required in the form. Add `ltiPlatformEditSchema` with `id`, `name`,
   `client_id` and the four endpoints, and no `issuer`.
-- [ ] Tighten the host `issuer` rule to match `issuerSchema`. Core remains the
+- [x] Tighten the host `issuer` rule to match `issuerSchema`. Core remains the
   authority.
 
 **3.2 Server functions**
 
-- [ ] `suggest-endpoints.ts` / `suggest-endpoints.server.ts`: a POST form action
+- [x] `suggest-endpoints.ts` / `suggest-endpoints.server.ts`: a POST form action
   with `adminSessionMiddleware` first, like `generate-canvas-config.ts`. It
   returns `{ ok: true, endpoints }` or `{ ok: false, message }`. Map core's
   validation error to "Enter a valid https issuer first."
-- [ ] `update.ts` / `update.server.ts`: a copy of the `create.ts` envelope with
+- [x] `update.ts` / `update.server.ts`: a copy of the `create.ts` envelope with
   `adminSessionMiddleware` as the only middleware. The `.server.ts` file
   validates with `ltiPlatformEditSchema` and calls
   `core.admin.ltiPlatforms.updateLtiPlatform`. On success it sets the flash
@@ -313,40 +313,40 @@ Integration (`--mode=integration`):
   and redirects to `/admin/lti-platforms/<id>`. It maps `ERR_NOT_FOUND` and
   `ERR_FORBIDDEN` to specific messages, and anything else to "Failed to update
   LTI platform."
-- [ ] `create.server.ts`: read and pass the four endpoint fields. Redirect as
+- [x] `create.server.ts`: read and pass the four endpoint fields. Redirect as
   before.
-- [ ] Run `server-fn-convention.test.node.ts`. It walks the modules directory,
+- [x] Run `server-fn-convention.test.node.ts`. It walks the modules directory,
   so both new files are covered without editing the test.
 
 **3.3 Components**
 
-- [ ] Extract `components/endpoint-fields.tsx`: the "Endpoints" fieldset with
+- [x] Extract `components/endpoint-fields.tsx`: the "Endpoints" fieldset with
   four `Input`s, each with label, help text and error wiring through
   react-hook-form's `register`. The help text names where each value comes
   from and links to Instructure's LTI launch overview for Canvas.
-- [ ] `create-form.tsx`: render the fieldset below Client ID. Add a "Fill
+- [x] `create-form.tsx`: render the fieldset below Client ID. Add a "Fill
   defaults from issuer" button. It reads the issuer with `getValues`, calls
   `suggestLtiPlatformEndpoints`, and calls `setValue` only on fields whose
   current value is empty. Rewrite instruction step 4 to name the hosted-Canvas
   issuer (`https://canvas.instructure.com`, or the beta or test equivalent), not
   the institution's URL.
-- [ ] `components/edit-form.tsx`: prefilled from the loader data, with a hidden
+- [x] `components/edit-form.tsx`: prefilled from the loader data, with a hidden
   `id`, the issuer shown in a read-only `Input`, editable name and client ID,
   and the shared fieldset. "Fill defaults from issuer" first shows an inline
   confirmation strip ("Replace all four endpoints with the adapter's
   defaults?" with Replace and Cancel buttons) and replaces all four on
   confirm. No `window.confirm`.
-- [ ] `details-view.tsx`: read `useAdminSession()`. When
+- [x] `details-view.tsx`: read `useAdminSession()`. When
   `session?.abilities.includes('lti-platforms:edit')`, render an Edit button
   linking to `/admin/lti-platforms/<id>/edit` beside Close.
 
 **3.4 Routes**
 
-- [ ] `packages/host-tanstack-start/src/routes/$lng/_admin/admin/_authed/lti-platforms/$id/edit.route.tsx`
+- [x] `packages/host-tanstack-start/src/routes/$lng/_admin/admin/_authed/lti-platforms/$id/edit.route.tsx`
   and `edit.page.tsx`, copied from the admin-roles edit pair. The loader calls
   `getLtiPlatform` and throws `notFound()` on null. The breadcrumbs are LTI
   Platforms → the platform → Edit.
-- [ ] `apps/gradebook/src/routes/$lng/_admin/admin/_authed/lti-platforms/$id/edit.tsx`,
+- [x] `apps/gradebook/src/routes/$lng/_admin/admin/_authed/lti-platforms/$id/edit.tsx`,
   matching its siblings:
 
   ```ts
@@ -355,36 +355,37 @@ Integration (`--mode=integration`):
   export const Route = createRoute('/$lng/_admin/admin/_authed/lti-platforms/$id/edit')
   ```
 
-- [ ] Regenerate `apps/gradebook/src/routeTree.gen.ts` by running the
+- [x] Regenerate `apps/gradebook/src/routeTree.gen.ts` by running the
   gradebook build or dev server, and commit it.
-- [ ] Add the new route to `fixtures/host-minimal` only if that fixture mirrors
+- [x] Add the new route to `fixtures/host-minimal` only if that fixture mirrors
   every admin route. Check what it does for the admin-roles edit route.
+  It doesn't: the fixture has only the admin sign-in route, so no change.
 
 **3.5 Host and gradebook tests** (vitest)
 
-- [ ] `components/create-form.test.tsx` (jsdom): with the suggestion server
+- [x] `components/create-form.test.tsx` (jsdom): with the suggestion server
   function mocked, typing a token endpoint and pressing the button fills the
   other three and keeps the typed one.
-- [ ] `components/edit-form.test.tsx` (jsdom): the issuer input is read-only.
+- [x] `components/edit-form.test.tsx` (jsdom): the issuer input is read-only.
   Submitting sends `id`, name, client ID and all four endpoints, and no
   `issuer`. The defaults button replaces values only after the inline
   confirmation.
-- [ ] `update.test.node.ts` (or beside the existing action tests): a stubbed
+- [x] `update.test.node.ts` (or beside the existing action tests): a stubbed
   core maps `ERR_FORBIDDEN`, `ERR_NOT_FOUND` and validation failure to their
   form states, and a successful update redirects to the details page.
-- [ ] `details-view` test: the Edit button renders only with
+- [x] `details-view` test: the Edit button renders only with
   `lti-platforms:edit`.
 
 **3.6 Session HTTP suite** (`apps/gradebook/src/session-http/`)
 
-- [ ] New `lti-platforms.session.ts`, or a case in `lti.session.ts`. Update the
+- [x] New `lti-platforms.session.ts`, or a case in `lti.session.ts`. Update the
   seeded platform's `authorization_endpoint` through SQL (or the core command,
   if the suite already builds core), then start an OIDC login and assert the
   redirect goes to the new endpoint. Restore the value afterwards, or reseed,
   so other suites aren't affected.
-- [ ] `callFormFn('updateLtiPlatformFn', …)` with no cookie returns a non-200
+- [x] `callFormFn('updateLtiPlatformFn', …)` with no cookie returns a non-200
   status. This guards the `8087512` fix for this function.
-- [ ] The same call with `adminToken()` returns a failed form state, because
+- [x] The same call with `adminToken()` returns a failed form state, because
   `ADMIN_ABILITIES` lacks `lti-platforms:edit`. A direct SQL read shows the row
   unchanged. See Finding 5.
 
