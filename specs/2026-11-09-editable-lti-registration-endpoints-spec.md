@@ -380,7 +380,7 @@ gains one thin route file that calls the new factory.
 
 ## Tests
 
-Core (`node:test`):
+Core unit tests (vitest `--mode=node`, `*.test.node.ts`):
 
 - `createLtiPlatform` stores supplied endpoints as given, and fills each omitted
   field separately from the adapter.
@@ -391,13 +391,14 @@ Core (`node:test`):
   without `lti-platforms:edit`.
 - `suggestLtiPlatformEndpoints` returns the adapter's values.
 - Login uses the updated `authorization_endpoint` on the next call.
-- Launch verification rebuilds the key set after `jwks_uri` changes. Extend the
-  existing JWKS-binding test.
-- Score submission: `manager.itest.ts` already updates a row and expects
-  `forgetRegistration`. Add a case that changes only `authorization_server`,
-  and check that the new token request signs with the new `aud`.
+- Launch verification rebuilds the key set after `jwks_uri` changes. The
+  existing test in `launch-characterisation.test.node.ts` ("uses a corrected
+  jwks_uri on the next launch, without a restart") already covers this.
+- The access-token manager signs the next token request with the new `aud`
+  after only `authorization_server` changes and the registration is forgotten
+  (`access-tokens.test.node.ts`).
 
-LMS Canvas (`node:test`):
+LMS Canvas (vitest `--mode=node`, a new `registration.test.node.ts`):
 
 - Each hosted issuer, with and without a trailing slash, maps to its `sso.*`
   authorization endpoint.
@@ -409,10 +410,15 @@ Host and gradebook (vitest):
 - The edit form renders the issuer read-only and submits all four endpoints.
 - The server-function gate convention test covers `update.ts`.
 
-Core integration (`*.itest.ts`):
+Core integration (vitest `--mode=integration`, `src/**/tests/**/*.test.ts`):
 
-- The ability release script grants the new abilities to `manager` once, and
+- The ability release script grants the four abilities to `manager` once, and
   inserts nothing when run a second time.
+- Score submission: `score-submission/tests/manager.test.ts` already updates a
+  row and expects `forgetRegistration`. Add a case that changes only
+  `authorization_server` and expects the registration to be forgotten and a
+  replacement client to start. That test stubs the access-token manager, so
+  the signed `aud` is checked in the unit test above.
 
 Session HTTP suite:
 

@@ -2,6 +2,9 @@
 
 Date: 2026-11-10
 Status: Proposed. Not started.
+Revised: 2026-11-12, after rebasing onto `develop`. Core and lms-canvas tests
+moved from `node:test` to vitest, so the test paths below were updated. The
+design was unaffected.
 Related:
 
 - `specs/2026-11-09-editable-lti-registration-endpoints-spec.md` — the approved
@@ -102,15 +105,16 @@ or changes a task below.
    convention. **Decision (2026-11-10):** converting forbidden results into
    HTTP 403 is out of scope. It will be considered, or rejected, separately.
 6. **The JWKS rebind test already exists.**
-   `launch-characterisation.test.ts:228` ("uses a corrected jwks_uri on the next
+   `launch-characterisation.test.node.ts:228` ("uses a corrected jwks_uri on the next
    launch, without a restart") covers the launch row of the propagation table.
    No new test is needed, only a reference to it from the plan's checklist.
-7. **The new `aud` check belongs in `access-tokens.test.ts`, not the manager
-   test.** `manager.itest.ts` stubs the access-token manager, so it can't see a
-   signed assertion. Put the reconciliation case (only `authorization_server`
-   changes, so expect `forgetRegistration` and a replacement client) in
-   `manager.itest.ts`. Put the signing case (the next token request's assertion
-   carries the new `aud`) beside `access-tokens.test.ts:86` and `:145`.
+7. **The new `aud` check belongs in `access-tokens.test.node.ts`, not the
+   manager test.** `score-submission/tests/manager.test.ts` stubs the
+   access-token manager, so it can't see a signed assertion. Put the
+   reconciliation case (only `authorization_server` changes, so expect
+   `forgetRegistration` and a replacement client) in `manager.test.ts`. Put
+   the signing case (the next token request's assertion carries the new `aud`)
+   beside `access-tokens.test.node.ts:86` and `:145`.
 8. **`lti_platforms` has no `vid` column**, unlike `admin_roles`. Two
    administrators editing the same registration: the last save wins. The spec
    rules out a schema migration, so this plan accepts that and records it in
@@ -123,7 +127,7 @@ or changes a task below.
    (2026-11-10):** `issuerSchema` rejects an issuer whose raw string ends in
    `/`.
 10. **`packages/lms-canvas` has no registration test yet.** Create
-    `src/registration.test.ts`.
+    `src/registration.test.node.ts`.
 11. **Branch name.** The spec names `feat/editable-lti-registration-endpoints`.
     The work is already on `feat/editable-platform-endpoints`, which holds the
     staged spec. Keep the current branch and correct the spec's Delivery
@@ -214,13 +218,17 @@ and gets its own commit.
 
   `vid`, `created_at` and `updated_at` take their column defaults.
 - [ ] Run `pnpm -F @modulus-learning/core schema:manifest` and commit the
-  regenerated `manifest.gen.ts`. `manifest.test.ts` fails otherwise.
+  regenerated `manifest.gen.ts`. `manifest.test.node.ts` fails otherwise.
 - [ ] Check that `scripts/copy-sql.mjs` copies the new file into `dist`, so
   that the packed-install job's `modulus db upgrade` applies it.
 
-**1.6 Core tests** (`node:test`)
+**1.6 Core tests**
 
-In `services/lti-platforms.test.ts`, extending the characterisation file's
+Unit tests run under vitest `--mode=node` and are named `*.test.node.ts`.
+Integration tests run under `--mode=integration` and live in a `tests/`
+directory as `*.test.ts` (`src/**/tests/**/*.test.ts`).
+
+In `services/lti-platforms.test.node.ts`, extending the characterisation file's
 `createService` stub with `updatePlatform`:
 
 - [ ] Supplied endpoints are stored exactly as given.
@@ -234,7 +242,7 @@ In `services/lti-platforms.test.ts`, extending the characterisation file's
 - [ ] `updateLtiPlatform` propagates `ERR_NOT_FOUND` from the repository.
 - [ ] `suggestLtiPlatformEndpoints` returns the synthetic adapter's values.
 
-Schema and command behaviour, in a new `schemas.test.ts` or through
+Schema and command behaviour, in a new `schemas.test.node.ts` or through
 `createCommand` with a test `CoreUtils`, following an existing command test:
 
 - [ ] The create schema rejects `http:` issuers, issuers with `?…` or `#…`, an
@@ -246,10 +254,10 @@ Schema and command behaviour, in a new `schemas.test.ts` or through
 - [ ] `updateLtiPlatform` without `lti-platforms:edit` returns `ERR_FORBIDDEN`
   and doesn't call the service.
 
-Integration (`*.itest.ts`):
+Integration (`--mode=integration`):
 
-- [ ] Add `packages/core/src/database/sql/grant-manager-abilities.itest.ts`,
-  or the directory the test docs prefer. It inserts a `manager` admin role
+- [ ] Add `packages/core/src/database/schema-scripts/tests/grant-manager-abilities.test.ts`.
+  Keep it out of `sql/`, which holds only the shipped scripts. It inserts a `manager` admin role
   that already holds one of the four abilities, reads the script with
   `readReleaseScripts()`, runs it twice on the harness pool, and asserts that
   each of the four abilities exists exactly once. A second role
@@ -257,21 +265,23 @@ Integration (`*.itest.ts`):
   the script without error.
 - [ ] `updatePlatform` against PostgreSQL: it updates the row, keeps the
   issuer, and throws `ERR_NOT_FOUND` for an unknown id. Add this to an existing
-  lti-platforms or LTI itest if one fits. Otherwise create
-  `modules/admin/lti-platforms/repository.itest.ts`.
+  integration test if one fits. Otherwise create
+  `modules/admin/lti-platforms/tests/repository.test.ts`. The repository is a
+  single `repository.ts`, not a `repository/` directory, so its test sits in
+  the module's own `tests/`.
 
 ### Phase 2 — Propagation Tests
 
-- [ ] **Login** (`services/login.test.ts`): the platform stub returns record A,
+- [ ] **Login** (`services/login.test.node.ts`): the platform stub returns record A,
   then record B with a different `authorization_endpoint`. Two successive
   logins redirect to A's then B's endpoint.
-- [ ] **Launch**: already covered by `launch-characterisation.test.ts:228`.
+- [ ] **Launch**: already covered by `launch-characterisation.test.node.ts:228`.
   Record it in the PR description and leave the file alone.
-- [ ] **Score reconciliation** (`score-submission/manager.itest.ts`): add a
+- [ ] **Score reconciliation** (`score-submission/tests/manager.test.ts`): add a
   case beside the existing "corrected token endpoint" case that updates only
   `authorization_server`. Expect `forgotten` to contain the id and a
   replacement client to start.
-- [ ] **Token audience** (`services/access-tokens.test.ts`): for the same
+- [ ] **Token audience** (`services/access-tokens.test.node.ts`): for the same
   platform id, fetch a token, change only `authorization_server`, call
   `forgetRegistration`, and fetch again. Decode the second request's
   `client_assertion` and assert its `aud` is the new value.
@@ -387,7 +397,7 @@ Integration (`*.itest.ts`):
   describes: the hosted-issuer table, the self-hosted fallback, the link to
   Instructure's launch overview, and a note that token, JWKS and audience stay
   on the issuer host pending verification.
-- [ ] `packages/lms-canvas/src/registration.test.ts`:
+- [ ] `packages/lms-canvas/src/registration.test.node.ts` (vitest `--mode=node`):
   - [ ] Each of the three hosted issuers, with and without a trailing slash,
     maps to its `sso.*` authorization endpoint, and keeps issuer-relative token,
     JWKS and audience values.
