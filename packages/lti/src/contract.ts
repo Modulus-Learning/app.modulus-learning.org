@@ -52,7 +52,7 @@ export type LaunchInterpretation = {
   cutoffFallback?: unknown
 }
 
-/** Endpoints an LMS registration needs, derived from its issuer. */
+/** Default endpoints an LMS adapter suggests for an issuer; an administrator may override each. */
 export type RegistrationEndpoints = {
   authorization_endpoint: string
   token_endpoint: string
@@ -130,7 +130,7 @@ export interface LmsAdapter {
    */
   deepLinkCustomFields(): Record<string, string>
 
-  /** The endpoints a registration for `issuer` uses. */
+  /** Suggested endpoints for a registration with `issuer`; core stores what the administrator confirms. */
   registrationEndpoints(issuer: string): RegistrationEndpoints
 
   /** The LMS-side registration configuration, as JSON (capability `registrationConfig`). */

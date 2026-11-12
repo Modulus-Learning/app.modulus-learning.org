@@ -1,16 +1,51 @@
 import type { RegistrationConfigInput, RegistrationEndpoints } from '@modulus-learning/lti'
 
 /**
- * Canvas registration: the standard Canvas endpoints for an issuer, and the
+ * Canvas registration: the default Canvas endpoints for an issuer, and the
  * developer-key configuration an administrator pastes into Canvas.
  */
 
-export const canvasRegistrationEndpoints = (issuer: string): RegistrationEndpoints => ({
-  authorization_endpoint: new URL('/api/lti/authorize_redirect', issuer).href,
-  authorization_server: new URL('/login/oauth2/token', issuer).href,
-  token_endpoint: new URL('/login/oauth2/token', issuer).href,
-  jwks_uri: new URL('/api/lti/security/jwks', issuer).href,
-})
+/**
+ * The authorization host Instructure documents for each hosted-Canvas issuer.
+ * Every institution on Instructure-hosted Canvas shares one of these issuers.
+ */
+const HOSTED_CANVAS_SSO: Record<string, string> = {
+  'https://canvas.instructure.com': 'https://sso.canvaslms.com',
+  'https://canvas.beta.instructure.com': 'https://sso.beta.canvaslms.com',
+  'https://canvas.test.instructure.com': 'https://sso.test.canvaslms.com',
+}
+
+/**
+ * Default endpoints for a Canvas registration with `issuer`. An administrator
+ * confirms or overrides each one; core stores what they confirm.
+ *
+ * | Environment | Issuer                                | Authorization endpoint                                      |
+ * |-------------|---------------------------------------|-------------------------------------------------------------|
+ * | Production  | `https://canvas.instructure.com`      | `https://sso.canvaslms.com/api/lti/authorize_redirect`      |
+ * | Beta        | `https://canvas.beta.instructure.com` | `https://sso.beta.canvaslms.com/api/lti/authorize_redirect` |
+ * | Test        | `https://canvas.test.instructure.com` | `https://sso.test.canvaslms.com/api/lti/authorize_redirect` |
+ *
+ * Self-hosted Canvas sets the issuer to its own host, so every endpoint stays
+ * relative to the issuer.
+ *
+ * The token endpoint, JWKS URI and authorization server (the token `aud`)
+ * stay on the issuer host for hosted Canvas too, pending verification against
+ * Canvas test. Instructure documents only the authorization host move.
+ *
+ * @see https://developerdocs.instructure.com/services/canvas/external-tools/lti/file.lti_launch_overview
+ */
+export const canvasRegistrationEndpoints = (issuer: string): RegistrationEndpoints => {
+  const origin = new URL(issuer).origin
+  return {
+    authorization_endpoint: new URL(
+      '/api/lti/authorize_redirect',
+      HOSTED_CANVAS_SSO[origin] ?? issuer
+    ).href,
+    authorization_server: new URL('/login/oauth2/token', issuer).href,
+    token_endpoint: new URL('/login/oauth2/token', issuer).href,
+    jwks_uri: new URL('/api/lti/security/jwks', issuer).href,
+  }
+}
 
 export const canvasRegistrationConfig = (input: RegistrationConfigInput): string => {
   const {

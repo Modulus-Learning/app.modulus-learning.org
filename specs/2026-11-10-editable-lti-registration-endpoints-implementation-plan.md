@@ -1,7 +1,7 @@
 # Editable LTI Registration Endpoints — Implementation Plan
 
 Date: 2026-11-10
-Status: In progress. Phases 1, 2 and 3 done on 2026-11-12.
+Status: In progress. Phases 1, 2, 3 and 4 done on 2026-11-12.
 Revised: 2026-11-12, after rebasing onto `develop`. Core and lms-canvas tests
 moved from `node:test` to vitest, so the test paths below were updated. The
 design was unaffected.
@@ -391,20 +391,20 @@ Integration (`--mode=integration`):
 
 ### Phase 4 — Canvas Defaults
 
-- [ ] `packages/lms-canvas/src/registration.ts`: add `HOSTED_CANVAS_SSO`.
+- [x] `packages/lms-canvas/src/registration.ts`: add `HOSTED_CANVAS_SSO`.
   Compute `origin = new URL(issuer).origin`, and set
   `authorization_endpoint` to `new URL('/api/lti/authorize_redirect', HOSTED_CANVAS_SSO[origin] ?? issuer).href`.
   Leave the other three issuer-relative. Add the doc comment the spec
   describes: the hosted-issuer table, the self-hosted fallback, the link to
   Instructure's launch overview, and a note that token, JWKS and audience stay
   on the issuer host pending verification.
-- [ ] `packages/lms-canvas/src/registration.test.node.ts` (vitest `--mode=node`):
-  - [ ] Each of the three hosted issuers, with and without a trailing slash,
+- [x] `packages/lms-canvas/src/registration.test.node.ts` (vitest `--mode=node`):
+  - [x] Each of the three hosted issuers, with and without a trailing slash,
     maps to its `sso.*` authorization endpoint, and keeps issuer-relative token,
     JWKS and audience values.
-  - [ ] A self-hosted issuer (`https://canvas.example.edu`) keeps all four
+  - [x] A self-hosted issuer (`https://canvas.example.edu`) keeps all four
     issuer-relative.
-- [ ] `packages/lti/src/contract.ts`: replace the two doc comments with the
+- [x] `packages/lti/src/contract.ts`: replace the two doc comments with the
   spec's wording. `LMS_CONTRACT_VERSION` stays at 1.
 
 ### Phase 5 — Documentation and Release Notes
