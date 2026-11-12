@@ -1,7 +1,7 @@
 # Editable LTI Registration Endpoints — Implementation Plan
 
 Date: 2026-11-10
-Status: Proposed. Not started.
+Status: In progress. Phase 1 done on 2026-11-12.
 Revised: 2026-11-12, after rebasing onto `develop`. Core and lms-canvas tests
 moved from `node:test` to vitest, so the test paths below were updated. The
 design was unaffected.
@@ -143,28 +143,28 @@ and gets its own commit.
 
 **1.1 Validation schemas** (`packages/core/src/modules/admin/lti-platforms/schemas.ts`)
 
-- [ ] Add `issuerSchema`: `z.string().trim().max(255)`, refined to an absolute
+- [x] Add `issuerSchema`: `z.string().trim().max(255)`, refined to an absolute
   URL with `protocol === 'https:'`, an empty `search` and an empty `hash`.
   Check the raw string for `?` and `#` as well, because `new URL` drops an
   empty `?` or `#`. Reject a raw string that ends in `/`, with the message
   "Remove the trailing slash; the platform's iss claim has none." (Finding 9).
   Export it.
-- [ ] Add `endpointUrlSchema`: trimmed, at most 2048 characters, absolute
+- [x] Add `endpointUrlSchema`: trimmed, at most 2048 characters, absolute
   `https:`, no fragment, query allowed.
-- [ ] Add `audienceSchema`: trimmed, non-empty, at most 2048 characters, no URL
+- [x] Add `audienceSchema`: trimmed, non-empty, at most 2048 characters, no URL
   requirement.
-- [ ] Give every refinement a message the host can show as-is
+- [x] Give every refinement a message the host can show as-is
   ("Issuer must be an https URL without a query or fragment.").
-- [ ] Extend `createLtiPlatformRequestSchema` with the four optional fields,
+- [x] Extend `createLtiPlatformRequestSchema` with the four optional fields,
   and change `issuer` to `issuerSchema`.
-- [ ] Add `updateLtiPlatformRequestSchema` (all fields required, no `issuer`),
+- [x] Add `updateLtiPlatformRequestSchema` (all fields required, no `issuer`),
   `suggestLtiPlatformEndpointsRequestSchema` (`{ issuer: issuerSchema }`) and
   `suggestLtiPlatformEndpointsResponseSchema` (the four strings). Export the
   inferred types.
 
 **1.2 Repository** (`repository.ts`)
 
-- [ ] Add `LtiPlatformMutations.updatePlatform(id, data)`, taking
+- [x] Add `LtiPlatformMutations.updatePlatform(id, data)`, taking
   `Pick<LtiPlatformInsert, 'name' | 'client_id' | 'authorization_endpoint' | 'token_endpoint' | 'jwks_uri' | 'authorization_server'>`.
   Use `update(...).set(data).where(eq(platforms.id, id)).returning()`. Throw
   `ERR_NOT_FOUND` when no row is returned. The type has no `issuer`, so the
@@ -172,31 +172,31 @@ and gets its own commit.
 
 **1.3 Service** (`services/lti-platforms.ts`)
 
-- [ ] `createLtiPlatform`: compute `defaults = this.lms.registrationEndpoints(issuer)`
+- [x] `createLtiPlatform`: compute `defaults = this.lms.registrationEndpoints(issuer)`
   once. For each of the four fields, use `request.<field> ?? defaults.<field>`.
   Remove the spread, so a supplied value is never overwritten.
-- [ ] `updateLtiPlatform(auth, request)`: destructure `id` and pass the rest to
+- [x] `updateLtiPlatform(auth, request)`: destructure `id` and pass the rest to
   `updatePlatform`. Return `{ platform: toPlatform(record) }`. Make no adapter
   call.
-- [ ] `suggestLtiPlatformEndpoints(auth, { issuer })`: return
+- [x] `suggestLtiPlatformEndpoints(auth, { issuer })`: return
   `this.lms.registrationEndpoints(issuer)`.
 
 **1.4 Commands** (`commands.ts`)
 
-- [ ] `updateLtiPlatform`: admin mode, `abilities: ['lti-platforms:edit']`,
+- [x] `updateLtiPlatform`: admin mode, `abilities: ['lti-platforms:edit']`,
   input `updateLtiPlatformRequestSchema`, output `ltiPlatformResponseSchema`.
-- [ ] `suggestLtiPlatformEndpoints`: admin mode,
+- [x] `suggestLtiPlatformEndpoints`: admin mode,
   `abilities: ['lti-platforms:create']`.
-- [ ] Confirm the commands facade picks both up without registry changes. The
+- [x] Confirm the commands facade picks both up without registry changes. The
   compile-time DI check in `packages/core/src/core.ts` will fail the typecheck
   if it doesn't.
 
 **1.5 Abilities**
 
-- [ ] `reference-data.ts`: add `'lti-platforms:read'` and
+- [x] `reference-data.ts`: add `'lti-platforms:read'` and
   `'lti-platforms:edit'` to the Manager role, beside the existing two.
-- [ ] Add `packages/core/src/database/sql/2026-11-10-001-grant-manager-abilities.sql`
-  (rename to the actual commit date). Give it the header of
+- [x] Add `packages/core/src/database/sql/2026-11-12-001-grant-manager-abilities.sql`.
+  Give it the header of
   `2026-10-28-001-rename-manager-admin-role.sql` ("Data only; no Drizzle
   migration", "Safe to re-run"). The header must say that it brings an
   existing Manager role up to the reference data for four abilities:
@@ -217,9 +217,9 @@ and gets its own commit.
   ```
 
   `vid`, `created_at` and `updated_at` take their column defaults.
-- [ ] Run `pnpm -F @modulus-learning/core schema:manifest` and commit the
+- [x] Run `pnpm -F @modulus-learning/core schema:manifest` and commit the
   regenerated `manifest.gen.ts`. `manifest.test.node.ts` fails otherwise.
-- [ ] Check that `scripts/copy-sql.mjs` copies the new file into `dist`, so
+- [x] Check that `scripts/copy-sql.mjs` copies the new file into `dist`, so
   that the packed-install job's `modulus db upgrade` applies it.
 
 **1.6 Core tests**
@@ -231,39 +231,39 @@ directory as `*.test.ts` (`src/**/tests/**/*.test.ts`).
 In `services/lti-platforms.test.node.ts`, extending the characterisation file's
 `createService` stub with `updatePlatform`:
 
-- [ ] Supplied endpoints are stored exactly as given.
-- [ ] Each omitted field is filled separately. Supply two fields, and assert
+- [x] Supplied endpoints are stored exactly as given.
+- [x] Each omitted field is filled separately. Supply two fields, and assert
   that the other two come from the adapter.
-- [ ] The existing "derives the Canvas endpoints" case still passes unchanged.
+- [x] The existing "derives the Canvas endpoints" case still passes unchanged.
   Its issuer isn't a hosted one.
-- [ ] `updateLtiPlatform` passes only the six permitted fields to the
+- [x] `updateLtiPlatform` passes only the six permitted fields to the
   repository. A request object carrying `issuer` reaches the repository
   without it, which proves the command schema strips it.
-- [ ] `updateLtiPlatform` propagates `ERR_NOT_FOUND` from the repository.
-- [ ] `suggestLtiPlatformEndpoints` returns the synthetic adapter's values.
+- [x] `updateLtiPlatform` propagates `ERR_NOT_FOUND` from the repository.
+- [x] `suggestLtiPlatformEndpoints` returns the synthetic adapter's values.
 
 Schema and command behaviour, in a new `schemas.test.node.ts` or through
 `createCommand` with a test `CoreUtils`, following an existing command test:
 
-- [ ] The create schema rejects `http:` issuers, issuers with `?…` or `#…`, an
+- [x] The create schema rejects `http:` issuers, issuers with `?…` or `#…`, an
   issuer with a trailing slash (both `https://canvas.instructure.com/` and
   `https://lms.example.edu/lti/`), an issuer over 255 characters, and an `http:`
   endpoint.
-- [ ] The endpoint schema accepts a query and rejects a fragment.
-- [ ] The audience schema accepts a bare host name.
-- [ ] `updateLtiPlatform` without `lti-platforms:edit` returns `ERR_FORBIDDEN`
+- [x] The endpoint schema accepts a query and rejects a fragment.
+- [x] The audience schema accepts a bare host name.
+- [x] `updateLtiPlatform` without `lti-platforms:edit` returns `ERR_FORBIDDEN`
   and doesn't call the service.
 
 Integration (`--mode=integration`):
 
-- [ ] Add `packages/core/src/database/schema-scripts/tests/grant-manager-abilities.test.ts`.
+- [x] Add `packages/core/src/database/schema-scripts/tests/grant-manager-abilities.test.ts`.
   Keep it out of `sql/`, which holds only the shipped scripts. It inserts a `manager` admin role
   that already holds one of the four abilities, reads the script with
   `readReleaseScripts()`, runs it twice on the harness pool, and asserts that
   each of the four abilities exists exactly once. A second role
   (`user`) must gain nothing. A database with no `manager` role must accept
   the script without error.
-- [ ] `updatePlatform` against PostgreSQL: it updates the row, keeps the
+- [x] `updatePlatform` against PostgreSQL: it updates the row, keeps the
   issuer, and throws `ERR_NOT_FOUND` for an unknown id. Add this to an existing
   integration test if one fits. Otherwise create
   `modules/admin/lti-platforms/tests/repository.test.ts`. The repository is a

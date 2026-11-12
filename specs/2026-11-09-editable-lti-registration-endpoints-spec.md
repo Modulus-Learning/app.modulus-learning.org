@@ -2,7 +2,7 @@
 
 Date: 2026-11-09
 
-Status: Proposed. Not yet scheduled.
+Status: In progress. Phase 1 (core) landed on 2026-11-12.
 
 Document type: Explanation and implementation specification.
 
