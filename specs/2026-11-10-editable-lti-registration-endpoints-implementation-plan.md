@@ -1,7 +1,7 @@
 # Editable LTI Registration Endpoints — Implementation Plan
 
 Date: 2026-11-10
-Status: In progress. Phase 1 done on 2026-11-12.
+Status: In progress. Phases 1 and 2 done on 2026-11-12.
 Revised: 2026-11-12, after rebasing onto `develop`. Core and lms-canvas tests
 moved from `node:test` to vitest, so the test paths below were updated. The
 design was unaffected.
@@ -272,16 +272,16 @@ Integration (`--mode=integration`):
 
 ### Phase 2 — Propagation Tests
 
-- [ ] **Login** (`services/login.test.node.ts`): the platform stub returns record A,
+- [x] **Login** (`services/login.test.node.ts`): the platform stub returns record A,
   then record B with a different `authorization_endpoint`. Two successive
   logins redirect to A's then B's endpoint.
-- [ ] **Launch**: already covered by `launch-characterisation.test.node.ts:228`.
+- [x] **Launch**: already covered by `launch-characterisation.test.node.ts:228`.
   Record it in the PR description and leave the file alone.
-- [ ] **Score reconciliation** (`score-submission/tests/manager.test.ts`): add a
+- [x] **Score reconciliation** (`score-submission/tests/manager.test.ts`): add a
   case beside the existing "corrected token endpoint" case that updates only
   `authorization_server`. Expect `forgotten` to contain the id and a
   replacement client to start.
-- [ ] **Token audience** (`services/access-tokens.test.node.ts`): for the same
+- [x] **Token audience** (`services/access-tokens.test.node.ts`): for the same
   platform id, fetch a token, change only `authorization_server`, call
   `forgetRegistration`, and fetch again. Decode the second request's
   `client_assertion` and assert its `aud` is the new value.
