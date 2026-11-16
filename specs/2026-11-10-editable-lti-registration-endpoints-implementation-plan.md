@@ -1,7 +1,8 @@
 # Editable LTI Registration Endpoints — Implementation Plan
 
 Date: 2026-11-10
-Status: In progress. Phases 1 to 5 done on 2026-11-12; verification remains.
+Status: Done, apart from the optional Canvas test launch. Phases 1 to 5 done
+on 2026-11-12; verification done on 2026-11-16.
 Revised: 2026-11-12, after rebasing onto `develop`. Core and lms-canvas tests
 moved from `node:test` to vitest, so the test paths below were updated. The
 design was unaffected.
@@ -447,21 +448,29 @@ Follow `.agents/skills/writing-docs/SKILL.md` for every file under `docs/`.
 
 Before opening the PR against `develop`:
 
-- [ ] `pnpm run ci` passes. It covers lint, typecheck, unit tests, core
+- [x] `pnpm run ci` passes. It covers lint, typecheck, unit tests, core
   integration tests including the release-script test, the session HTTP suite
-  and the package checks.
-- [ ] `pnpm test:packed` with `FIXTURE_DATABASE_URL` set, which proves that
-  the packed core applies the new release script.
-- [ ] Manual check on `pnpm dev` against a seeded database:
-  - [ ] register a platform with the defaults button;
-  - [ ] edit it;
-  - [ ] confirm the details page reflects the change;
-  - [ ] confirm that a Manager signed in before the upgrade sees the Edit
+  and the package checks. Passed on 2026-11-12.
+- [x] `pnpm test:packed` with `FIXTURE_DATABASE_URL` set. `modulus db init`
+  records every shipped script as applied without running it, so this proves
+  that the packed core ships the new script in its manifest and starts against
+  a fresh database, not that the script runs. The script's behaviour is covered
+  by `grant-manager-abilities.test.ts` in the core integration suite. Passed.
+- [x] Manual check on `pnpm dev` against a seeded database. The dev database
+  had no script ledger, so it was adopted with `modulus db adopt --through
+  2026-10-28-001-rename-manager-admin-role.sql`, and the grant script was then
+  applied with `modulus db upgrade`, the path a real installation takes.
+  - [x] register a platform with the defaults button;
+  - [x] edit it;
+  - [x] confirm the details page reflects the change;
+  - [x] confirm that a Manager signed in before the upgrade sees the Edit
     button after signing in again.
 - [ ] Manual LTI check with `devlti` against Canvas test, if available: after
   switching the authorization endpoint to `sso.test.canvaslms.com`, a launch
   completes. This is not the separate token, JWKS and audience verification
-  the spec defers.
+  the spec defers. Not done: a launch against Canvas test wasn't possible.
+  The `sso.*` authorization defaults therefore rest on Instructure's
+  documentation and remain unverified by a live launch.
 
 ## Decisions — 2026-11-10
 

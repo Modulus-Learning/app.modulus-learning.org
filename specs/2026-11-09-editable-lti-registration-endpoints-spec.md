@@ -2,8 +2,9 @@
 
 Date: 2026-11-09
 
-Status: In progress. Implementation, docs and changeset landed on 2026-11-12;
-verification remains.
+Status: Implemented. Code, docs and changeset landed on 2026-11-12, and
+verification passed on 2026-11-16 apart from a live launch against Canvas test
+with the `sso.test.canvaslms.com` authorization endpoint, which wasn't possible.
 
 Document type: Explanation and implementation specification.
 
