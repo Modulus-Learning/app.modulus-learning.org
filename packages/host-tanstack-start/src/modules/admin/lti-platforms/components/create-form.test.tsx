@@ -26,11 +26,11 @@ import { LtiPlatformCreateForm } from './create-form'
 const ISSUER = 'https://canvas.test.instructure.com'
 const SUGGESTED = {
   authorization_endpoint: 'https://sso.test.canvaslms.com/api/lti/authorize_redirect',
-  token_endpoint: 'https://canvas.test.instructure.com/login/oauth2/token',
-  jwks_uri: 'https://canvas.test.instructure.com/api/lti/security/jwks',
-  authorization_server: 'https://canvas.test.instructure.com/login/oauth2/token',
+  token_endpoint: 'https://sso.test.canvaslms.com/login/oauth2/token',
+  jwks_uri: 'https://sso.test.canvaslms.com/api/lti/security/jwks',
+  authorization_server: 'https://sso.test.canvaslms.com/login/oauth2/token',
 }
-const TYPED_TOKEN_ENDPOINT = 'https://sso.test.canvaslms.com/login/oauth2/token'
+const TYPED_TOKEN_ENDPOINT = 'https://canvas.test.instructure.com/login/oauth2/token'
 
 let container: HTMLDivElement
 let root: Root

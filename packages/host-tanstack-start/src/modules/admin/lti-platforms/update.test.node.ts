@@ -39,9 +39,9 @@ const ADMIN_AUTH = { requestId: 'request', adminAuth: {} }
 const ID = '019c2d8e-842a-7715-a323-a7e31427db2d'
 const ENDPOINTS = {
   authorization_endpoint: 'https://sso.test.canvaslms.com/api/lti/authorize_redirect',
-  token_endpoint: 'https://canvas.test.instructure.com/login/oauth2/token',
-  jwks_uri: 'https://canvas.test.instructure.com/api/lti/security/jwks',
-  authorization_server: 'https://canvas.test.instructure.com/login/oauth2/token',
+  token_endpoint: 'https://sso.test.canvaslms.com/login/oauth2/token',
+  jwks_uri: 'https://sso.test.canvaslms.com/api/lti/security/jwks',
+  authorization_server: 'https://sso.test.canvaslms.com/login/oauth2/token',
 }
 const FIELDS = { id: ID, name: 'Canvas Test', client_id: '10000000000001', ...ENDPOINTS }
 

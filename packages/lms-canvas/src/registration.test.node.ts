@@ -13,12 +13,12 @@ const hosted = [
 describe('canvasRegistrationEndpoints', () => {
   for (const [issuer, sso] of hosted) {
     for (const input of [issuer, `${issuer}/`]) {
-      it(`maps ${input} to its sso authorization host`, () => {
+      it(`maps ${input} to its sso host for all four endpoints`, () => {
         assert.deepEqual(canvasRegistrationEndpoints(input), {
           authorization_endpoint: `${sso}/api/lti/authorize_redirect`,
-          authorization_server: `${issuer}/login/oauth2/token`,
-          token_endpoint: `${issuer}/login/oauth2/token`,
-          jwks_uri: `${issuer}/api/lti/security/jwks`,
+          authorization_server: `${sso}/login/oauth2/token`,
+          token_endpoint: `${sso}/login/oauth2/token`,
+          jwks_uri: `${sso}/api/lti/security/jwks`,
         })
       })
     }

@@ -28,9 +28,9 @@ const PLATFORM: LtiPlatform = {
   issuer: 'https://canvas.test.instructure.com',
   client_id: '10000000000001',
   authorization_endpoint: 'https://sso.test.canvaslms.com/api/lti/authorize_redirect',
-  token_endpoint: 'https://canvas.test.instructure.com/login/oauth2/token',
-  jwks_uri: 'https://canvas.test.instructure.com/api/lti/security/jwks',
-  authorization_server: 'https://canvas.test.instructure.com/login/oauth2/token',
+  token_endpoint: 'https://sso.test.canvaslms.com/login/oauth2/token',
+  jwks_uri: 'https://sso.test.canvaslms.com/api/lti/security/jwks',
+  authorization_server: 'https://sso.test.canvaslms.com/login/oauth2/token',
 }
 
 const session = (abilities: string[]) => ({ abilities }) as unknown as AdminSession
