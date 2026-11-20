@@ -23,6 +23,11 @@ functions, session handling, UI components, styles, and a Vite preset.
 Deployment-mode gates control which surfaces an instance serves and whether it
 may run background jobs. Applications use public package exports.
 
+The package's CSS sits in cascade layers below an installation's `overrides`
+layer, and the package exports the stylesheets an installation's entry imports.
+[Styling and Themes](./26-styling-and-themes.md) describes the layer contract,
+the theme contexts, and the stylesheet exports.
+
 ## Application Responsibilities
 
 The application supplies its own route files, public pages, runtime
@@ -38,7 +43,7 @@ supply the evidence for the downstream walkthrough.
 ## Documentation Still to Come
 
 The reference will cover supported entry points, route composition, server
-function boundaries, UI customisation, styles, and configuration. It will
+function boundaries, UI customisation, and configuration. It will
 separate required application wiring from optional reference-site features.
 
 ## Where to go next
@@ -46,4 +51,6 @@ separate required application wiring from optional reference-site features.
 - [Packages](./03-packages.md) maps the host alongside core and the LMS adapter.
 - [Configuration](./05-configuration.md) sketches application-owned settings.
 - [Installing Modulus](./04-installation.md) retains the current implementation draft.
+- [Styling and Themes](./26-styling-and-themes.md) explains how an installation
+  adds its stylesheet and themes its public pages.
 - [Deployment](./19-deployment.md) explains request gates and worker placement.

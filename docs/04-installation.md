@@ -131,9 +131,11 @@ export default defineConfig({
   keeps React and the native packages external. Pass your own Nitro options
   through it.
 
-You do not import a stylesheet: the packaged root route imports Modulus's
-styles, including Tailwind, and the stylesheet tells Tailwind to scan the
-packaged components.
+`modulus()` also registers a PostCSS plugin that declares Modulus's CSS layer
+order at the top of every stylesheet. It sets `css.postcss` inline, so Vite no
+longer reads a `postcss.config.*` file; put any PostCSS plugins you need in
+`vite.config.ts`. [Styling and Themes](./26-styling-and-themes.md) explains the
+layer order.
 
 ### 3. Add the Entry Files
 
@@ -205,6 +207,10 @@ The root route takes the choices that belong to your installation:
 // apps/gradebook/src/routes/__root.tsx
 import { createModulusRootRoute } from '@modulus-learning/host-tanstack-start/routes/__root.route'
 
+// The installation owns the stylesheet entry (kit and Modulus CSS, then one
+// Tailwind entry), so installation theme values compile with the package's.
+import '../ui/styles/global.css'
+
 // This installation's document choices; the document itself is Modulus's.
 export const Route = createModulusRootRoute({
   appTitle: 'Modulus',
@@ -215,6 +221,13 @@ export const Route = createModulusRootRoute({
   },
 })
 ```
+
+The root route file also imports your stylesheet entry, because the packaged
+root route imports no CSS. An installation with no CSS of its own imports the
+package default, `@modulus-learning/host-tanstack-start/styles.css`;
+`apps/gradebook` imports its own entry, which composes the package's
+stylesheets. [Styling and Themes](./26-styling-and-themes.md) describes both, and
+how to theme your public pages.
 
 `createModulusRootRoute` also accepts `icons`, the icon `<link>`s; the default
 expects `favicon-96x96.png`, `favicon.svg`, `favicon.ico`, and
@@ -319,7 +332,10 @@ your LMS as described in [LTI](./13-lti.md).
 ## Upgrading
 
 1. Change every `@modulus-learning/*` dependency to the new version, together.
-2. Read the release notes for **Breaking Changes** and **Migrations**.
+2. Read the release notes for **Breaking Changes** and **Migrations**. The
+   release that introduced the CSS layer contract needs a stylesheet import and
+   layered installation CSS; see
+   [Upgrading Installations](./26-styling-and-themes.md#upgrading-installations).
 3. Run `modulus db upgrade` before the new build serves traffic — on Fly, as the
    admin app's `release_command`, described in
    [Deployment](./19-deployment.md#applying-scripts-on-deploy).
@@ -350,9 +366,10 @@ wrong schema.
   `apps/gradebook/src/routes`". A packaged manifest and a check that reports
   missing or moved route files are planned in
   `specs/2026-10-28-modulus-packaging-and-distribution-spec.md`.
-- **Branding is minimal.** The root route takes a title, icons, and analytics.
-  The admin and learner chrome still shows the Modulus logo, and colour tokens
-  are not yet a documented contract.
+- **Branding is minimal.** The root route takes a title, icons, and analytics,
+  and your stylesheet can theme the public pages as described in
+  [Styling and Themes](./26-styling-and-themes.md). The app bar and footer
+  still show the Modulus logo.
 - **LMS composition.** Canvas support is provided by `@modulus-learning/lms-canvas`,
   selected explicitly in the server entry shown above. Additional LMS adapters
   remain future work; [LMS Integration](./08-lms-integration.md) describes the boundary.

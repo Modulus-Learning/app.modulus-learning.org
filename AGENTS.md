@@ -78,8 +78,8 @@ staged files. `pnpm lint:check` is the read-only lint gate used by CI.
 `pnpm run ci` runs the main CI job locally: `lint:check`, release-script safety
 tests (`pnpm test:release`), typechecking, all unit tests, the database integration
 suite, the gradebook's session HTTP suite
-(`pnpm test:session`, which builds the gradebook first), and
-`pnpm check:packages` (packs each lockstep package and checks the tarball with
+(`pnpm test:session`, which builds the gradebook first), the built-CSS layer
+check (`pnpm check:css`, against that build), and `pnpm check:packages` (packs each lockstep package and checks the tarball with
 publint and arethetypeswrong; expects the packages to be built).
 
 GitHub CI also runs a separate `pnpm test:packed` job. To reproduce all CI
@@ -208,6 +208,7 @@ refuse a database name that does not end in `_test`.
 | Which licence applies? | `LICENSING.md` |
 | How is the system shaped? | `docs/09-architecture.md` |
 | How is core assembled? | `docs/10-core-composition.md` |
+| How is CSS layered, and how does an installation theme it? | `docs/26-styling-and-themes.md` |
 | Database schema | `docs/11-data-model.md` |
 | Auth for learners, admins, agents | `docs/12-authn-authz.md` |
 | LTI flows and score passback | `docs/13-lti.md`, `docs/14-lti-score-submission.md` |

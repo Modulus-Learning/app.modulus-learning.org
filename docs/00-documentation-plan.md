@@ -56,6 +56,7 @@ Byline importer convention. The source reading order is:
 | `09`–`18` | Architecture and subsystem references |
 | `19`–`24` | Deployment, upgrades, security, testing, migration, and accessibility |
 | `25` | Planned remote connector |
+| `26` | Styling and themes |
 
 The website's `byline/scripts/import-docs.ts` sorts source paths; use `--tree`
 to apply that order to navigation. Frontmatter `path` values remain unchanged,
@@ -151,6 +152,11 @@ ingestion through to LTI passback.
 The first host adapter: shared request handling, routes, server functions, UI,
 and styles, with application-owned wiring demonstrated by `apps/gradebook`.
 Consumer setup examples await downstream validation.
+
+### [Styling and Themes](./26-styling-and-themes.md) — Draft
+The CSS cascade-layer contract the packages follow, the theme contexts, the
+stylesheet exports an installation's entry imports, how to theme the public
+pages without reaching the dashboard or admin area, and the upgrade steps.
 
 ### [LMS Integration Packages](./08-lms-integration.md) — Draft
 The implemented shared LTI contracts and Canvas adapter, how the application
