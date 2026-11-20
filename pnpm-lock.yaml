@@ -551,9 +551,6 @@ importers:
       postcss:
         specifier: ^8.5.32
         version: 8.5.32
-      tailwind-merge:
-        specifier: ^3.7.0
-        version: 3.7.0
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -801,6 +798,9 @@ importers:
       slugify:
         specifier: ^1.6.9
         version: 1.6.9
+      tailwind-merge:
+        specifier: ^3.7.0
+        version: 3.7.0
       undici:
         specifier: ^8.12.3
         version: 8.12.3
@@ -916,9 +916,6 @@ importers:
       react-dom:
         specifier: 19.3.1
         version: 19.3.1(react@19.3.1)
-      tailwind-merge:
-        specifier: ^3.7.0
-        version: 3.7.0
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
