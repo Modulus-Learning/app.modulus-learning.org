@@ -1,6 +1,6 @@
 {
   "name": "@modulus-learning/host-tanstack-start",
-  "version": "0.11.3",
+  "version": "0.12.0",
   "private": false,
   "description": "TanStack Start host for Modulus — route factories, server functions, UI, and server-entry helpers",
   "license": "MPL-2.0",
@@ -92,6 +92,7 @@
     "remark-rehype": "^11.1.2",
     "serialize-error": "^13.0.2",
     "slugify": "^1.6.9",
+    "tailwind-merge": "^3.7.0",
     "undici": "^8.12.3",
     "unified": "^11.0.5",
     "unique-names-generator": "^4.7.1",
@@ -147,7 +148,6 @@
     "postcss": "^8.5.32",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.3.3",
     "tsc-alias": "^1.9.9",
     "tsx": "^4.23.15",

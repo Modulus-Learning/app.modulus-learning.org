@@ -1,5 +1,17 @@
 # @modulus-learning/lms-canvas
 
+## 0.12.0
+
+### Minor Changes
+
+- canonicalized activity urls across lti launches, deep links, progress and instructor forms, and added an admin lti identity view with an unlink action
+  fixed list search and sorting in **`@modulus-learning/host-tanstack-start`** and declared its `tailwind-merge` runtime dependency
+
+### Patch Changes
+
+- Updated dependencies
+  - @modulus-learning/lti@0.12.0
+
 ## 0.11.3
 
 ### Patch Changes
