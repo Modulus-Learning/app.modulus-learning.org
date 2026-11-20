@@ -40,7 +40,7 @@ export const modulusRouterOptions = () => {
 declare module '@tanstack/react-router' {
   interface StaticDataRouteOption {
     /** Which theme palette the document uses (see `data-theme-context`). */
-    themeContext?: 'public' | 'protected'
+    themeContext?: 'public' | 'protected' | 'integration'
     /** `chromeless` documents (LTI, agent, renewal) render no app chrome. */
     chrome?: 'full' | 'chromeless'
   }

@@ -12,6 +12,9 @@
 
 @layer modulus-theme {
   :root {
+    /* Page background, applied to body in modulus-base */
+    --page-background: white;
+
     /* Theme base color */
     --theme-base: oklch(0.4502 0.0037 308.34);
 
@@ -107,6 +110,16 @@
     --canvas-800: oklch(from var(--canvas-base) calc(l * 0.335) c h);
     --canvas-900: oklch(from var(--canvas-base) calc(l * 0.3) c h);
     --canvas-950: oklch(from var(--canvas-base) calc(l * 0.225) c h);
+  }
+
+  .dark,
+  [data-theme="dark"] {
+    --page-background: var(--canvas-900);
+  }
+
+  /* Chromeless screens are always light. Higher specificity than .dark. */
+  :root[data-chrome="chromeless"] {
+    --page-background: var(--gray-50);
   }
 }
 

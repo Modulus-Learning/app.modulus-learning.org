@@ -133,6 +133,7 @@ function RootDocument({
       style={chromeless ? { colorScheme: 'light' } : { scrollBehavior: 'smooth' }}
       data-scroll-behavior="smooth"
       data-theme-context={themeContext}
+      data-chrome={chrome}
     >
       <head>
         <style>{MODULUS_LAYER_ORDER}</style>
@@ -148,7 +149,7 @@ function RootDocument({
         <EarlyThemeDetector nonce={nonce} />
         <HeadContent />
       </head>
-      <body className={chromeless ? 'bg-gray-50 not-dark light' : 'bg-white dark:bg-canvas-900'}>
+      <body className={chromeless ? 'not-dark light' : undefined}>
         {children}
         <RouteAnnouncer />
         <ConsoleCredit />

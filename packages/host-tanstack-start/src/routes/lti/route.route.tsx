@@ -4,7 +4,7 @@ import { createFileRoute, type FileRoutesByPath, lazyRouteComponent } from '@tan
 // The server entry's deployment-mode gate covers every request here.
 export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) => {
   const Route = createFileRoute(path)({
-    staticData: { chrome: 'chromeless' },
+    staticData: { chrome: 'chromeless', themeContext: 'integration' },
     head: () => ({
       meta: [{ title: 'Modulus' }, { name: 'description', content: 'Modulus Learning Platform' }],
     }),

@@ -69,7 +69,7 @@ function auditCss(css: string) {
     if (important) issues.push({ line, property, kind: 'important' })
   }
   const root = postcss.parse(css)
-  root.walkDecls((decl) => inspect(decl, decl.prop, decl.important))
+  root.walkDecls((decl) => inspect(decl, decl.prop, decl.important === true))
   root.walkAtRules('apply', (rule) => inspect(rule, '@apply', /!important\b/.test(rule.params)))
   return issues
 }
@@ -203,6 +203,44 @@ describe('package stylesheets', () => {
     const notDark = order.indexOf('.not-dark')
     expect(dark).toBeGreaterThanOrEqual(0)
     expect(notDark).toBeGreaterThan(dark)
+  })
+})
+
+describe('the page background', () => {
+  // A utility on <body> would beat any installation `body { background }`, so
+  // the background is a token an installation sets on its public scope root.
+  const rootRoute = read(resolve(SRC, 'routes/__root.route.tsx'))
+
+  test('is not set by utilities on <body>, and <html> carries the chrome', () => {
+    const body = rootRoute.match(/<body\b[^>]*>/s)?.[0] ?? ''
+    expect(body).not.toMatch(/\bbg-/)
+    expect(rootRoute).toContain('data-chrome={chrome}')
+  })
+
+  test('is a --page-background token for light, dark and chromeless', () => {
+    const values = new Map<string, string>()
+    postcss
+      .parse(read(resolve(SRC, 'ui/styles/theme.css')))
+      .walkDecls('--page-background', (decl) => {
+        expect(layerOf(decl)).toBe('modulus-theme')
+        values.set((decl.parent as Rule).selector.replace(/\s+/g, ' '), decl.value)
+      })
+    expect(values.get(':root')).toBe('white')
+    expect(values.get('.dark, [data-theme="dark"]')).toBe('var(--canvas-900)')
+    expect(values.get(':root[data-chrome="chromeless"]')).toBe('var(--gray-50)')
+  })
+
+  test('is applied to body in modulus-base', () => {
+    let applied = false
+    postcss.parse(read(resolve(SRC, 'ui/styles/app.css'))).walkDecls('background-color', (decl) => {
+      if (
+        (decl.parent as Rule).selector === 'body' &&
+        decl.value === 'var(--page-background)' &&
+        layerOf(decl) === 'modulus-base'
+      )
+        applied = true
+    })
+    expect(applied).toBe(true)
   })
 })
 

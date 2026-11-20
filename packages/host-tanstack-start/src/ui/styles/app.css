@@ -18,6 +18,10 @@
     --loader-color: #16151e;
   }
 
+  body {
+    background-color: var(--page-background);
+  }
+
   .grecaptcha-badge {
     visibility: hidden;
   }

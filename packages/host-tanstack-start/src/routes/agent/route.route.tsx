@@ -3,7 +3,7 @@ import { createFileRoute, type FileRoutesByPath, lazyRouteComponent } from '@tan
 // Chromeless agent pages (the agent authorization error page).
 export const createRoute = <TPath extends keyof FileRoutesByPath>(path: TPath) => {
   const Route = createFileRoute(path)({
-    staticData: { chrome: 'chromeless' },
+    staticData: { chrome: 'chromeless', themeContext: 'integration' },
     head: () => ({ meta: [{ title: 'Modulus' }] }),
     component: lazyRouteComponent(() => import('./route.page'), 'Page'),
   })
