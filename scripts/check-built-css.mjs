@@ -40,12 +40,15 @@ const sheets = readdirSync(dir)
 const failures = []
 if (sheets.length === 0) failures.push(`no .css files in ${dir}`)
 
-// Minifiers fold the prelude into layer blocks, so compare first appearances.
+// Minifiers fold the prelude into layer blocks, so compare first appearances,
+// read from real top-level `@layer` statements and blocks (not comments).
 for (const { name, css } of sheets) {
   const names = []
-  for (const match of css.matchAll(/@layer\s+([^{;]+)[{;]/g))
-    for (const layer of match[1].split(',').map((value) => value.trim()))
-      if (!names.includes(layer)) names.push(layer)
+  for (const node of postcss.parse(css).nodes) {
+    if (node.type !== 'atrule' || node.name !== 'layer') continue
+    for (const layer of node.params.split(',').map((value) => value.trim()))
+      if (layer && !names.includes(layer)) names.push(layer)
+  }
   if (expected.some((layer, index) => names[index] !== layer))
     failures.push(`${name}: layer order starts ${names.slice(0, expected.length).join(', ')}`)
 }
@@ -95,11 +98,16 @@ for (const { name, css } of sheets) {
     .map(([rem, want]) => `at ${rem}rem: max-width ${effective(rem)}, expected ${want}`)
   containerResults.push({ name, mismatches })
 }
-if (!containerResults.some((result) => result.mismatches.length === 0)) {
-  if (containerResults.length === 0) failures.push('no utilities-layer .container rules found')
-  for (const { name, mismatches } of containerResults)
-    failures.push(...mismatches.map((mismatch) => `${name}: container ${mismatch}`))
-}
+// Tailwind compiles once, so one stylesheet holds every utilities-layer
+// `.container` rule. A second definition in another chunk would change the
+// page whenever a route loads that chunk.
+if (containerResults.length === 0) failures.push('no utilities-layer .container rules found')
+if (containerResults.length > 1)
+  failures.push(
+    `utilities-layer .container defined in ${containerResults.length} stylesheets: ${containerResults.map((result) => result.name).join(', ')}`
+  )
+for (const { name, mismatches } of containerResults)
+  failures.push(...mismatches.map((mismatch) => `${name}: container ${mismatch}`))
 
 if (failures.length > 0) {
   console.error(`built CSS check failed for ${dir}:\n  ${failures.join('\n  ')}`)
