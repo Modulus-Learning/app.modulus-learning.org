@@ -78,6 +78,40 @@ describe('issuerSchema', () => {
     rejects(issuerSchema.safeParse('canvas.instructure.com'))
     rejects(issuerSchema.safeParse(''))
   })
+
+  it('rejects a loose form the URL parser would rewrite, which no iss claim matches', () => {
+    for (const issuer of [
+      'https:lms.example.invalid',
+      'https:/lms.example.invalid',
+      'https:\\\\lms.example.invalid',
+      'HTTPS://lms.example.invalid',
+      'https://LMS.example.invalid',
+      'https://lms.example.invalid:443',
+      'https://lms.example.invalid/a/../lti',
+    ]) {
+      const result = issuerSchema.safeParse(issuer)
+      assert.equal(result.success, false, issuer)
+      assert.equal(
+        result.error?.issues[0]?.message,
+        'Write the issuer in standard form, such as https://canvas.instructure.com: https:// and a lowercase host, with no default port.'
+      )
+    }
+  })
+
+  it('rejects embedded credentials', () => {
+    const result = issuerSchema.safeParse('https://user:secret@lms.example.invalid')
+    assert.equal(
+      result.error?.issues[0]?.message,
+      'Issuer must not contain a user name or password.'
+    )
+  })
+
+  it('accepts a path and a non-default port in standard form', () => {
+    assert.equal(
+      issuerSchema.parse('https://lms.example.edu:8443/lti'),
+      'https://lms.example.edu:8443/lti'
+    )
+  })
 })
 
 describe('endpointUrlSchema', () => {
@@ -91,6 +125,29 @@ describe('endpointUrlSchema', () => {
   it('rejects a fragment', () => {
     rejects(endpointUrlSchema.safeParse('https://lms.example.edu/jwks#keys'))
     rejects(endpointUrlSchema.safeParse('https://lms.example.edu/jwks#'))
+  })
+
+  it('rejects a value not written with https://', () => {
+    for (const endpoint of ['https:lms.example.edu/token', 'https:\\\\lms.example.edu/token']) {
+      const result = endpointUrlSchema.safeParse(endpoint)
+      assert.equal(
+        result.error?.issues[0]?.message,
+        'Write the endpoint in full, starting with https://.'
+      )
+    }
+  })
+
+  it('rejects embedded credentials, which fetch refuses', () => {
+    for (const endpoint of [
+      'https://user:secret@lms.example.edu/token',
+      'https://user@lms.example.edu/jwks',
+    ]) {
+      const result = endpointUrlSchema.safeParse(endpoint)
+      assert.equal(
+        result.error?.issues[0]?.message,
+        'Endpoint must not contain a user name or password.'
+      )
+    }
   })
 
   it('rejects http and values over 2048 characters', () => {

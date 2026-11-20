@@ -34,11 +34,26 @@ const parseUrl = (value: string): URL | undefined => {
   }
 }
 
+/** True when `url` carries a user name or password, which `fetch` refuses. */
+const hasCredentials = (url: URL | undefined): boolean =>
+  url != null && (url.username !== '' || url.password !== '')
+
+/**
+ * True when `value` is already the URL parser's serialisation of itself, so the
+ * stored string is the one a platform sends. `new URL` accepts loose forms such
+ * as `https:host`, `https:\\host`, an uppercase host or an explicit `:443`, and
+ * serialises them differently. An origin-only issuer serialises with a
+ * trailing `/`, which the issuer omits.
+ */
+const isStandardForm = (value: string, url: URL | undefined): boolean =>
+  url == null || url.href === value || url.href === `${value}/`
+
 /**
  * A platform issuer: an absolute `https:` URL with no query or fragment (IMS
- * Security Framework §1.2), and no trailing slash. Logins and launches match
- * the stored issuer exactly against the `iss` claim, which platforms send
- * without one, and the issuer can't be corrected after creation.
+ * Security Framework §1.2), no credentials, written in standard form, and with
+ * no trailing slash. Logins and launches match the stored issuer exactly
+ * against the `iss` claim, which platforms send without one, and the issuer
+ * can't be corrected after creation.
  */
 export const issuerSchema = z
   .string()
@@ -58,13 +73,26 @@ export const issuerSchema = z
         !value.includes('#')
       )
     },
-    { message: 'Issuer must be an https URL without a query or fragment.' }
+    { message: 'Issuer must be an https URL without a query or fragment.', abort: true }
   )
+  // Each check aborts on failure, so the field shows one message at a time.
+  .refine((value) => !hasCredentials(parseUrl(value)), {
+    message: 'Issuer must not contain a user name or password.',
+    abort: true,
+  })
+  .refine((value) => isStandardForm(value, parseUrl(value)), {
+    message:
+      'Write the issuer in standard form, such as https://canvas.instructure.com: https:// and a lowercase host, with no default port.',
+    abort: true,
+  })
   .refine((value) => !value.endsWith('/'), {
     message: "Remove the trailing slash; the platform's iss claim has none.",
   })
 
-/** A registration endpoint: an absolute `https:` URL; a query is allowed, a fragment is not. */
+/**
+ * A registration endpoint: an absolute `https:` URL written with `https://`,
+ * with no credentials; a query is allowed, a fragment is not.
+ */
 export const endpointUrlSchema = z
   .string()
   .trim()
@@ -75,8 +103,16 @@ export const endpointUrlSchema = z
       const url = parseUrl(value)
       return url != null && url.protocol === 'https:' && url.hash === '' && !value.includes('#')
     },
-    { message: 'Endpoint must be an https URL without a fragment.' }
+    { message: 'Endpoint must be an https URL without a fragment.', abort: true }
   )
+  .refine((value) => value.startsWith('https://'), {
+    message: 'Write the endpoint in full, starting with https://.',
+    abort: true,
+  })
+  .refine((value) => !hasCredentials(parseUrl(value)), {
+    message: 'Endpoint must not contain a user name or password.',
+    abort: true,
+  })
 
 /**
  * The client-credentials `aud`. The Security Framework leaves it to
