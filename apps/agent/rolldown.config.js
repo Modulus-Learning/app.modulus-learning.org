@@ -8,8 +8,8 @@ const watch = {
 const external = (id) => !id.startsWith('.') && !id.startsWith('/') && !id.startsWith('@/')
 
 const libraryInput = {
-  'core/index': 'src/core/index.ts',
-  'ui-vanilla/index': 'src/ui-vanilla/index.ts',
+  'core/index': './src/core/index.ts',
+  'ui-vanilla/index': './src/ui-vanilla/index.ts',
 }
 
 const declarations = () =>

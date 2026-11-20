@@ -2,7 +2,7 @@
   "name": "@modulus-learning/root",
   "version": "0.8.0",
   "private": true,
-  "packageManager": "pnpm@12.16.1",
+  "packageManager": "pnpm@12.21.0",
   "scripts": {
     "clean": "turbo run clean && rm -rf node_modules",
     "build": "turbo run build",
@@ -38,12 +38,12 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
-    "@biomejs/biome": "^2.6.4",
+    "@biomejs/biome": "^2.6.8",
     "@changesets/cli": "^3.0.3",
-    "lint-staged": "^17.6.0",
+    "lint-staged": "^17.6.1",
     "publint": "^0.3.25",
     "simple-git-hooks": "^2.14.0",
-    "turbo": "^2.11.10",
+    "turbo": "^2.11.13",
     "typescript": "7.0.2"
   },
   "engines": {
