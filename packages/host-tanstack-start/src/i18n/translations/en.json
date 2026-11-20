@@ -9,7 +9,8 @@
     "Cancel": "Cancel",
     "Sign In": "Sign In",
     "Sign Up": "Sign Up",
-    "Sign Out": "Sign Out"
+    "Sign Out": "Sign Out",
+    "Account menu": "Account menu"
   },
   "auth": {
     "Email": "Email",

@@ -9,7 +9,8 @@
     "Cancel": "Cancelar",
     "Sign In": "Iniciar Sesión",
     "Sign Up": "Registrarse",
-    "Sign Out": "Cerrar Sesión"
+    "Sign Out": "Cerrar Sesión",
+    "Account menu": "Menú de la cuenta"
   },
   "auth": {
     "Email": "Correo Electrónico",

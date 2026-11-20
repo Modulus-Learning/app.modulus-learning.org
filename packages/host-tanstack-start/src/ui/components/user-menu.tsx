@@ -1,18 +1,12 @@
 import { startTransition, useActionState, useState } from 'react'
 
-import {
-  Avatar,
-  DashboardIcon,
-  Dropdown,
-  IconButton,
-  SignOutIcon,
-  UserIcon,
-} from '@infonomic/uikit/react'
+import { DashboardIcon, Dropdown, IconButton, SignOutIcon, UserIcon } from '@infonomic/uikit/react'
 import cx from 'clsx'
 
 import { signOut, useLangNavigation } from '@/framework'
 import { useTranslations } from '@/i18n/client'
 import { useUserSession } from '@/modules/app/session/provider'
+import { initialsFromFullName } from '@/ui/components/user-initials'
 import type { Locale } from '@/i18n/i18n-config'
 
 type UserMenuIntrinsicProps = React.JSX.IntrinsicElements['div']
@@ -30,7 +24,7 @@ export function UserMenu({ className, lng, shiftMenu = true }: UserMenuProps): R
   const { t } = useTranslations('common')
   const session = useUserSession()
   const canAccessDashboard = session?.abilities.includes('access_dashboard')
-  const initials = session?.user?.full_name ? session.user.full_name.slice(0, 2).toUpperCase() : ''
+  const initials = initialsFromFullName(session?.user?.full_name)
 
   const handleSignOut = () => {
     startTransition(() => {
@@ -42,9 +36,16 @@ export function UserMenu({ className, lng, shiftMenu = true }: UserMenuProps): R
     <div className={className}>
       <Dropdown.Root modal={false} open={userMenuOpen} onOpenChange={setUserMenuOpen}>
         <Dropdown.Trigger
+          aria-label={t('Account menu')}
           render={<IconButton size="sm" variant="filled" className="p-0 mt-1 w-[32px] h-[32px]" />}
         >
-          <Avatar initials={initials} />
+          {initials ? (
+            <span aria-hidden="true" className="text-xs font-semibold leading-none">
+              {initials}
+            </span>
+          ) : (
+            <UserIcon width="18px" height="18px" aria-hidden="true" />
+          )}
         </Dropdown.Trigger>
 
         <Dropdown.Portal>

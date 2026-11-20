@@ -1,7 +1,6 @@
 import { startTransition, useActionState, useState } from 'react'
 
 import {
-  Avatar,
   Dropdown,
   Dropdown as DropdownMenu,
   IconButton,
@@ -13,6 +12,7 @@ import cx from 'clsx'
 import { adminSignOut as signOut, useLangNavigation } from '@/framework'
 import { useTranslations } from '@/i18n/client'
 import { useAdminSession } from '@/modules/admin/session/provider'
+import { initialsFromNames } from '@/ui/components/user-initials'
 import type { Locale } from '@/i18n/i18n-config'
 
 type AdminUserMenuIntrinsicProps = React.JSX.IntrinsicElements['div']
@@ -34,7 +34,7 @@ export function AdminUserMenu({
   const [_formState, formAction, _isPending] = useActionState(signOut, '')
   const { t } = useTranslations('common')
 
-  const initials = `${session?.user.given_name?.slice(0, 1).toUpperCase() ?? ''}${session?.user.family_name?.slice(0, 1).toUpperCase() ?? ''}`
+  const initials = initialsFromNames(session?.user.given_name, session?.user.family_name)
 
   const handleSignOut = () => {
     startTransition(() => {
@@ -46,9 +46,16 @@ export function AdminUserMenu({
     <div className={className}>
       <DropdownMenu.Root modal={false} open={adminMenuOpen} onOpenChange={setAdminMenuOpen}>
         <DropdownMenu.Trigger
+          aria-label={t('Account menu')}
           render={<IconButton size="sm" variant="filled" className="p-0 mt-1 w-[32px] h-[32px]" />}
         >
-          <Avatar initials={initials} />
+          {initials ? (
+            <span aria-hidden="true" className="text-xs font-semibold leading-none">
+              {initials}
+            </span>
+          ) : (
+            <UserIcon width="18px" height="18px" aria-hidden="true" />
+          )}
         </DropdownMenu.Trigger>
 
         <DropdownMenu.Portal>
