@@ -54,6 +54,14 @@ const parseUrl = (value: string): URL | undefined => {
   }
 }
 
+/** True when `url` carries a user name or password, as core rejects. */
+const hasCredentials = (url: URL | undefined): boolean =>
+  url != null && (url.username !== '' || url.password !== '')
+
+/** True when `value` is already its own URL serialisation, as core requires of an issuer. */
+const isStandardForm = (value: string, url: URL | undefined): boolean =>
+  url == null || url.href === value || url.href === `${value}/`
+
 const requiredString = (label: string) =>
   z.string({
     error: (issue) =>
@@ -101,8 +109,17 @@ const issuerSchema = requiredString('Issuer')
         !value.includes('#')
       )
     },
-    { error: 'Issuer must be an https URL without a query or fragment.' }
+    { error: 'Issuer must be an https URL without a query or fragment.', abort: true }
   )
+  .refine((value) => !hasCredentials(parseUrl(value)), {
+    error: 'Issuer must not contain a user name or password.',
+    abort: true,
+  })
+  .refine((value) => isStandardForm(value, parseUrl(value)), {
+    error:
+      'Write the issuer in standard form, such as https://canvas.instructure.com: https:// and a lowercase host, with no default port.',
+    abort: true,
+  })
   .refine((value) => !value.endsWith('/'), {
     error: "Remove the trailing slash; the platform's iss claim has none.",
   })
@@ -118,8 +135,16 @@ const endpointUrlSchema = (label: string) =>
         const url = parseUrl(value)
         return url != null && url.protocol === 'https:' && url.hash === '' && !value.includes('#')
       },
-      { error: `${label} must be an https URL without a fragment.` }
+      { error: `${label} must be an https URL without a fragment.`, abort: true }
     )
+    .refine((value) => value.startsWith('https://'), {
+      error: `Write the ${label.toLowerCase()} in full, starting with https://.`,
+      abort: true,
+    })
+    .refine((value) => !hasCredentials(parseUrl(value)), {
+      error: `${label} must not contain a user name or password.`,
+      abort: true,
+    })
 
 export const ltiPlatformEndpointsSchema = z.object({
   authorization_endpoint: endpointUrlSchema('Authorization endpoint'),

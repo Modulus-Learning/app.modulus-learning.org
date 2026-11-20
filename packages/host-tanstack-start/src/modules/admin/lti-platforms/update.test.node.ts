@@ -144,6 +144,25 @@ describe('updateLtiPlatform', () => {
     expect(mocks.updateLtiPlatform).not.toHaveBeenCalled()
   })
 
+  test('reports one message per field for a loose form or embedded credentials', async () => {
+    const state = await updateLtiPlatform(
+      IDLE,
+      makeFormData({
+        ...FIELDS,
+        authorization_endpoint: 'https:sso.test.canvaslms.com/api/lti/authorize_redirect',
+        token_endpoint: 'https://user:secret@sso.test.canvaslms.com/login/oauth2/token',
+      })
+    )
+
+    expect(state.errors.authorization_endpoint).toEqual([
+      'Write the authorization endpoint in full, starting with https://.',
+    ])
+    expect(state.errors.token_endpoint).toEqual([
+      'Token endpoint must not contain a user name or password.',
+    ])
+    expect(mocks.updateLtiPlatform).not.toHaveBeenCalled()
+  })
+
   test('accepts a bare host name as the authorization server', async () => {
     mocks.updateLtiPlatform.mockResolvedValue({ ok: true, data: { platform: FIELDS } })
 
