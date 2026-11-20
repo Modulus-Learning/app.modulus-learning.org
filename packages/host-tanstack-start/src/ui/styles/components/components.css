@@ -1,4 +1,9 @@
+@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
+  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
+  overrides, infonomic-utilities, utilities;
+
 @import "./heading-anchor.css";
 @import "./grid-templates.css";
 @import "./previous-next.css";
 @import "./yarl.css";
+@import "./white-icon.css";

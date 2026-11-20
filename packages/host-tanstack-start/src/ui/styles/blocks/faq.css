@@ -1,7 +1,13 @@
-.faq-item::marker {
-  color: rgb(var(--secondary-500));
-}
+@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
+  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
+  overrides, infonomic-utilities, utilities;
 
-.dark .faq-item::marker {
-  color: rgb(var(--secondary-400));
+@layer modulus-components {
+  .faq-item::marker {
+    color: rgb(var(--secondary-500));
+  }
+
+  .dark .faq-item::marker {
+    color: rgb(var(--secondary-400));
+  }
 }

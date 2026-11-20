@@ -1,4 +1,12 @@
-@layer theme, base, components, utilities;
+/*
+ * Tailwind for Modulus. The full Modulus layer order replaces Tailwind's
+ * default statement, so Tailwind's theme and utilities layers take their
+ * places in it. Preflight stays off.
+ */
+
+@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
+  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
+  overrides, infonomic-utilities, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 /* @import "tailwindcss/preflight.css" layer(base); */
 @import "tailwindcss/utilities.css" layer(utilities);

@@ -1,3 +1,9 @@
-.editor-text p:first-of-type {
-  margin-top: 0;
+@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
+  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
+  overrides, infonomic-utilities, utilities;
+
+@layer modulus-components {
+  .editor-text p:first-of-type {
+    margin-top: 0;
+  }
 }

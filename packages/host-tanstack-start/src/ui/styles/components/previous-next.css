@@ -1,7 +1,13 @@
-.component--previous-next {
-  transition: all 0.125s;
-}
+@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
+  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
+  overrides, infonomic-utilities, utilities;
 
-.component--previous-next:hover {
-  transform: translateY(-3px);
+@layer modulus-components {
+  .component--previous-next {
+    transition: all 0.125s;
+  }
+
+  .component--previous-next:hover {
+    transform: translateY(-3px);
+  }
 }

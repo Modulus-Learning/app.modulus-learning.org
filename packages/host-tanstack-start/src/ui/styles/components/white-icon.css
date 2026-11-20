@@ -1,0 +1,15 @@
+/* Icons the learner and admin account panels render on a filled button. */
+
+@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
+  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
+  overrides, infonomic-utilities, utilities;
+
+@layer modulus-components {
+  .white-icon {
+    fill: white;
+  }
+
+  .dark .white-icon {
+    fill: black;
+  }
+}

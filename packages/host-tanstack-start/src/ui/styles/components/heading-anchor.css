@@ -1,7 +1,13 @@
-.component--heading-anchor .component--heading-anchor-icon {
-  opacity: 0;
-}
+@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
+  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
+  overrides, infonomic-utilities, utilities;
 
-.component--heading-anchor:hover .component--heading-anchor-icon {
-  opacity: 1;
+@layer modulus-components {
+  .component--heading-anchor .component--heading-anchor-icon {
+    opacity: 0;
+  }
+
+  .component--heading-anchor:hover .component--heading-anchor-icon {
+    opacity: 1;
+  }
 }

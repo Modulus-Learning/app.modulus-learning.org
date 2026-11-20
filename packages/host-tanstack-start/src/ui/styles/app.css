@@ -1,34 +1,42 @@
 /**
  * App globals
  */
+
+@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
+  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
+  overrides, infonomic-utilities, utilities;
+
 @import "./base/base.css";
 @import "./utils/utils.css";
 @import "./components/components.css";
 @import "./blocks/blocks.css";
 @import "./layouts/layouts.css";
 
-.grecaptcha-badge {
-  visibility: hidden;
-}
+@layer modulus-base {
+  /* The kit sets --loader-color in infonomic-functional, so it lives here. */
+  :root {
+    --loader-color: #16151e;
+  }
 
-:root {
-  --loader-color: #16151e;
-}
+  .grecaptcha-badge {
+    visibility: hidden;
+  }
 
-html {
-  scroll-padding-top: 90px;
-}
+  html {
+    scroll-padding-top: 90px;
+  }
 
-.root {
-  isolation: isolate;
-}
+  .root {
+    isolation: isolate;
+  }
 
-/**
- * a11y: after a client-side navigation, RouteFocusManager moves focus to the
- * page's <h1> so screen-reader/keyboard users land in the new content. That
- * focus is programmatic (not keyboard), so suppress the focus ring for it while
- * keeping it for genuine keyboard focus.
- */
-#main-content h1:focus:not(:focus-visible) {
-  outline: none;
+  /**
+   * a11y: after a client-side navigation, RouteFocusManager moves focus to the
+   * page's <h1> so screen-reader/keyboard users land in the new content. That
+   * focus is programmatic (not keyboard), so suppress the focus ring for it while
+   * keeping it for genuine keyboard focus.
+   */
+  #main-content h1:focus:not(:focus-visible) {
+    outline: none;
+  }
 }

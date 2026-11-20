@@ -5,22 +5,20 @@
  * Tailwind theme configuration.
  */
 
+@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
+  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
+  overrides, infonomic-utilities, utilities;
+
 @import "@infonomic/uikit/reset.css";
 @import "@infonomic/uikit/styles.css";
 
-/**
- * Optional uikit typography including prose and fonts
- */
+/* Optional uikit typography including prose and fonts */
 @import "@infonomic/uikit/typography.css";
 
-/**
- * Custom uikit overrides
- */
-@import "./overrides.css";
+/* Modulus default tokens */
+@import "./theme.css";
 
-/**
- * Tailwind - should come after the above.
- */
+/* Tailwind - should come after the above. */
 @import "./tailwind.css";
 
 @import "./app.css";

@@ -1,11 +1,17 @@
-.component--grid-two-column {
-  grid-template-areas: "first second";
-}
+@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
+  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
+  overrides, infonomic-utilities, utilities;
 
-.component-grid--two-column--first {
-  grid-area: first;
-}
+@layer modulus-components {
+  .component--grid-two-column {
+    grid-template-areas: "first second";
+  }
 
-.component-grid--two-column--second {
-  grid-area: second;
+  .component-grid--two-column--first {
+    grid-area: first;
+  }
+
+  .component-grid--two-column--second {
+    grid-area: second;
+  }
 }

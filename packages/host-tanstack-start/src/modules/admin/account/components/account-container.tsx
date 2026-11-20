@@ -115,21 +115,10 @@ export const AccountContainer = ({ user, lng }: { user: User; lng: Locale }) => 
     setIsModalOpen(true)
   }
 
-  const whiteIcon = `
-      .white-icon {
-        fill: white;  
-      }
-  
-      .dark .white-icon {
-        fill: black;
-      }
-    `
-
   const Component: React.ComponentType<ActionProps> = components[currentComponent].component
 
   return (
     <>
-      <style>{whiteIcon}</style>
       <div className="sm:grid sm:grid-cols-2 gap-4 mb-12">
         <div className="flex flex-col gap-4">
           <AccountPanel

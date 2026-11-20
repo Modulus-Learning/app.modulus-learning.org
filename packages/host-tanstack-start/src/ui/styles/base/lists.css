@@ -1,25 +1,31 @@
-.editor-text li:has(:is(ul, ol)) {
-  list-style: none;
-}
+@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
+  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
+  overrides, infonomic-utilities, utilities;
 
-.editor-text li > ol,
-.editor-text li > ul {
-  margin-top: 0;
-  margin-bottom: 0;
-}
+@layer modulus-base {
+  .editor-text li:has(:is(ul, ol)) {
+    list-style: none;
+  }
 
-.editor-text li > ul {
-  list-style: circle;
-}
+  .editor-text li > ol,
+  .editor-text li > ul {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
 
-.editor-text li > ul > li > ul {
-  list-style: square;
-}
+  .editor-text li > ul {
+    list-style: circle;
+  }
 
-.editor-text li > ol {
-  list-style: lower-alpha;
-}
+  .editor-text li > ul > li > ul {
+    list-style: square;
+  }
 
-.editor-text li > ol > li > ol {
-  list-style: lower-roman;
+  .editor-text li > ol {
+    list-style: lower-alpha;
+  }
+
+  .editor-text li > ol > li > ol {
+    list-style: lower-roman;
+  }
 }
