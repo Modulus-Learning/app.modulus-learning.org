@@ -35,6 +35,10 @@ below is copied from one of them.
   reference host pins: `@tanstack/react-start` 1.169.4, `@tanstack/react-router`
   1.170.46, React 19.3.1, Vite 8.3.5, Nitro `3.0.260903-beta`, and Tailwind CSS
   4.3.3.
+- Tailwind CSS 4, with `tailwindcss` and `@tailwindcss/vite` as your own
+  dependencies. The packaged stylesheets use Tailwind 4 syntax (`@theme`,
+  `@utility`, `@source`) and do not build with Tailwind 3. Modulus does not
+  declare Tailwind as a peer dependency; your installation supplies it.
 - You have read [Deployment](./19-deployment.md), which explains the three
   deployment modes (`DEPLOYMENT_MODE`) that every installation uses.
 
