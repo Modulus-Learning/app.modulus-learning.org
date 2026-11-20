@@ -39,24 +39,25 @@ export function LtiPlatformCreateForm({ lng }: { lng: Locale }): React.JSX.Eleme
   const [isSuggesting, setIsSuggesting] = useState<boolean>(false)
   const [suggestMessage, setSuggestMessage] = useState<string | undefined>(undefined)
 
-  // Fills only the empty endpoint fields, so values already typed are kept.
+  // Replaces all four endpoint fields with the adapter's defaults for the
+  // issuer. A response is discarded if the issuer changed while it was in
+  // flight, so endpoints never pair with a different issuer.
   const handleFillDefaults = async (): Promise<void> => {
+    const issuer = getValues('issuer') ?? ''
     setIsSuggesting(true)
     setSuggestMessage(undefined)
     try {
-      const result = await suggestLtiPlatformEndpoints(getValues('issuer') ?? '')
+      const result = await suggestLtiPlatformEndpoints(issuer)
+      if ((getValues('issuer') ?? '') !== issuer) return
       if (!result.ok) {
         setSuggestMessage(result.message)
         return
       }
       for (const field of ENDPOINT_FIELDS) {
-        const current = getValues(field)
-        if (current == null || current.trim() === '') {
-          setValue(field, result.endpoints[field], {
-            shouldDirty: true,
-            shouldValidate: isSubmitted,
-          })
-        }
+        setValue(field, result.endpoints[field], {
+          shouldDirty: true,
+          shouldValidate: isSubmitted,
+        })
       }
     } catch (error) {
       console.error('Error suggesting endpoints:', error)

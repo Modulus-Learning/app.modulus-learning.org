@@ -30,6 +30,13 @@ const SUGGESTED = {
   jwks_uri: 'https://sso.test.canvaslms.com/api/lti/security/jwks',
   authorization_server: 'https://sso.test.canvaslms.com/login/oauth2/token',
 }
+const OTHER_ISSUER = 'https://canvas.example.edu'
+const OTHER_SUGGESTED = {
+  authorization_endpoint: 'https://canvas.example.edu/api/lti/authorize_redirect',
+  token_endpoint: 'https://canvas.example.edu/login/oauth2/token',
+  jwks_uri: 'https://canvas.example.edu/api/lti/security/jwks',
+  authorization_server: 'https://canvas.example.edu/login/oauth2/token',
+}
 const TYPED_TOKEN_ENDPOINT = 'https://canvas.test.instructure.com/login/oauth2/token'
 
 let container: HTMLDivElement
@@ -90,17 +97,48 @@ describe('LtiPlatformCreateForm', () => {
     }
   })
 
-  test('fills only the empty endpoints from the issuer and keeps a typed one', async () => {
+  test('replaces every endpoint with the defaults for the issuer', async () => {
     await type('issuer', ISSUER)
     await type('token_endpoint', TYPED_TOKEN_ENDPOINT)
 
     await click('Fill defaults from issuer')
 
     expect(mocks.suggestLtiPlatformEndpoints).toHaveBeenCalledWith(ISSUER)
-    expect(field('token_endpoint').value).toBe(TYPED_TOKEN_ENDPOINT)
-    expect(field('authorization_endpoint').value).toBe(SUGGESTED.authorization_endpoint)
-    expect(field('jwks_uri').value).toBe(SUGGESTED.jwks_uri)
-    expect(field('authorization_server').value).toBe(SUGGESTED.authorization_server)
+    for (const [id, value] of Object.entries(SUGGESTED)) {
+      expect(field(id).value).toBe(value)
+    }
+  })
+
+  test('replaces filled endpoints when filled again for a new issuer', async () => {
+    await type('issuer', ISSUER)
+    await click('Fill defaults from issuer')
+
+    mocks.suggestLtiPlatformEndpoints.mockResolvedValue({ ok: true, endpoints: OTHER_SUGGESTED })
+    await type('issuer', OTHER_ISSUER)
+    await click('Fill defaults from issuer')
+
+    expect(mocks.suggestLtiPlatformEndpoints).toHaveBeenLastCalledWith(OTHER_ISSUER)
+    for (const [id, value] of Object.entries(OTHER_SUGGESTED)) {
+      expect(field(id).value).toBe(value)
+    }
+  })
+
+  test('discards a response when the issuer changed while it was loading', async () => {
+    let resolve: (value: unknown) => void = () => {}
+    mocks.suggestLtiPlatformEndpoints.mockReturnValue(
+      new Promise((r) => {
+        resolve = r
+      })
+    )
+    await type('issuer', ISSUER)
+    await act(async () => button('Fill defaults from issuer').click())
+
+    await type('issuer', OTHER_ISSUER)
+    await act(async () => resolve({ ok: true, endpoints: SUGGESTED }))
+
+    for (const id of Object.keys(SUGGESTED)) {
+      expect(field(id).value).toBe('')
+    }
   })
 
   test("shows the suggestion's refusal and fills nothing", async () => {
