@@ -66,17 +66,19 @@ what was submitted; it never rewrites a stored endpoint later.
 The Canvas adapter (`canvasRegistrationEndpoints` in
 `packages/lms-canvas/src/registration.ts`) suggests these values:
 
-| Issuer | Authorization endpoint suggested |
+| Issuer | Host for all four endpoints |
 | --- | --- |
-| `https://canvas.instructure.com` | `https://sso.canvaslms.com/api/lti/authorize_redirect` |
-| `https://canvas.beta.instructure.com` | `https://sso.beta.canvaslms.com/api/lti/authorize_redirect` |
-| `https://canvas.test.instructure.com` | `https://sso.test.canvaslms.com/api/lti/authorize_redirect` |
-| any other (self-hosted Canvas) | `/api/lti/authorize_redirect` on the issuer host |
+| `https://canvas.instructure.com` | `https://sso.canvaslms.com` |
+| `https://canvas.beta.instructure.com` | `https://sso.beta.canvaslms.com` |
+| `https://canvas.test.instructure.com` | `https://sso.test.canvaslms.com` |
+| any other (self-hosted Canvas) | the issuer host |
 
-For every issuer the token endpoint and authorization server default to
-`/login/oauth2/token` and the JWKS URI to `/api/lti/security/jwks`, all on the
-issuer host. Instructure documents only the authorization host move, so the
-other three stay issuer-relative until they are verified against Canvas test.
+On that host, the authorization endpoint is `/api/lti/authorize_redirect`,
+the JWKS URI is `/api/lti/security/jwks`, and both the token endpoint and the
+authorization server are `/login/oauth2/token`. Instructure has asked tools to
+store the `sso.*` hosts in place of the `canvas.*.instructure.com` hosts for
+all three of these URLs. The issuer itself does not change, and Instructure
+still accepts the old hosts, with no enforcement date announced.
 
 Core validates every submitted value on the server, whatever the form sent:
 
@@ -619,6 +621,10 @@ that case.
 - **Stored-launch shape.** Deep-link launches are persisted as a JSON blob;
   picking out only the needed fields into columns is noted.
 - **Nonce cleanup.** Used nonces are marked but not yet pruned.
+- **Hosted-Canvas `sso.*` defaults are not yet exercised live.** The adapter's
+  `sso.*` hosts for the authorization endpoint, token endpoint, JWKS URI and
+  token `aud` follow Instructure's published guidance. No launch or
+  client-credentials token request against Canvas test has used them yet.
 - **Multi-platform reality.** The code currently targets Canvas; role mapping
   (`INSTRUCTOR_LTI_ROLES`) and some custom fields are Canvas-shaped.
 - **`target_link_uri` is stored but not read.** Deep links name

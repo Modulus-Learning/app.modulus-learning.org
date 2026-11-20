@@ -6,6 +6,10 @@ on 2026-11-12; verification done on 2026-11-16.
 Revised: 2026-11-12, after rebasing onto `develop`. Core and lms-canvas tests
 moved from `node:test` to vitest, so the test paths below were updated. The
 design was unaffected.
+Revised: 2026-11-20, after PR review. Instructure documents the `sso.*` move
+for the JWKS URI and the token endpoint and `aud` as well as the authorization
+endpoint (see the spec's revision note in What Canvas Does). Phase 4 now moves
+all four hosted defaults; the rest of the plan was unaffected.
 Related:
 
 - `specs/2026-11-09-editable-lti-registration-endpoints-spec.md` — the approved
@@ -56,8 +60,8 @@ The work is complete when:
    issuer" button, the details page shows an Edit button to holders of
    `lti-platforms:edit`, and `/admin/lti-platforms/$id/edit` saves a complete
    registration;
-6. the Canvas adapter suggests `https://sso.*.canvaslms.com/api/lti/authorize_redirect`
-   for the three hosted issuers and keeps issuer-relative values otherwise;
+6. the Canvas adapter suggests the `https://sso.*.canvaslms.com` host for all
+   four endpoints of the three hosted issuers and keeps issuer-relative values otherwise;
 7. tests cover each row of the spec's propagation table;
 8. `docs/13-lti.md`, `docs/11-data-model.md` and `docs/08-lms-integration.md`
    describe the new model, and one changeset covers the four packages.
@@ -394,15 +398,13 @@ Integration (`--mode=integration`):
 
 - [x] `packages/lms-canvas/src/registration.ts`: add `HOSTED_CANVAS_SSO`.
   Compute `origin = new URL(issuer).origin`, and set
-  `authorization_endpoint` to `new URL('/api/lti/authorize_redirect', HOSTED_CANVAS_SSO[origin] ?? issuer).href`.
-  Leave the other three issuer-relative. Add the doc comment the spec
-  describes: the hosted-issuer table, the self-hosted fallback, the link to
-  Instructure's launch overview, and a note that token, JWKS and audience stay
-  on the issuer host pending verification.
+  every endpoint relative to `HOSTED_CANVAS_SSO[origin] ?? issuer`. Add the doc
+  comment the spec describes: the hosted-issuer table, the self-hosted
+  fallback, and links to Instructure's sources. (Revised 2026-11-20: first done
+  for the authorization endpoint only.)
 - [x] `packages/lms-canvas/src/registration.test.node.ts` (vitest `--mode=node`):
   - [x] Each of the three hosted issuers, with and without a trailing slash,
-    maps to its `sso.*` authorization endpoint, and keeps issuer-relative token,
-    JWKS and audience values.
+    maps to its `sso.*` host for all four endpoints.
   - [x] A self-hosted issuer (`https://canvas.example.edu`) keeps all four
     issuer-relative.
 - [x] `packages/lti/src/contract.ts`: replace the two doc comments with the
@@ -433,9 +435,9 @@ Follow `.agents/skills/writing-docs/SKILL.md` for every file under `docs/`.
   `lms-canvas`, `core` and `host-tanstack-start`. The fixed group bumps `agent`
   as well. The body carries the release notes the spec requires:
   - administrators can now edit a registration's endpoints;
-  - hosted-Canvas installations should change the authorization endpoint to
-    `https://sso.canvaslms.com/api/lti/authorize_redirect` (or the beta or
-    test equivalent) from the edit form, because Instructure has deprecated the
+  - hosted-Canvas installations should move all four endpoints to the
+    `sso.*` host from the edit form (revised 2026-11-20 from the authorization
+    endpoint only), because Instructure has asked tools to stop storing the
     old host;
   - `modulus db upgrade` grants the Manager role `lti-platforms:read` and
     `lti-platforms:edit`, and also the allowlist abilities
@@ -466,11 +468,11 @@ Before opening the PR against `develop`:
   - [x] confirm that a Manager signed in before the upgrade sees the Edit
     button after signing in again.
 - [ ] Manual LTI check with `devlti` against Canvas test, if available: after
-  switching the authorization endpoint to `sso.test.canvaslms.com`, a launch
-  completes. This is not the separate token, JWKS and audience verification
-  the spec defers. Not done: a launch against Canvas test wasn't possible.
-  The `sso.*` authorization defaults therefore rest on Instructure's
-  documentation and remain unverified by a live launch.
+  switching all four endpoints to the `sso.test.canvaslms.com` host, a launch
+  completes and a score passback obtains a token with the `sso.test.*` token
+  URL as its `aud`. Not done: a launch against Canvas test wasn't possible.
+  The `sso.*` defaults therefore rest on Instructure's documentation and
+  remain unverified by a live launch or token request.
 
 ## Decisions — 2026-11-10
 

@@ -3,8 +3,10 @@
 Date: 2026-11-09
 
 Status: Implemented. Code, docs and changeset landed on 2026-11-12, and
-verification passed on 2026-11-16 apart from a live launch against Canvas test
-with the `sso.test.canvaslms.com` authorization endpoint, which wasn't possible.
+verification passed on 2026-11-16 apart from a live launch and token request
+against Canvas test with the `sso.test.canvaslms.com` endpoints, which wasn't
+possible. Revised on 2026-11-20 to move all four hosted-Canvas defaults to
+`sso.*`.
 
 Document type: Explanation and implementation specification.
 
@@ -75,6 +77,17 @@ Third-party setup guides also list `sso.canvaslms.com` for the token endpoint
 own developer documentation does not yet state this; its sample OpenID
 configuration still shows `canvas.instructure.com` hosts and a different JWKS
 path (`/login/oauth2/jwks`).
+
+**Revised 2026-11-20, after PR review.** Instructure does document the other
+moves. Its product blog post "Minor LTI 1.3 Changes: New OIDC Auth Endpoint,
+Support for Platform Storage" (Instructure Community, discussion 551677) asks
+tools to switch every stored platform URL except the issuer to the `sso.*`
+host: the authorization redirect, the public JWKS
+(`/api/lti/security/jwks`) and the grant host sent as the token `aud`
+(`/login/oauth2/token`), with beta and test following the same pattern. The
+developer key configuration page lists the `sso.*` JWKS URL for all three
+environments, and the `POST /login/oauth2/token` reference accepts the OIDC
+Auth endpoint's domain as the assertion `aud`.
 
 Today's derivation therefore points every hosted-Canvas registration at the
 legacy host. It works only because Instructure still honours that host, and an
@@ -160,11 +173,11 @@ const HOSTED_CANVAS_SSO: Record<string, string> = {
 }
 ```
 
-The authorization endpoint moves to the `sso.*` host in this work, because
-Instructure documents it. The token endpoint, JWKS URI and authorization
-server default move only after the check in
-[Open Questions](#honest-notes--open-questions) passes against Canvas test.
-Until then they keep their current issuer-relative values. Normalise the issuer
+All four endpoints move to the `sso.*` host in this work, because Instructure
+documents each move (see the revision note in [What Canvas Does](#what-canvas-does)).
+This was first scoped to the authorization endpoint only, with the other three
+deferred until a Canvas test check; the review on 2026-11-20 found the
+Instructure sources that made the deferral unnecessary. Normalise the issuer
 (`new URL(issuer).origin`) before the lookup so a trailing slash still matches.
 
 ### Core: Create
@@ -377,7 +390,7 @@ gains one thin route file that calls the new factory.
   [Abilities](#abilities).
 - **No registration data migration.** Existing hosted-Canvas registrations keep their
   `canvas.instructure.com` endpoints, which still work. The release notes tell
-  administrators that they can now switch the authorization endpoint to
+  administrators that they can now switch all four endpoints to
   `sso.canvaslms.com` from the edit form, and why.
 
 ## Tests
@@ -403,7 +416,7 @@ Core unit tests (vitest `--mode=node`, `*.test.node.ts`):
 LMS Canvas (vitest `--mode=node`, a new `registration.test.node.ts`):
 
 - Each hosted issuer, with and without a trailing slash, maps to its `sso.*`
-  authorization endpoint.
+  host for all four endpoints.
 - A self-hosted issuer keeps issuer-relative paths for all four values.
 
 Host and gradebook (vitest):
@@ -450,11 +463,8 @@ One branch, `feat/editable-platform-endpoints`, opened against
 2. Propagation tests for login, launch and score passback.
 3. Host: the create-form fieldset, the edit route and form, and the details
    Edit button. Add the gradebook route file.
-4. Canvas: move the hosted authorization-endpoint default to `sso.*`.
+4. Canvas: move the hosted endpoint defaults to `sso.*`.
 5. Docs and the changeset.
-
-Moving the Canvas token, JWKS and audience defaults is a separate, later change
-that depends on the check below.
 
 This work and the implementation of the
 [Session Management Review](./2026-10-30-session-management-review-analysis.md)
@@ -487,18 +497,12 @@ follows whatever gate convention is current at that point.
 
 ## Honest Notes & Open Questions
 
-- **Canvas token, JWKS and audience on `sso.*`.** Instructure documents only
-  the authorization endpoint's move. Before moving the other defaults, check
-  against Canvas test (`canvas.test.instructure.com`) that:
-  1. A client-credentials request to `https://sso.test.canvaslms.com/login/oauth2/token`
-     succeeds.
-  2. The `aud` it accepts is the `sso.*` token URL, the legacy token URL, or
-     both.
-  3. `https://sso.test.canvaslms.com/api/lti/security/jwks` serves the key that
-     signs launches.
-
-  If the accepted `aud` differs from the token URL, the Canvas default for
-  `authorization_server` must stop copying `token_endpoint`.
+- **Canvas `sso.*` defaults are not yet verified live.** The defaults follow
+  Instructure's documentation. Verify against Canvas test
+  (`canvas.test.instructure.com`) that a launch completes with the `sso.test.*`
+  authorization endpoint and JWKS URI, and that a client-credentials request to
+  `https://sso.test.canvaslms.com/login/oauth2/token` with that URL as the
+  `aud` succeeds.
 - **One registration per issuer.** `lti_platforms.issuer` is unique. Every
   hosted-Canvas institution shares one issuer, so an installation can hold
   only one hosted-Canvas registration per environment. That matches the

@@ -42,7 +42,7 @@ placeholders for installation-specific identifiers and credentials.
 The registration walkthrough will cover the four endpoint fields an
 administrator enters or confirms, the "Fill defaults from issuer" button that
 asks the adapter for suggestions, and the hosted-Canvas issuers, whose
-authorization endpoint moved to an `sso.*.canvaslms.com` host. Until then,
+endpoints moved to an `sso.*.canvaslms.com` host. Until then,
 [LTI → Platform Registration](./13-lti.md#platform-registration) describes the
 registration model and the Canvas defaults.
 
