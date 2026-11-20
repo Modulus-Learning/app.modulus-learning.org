@@ -2,9 +2,9 @@
  * App globals
  */
 
-@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
-  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
-  overrides, infonomic-utilities, utilities;
+@layer properties, base, infonomic-base, theme, infonomic-theme, modulus-theme,
+  infonomic-functional, infonomic-typography, modulus-base, components, infonomic-components,
+  modulus-components, overrides, infonomic-utilities, utilities;
 
 @import "./base/base.css";
 @import "./utils/utils.css";

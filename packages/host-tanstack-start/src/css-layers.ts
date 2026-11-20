@@ -1,11 +1,13 @@
 import type { Plugin } from 'postcss'
 
 const layers =
-  'base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional, infonomic-typography, modulus-base, components, infonomic-components, modulus-components, overrides, infonomic-utilities, utilities'
+  'properties, base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional, infonomic-typography, modulus-base, components, infonomic-components, modulus-components, overrides, infonomic-utilities, utilities'
 
 /**
  * The Modulus cascade-layer order, lowest to highest precedence. It is the
- * `@infonomic/uikit` order with the package's own layers placed directly above
+ * `@infonomic/uikit` order, led by Tailwind's `properties` layer (which
+ * Tailwind itself declares first, and which would otherwise land above
+ * `utilities`), with the package's own layers placed directly above
  * the kit layer each extends: `modulus-theme` (default tokens), `modulus-base`
  * (base rules and typography) and `modulus-components` (component and block
  * CSS). An installation puts its own component CSS in `components`, brand

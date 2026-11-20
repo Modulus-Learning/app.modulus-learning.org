@@ -33,6 +33,13 @@ describe('the Modulus layer order', () => {
     expect(names(MODULUS_LAYER_ORDER).filter((name) => kit.includes(name))).toEqual(kit)
   })
 
+  test("ranks Tailwind's properties layer lowest, as Tailwind's own output does", () => {
+    // Tailwind emits `@layer properties;` ahead of its output, holding `--tw-*`
+    // initial values on `*` for browsers without @property. Declared after
+    // `utilities`, it would cancel transform, ring and shadow utilities there.
+    expect(names(MODULUS_LAYER_ORDER)[0]).toBe('properties')
+  })
+
   test('puts package layers directly above the kit layer they extend and below overrides', () => {
     const order = names(MODULUS_LAYER_ORDER)
     expect(order.indexOf('modulus-theme')).toBe(order.indexOf('infonomic-theme') + 1)

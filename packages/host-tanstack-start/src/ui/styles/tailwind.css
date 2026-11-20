@@ -4,9 +4,9 @@
  * places in it. Preflight stays off.
  */
 
-@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
-  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
-  overrides, infonomic-utilities, utilities;
+@layer properties, base, infonomic-base, theme, infonomic-theme, modulus-theme,
+  infonomic-functional, infonomic-typography, modulus-base, components, infonomic-components,
+  modulus-components, overrides, infonomic-utilities, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 /* @import "tailwindcss/preflight.css" layer(base); */
 @import "tailwindcss/utilities.css" layer(utilities);

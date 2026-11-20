@@ -1,9 +1,9 @@
 /* // Custom Select
 // https://github.com/filamentgroup/select-css/blob/master/src/select-css.css */
 
-@layer base, infonomic-base, theme, infonomic-theme, modulus-theme, infonomic-functional,
-  infonomic-typography, modulus-base, components, infonomic-components, modulus-components,
-  overrides, infonomic-utilities, utilities;
+@layer properties, base, infonomic-base, theme, infonomic-theme, modulus-theme,
+  infonomic-functional, infonomic-typography, modulus-base, components, infonomic-components,
+  modulus-components, overrides, infonomic-utilities, utilities;
 
 @layer modulus-base {
   .custom-select {
