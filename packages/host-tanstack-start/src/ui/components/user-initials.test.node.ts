@@ -15,8 +15,10 @@ describe('initialsFromNames (admin users: given and family name)', () => {
     [null, 'Lovelace', 'L'],
     ['', '  ', ''],
     [null, undefined, ''],
+    ['E\u0301mile', 'O\u0308rsted', 'ÉÖ'],
+    ["'Ada", '-Lovelace', 'AL'],
   ])('%j + %j → %j', (given, family, expected) => {
-    expect(initialsFromNames(given, family)).toBe(expected)
+    expect(initialsFromNames(given, family).normalize('NFC')).toBe(expected)
   })
 })
 
@@ -32,8 +34,12 @@ describe('initialsFromFullName (learners: full name only)', () => {
     ['   ', ''],
     [undefined, ''],
     [null, ''],
+    ['J Smith', 'JS'],
+    ['E\u0301mile', 'ÉM'],
+    ["O'Brien", 'OB'],
+    ['- -', ''],
   ])('%j → %j', (fullName, expected) => {
-    expect(initialsFromFullName(fullName)).toBe(expected)
+    expect(initialsFromFullName(fullName).normalize('NFC')).toBe(expected)
   })
 })
 
