@@ -18,7 +18,7 @@ export const Page = function Page() {
             lng={lng}
             breadcrumbs={[
               { label: 'LTI Platforms', href: '/admin/lti-platforms' },
-              { label: 'LTI Platform', href: '/admin/lti-platforms/id' },
+              { label: 'LTI Platform', href: `/admin/lti-platforms/${id}` },
             ]}
           />
         </Container>

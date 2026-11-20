@@ -117,6 +117,38 @@ describe('LtiScoreSubmissionManager reconcile (database)', () => {
     }
   })
 
+  it('replaces the score client when only the authorization server changes', async () => {
+    const id = uuidv7()
+    await h.db.insert(platforms).values({
+      id,
+      issuer: ISSUER,
+      name: 'Canvas',
+      client_id: 'client-1',
+      authorization_endpoint: `${ISSUER}/auth`,
+      token_endpoint: `${ISSUER}/token`,
+      jwks_uri: `${ISSUER}/jwks`,
+      authorization_server: ISSUER,
+    })
+    const { manager, clients, forgotten } = createManager()
+    manager.start()
+    try {
+      await waitFor(() => clients.length === 1, 'the first score client')
+
+      await h.db
+        .update(platforms)
+        .set({ authorization_server: `${ISSUER}/corrected/audience` })
+        .where(eq(platforms.id, id))
+
+      await waitFor(() => clients.length === 2, 'a replacement score client')
+      assert.equal(clients[1]?.authorization_server, `${ISSUER}/corrected/audience`)
+      assert.equal(clients[1]?.client_id, 'client-1')
+      assert.equal(clients[1]?.token_endpoint, `${ISSUER}/token`)
+      assert.deepEqual(forgotten, [id])
+    } finally {
+      await manager.stop()
+    }
+  })
+
   it('drops the cached token when a registration is removed', async () => {
     const id = uuidv7()
     await h.db.insert(platforms).values({

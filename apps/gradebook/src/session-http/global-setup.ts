@@ -31,6 +31,7 @@ declare module 'vitest' {
     jwtIssuer: string
     jwtAudience: string
     platformPrivateKey: string
+    databaseUrl: string
   }
 }
 
@@ -106,7 +107,7 @@ const seed = async (databaseUrl: string, platformBase: string) => {
     )
     await db.query(
       `INSERT INTO lti_platforms (id, issuer, name, client_id, authorization_endpoint, token_endpoint, jwks_uri, authorization_server)
-       VALUES ('01900000-0000-7000-8000-00000000a003', $1, 'Session Test Platform', $2, $3, $4, $5, $6)`,
+       VALUES ($7, $1, 'Session Test Platform', $2, $3, $4, $5, $6)`,
       [
         PLATFORM.issuer,
         PLATFORM.clientId,
@@ -114,6 +115,7 @@ const seed = async (databaseUrl: string, platformBase: string) => {
         `${platformBase}/token`,
         `${platformBase}/jwks`,
         platformBase,
+        PLATFORM.id,
       ]
     )
   } finally {
@@ -197,6 +199,7 @@ export default async function setup(project: TestProject) {
   project.provide('jwtIssuer', env.API_JWT_ISSUER as string)
   project.provide('jwtAudience', env.API_JWT_AUDIENCE as string)
   project.provide('platformPrivateKey', await exportPKCS8(privateKey))
+  project.provide('databaseUrl', databaseUrl)
 
   return async () => {
     server.kill('SIGTERM')
