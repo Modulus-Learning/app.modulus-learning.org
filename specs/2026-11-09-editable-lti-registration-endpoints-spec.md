@@ -331,8 +331,11 @@ gains one thin route file that calls the new factory.
   Authorization Endpoint, Token Endpoint, JWKS URI and Authorization Server
   (token `aud`).
 - Add a "Fill defaults from issuer" button beside the fieldset. It calls
-  `suggestLtiPlatformEndpoints` and fills only the empty fields, so values the
-  administrator has typed are kept.
+  `suggestLtiPlatformEndpoints` and replaces all four fields with the
+  defaults for the issuer currently entered, so filling again after changing
+  the issuer follows the new issuer. A response that arrives after the issuer
+  has changed is discarded. (Revised 2026-11-20 after PR review: this first
+  filled only the empty fields.)
 - Each input's help text says where to find the value. For Canvas, point to
   Instructure's LTI launch overview.
 - Rewrite step 4 of the instructions. It currently says "issuer (base Canvas
@@ -421,7 +424,8 @@ LMS Canvas (vitest `--mode=node`, a new `registration.test.node.ts`):
 
 Host and gradebook (vitest):
 
-- The create form's defaults button fills only empty fields.
+- The create form's defaults button replaces all four fields, and discards a
+  response whose issuer no longer matches the issuer field.
 - The edit form renders the issuer read-only and submits all four endpoints.
 - The server-function gate convention test covers `update.ts`.
 

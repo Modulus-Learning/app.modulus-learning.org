@@ -57,8 +57,9 @@ admin `ltiPlatforms` commands (`modules/admin/lti-platforms/`). Each
 An administrator enters or confirms each of the four endpoint values. The LMS
 adapter only suggests defaults. On the create form, the "Fill defaults from
 issuer" button calls `suggestLtiPlatformEndpoints`, which returns the adapter's
-`registrationEndpoints(issuer)`, and fills the four fields for the
-administrator to accept or change. `createLtiPlatform` accepts each endpoint
+`registrationEndpoints(issuer)`, and replaces whatever the four fields hold
+with those defaults for the administrator to accept or change. A response that
+arrives after the issuer field has changed is discarded. `createLtiPlatform` accepts each endpoint
 as optional and fills only the fields left out from the same adapter defaults,
 so a caller that sends none still gets a complete registration. Core stores
 what was submitted; it never rewrites a stored endpoint later.
