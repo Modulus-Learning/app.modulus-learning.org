@@ -14,6 +14,7 @@ import { DrawerProvider, ToastProvider, ToastViewport } from '@infonomic/uikit/r
 
 import { PublicConfigProvider } from '@/config/provider'
 import { ProgressBarProvider } from '@/context/progress-bar-provider/index'
+import { MODULUS_LAYER_ORDER } from '@/css-layers'
 import { i18nConfig, type Locale } from '@/i18n/i18n-config'
 import { getRootConfigFn } from '@/lib/public-config'
 import { ConsoleCredit } from '@/ui/components/console-credit'
@@ -134,6 +135,7 @@ function RootDocument({
       data-theme-context={themeContext}
     >
       <head>
+        <style>{MODULUS_LAYER_ORDER}</style>
         {analytics != null && analyticsEnabled && !chromeless ? (
           <script
             async

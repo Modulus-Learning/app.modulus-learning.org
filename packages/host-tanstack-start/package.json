@@ -111,9 +111,15 @@
     "nitro": "*",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
+    "postcss": "^8.4.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "vite": "^8.3.0"
+  },
+  "peerDependenciesMeta": {
+    "postcss": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.8",
