@@ -349,4 +349,17 @@ describe('package components', () => {
     )
     expect(issues).toEqual([])
   })
+
+  test('use no Tailwind important modifiers (!m-0, mb-4!)', () => {
+    // Tailwind emits `!important` for these, which beats a directly applied
+    // utility. Only string literals are searched, so `!open` in code is not a
+    // match.
+    const modifier = /(?:^|\s)(![a-z][\w:./[\]-]*|[a-z][\w:./[\]-]*!)(?=\s|$)/g
+    const issues = sources.flatMap((path) =>
+      [...read(path).matchAll(/(["'`])((?:\\.|(?!\1)[^\\\n])*)\1/g)].flatMap((literal) =>
+        [...literal[2].matchAll(modifier)].map((match) => `${relative(SRC, path)}: ${match[1]}`)
+      )
+    )
+    expect(issues).toEqual([])
+  })
 })

@@ -94,7 +94,7 @@ export function AdminUserEditForm({ data, lng }: UserEditFormProps): React.JSX.E
 
   return (
     <div className="max-w-[500px] mx-auto rounded-md border border-gray-100 dark:border-gray-700 p-5 pb-1 mb-8 mt-[4vh]">
-      <h2 className="!m-0 !mb-4">Edit Admin User</h2>
+      <h2 className="m-0 mb-4">Edit Admin User</h2>
       {formState?.status === 'success' && (
         <Alert intent="success">
           <span>{formState.message}</span>

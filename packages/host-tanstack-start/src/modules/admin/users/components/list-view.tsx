@@ -158,7 +158,7 @@ export function UsersListView({ data, lng }: { data: UsersResponse; lng: Locale 
     <Section>
       <Container>
         <div className="flex items-center gap-3 py-[2px]">
-          <h1 className="!m-0 pb-[2px]">Users</h1>
+          <h1 className="m-0 pb-[2px]">Users</h1>
           <Stats total={data.meta.total} />
           <IconButton
             aria-label="Create New User"

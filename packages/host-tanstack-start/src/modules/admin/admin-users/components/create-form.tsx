@@ -96,7 +96,7 @@ export function AdminUserCreateForm({
 
   return (
     <div className="max-w-[500px] mx-auto rounded-md border border-gray-100 dark:border-gray-700 p-5 mb-8 mt-[4vh]">
-      <h2 className="!m-0 !mb-4">Create New Admin User</h2>
+      <h2 className="m-0 mb-4">Create New Admin User</h2>
       {formState?.status === 'success' && (
         <Alert intent="success">
           <span>{formState.message}</span>

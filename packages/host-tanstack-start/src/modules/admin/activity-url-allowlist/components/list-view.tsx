@@ -38,7 +38,7 @@ export function AllowlistRulesListView({
     <Section>
       <Container>
         <div className="flex items-center gap-3 py-[2px]">
-          <h1 className="!m-0 pb-[2px]">Activity URL Allowlist</h1>
+          <h1 className="m-0 pb-[2px]">Activity URL Allowlist</h1>
           <IconButton
             aria-label="Add allowlist rule"
             className="ml-auto"

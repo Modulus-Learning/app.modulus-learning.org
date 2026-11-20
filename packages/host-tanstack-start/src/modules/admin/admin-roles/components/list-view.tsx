@@ -188,7 +188,7 @@ export function AdminRolesListView({ data, lng }: { data: AdminRolesResponse; ln
     <Section>
       <Container>
         <div className="flex items-center gap-3 py-[2px]">
-          <h1 className="!m-0 pb-[2px]">Admin Roles</h1>
+          <h1 className="m-0 pb-[2px]">Admin Roles</h1>
           <Stats total={data?.roles?.length} />
           <IconButton
             aria-label="Create New User"

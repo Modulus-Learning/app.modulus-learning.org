@@ -71,8 +71,8 @@ export function AllowlistRuleEditForm({
 
   return (
     <div className="max-w-[640px] mx-auto rounded-md border border-gray-100 dark:border-gray-700 p-5 pb-1 mb-8 mt-[4vh]">
-      <h2 className="!m-0 !mb-1">Edit Allowlist Rule</h2>
-      <p className="!mt-0 !mb-4 font-mono text-sm">{rule.base_url}</p>
+      <h2 className="m-0 mb-1">Edit Allowlist Rule</h2>
+      <p className="mt-0 mb-4 font-mono text-sm">{rule.base_url}</p>
 
       {formState?.status === 'failed' && (
         <Alert intent="danger">

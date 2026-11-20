@@ -89,7 +89,7 @@ export function LtiPlatformCreateForm({ lng }: { lng: Locale }): React.JSX.Eleme
 
   return (
     <div className="max-w-[500px] mx-auto rounded-md border border-gray-100 dark:border-gray-700 p-5 pb-1 mb-8 mt-[4vh]">
-      <h2 className="!m-0 !mb-4">Register New LTI Platform</h2>
+      <h2 className="m-0 mb-4">Register New LTI Platform</h2>
       <div className="mb-3 prose">
         <p>To register Modulus with Canvas:</p>
         <ol>

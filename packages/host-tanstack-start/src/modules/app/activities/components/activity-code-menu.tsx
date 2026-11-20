@@ -23,7 +23,7 @@ export function ActivityCodeMenu({
     <Section>
       <Container className="mb-4">
         <div className="flex flex-col gap-1">
-          <h1 className="!m-0 pb-[2px]">{activityCode.code}</h1>
+          <h1 className="m-0 pb-[2px]">{activityCode.code}</h1>
           <div className="flex items-center gap-2 justify-between">
             <p className="text-muted-foreground">Activity code analytics</p>
             <Button

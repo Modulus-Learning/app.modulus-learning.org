@@ -157,7 +157,7 @@ export function LearnersProgressView({ data, lng }: { data: ProgressResponse; ln
     <Section>
       <Container>
         <div className="flex items-center gap-3 py-[2px]">
-          <h1 className="!m-0 pb-[2px]">{data?.included?.activity_code?.code}</h1>
+          <h1 className="m-0 pb-[2px]">{data?.included?.activity_code?.code}</h1>
           <Stats total={data.meta.total} />
         </div>
         {data?.included?.activity_code?.description && (

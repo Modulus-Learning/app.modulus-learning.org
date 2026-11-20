@@ -31,7 +31,7 @@ export function ReEnableRuleButton({ rule }: { rule: AllowlistRule }): React.JSX
       <Button type="button" disabled={isPending} onClick={handleOnClick}>
         Re-enable this rule
       </Button>
-      {formState?.status === 'failed' && <p className="!mb-0 mt-2 text-sm">{formState.message}</p>}
+      {formState?.status === 'failed' && <p className="mb-0 mt-2 text-sm">{formState.message}</p>}
     </div>
   )
 }

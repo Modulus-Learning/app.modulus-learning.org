@@ -28,7 +28,7 @@ export function DeleteRuleForm({ rule }: { rule: AllowlistRule }): React.JSX.Ele
 
   return (
     <div className="border-t border-gray-100 dark:border-gray-700 pt-4 mt-2 mb-4">
-      <h3 className="!mt-0 !mb-2">Delete this rule</h3>
+      <h3 className="mt-0 mb-2">Delete this rule</h3>
 
       {formState?.status === 'failed' && (
         <Alert intent="danger">

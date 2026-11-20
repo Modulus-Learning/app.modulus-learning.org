@@ -44,7 +44,7 @@ export function AdminUserDetailsView({ lng, data, mode }: UserDetailsProps): Rea
   return (
     <div className="max-w-[500px] mx-auto rounded-md border border-gray-100 dark:border-gray-700 px-5 pb-1 mb-8 mt-[4vh]">
       <div className="user-context-menu py-3 mb-2 flex items-center justify-start">
-        <h2 className="!m-0 !mr-auto">
+        <h2 className="m-0 mr-auto">
           {mode === 'delete' ? 'Delete Admin User' : 'Admin User Details'}
         </h2>
         <AdminUserContextMenu lng={lng} data={data} mode={mode} />

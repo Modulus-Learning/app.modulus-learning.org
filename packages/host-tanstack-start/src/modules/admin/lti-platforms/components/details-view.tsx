@@ -20,7 +20,7 @@ export function LtiPlatformDetailsView({
   return (
     <div className="max-w-[500px] mx-auto rounded-md border border-gray-100 dark:border-gray-700 px-5 pb-1 mb-8 mt-[4vh]">
       <div className="py-3 mb-2 flex items-center justify-start">
-        <h2 className="!m-0 !mr-auto">LTI Platform Details</h2>
+        <h2 className="m-0 mr-auto">LTI Platform Details</h2>
         <CopyButton
           aria-label="Copy platform JSON to clipboard"
           size="xs"

@@ -95,7 +95,7 @@ export function LtiPlatformsListView({ data, lng }: { data: LtiPlatformsResponse
     <Section>
       <Container>
         <div className="flex items-center gap-3 py-[2px]">
-          <h1 className="!m-0 pb-[2px]"> LTI Platforms</h1>
+          <h1 className="m-0 pb-[2px]"> LTI Platforms</h1>
           <Stats total={items.length} />
           <IconButton
             aria-label="Create New LTI Platform"

@@ -64,7 +64,7 @@ export function LtiIdentityPanel({ userId, vid, lti, canUnlink }: LtiIdentityPan
       aria-labelledby="lti-identity-heading"
       className="max-w-[500px] mx-auto rounded-md border border-gray-100 dark:border-gray-700 px-5 py-3 mb-8"
     >
-      <h2 id="lti-identity-heading" className="!mt-0">
+      <h2 id="lti-identity-heading" className="mt-0">
         LTI identity
       </h2>
 

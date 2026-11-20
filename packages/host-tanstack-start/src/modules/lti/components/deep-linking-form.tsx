@@ -201,7 +201,7 @@ export function DeepLinkingForm({
     <div className="flex flex-col mb-12 items-center">
       <div className="w-full bg-white rounded-lg shadow border md:mt-0 sm:max-w-130 xl:p-0">
         <div className="p-6 sm:p-7">
-          <h2 className="m-0! flex items-center gap-4 mb-4! text-xl font-bold leading-tight tracking-tight text-gray-900 md:text-2xl">
+          <h2 className="m-0 flex items-center gap-4 mb-4 text-xl font-bold leading-tight tracking-tight text-gray-900 md:text-2xl">
             <Image src={logoBlack} width={70} alt="Modulus" />{' '}
             <span>Create Modulus Activity Link</span>
           </h2>

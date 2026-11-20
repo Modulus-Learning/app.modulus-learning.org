@@ -40,7 +40,7 @@ export function ImpactPreview({ ruleId }: { ruleId: string }): React.JSX.Element
           'Count the activities the proposed policy leaves grandfathered'
         )}
       </Button>
-      {state.status === 'failed' && <p className="!mb-0 mt-2 text-sm">{state.message}</p>}
+      {state.status === 'failed' && <p className="mb-0 mt-2 text-sm">{state.message}</p>}
     </div>
   )
 }
