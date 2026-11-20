@@ -13,8 +13,7 @@ const FIELDS: { name: EndpointField; label: string; helpText: string }[] = [
   {
     name: 'authorization_endpoint',
     label: 'Authorization Endpoint',
-    helpText:
-      "The platform's OIDC authorization endpoint, where logins are redirected. For hosted Canvas, the sso.canvaslms.com authorize_redirect URL.",
+    helpText: "The platform's OIDC authorization endpoint, where logins are redirected.",
   },
   {
     name: 'token_endpoint',
