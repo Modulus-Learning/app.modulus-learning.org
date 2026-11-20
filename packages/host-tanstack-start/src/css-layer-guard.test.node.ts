@@ -289,6 +289,33 @@ describe('the stylesheet entry (owned by the installation)', () => {
   })
 })
 
+describe('installation @theme placement', () => {
+  // The package @theme resets the font and breakpoint namespaces
+  // (`--font-*: initial`), which clears any installation names declared before
+  // it. The guidance and the reference entry must put installation @theme
+  // blocks after the package import.
+  const repo = resolve(SRC, '../../..')
+  const packageImport = '@import "@modulus-learning/host-tanstack-start/styles/tailwind.css";'
+
+  test('the package @theme resets the namespaces this rule protects', () => {
+    const css = read(resolve(SRC, 'ui/styles/tailwind.css'))
+    expect(css).toContain('--font-*: initial;')
+    expect(css).toContain('--breakpoint-*: initial;')
+  })
+
+  test('the styling doc shows an installation @theme after the package import', () => {
+    const doc = read(resolve(repo, 'docs/26-styling-and-themes.md'))
+    const example = doc.indexOf(`${packageImport}\n\n@theme {`)
+    expect(example).toBeGreaterThan(-1)
+    expect(doc).toMatch(/after the package import/i)
+  })
+
+  test("the reference installation's Tailwind entry says where @theme goes", () => {
+    const entry = read(resolve(repo, 'apps/gradebook/src/ui/styles/tailwind.css'))
+    expect(entry).toMatch(/after the package import/i)
+  })
+})
+
 describe('the scope-root audit', () => {
   test('reports selectors that start at the scoping root', () => {
     const css =

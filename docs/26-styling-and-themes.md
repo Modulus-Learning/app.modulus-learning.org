@@ -109,7 +109,10 @@ export const modulus = (): Plugin => ({
 The preset sets the PostCSS plugin inline. Vite merges it with any inline
 plugins in your `vite.config.ts`. An inline PostCSS configuration also stops
 Vite reading `postcss.config.*` files, so an installation that has one moves
-those plugins into `vite.config.ts`.
+those plugins into `vite.config.ts`. Keep Vite's default CSS transformer: with
+`css.transformer: 'lightningcss'`, Vite skips PostCSS, the plugin never runs,
+and a production chunk can establish a partial order that places the Modulus
+layers above `utilities`.
 
 ## Theme Contexts
 
@@ -223,10 +226,27 @@ is layered, but it has no scope, so it recolours the dashboard and admin area to
 
 **Tailwind theme values.** You may add new names in a top-level `@theme` in your
 Tailwind entry (for example `--color-brand-500`), because only your own markup
-uses them. Do not redefine a shared value there (an existing colour, font or
-breakpoint): Tailwind theme variables are global, so the change reaches
-utilities used in the admin area. Change shared colours and fonts on the scoped
-public root instead.
+uses them. Place your `@theme` after the package import: the package's `@theme`
+resets the font and breakpoint namespaces (`--font-*: initial`,
+`--breakpoint-*: initial`), so a font or breakpoint name declared before it is
+cleared and its utility is never generated.
+
+```css
+/* your src/ui/styles/tailwind.css */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "@modulus-learning/host-tanstack-start/styles/tailwind.css";
+
+@theme {
+  --color-brand-500: oklch(52% 0.2 25);
+  --font-brand: Georgia, serif;
+}
+```
+
+Do not redefine a shared value there (an existing colour, font or breakpoint):
+Tailwind theme variables are global, so the change reaches utilities used in
+the admin area. Change shared colours and fonts on the scoped public root
+instead.
 
 ## Writing Rules Inside @scope
 
@@ -249,8 +269,12 @@ and nothing reports it.
 | Order export | `src/css-layers.test.node.ts` in the same suite | The order is a superset of the kit's, the plugin prepends it, the preset registers the plugin, and the root route renders the statement first. |
 | Built CSS | `pnpm check:css` (gradebook, in `pnpm run ci`) and `pnpm test:packed` (fixture) | Every built stylesheet establishes the full order first; Tailwind scanned the package; the dark variant and the package's container widths survive. |
 
-`scripts/check-built-css.mjs` takes any directory of built `.css` files, so an
-installation can run it against its own build output.
+`scripts/check-built-css.mjs` is part of this repository, not of a published
+package: it reads the order from the host package's `dist` by a repository path,
+and it expects the reference application's packaged components in the bundle.
+An installation that wants the same check copies the script and adapts it,
+importing `MODULUS_LAYER_ORDER` from
+`@modulus-learning/host-tanstack-start/css-layers`.
 
 ## Upgrading Installations
 

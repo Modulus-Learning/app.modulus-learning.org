@@ -1,8 +1,10 @@
 /**
  * The single Tailwind entry: Tailwind's theme and utilities, then the
  * package's Tailwind configuration. New theme names an installation adds go in
- * a top-level @theme here; changes to shared colours and fonts go on the
- * public scope root in @layer overrides instead.
+ * a top-level @theme here, after the package import: the package @theme resets
+ * the font and breakpoint namespaces, which would clear names declared before
+ * it. Changes to shared colours and fonts go on the public scope root in
+ * @layer overrides instead.
  */
 
 @layer properties, base, infonomic-base, theme, infonomic-theme, modulus-theme,
