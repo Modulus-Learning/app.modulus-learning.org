@@ -7,6 +7,9 @@ import {
   generateCanvasConfigResponseSchema,
   ltiPlatformListResponseSchema,
   ltiPlatformResponseSchema,
+  suggestLtiPlatformEndpointsRequestSchema,
+  suggestLtiPlatformEndpointsResponseSchema,
+  updateLtiPlatformRequestSchema,
 } from './schemas.js'
 import type { LtiPlatformsService } from './services/lti-platforms.js'
 
@@ -46,6 +49,39 @@ export class LtiPlatformsCommands {
         output: ltiPlatformResponseSchema,
       },
       handler: this.service.createLtiPlatform.bind(this.service),
+    })
+  }
+
+  @cached get updateLtiPlatform() {
+    return this.utils.createCommand({
+      method: 'updateLtiPlatform',
+      auth: {
+        mode: 'admin',
+        abilities: ['lti-platforms:edit'],
+      },
+      schemas: {
+        input: updateLtiPlatformRequestSchema,
+        output: ltiPlatformResponseSchema,
+      },
+      handler: this.service.updateLtiPlatform.bind(this.service),
+    })
+  }
+
+  @cached get suggestLtiPlatformEndpoints() {
+    return this.utils.createCommand({
+      method: 'suggestLtiPlatformEndpoints',
+      auth: {
+        mode: 'admin',
+        // Any admin session: the result is the adapter's static defaults for
+        // the issuer given, with no stored data read, and both the create and
+        // edit forms use it.
+        abilities: [],
+      },
+      schemas: {
+        input: suggestLtiPlatformEndpointsRequestSchema,
+        output: suggestLtiPlatformEndpointsResponseSchema,
+      },
+      handler: this.service.suggestLtiPlatformEndpoints.bind(this.service),
     })
   }
 

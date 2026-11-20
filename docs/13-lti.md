@@ -1,7 +1,7 @@
 ---
 title: "LTI 1.3 Integration"
 path: "lti"
-summary: "How Modulus is an LTI 1.3 tool for an institutional LMS: the three keypairs and trust model, platform registration, the OIDC login and launch flows, deep linking for content selection with instructor activity URL validation and canonical custom claims, and the queue-backed AGS score-passback worker built to survive thousands of concurrent submissions."
+summary: "How Modulus is an LTI 1.3 tool for an institutional LMS: the three keypairs and trust model, platform registration with administrator-entered and editable endpoints, the OIDC login and launch flows, deep linking for content selection with instructor activity URL validation and canonical custom claims, and the queue-backed AGS score-passback worker built to survive thousands of concurrent submissions."
 ---
 
 # LTI 1.3 Integration
@@ -51,6 +51,78 @@ For an LMS to be trusted it must exist in `lti_platforms` — `issuer`,
 admin `ltiPlatforms` commands (`modules/admin/lti-platforms/`). Each
 `(issuer, deployment_id)` seen during a launch is upserted into
 `lti_platform_deployments` automatically.
+
+### Who Decides the Endpoints
+
+An administrator enters or confirms each of the four endpoint values. The LMS
+adapter only suggests defaults. On the create form, the "Fill defaults from
+issuer" button calls `suggestLtiPlatformEndpoints`, which returns the adapter's
+`registrationEndpoints(issuer)`, and replaces whatever the four fields hold
+with those defaults for the administrator to accept or change. A response that
+arrives after the issuer field has changed is discarded. `createLtiPlatform` accepts each endpoint
+as optional and fills only the fields left out from the same adapter defaults,
+so a caller that sends none still gets a complete registration. Core stores
+what was submitted; it never rewrites a stored endpoint later.
+
+The Canvas adapter (`canvasRegistrationEndpoints` in
+`packages/lms-canvas/src/registration.ts`) suggests these values:
+
+| Issuer | Host for all four endpoints |
+| --- | --- |
+| `https://canvas.instructure.com` | `https://sso.canvaslms.com` |
+| `https://canvas.beta.instructure.com` | `https://sso.beta.canvaslms.com` |
+| `https://canvas.test.instructure.com` | `https://sso.test.canvaslms.com` |
+| any other (self-hosted Canvas) | the issuer host |
+
+On that host, the authorization endpoint is `/api/lti/authorize_redirect`,
+the JWKS URI is `/api/lti/security/jwks`, and both the token endpoint and the
+authorization server are `/login/oauth2/token`. Instructure has asked tools to
+store the `sso.*` hosts in place of the `canvas.*.instructure.com` hosts for
+all three of these URLs. The issuer itself does not change, and Instructure
+still accepts the old hosts, with no enforcement date announced.
+
+Core validates every submitted value on the server, whatever the form sent:
+
+| Field | Rule |
+| --- | --- |
+| `issuer` | an `https:` URL in standard form, with no credentials, query, fragment or trailing slash |
+| `authorization_endpoint`, `token_endpoint`, `jwks_uri` | an `https:` URL written with `https://`, with no credentials or fragment; a query is allowed |
+| `authorization_server` | non-empty text up to 2048 characters; it is the token `aud`, which need not be a URL |
+
+Logins and launches match the stored issuer exactly against the `iss` claim,
+so the issuer must be stored in the form a platform sends. It must not end in
+`/`, which platforms omit. It must also be in standard form: the string the
+URL parser would produce from it, less the trailing `/` of a bare origin. The
+parser accepts loose forms such as `https:lms.example.edu`, an uppercase host
+or an explicit `:443`, and rewrites them, so a loose issuer would be stored as
+typed and no launch would match it. An endpoint may not carry a user name or
+password, because Node's `fetch` refuses such a URL when it requests keys or
+tokens.
+
+### Editing a Registration
+
+`updateLtiPlatform` replaces the name, client ID and four endpoints of an
+existing registration, and requires `lti-platforms:edit`. Its input is a
+complete statement of the registration. The **issuer is immutable**: the update
+schema has no `issuer` field, and one sent by a client is dropped. To change an
+issuer, register a new platform.
+
+An edit takes effect on next use, without a restart:
+
+| Consumer | Values read | When an edit applies |
+| --- | --- | --- |
+| OIDC login (Flow 1) | `client_id`, `authorization_endpoint` | the next login; the platform row is read per request |
+| Launch (Flow 2) | `client_id`, `jwks_uri` | the next launch; the cached remote key set is rebuilt when `jwks_uri` changes |
+| Score passback (Flow 4) | `client_id`, `token_endpoint`, `authorization_server` | the next reconcile, every `LTI_SCORE_SUBMISSION_PLATFORM_RECONCILE_INTERVAL_SECONDS` (default 60) |
+
+Score passback detects an edit by comparing `registrationFingerprint` from
+`@modulus-learning/lti`, which covers all six registration fields, with the
+fingerprint of the running processor. On a change, the score-submission manager
+drains the old processor, discards its cached access token, and starts a
+replacement, so the next token request is signed with the new `aud`.
+
+`lti_platforms` has no version column, so two administrators editing the same
+registration at once are not detected: the last save wins.
 
 ## Flow 1 — OIDC Login (third-party initiated)
 
@@ -521,6 +593,27 @@ core command:
 The dynamic-registration helper is a page rather than a handler despite its
 location, at `/routes/lti/register`.
 
+Platform registrations are managed by admin commands. Each requires an admin
+session, and all but one also require an ability:
+
+| Command | Admin page | Ability | Purpose |
+| --- | --- | --- | --- |
+| `listLtiPlatforms` | `/admin/lti-platforms` | `lti-platforms:list` | list registrations |
+| `getLtiPlatform` | `/admin/lti-platforms/$id` | `lti-platforms:read` | show one registration |
+| `createLtiPlatform` | `/admin/lti-platforms/add` | `lti-platforms:create` | register a platform |
+| `suggestLtiPlatformEndpoints` | the defaults button on the create and edit forms | none (any admin session) | return the adapter's endpoint defaults for an issuer |
+| `updateLtiPlatform` | `/admin/lti-platforms/$id/edit` | `lti-platforms:edit` | edit name, client ID and endpoints |
+| `generateCanvasConfig` | the create page | `lti-platforms:create` | build the Canvas developer-key JSON |
+
+`suggestLtiPlatformEndpoints` needs no ability because it reads no stored data:
+it returns the adapter's defaults for the issuer it is given. Saving the values
+still requires `lti-platforms:create` or `lti-platforms:edit`.
+
+The details page shows its Edit button only to a session holding
+`lti-platforms:edit`. Abilities are baked into the admin access token, so an
+administrator granted `edit` while signed in may need to sign in again before
+the button appears ([AUTHN-AUTHZ](./12-authn-authz.md)).
+
 The interstitial reads its display data from
 `core.app.activities.getActivityLaunchView`, a read-only command keyed on
 `(activity_id, scope_id)`. It takes no activity code and writes nothing: by the
@@ -540,6 +633,10 @@ that case.
 - **Stored-launch shape.** Deep-link launches are persisted as a JSON blob;
   picking out only the needed fields into columns is noted.
 - **Nonce cleanup.** Used nonces are marked but not yet pruned.
+- **Hosted-Canvas `sso.*` defaults are not yet exercised live.** The adapter's
+  `sso.*` hosts for the authorization endpoint, token endpoint, JWKS URI and
+  token `aud` follow Instructure's published guidance. No launch or
+  client-credentials token request against Canvas test has used them yet.
 - **Multi-platform reality.** The code currently targets Canvas; role mapping
   (`INSTRUCTOR_LTI_ROLES`) and some custom fields are Canvas-shaped.
 - **`target_link_uri` is stored but not read.** Deep links name

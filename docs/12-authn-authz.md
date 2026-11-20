@@ -278,15 +278,18 @@ abilities; what a command checks is an ability.
 Two admin abilities govern the sitewide activity URL allowlist — the policy that
 decides which previously unseen activity URLs Modulus will register. Both are
 granted to the seeded Manager role in
-`packages/core/src/database/seeds/03_admin_permissions.ts`:
+`packages/core/src/database/seeds/03_admin_permissions.ts`. An existing
+database's Manager role gains them, with `lti-platforms:read` and
+`lti-platforms:edit`, from the `2026-11-12-001-grant-manager-abilities` release
+script that `modulus db upgrade` applies.
 
 | Ability | What it permits |
 | --- | --- |
 | `activity-url-allowlist:list` | Reading the rules, and previewing how many existing activities a prospective policy would not have admitted. |
 | `activity-url-allowlist:manage` | Creating, editing, enabling/disabling and deleting rules. |
 
-Two, rather than the per-verb set used elsewhere (`lti-platforms:list` /
-`:create`, `admin-roles:create|edit|delete`), for a reason specific to this
+Two, rather than the per-verb set used elsewhere (`lti-platforms:list|read|create|edit`,
+`admin-roles:create|edit|delete`), for a reason specific to this
 resource: a submitted base URL that normalizes onto an existing *disabled* rule
 resolves into an edit, so an administrator holding `create` without `edit` would
 hit a dead end on an ordinary submission with no way to express what they asked

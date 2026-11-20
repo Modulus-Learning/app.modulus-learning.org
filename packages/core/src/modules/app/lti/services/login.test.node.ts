@@ -100,6 +100,30 @@ describe('LtiLoginService.handleLogin', () => {
     })
   })
 
+  it('uses an edited authorization endpoint on the next login, without a restart', async () => {
+    const before = platformRecord(ISSUER)
+    const after = { ...before, authorization_endpoint: `${ISSUER}/corrected/authorize_redirect` }
+    const records = [before, after]
+    const service = new LtiLoginService({
+      logger: silentLogger(),
+      config: { lti: { redirect_uri: REDIRECT_URI } } as Config,
+      queries: {
+        findPlatformByIssuer: async () => records.shift(),
+      } as unknown as LtiQueries,
+      mutations: { insertNonce: async () => undefined } as unknown as LtiMutations,
+    })
+
+    const endpointOf = (redirectUrl: string) => {
+      const url = new URL(redirectUrl)
+      return `${url.origin}${url.pathname}`
+    }
+    const first = await service.handleLogin(request)
+    const second = await service.handleLogin(request)
+
+    assert.equal(endpointOf(first.redirectUrl), before.authorization_endpoint)
+    assert.equal(endpointOf(second.redirectUrl), after.authorization_endpoint)
+  })
+
   it('sends lti_message_hint=undefined when the platform sent none (current gap)', async () => {
     const { service } = createService()
     const { lti_message_hint: _omitted, ...withoutHint } = request

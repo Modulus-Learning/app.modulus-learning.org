@@ -22,6 +22,10 @@ export async function createLtiPlatform(
     name: formData.get('name'),
     issuer: formData.get('issuer'),
     client_id: formData.get('client_id'),
+    authorization_endpoint: formData.get('authorization_endpoint'),
+    token_endpoint: formData.get('token_endpoint'),
+    jwks_uri: formData.get('jwks_uri'),
+    authorization_server: formData.get('authorization_server'),
   })
 
   // If form validation fails, return errors early. Otherwise, continue...
@@ -33,14 +37,10 @@ export async function createLtiPlatform(
     }
   }
 
-  const { name, issuer, client_id } = validatedFields.data
+  const { name } = validatedFields.data
 
   const core = await getCoreCommands()
-  const result = await core.admin.ltiPlatforms.createLtiPlatform(adminAuth, {
-    name,
-    issuer,
-    client_id,
-  })
+  const result = await core.admin.ltiPlatforms.createLtiPlatform(adminAuth, validatedFields.data)
 
   if (result.ok) {
     const config = getServerConfig()

@@ -39,6 +39,13 @@ The guide will cover LMS registration, deployment records, launch validation,
 deep linking, and the first verified score submission. Examples will use
 placeholders for installation-specific identifiers and credentials.
 
+The registration walkthrough will cover the four endpoint fields an
+administrator enters or confirms, the "Fill defaults from issuer" button that
+asks the adapter for suggestions, and the hosted-Canvas issuers, whose
+endpoints moved to an `sso.*.canvaslms.com` host. Until then,
+[LTI → Platform Registration](./13-lti.md#platform-registration) describes the
+registration model and the Canvas defaults.
+
 ## Where to go next
 
 - [Core Composition](./10-core-composition.md#the-lms-adapter) explains adapter injection.

@@ -330,7 +330,11 @@ Everything needed to be an LTI 1.3 tool and to passback grades (see [LTI](./13-l
 - **`lti_platforms`** — a registered LMS platform: `issuer` (unique), `name`,
   `client_id`, and the platform's `authorization_endpoint`, `token_endpoint`,
   `jwks_uri`, and `authorization_server`. Managed via the admin `ltiPlatforms`
-  commands.
+  commands. The four endpoint columns are administrator-entered: the LMS
+  adapter only suggests defaults, and an administrator holding
+  `lti-platforms:edit` can correct them later. `issuer` is immutable after
+  creation. The table has no version column, so concurrent edits resolve as
+  last save wins (see [LTI → Editing a Registration](./13-lti.md#editing-a-registration)).
 - **`lti_platform_deployments`** — `(platform_issuer, deployment_id)` pairs; a
   platform may have several deployments.
 - **`lti_launches`** — short-lived storage of an in-flight launch (`launch` blob

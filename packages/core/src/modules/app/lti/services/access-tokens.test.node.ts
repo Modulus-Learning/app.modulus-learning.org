@@ -159,6 +159,23 @@ describe('AccessTokenManager', () => {
     assert.equal(calls.length, 2)
   })
 
+  it('signs the next assertion for an edited authorization server', async () => {
+    const manager = createManager()
+    const edited = { ...platform, authorization_server: `${ISSUER}/corrected/audience` }
+    await manager.getAccessToken(platform)
+    manager.forgetRegistration(platform.id)
+    await manager.getAccessToken(edited)
+    assert.equal(calls.length, 2)
+
+    const assertionOf = (call: Call | undefined) =>
+      (call?.init.body as URLSearchParams | undefined)?.get('client_assertion') ?? ''
+    const jwks = createLocalJWKSet(keystore.getJWKS())
+    const first = await jwtVerify(assertionOf(calls[0]), jwks)
+    const second = await jwtVerify(assertionOf(calls[1]), jwks)
+    assert.equal(first.payload.aud, platform.authorization_server)
+    assert.equal(second.payload.aud, edited.authorization_server)
+  })
+
   const failureFor = async (response: () => Promise<Response>) => {
     respond = response
     const result = await createManager().getAccessToken(platform)

@@ -10,6 +10,7 @@ import { canvasAdapter } from '@modulus-learning/lms-canvas'
 import type { LmsAdapter } from '@modulus-learning/lti'
 import { describe, it } from 'vitest'
 
+import { ERR_NOT_FOUND } from '@/lib/errors.js'
 import { LtiPlatformsService } from '@/modules/admin/lti-platforms/services/lti-platforms.js'
 import { syntheticAdapter } from '@/test-support/lms.js'
 import { silentLogger } from '@/test-support/lti.js'
@@ -32,6 +33,7 @@ const PUBLIC_JWK = {
 
 const createService = (existingIssuer?: string, adapter: LmsAdapter = canvasAdapter()) => {
   const created: Record<string, unknown>[] = []
+  const updated: { id: string; values: Record<string, unknown> }[] = []
   const service = new LtiPlatformsService({
     lmsAdapter: adapter,
     logger: silentLogger(),
@@ -51,9 +53,27 @@ const createService = (existingIssuer?: string, adapter: LmsAdapter = canvasAdap
         created.push(values)
         return values
       },
+      updatePlatform: async (id: string, values: Record<string, unknown>) => {
+        if (id !== EXISTING_ID) {
+          throw ERR_NOT_FOUND({ message: 'Platform not found' })
+        }
+        updated.push({ id, values })
+        return { id, issuer: 'https://canvas.characterisation.test', ...values }
+      },
     } as unknown as LtiPlatformMutations,
   })
-  return { service, created }
+  return { service, created, updated }
+}
+
+const EXISTING_ID = '01900000-0000-7000-8000-000000000001'
+
+const EDITED = {
+  name: 'Canvas (edited)',
+  client_id: '10000000000009',
+  authorization_endpoint: 'https://sso.canvaslms.com/api/lti/authorize_redirect',
+  token_endpoint: 'https://sso.canvaslms.com/login/oauth2/token',
+  jwks_uri: 'https://sso.canvaslms.com/api/lti/security/jwks',
+  authorization_server: 'sso.canvaslms.com',
 }
 
 const auth = {} as AdminAuth
@@ -183,5 +203,81 @@ describe('LtiPlatformsService with a non-Canvas adapter', () => {
   it('refuses to generate a registration configuration the adapter cannot produce', async () => {
     const { service } = createService(undefined, syntheticAdapter())
     await assert.rejects(service.generateCanvasConfig(auth, {}), /does not generate registration/)
+  })
+})
+
+describe('LtiPlatformsService (administrator-entered endpoints)', () => {
+  it('stores supplied endpoints exactly as given', async () => {
+    const { service, created } = createService()
+    await service.createLtiPlatform(auth, {
+      name: 'Canvas',
+      issuer: 'https://canvas.characterisation.test',
+      client_id: '10000000000001',
+      authorization_endpoint: EDITED.authorization_endpoint,
+      token_endpoint: EDITED.token_endpoint,
+      jwks_uri: EDITED.jwks_uri,
+      authorization_server: EDITED.authorization_server,
+    })
+    const { id: _id, ...values } = created[0] ?? {}
+    assert.deepEqual(values, {
+      name: 'Canvas',
+      issuer: 'https://canvas.characterisation.test',
+      client_id: '10000000000001',
+      authorization_endpoint: EDITED.authorization_endpoint,
+      token_endpoint: EDITED.token_endpoint,
+      jwks_uri: EDITED.jwks_uri,
+      authorization_server: EDITED.authorization_server,
+    })
+  })
+
+  it('fills each omitted endpoint separately from the adapter', async () => {
+    const { service, created } = createService(undefined, syntheticAdapter())
+    await service.createLtiPlatform(auth, {
+      name: 'Synthetic',
+      issuer: 'https://lms.synthetic.test',
+      client_id: 'synthetic-client',
+      authorization_endpoint: 'https://auth.synthetic.test/authorize',
+      authorization_server: 'auth.synthetic.test',
+    })
+    assert.equal(created[0]?.authorization_endpoint, 'https://auth.synthetic.test/authorize')
+    assert.equal(created[0]?.authorization_server, 'auth.synthetic.test')
+    assert.equal(created[0]?.token_endpoint, 'https://lms.synthetic.test/oauth/token')
+    assert.equal(created[0]?.jwks_uri, 'https://lms.synthetic.test/oidc/jwks')
+  })
+
+  it('updates only the six editable fields, never the issuer', async () => {
+    const { service, updated } = createService()
+    const request = {
+      id: EXISTING_ID,
+      issuer: 'https://elsewhere.test',
+      ...EDITED,
+    }
+    const { platform } = await service.updateLtiPlatform(auth, request)
+
+    assert.deepEqual(updated, [{ id: EXISTING_ID, values: EDITED }])
+    assert.equal(platform.issuer, 'https://canvas.characterisation.test')
+    assert.equal(platform.authorization_endpoint, EDITED.authorization_endpoint)
+  })
+
+  it('propagates ERR_NOT_FOUND for an unknown registration', async () => {
+    const { service, updated } = createService()
+    await assert.rejects(
+      service.updateLtiPlatform(auth, { id: 'unknown', ...EDITED }),
+      (error: { code?: string }) => error.code === 'ERR_NOT_FOUND'
+    )
+    assert.deepEqual(updated, [])
+  })
+
+  it("suggests the adapter's endpoints for an issuer", async () => {
+    const { service } = createService(undefined, syntheticAdapter())
+    assert.deepEqual(
+      await service.suggestLtiPlatformEndpoints(auth, { issuer: 'https://lms.synthetic.test' }),
+      {
+        authorization_endpoint: 'https://lms.synthetic.test/oidc/authorize',
+        authorization_server: 'https://lms.synthetic.test/oauth/token',
+        token_endpoint: 'https://lms.synthetic.test/oauth/token',
+        jwks_uri: 'https://lms.synthetic.test/oidc/jwks',
+      }
+    )
   })
 })
