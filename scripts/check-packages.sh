@@ -26,12 +26,13 @@ for dir in $DIRS; do
 done
 
 # Entry points with no types by design: the agent's `./browser` build is a
-# standalone script for a <script> tag, and the host's `./styles.css` is a
-# stylesheet; neither is a JavaScript import.
+# standalone script for a <script> tag, and the host's `./styles.css`,
+# `./styles/modulus.css` and `./styles/tailwind.css` are stylesheets; none is a
+# JavaScript import.
 attw_args() {
   case "$(basename "$1")" in
     modulus-learning-agent-*) echo "--exclude-entrypoints ./browser" ;;
-    modulus-learning-host-tanstack-start-*) echo "--exclude-entrypoints ./styles.css" ;;
+    modulus-learning-host-tanstack-start-*) echo "--exclude-entrypoints ./styles.css ./styles/modulus.css ./styles/tailwind.css" ;;
   esac
 }
 

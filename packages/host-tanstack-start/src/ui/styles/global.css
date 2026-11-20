@@ -1,24 +1,16 @@
 /**
- * Core uikit styles including var system for breakpoints,
- * colors, scales, utils  etc., which can be optionally
- * integrated with Tailwind (colors, breakpoints etc.) via
- * Tailwind theme configuration.
+ * The default stylesheet entry for an installation that adds no CSS of its
+ * own: import it from `src/routes/__root.tsx` as
+ * `@modulus-learning/host-tanstack-start/styles.css`. An installation with its
+ * own entry composes `styles/modulus.css` and `styles/tailwind.css` instead,
+ * so Tailwind compiles once.
  */
 
 @layer properties, base, infonomic-base, theme, infonomic-theme, modulus-theme,
   infonomic-functional, infonomic-typography, modulus-base, components, infonomic-components,
   modulus-components, overrides, infonomic-utilities, utilities;
 
-@import "@infonomic/uikit/reset.css";
-@import "@infonomic/uikit/styles.css";
-
-/* Optional uikit typography including prose and fonts */
-@import "@infonomic/uikit/typography.css";
-
-/* Modulus default tokens */
-@import "./theme.css";
-
-/* Tailwind - should come after the above. */
+@import "./modulus.css";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
 @import "./tailwind.css";
-
-@import "./app.css";

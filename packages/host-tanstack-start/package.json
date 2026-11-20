@@ -22,6 +22,8 @@
   ],
   "exports": {
     "./styles.css": "./dist/ui/styles/global.css",
+    "./styles/modulus.css": "./dist/ui/styles/modulus.css",
+    "./styles/tailwind.css": "./dist/ui/styles/tailwind.css",
     "./images/*": "./dist/images/*",
     "./ui/styles/*": "./dist/ui/styles/*",
     "./i18n/translations/*.json": "./dist/i18n/translations/*.json",

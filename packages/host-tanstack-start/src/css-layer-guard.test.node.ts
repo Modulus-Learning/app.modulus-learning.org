@@ -244,6 +244,51 @@ describe('the page background', () => {
   })
 })
 
+describe('the stylesheet entry (owned by the installation)', () => {
+  const styles = (name: string) => read(resolve(SRC, 'ui/styles', name))
+  const imports = (css: string) => {
+    const found: string[] = []
+    postcss.parse(css).walkAtRules('import', (rule) => {
+      found.push(rule.params.replace(/\s+/g, ' '))
+    })
+    return found
+  }
+
+  test('the root route imports no CSS', () => {
+    expect(read(resolve(SRC, 'routes/__root.route.tsx'))).not.toMatch(
+      /import\s+['"][^'"]+\.css['"]/
+    )
+  })
+
+  test('the Tailwind part is the whole Tailwind contract minus the compiler imports', () => {
+    const css = styles('tailwind.css')
+    expect(css).toMatch(/@source\s+"\.\.\/\.\.\/";/)
+    expect(css).toContain('@custom-variant dark (&:is(.dark *));')
+    expect(css).toMatch(/@utility container\s*\{/)
+    expect(css).toMatch(/@theme\s*\{/)
+    expect(imports(css)).toEqual([])
+  })
+
+  test('modulus.css holds the kit and Modulus CSS without Tailwind', () => {
+    expect(imports(styles('modulus.css'))).toEqual([
+      '"@infonomic/uikit/reset.css"',
+      '"@infonomic/uikit/styles.css"',
+      '"@infonomic/uikit/typography.css"',
+      '"./theme.css"',
+      '"./app.css"',
+    ])
+  })
+
+  test('the default entry composes both, with Tailwind in its own layers', () => {
+    expect(imports(styles('global.css'))).toEqual([
+      '"./modulus.css"',
+      '"tailwindcss/theme.css" layer(theme)',
+      '"tailwindcss/utilities.css" layer(utilities)',
+      '"./tailwind.css"',
+    ])
+  })
+})
+
 describe('the scope-root audit', () => {
   test('reports selectors that start at the scoping root', () => {
     const css =

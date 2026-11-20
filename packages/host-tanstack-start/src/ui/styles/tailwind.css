@@ -1,15 +1,18 @@
 /*
- * Tailwind for Modulus. The full Modulus layer order replaces Tailwind's
- * default statement, so Tailwind's theme and utilities layers take their
- * places in it. Preflight stays off.
+ * The Tailwind configuration Modulus needs: the package source to scan, the
+ * class-based dark variant, the container utility and the theme values. It
+ * imports no Tailwind files, so it can sit inside an installation's single
+ * Tailwind entry, after:
+ *
+ *   @import "tailwindcss/theme.css" layer(theme);
+ *   @import "tailwindcss/utilities.css" layer(utilities);
+ *
+ * Preflight stays off, so the packaged areas do not drift.
  */
 
 @layer properties, base, infonomic-base, theme, infonomic-theme, modulus-theme,
   infonomic-functional, infonomic-typography, modulus-base, components, infonomic-components,
   modulus-components, overrides, infonomic-utilities, utilities;
-@import "tailwindcss/theme.css" layer(theme);
-/* @import "tailwindcss/preflight.css" layer(base); */
-@import "tailwindcss/utilities.css" layer(utilities);
 
 /* Scan this package's compiled components; the host app's own files are
    found by automatic source detection from its project root. */

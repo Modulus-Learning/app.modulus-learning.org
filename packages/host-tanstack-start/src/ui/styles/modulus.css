@@ -1,0 +1,22 @@
+/**
+ * The kit and Modulus stylesheets, without Tailwind. An installation with its
+ * own stylesheet entry imports this, then its single Tailwind entry, which
+ * imports `./tailwind.css` from this package.
+ */
+
+@layer properties, base, infonomic-base, theme, infonomic-theme, modulus-theme,
+  infonomic-functional, infonomic-typography, modulus-base, components, infonomic-components,
+  modulus-components, overrides, infonomic-utilities, utilities;
+
+/* Core uikit styles: reset, the variable system, functional tokens. */
+@import "@infonomic/uikit/reset.css";
+@import "@infonomic/uikit/styles.css";
+
+/* Uikit typography, including prose and fonts. */
+@import "@infonomic/uikit/typography.css";
+
+/* Modulus tokens. */
+@import "./theme.css";
+
+/* Modulus base, component and block CSS. */
+@import "./app.css";

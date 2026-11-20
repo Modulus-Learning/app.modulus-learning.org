@@ -22,12 +22,6 @@ import { RouteAnnouncer } from '@/ui/components/route-announcer'
 import { EarlyThemeDetector } from '@/ui/theme/early-theme-detector'
 import { ThemeProviderBase } from '@/ui/theme/provider-base'
 
-/**
- * Global style sheet, inside of which are uikit, tailwind, app and other
- * imports (one PostCSS pass instead of one per file).
- */
-import '../ui/styles/global.css'
-
 /** What an installation chooses about its document; everything else is Modulus. */
 export interface RootRouteOptions {
   /** `apple-mobile-web-app-title`. */

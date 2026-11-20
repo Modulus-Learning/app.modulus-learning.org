@@ -1,0 +1,14 @@
+/**
+ * This installation's stylesheet entry, imported by `src/routes/__root.tsx`:
+ * the kit and Modulus CSS, then the one Tailwind entry. Installation CSS goes
+ * in `@layer components` (its own components) or `@layer overrides` (brand
+ * tokens and restyles), scoped to `:root[data-theme-context="public"]` so it
+ * never reaches the dashboard or admin areas.
+ */
+
+@layer properties, base, infonomic-base, theme, infonomic-theme, modulus-theme,
+  infonomic-functional, infonomic-typography, modulus-base, components, infonomic-components,
+  modulus-components, overrides, infonomic-utilities, utilities;
+
+@import "@modulus-learning/host-tanstack-start/styles/modulus.css";
+@import "./tailwind.css";
