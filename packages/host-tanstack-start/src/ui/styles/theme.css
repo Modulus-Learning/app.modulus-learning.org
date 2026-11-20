@@ -6,9 +6,21 @@
  * modulus-components. An installation's overrides layer is above all three.
  */
 
-@layer properties, base, infonomic-base, theme, infonomic-theme, modulus-theme,
-  infonomic-functional, infonomic-typography, modulus-base, components, infonomic-components,
-  modulus-components, overrides, infonomic-utilities, utilities;
+@layer properties,
+  base,
+  infonomic-base,
+  theme,
+  infonomic-theme,
+  modulus-theme,
+  infonomic-functional,
+  infonomic-typography,
+  modulus-base,
+  components,
+  infonomic-components,
+  modulus-components,
+  overrides,
+  infonomic-utilities,
+  utilities;
 
 @layer modulus-theme {
   :root {
@@ -137,11 +149,17 @@
 
     --fill-primary-weak: oklch(from var(--primary-300) calc(l * 1.5) calc(c * 0.2) h / 0.5);
     --fill-primary-weak-hover: oklch(from var(--primary-300) calc(l * 1.35) calc(c * 0.2) h / 0.5);
-    --fill-primary-weak-disabled: oklch(from var(--primary-300) calc(l * 1.35) calc(c * 0.2) h / 0.5);
+    --fill-primary-weak-disabled: oklch(
+      from var(--primary-300) calc(l * 1.35) calc(c * 0.2) h /
+      0.5
+    );
 
     --fill-primary-outlined: transparent;
     --fill-primary-outlined-hover: oklch(from var(--primary-50) calc(l * 2) calc(c * 0.2) h / 0.4);
-    --fill-primary-outlined-disabled: oklch(from var(--primary-50) calc(l * 2) calc(c * 0.2) h / 0.4);
+    --fill-primary-outlined-disabled: oklch(
+      from var(--primary-50) calc(l * 2) calc(c * 0.2) h /
+      0.4
+    );
 
     /* Text tokens */
     --text-on-primary-strong: white;
@@ -154,7 +172,9 @@
 
     --text-on-primary-outlined: oklch(from var(--primary-500) calc(l * 0.7) c h);
     --text-on-primary-outlined-hover: oklch(from var(--primary-600) calc(l * 1.5) calc(c * 0.5) h);
-    --text-on-primary-outlined-disabled: oklch(from var(--primary-600) calc(l * 1.5) calc(c * 0.5) h);
+    --text-on-primary-outlined-disabled: oklch(
+      from var(--primary-600) calc(l * 1.5) calc(c * 0.5) h
+    );
 
     --text-primary: var(--primary-25);
     --text-primary-weak: oklch(from var(--primary-25) calc(l * 0.7) c h);
@@ -246,11 +266,17 @@
 
     --fill-primary-weak: oklch(from var(--primary-300) calc(l * 1.5) calc(c * 0.2) h / 0.5);
     --fill-primary-weak-hover: oklch(from var(--primary-300) calc(l * 1.35) calc(c * 0.2) h / 0.5);
-    --fill-primary-weak-disabled: oklch(from var(--primary-300) calc(l * 1.35) calc(c * 0.2) h / 0.5);
+    --fill-primary-weak-disabled: oklch(
+      from var(--primary-300) calc(l * 1.35) calc(c * 0.2) h /
+      0.5
+    );
 
     --fill-primary-outlined: transparent;
     --fill-primary-outlined-hover: oklch(from var(--primary-50) calc(l * 2) calc(c * 0.2) h / 0.4);
-    --fill-primary-outlined-disabled: oklch(from var(--primary-50) calc(l * 2) calc(c * 0.2) h / 0.4);
+    --fill-primary-outlined-disabled: oklch(
+      from var(--primary-50) calc(l * 2) calc(c * 0.2) h /
+      0.4
+    );
 
     /* Text tokens */
     --text-on-primary-strong: white;
@@ -263,7 +289,9 @@
 
     --text-on-primary-outlined: oklch(from var(--primary-500) calc(l * 0.7) c h);
     --text-on-primary-outlined-hover: oklch(from var(--primary-600) calc(l * 1.5) calc(c * 0.5) h);
-    --text-on-primary-outlined-disabled: oklch(from var(--primary-600) calc(l * 1.5) calc(c * 0.5) h);
+    --text-on-primary-outlined-disabled: oklch(
+      from var(--primary-600) calc(l * 1.5) calc(c * 0.5) h
+    );
 
     --text-primary: var(--primary-25);
     --text-primary-weak: oklch(from var(--primary-25) calc(l * 0.7) c h);

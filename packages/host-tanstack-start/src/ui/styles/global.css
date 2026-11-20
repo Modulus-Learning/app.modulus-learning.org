@@ -6,9 +6,21 @@
  * so Tailwind compiles once.
  */
 
-@layer properties, base, infonomic-base, theme, infonomic-theme, modulus-theme,
-  infonomic-functional, infonomic-typography, modulus-base, components, infonomic-components,
-  modulus-components, overrides, infonomic-utilities, utilities;
+@layer properties,
+  base,
+  infonomic-base,
+  theme,
+  infonomic-theme,
+  modulus-theme,
+  infonomic-functional,
+  infonomic-typography,
+  modulus-base,
+  components,
+  infonomic-components,
+  modulus-components,
+  overrides,
+  infonomic-utilities,
+  utilities;
 
 @import "./modulus.css";
 @import "tailwindcss/theme.css" layer(theme);
