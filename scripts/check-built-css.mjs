@@ -10,7 +10,8 @@
 // - CSS a packaged component imports is present (`.gradient-glow`);
 // - the class-based dark variant is in use;
 // - the package's custom `container` utility, not only Tailwind's or the
-//   kit's, sets the effective widths at each breakpoint.
+//   kit's, sets the effective widths at each breakpoint in the stylesheet that
+//   holds it.
 //
 // Usage: node scripts/check-built-css.mjs <directory of built .css files>
 // Expects packages/host-tanstack-start to be built.
@@ -58,9 +59,19 @@ const present = [
 for (const [label, pattern] of present) if (!pattern.test(all)) failures.push(`missing ${label}`)
 
 // The effective container max-width is the last applicable `.container` rule in
-// the utilities layer, in source order, at a given viewport width (rem).
-const containerRules = []
-for (const { css } of sheets)
+// the utilities layer, in source order, at a given viewport width (rem). Source
+// order only has meaning within one stylesheet, so each file is evaluated on
+// its own; the package's container must win in the file that holds it.
+const expectedWidths = [
+  [20, '60rem'],
+  [50, '60rem'],
+  [70, '64rem'],
+  [80, '74.375rem'],
+  [100, '87.5rem'],
+]
+const containerResults = []
+for (const { name, css } of sheets) {
+  const rules = []
   postcss.parse(css).walkDecls('max-width', (decl) => {
     const rule = decl.parent
     if (rule.type !== 'rule' || !rule.selectors.some((s) => s.trim() === '.container')) return
@@ -75,19 +86,19 @@ for (const { css } of sheets)
         min = Number(width[1])
       }
     }
-    if (layered) containerRules.push({ min, value: decl.value })
+    if (layered) rules.push({ min, value: decl.value })
   })
-const effective = (rem) =>
-  containerRules.filter((rule) => rule.min <= rem).at(-1)?.value ?? '(none)'
-for (const [rem, want] of [
-  [20, '60rem'],
-  [50, '60rem'],
-  [70, '64rem'],
-  [80, '74.375rem'],
-  [100, '87.5rem'],
-]) {
-  const got = effective(rem)
-  if (got !== want) failures.push(`container at ${rem}rem: max-width ${got}, expected ${want}`)
+  if (rules.length === 0) continue
+  const effective = (rem) => rules.filter((rule) => rule.min <= rem).at(-1)?.value ?? '(none)'
+  const mismatches = expectedWidths
+    .filter(([rem, want]) => effective(rem) !== want)
+    .map(([rem, want]) => `at ${rem}rem: max-width ${effective(rem)}, expected ${want}`)
+  containerResults.push({ name, mismatches })
+}
+if (!containerResults.some((result) => result.mismatches.length === 0)) {
+  if (containerResults.length === 0) failures.push('no utilities-layer .container rules found')
+  for (const { name, mismatches } of containerResults)
+    failures.push(...mismatches.map((mismatch) => `${name}: container ${mismatch}`))
 }
 
 if (failures.length > 0) {
