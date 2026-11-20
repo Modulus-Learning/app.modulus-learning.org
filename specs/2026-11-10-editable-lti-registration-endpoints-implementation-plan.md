@@ -52,7 +52,8 @@ The work is complete when:
 2. `updateLtiPlatform` changes the name, client ID and four endpoints of an
    existing registration, never the issuer, and requires `lti-platforms:edit`;
 3. `suggestLtiPlatformEndpoints` returns the adapter's defaults for a valid
-   issuer and requires `lti-platforms:create`;
+   issuer and requires an admin session but no ability (revised 2026-11-20
+   from `lti-platforms:create`);
 4. the Manager role holds `lti-platforms:read` and `lti-platforms:edit` on new
    databases (reference data) and existing ones (one data-only release script,
    which also grants the missing allowlist abilities);
@@ -190,8 +191,8 @@ and gets its own commit.
 
 - [x] `updateLtiPlatform`: admin mode, `abilities: ['lti-platforms:edit']`,
   input `updateLtiPlatformRequestSchema`, output `ltiPlatformResponseSchema`.
-- [x] `suggestLtiPlatformEndpoints`: admin mode,
-  `abilities: ['lti-platforms:create']`.
+- [x] `suggestLtiPlatformEndpoints`: admin mode, `abilities: []` (revised
+  2026-11-20 from `['lti-platforms:create']`, so an editor can use it).
 - [x] Confirm the commands facade picks both up without registry changes. The
   compile-time DI check in `packages/core/src/core.ts` will fail the typecheck
   if it doesn't.

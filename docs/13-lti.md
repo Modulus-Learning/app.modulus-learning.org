@@ -586,17 +586,21 @@ core command:
 The dynamic-registration helper is a page rather than a handler despite its
 location, at `/routes/lti/register`.
 
-Platform registrations are managed by admin commands, each of which requires
-an admin session and one ability:
+Platform registrations are managed by admin commands. Each requires an admin
+session, and all but one also require an ability:
 
 | Command | Admin page | Ability | Purpose |
 | --- | --- | --- | --- |
 | `listLtiPlatforms` | `/admin/lti-platforms` | `lti-platforms:list` | list registrations |
 | `getLtiPlatform` | `/admin/lti-platforms/$id` | `lti-platforms:read` | show one registration |
 | `createLtiPlatform` | `/admin/lti-platforms/add` | `lti-platforms:create` | register a platform |
-| `suggestLtiPlatformEndpoints` | the create form's defaults button | `lti-platforms:create` | return the adapter's endpoint defaults for an issuer |
+| `suggestLtiPlatformEndpoints` | the defaults button on the create and edit forms | none (any admin session) | return the adapter's endpoint defaults for an issuer |
 | `updateLtiPlatform` | `/admin/lti-platforms/$id/edit` | `lti-platforms:edit` | edit name, client ID and endpoints |
 | `generateCanvasConfig` | the create page | `lti-platforms:create` | build the Canvas developer-key JSON |
+
+`suggestLtiPlatformEndpoints` needs no ability because it reads no stored data:
+it returns the adapter's defaults for the issuer it is given. Saving the values
+still requires `lti-platforms:create` or `lti-platforms:edit`.
 
 The details page shows its Edit button only to a session holding
 `lti-platforms:edit`. Abilities are baked into the admin access token, so an

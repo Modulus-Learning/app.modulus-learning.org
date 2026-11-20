@@ -206,9 +206,11 @@ command directly.
 
 A new read command, `suggestLtiPlatformEndpoints`, lets the form fill its
 endpoint fields from the issuer before saving. It takes `{ issuer }`, validates
-it with `issuerSchema`, and returns `RegistrationEndpoints`. It requires
-`lti-platforms:create`, the same as `generateCanvasConfig`, which serves the
-same form.
+it with `issuerSchema`, and returns `RegistrationEndpoints`. It requires an
+admin session but no ability, because it reads no stored data and both the
+create form and the edit form use it. (Revised 2026-11-20 after PR review: it
+first required `lti-platforms:create`, which an editor holding only
+`lti-platforms:edit` lacks.)
 
 ### Core: Update
 
