@@ -72,7 +72,10 @@ export class LtiPlatformsCommands {
       method: 'suggestLtiPlatformEndpoints',
       auth: {
         mode: 'admin',
-        abilities: ['lti-platforms:create'],
+        // Any admin session: the result is the adapter's static defaults for
+        // the issuer given, with no stored data read, and both the create and
+        // edit forms use it.
+        abilities: [],
       },
       schemas: {
         input: suggestLtiPlatformEndpointsRequestSchema,

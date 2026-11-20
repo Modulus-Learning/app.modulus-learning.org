@@ -204,24 +204,25 @@ describe('LtiPlatformsCommands', () => {
     assert.deepEqual(calls, [{ method: 'updateLtiPlatform', request: EDITED }])
   })
 
-  it('refuses suggestLtiPlatformEndpoints without lti-platforms:create', async () => {
-    const { commands, calls } = makeCommands()
-    const result = await commands.suggestLtiPlatformEndpoints(ctx(['lti-platforms:edit']), {
-      issuer: 'https://canvas.instructure.com',
-    })
-    assert.equal(result.ok ? undefined : result.error.code, 'ERR_FORBIDDEN')
-    assert.deepEqual(calls, [])
+  it('suggests endpoints to an admin session without any ability', async () => {
+    const { commands } = makeCommands()
+    for (const abilities of [[], ['lti-platforms:edit'], ['lti-platforms:create']]) {
+      const result = await commands.suggestLtiPlatformEndpoints(ctx(abilities), {
+        issuer: 'https://canvas.instructure.com',
+      })
+      assert.equal(result.ok, true)
+    }
   })
 
   it('validates the issuer before suggesting endpoints', async () => {
     const { commands, calls } = makeCommands()
-    const result = await commands.suggestLtiPlatformEndpoints(ctx(['lti-platforms:create']), {
+    const result = await commands.suggestLtiPlatformEndpoints(ctx([]), {
       issuer: 'https://canvas.instructure.com/',
     })
     assert.equal(result.ok, false)
     assert.deepEqual(calls, [])
 
-    const ok = await commands.suggestLtiPlatformEndpoints(ctx(['lti-platforms:create']), {
+    const ok = await commands.suggestLtiPlatformEndpoints(ctx([]), {
       issuer: 'https://canvas.instructure.com',
     })
     assert.equal(ok.ok, true)
