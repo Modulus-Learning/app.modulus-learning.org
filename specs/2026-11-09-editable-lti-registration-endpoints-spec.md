@@ -289,12 +289,18 @@ mirrors them for field-level messages.
   (Security Framework §1.2), at most 255 characters, trimmed, and not ending
   in `/`. Logins and launches match the stored issuer exactly against the
   `iss` claim, which platforms send without a trailing slash, and the issuer
-  can't be corrected after creation. It is applied on
+  can't be corrected after creation. It must also contain no user name or
+  password, and be in standard form: equal to its own `new URL` serialisation,
+  less the trailing `/` of a bare origin, so loose forms such as `https:host`,
+  an uppercase host or `:443` are refused rather than stored verbatim.
+  (Revised 2026-11-20 after PR review.) It is applied on
   create and to `suggestLtiPlatformEndpoints` only. Existing rows are not
   revalidated.
 - **`endpointUrlSchema`**: an absolute `https:` URL, at most 2048 characters,
   trimmed. A query string is allowed, because some platforms put registration
-  parameters on their JWKS or authorization URLs. A fragment is rejected.
+  parameters on their JWKS or authorization URLs. A fragment is rejected. The
+  raw value must start with `https://` and contain no user name or password,
+  which Node's `fetch` refuses. (Revised 2026-11-20 after PR review.)
 - **`audienceSchema`**: a non-empty string of at most 2048 characters, trimmed,
   and not required to be a URL. The Security Framework leaves the `aud`
   string to out-of-band agreement, and Canvas's own sample OpenID

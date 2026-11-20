@@ -85,12 +85,19 @@ Core validates every submitted value on the server, whatever the form sent:
 
 | Field | Rule |
 | --- | --- |
-| `issuer` | an `https:` URL with no query, fragment or trailing slash |
-| `authorization_endpoint`, `token_endpoint`, `jwks_uri` | an `https:` URL with no fragment; a query is allowed |
+| `issuer` | an `https:` URL in standard form, with no credentials, query, fragment or trailing slash |
+| `authorization_endpoint`, `token_endpoint`, `jwks_uri` | an `https:` URL written with `https://`, with no credentials or fragment; a query is allowed |
 | `authorization_server` | non-empty text up to 2048 characters; it is the token `aud`, which need not be a URL |
 
-The issuer must not end in `/` because logins and launches match it exactly
-against the `iss` claim, which platforms send without one.
+Logins and launches match the stored issuer exactly against the `iss` claim,
+so the issuer must be stored in the form a platform sends. It must not end in
+`/`, which platforms omit. It must also be in standard form: the string the
+URL parser would produce from it, less the trailing `/` of a bare origin. The
+parser accepts loose forms such as `https:lms.example.edu`, an uppercase host
+or an explicit `:443`, and rewrites them, so a loose issuer would be stored as
+typed and no launch would match it. An endpoint may not carry a user name or
+password, because Node's `fetch` refuses such a URL when it requests keys or
+tokens.
 
 ### Editing a Registration
 
