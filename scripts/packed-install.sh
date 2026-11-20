@@ -68,6 +68,9 @@ echo "── packaged styles"
 for selector in '.gradient-glow' '.flex-1'; do
   grep -q -- "$selector" .output/public/assets/*.css || fail "missing $selector in the client CSS"
 done
+# The CSS layer contract in the built output: full layer order first in every
+# chunk, package scanning, the dark variant and the package's container widths.
+node "${REPO_ROOT}/scripts/check-built-css.mjs" .output/public/assets || fail "built CSS check failed"
 
 echo "── client isolation"
 # Server-only code the fixture reaches only through packaged server functions,
