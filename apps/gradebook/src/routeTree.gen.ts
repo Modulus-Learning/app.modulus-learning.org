@@ -28,6 +28,7 @@ import { Route as LngFormsSignUpRouteImport } from './routes/$lng/_forms/sign-up
 import { Route as LngPublicIndexRouteImport } from './routes/$lng/_public/index'
 import { Route as LngPublicSplatRouteImport } from './routes/$lng/_public/$'
 import { Route as LngPublicAboutRouteImport } from './routes/$lng/_public/about'
+import { Route as LngPublicAccessibilityRouteImport } from './routes/$lng/_public/accessibility'
 import { Route as LtiLaunchActivity_idRouteImport } from './routes/lti/launch/$activity_id'
 import { Route as RoutesAgentActivityRouteImport } from './routes/routes/agent/activity'
 import { Route as RoutesAgentAuthorizeRouteImport } from './routes/routes/agent/authorize'
@@ -45,8 +46,6 @@ import { Route as LngAdminAdminSignInRouteImport } from './routes/$lng/_admin/ad
 import { Route as LngAuthDashboardIndexRouteImport } from './routes/$lng/_auth/dashboard/index'
 import { Route as LngAuthDashboardCreateActivityCodeRouteImport } from './routes/$lng/_auth/dashboard/create-activity-code'
 import { Route as LngFormsStartActivitySplatRouteImport } from './routes/$lng/_forms/start-activity/$'
-import { Route as LngPublicDocsIndexRouteImport } from './routes/$lng/_public/docs/index'
-import { Route as LngPublicDocsSlugRouteImport } from './routes/$lng/_public/docs/$slug'
 import { Route as RoutesLtiDeepLinkActivitiesRouteImport } from './routes/routes/lti/deep-link/activities'
 import { Route as LngAdminAdminAuthedIndexRouteImport } from './routes/$lng/_admin/admin/_authed/index'
 import { Route as LngAdminAdminAuthedAccountRouteImport } from './routes/$lng/_admin/admin/_authed/account'
@@ -174,6 +173,11 @@ const LngPublicAboutRoute = LngPublicAboutRouteImport.update({
   path: '/about',
   getParentRoute: () => LngPublicRouteRoute,
 } as any)
+const LngPublicAccessibilityRoute = LngPublicAccessibilityRouteImport.update({
+  id: '/accessibility',
+  path: '/accessibility',
+  getParentRoute: () => LngPublicRouteRoute,
+} as any)
 const LtiLaunchActivity_idRoute = LtiLaunchActivity_idRouteImport.update({
   id: '/launch/$activity_id',
   path: '/launch/$activity_id',
@@ -262,16 +266,6 @@ const LngFormsStartActivitySplatRoute =
     path: '/start-activity/$',
     getParentRoute: () => LngFormsRouteRoute,
   } as any)
-const LngPublicDocsIndexRoute = LngPublicDocsIndexRouteImport.update({
-  id: '/docs/',
-  path: '/docs/',
-  getParentRoute: () => LngPublicRouteRoute,
-} as any)
-const LngPublicDocsSlugRoute = LngPublicDocsSlugRouteImport.update({
-  id: '/docs/$slug',
-  path: '/docs/$slug',
-  getParentRoute: () => LngPublicRouteRoute,
-} as any)
 const RoutesLtiDeepLinkActivitiesRoute =
   RoutesLtiDeepLinkActivitiesRouteImport.update({
     id: '/routes/lti/deep-link/activities',
@@ -498,6 +492,7 @@ export interface FileRoutesByFullPath {
   '/$lng/sign-up': typeof LngFormsSignUpRoute
   '/$lng/$': typeof LngPublicSplatRoute
   '/$lng/about': typeof LngPublicAboutRoute
+  '/$lng/accessibility': typeof LngPublicAccessibilityRoute
   '/lti/launch/$activity_id': typeof LtiLaunchActivity_idRoute
   '/routes/agent/activity': typeof RoutesAgentActivityRoute
   '/routes/agent/authorize': typeof RoutesAgentAuthorizeRoute
@@ -515,10 +510,8 @@ export interface FileRoutesByFullPath {
   '/$lng/admin/sign-in': typeof LngAdminAdminSignInRoute
   '/$lng/dashboard/create-activity-code': typeof LngAuthDashboardCreateActivityCodeRoute
   '/$lng/start-activity/$': typeof LngFormsStartActivitySplatRoute
-  '/$lng/docs/$slug': typeof LngPublicDocsSlugRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
   '/$lng/dashboard/': typeof LngAuthDashboardIndexRoute
-  '/$lng/docs/': typeof LngPublicDocsIndexRoute
   '/$lng/admin/account': typeof LngAdminAdminAuthedAccountRoute
   '/$lng/admin/': typeof LngAdminAdminAuthedIndexRoute
   '/$lng/admin/activities/add': typeof LngAdminAdminAuthedActivitiesAddRoute
@@ -569,6 +562,7 @@ export interface FileRoutesByTo {
   '/$lng/sign-up': typeof LngFormsSignUpRoute
   '/$lng/$': typeof LngPublicSplatRoute
   '/$lng/about': typeof LngPublicAboutRoute
+  '/$lng/accessibility': typeof LngPublicAccessibilityRoute
   '/lti/launch/$activity_id': typeof LtiLaunchActivity_idRoute
   '/routes/agent/activity': typeof RoutesAgentActivityRoute
   '/routes/agent/authorize': typeof RoutesAgentAuthorizeRoute
@@ -584,10 +578,8 @@ export interface FileRoutesByTo {
   '/$lng/admin/sign-in': typeof LngAdminAdminSignInRoute
   '/$lng/dashboard/create-activity-code': typeof LngAuthDashboardCreateActivityCodeRoute
   '/$lng/start-activity/$': typeof LngFormsStartActivitySplatRoute
-  '/$lng/docs/$slug': typeof LngPublicDocsSlugRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
   '/$lng/dashboard': typeof LngAuthDashboardIndexRoute
-  '/$lng/docs': typeof LngPublicDocsIndexRoute
   '/$lng/admin/account': typeof LngAdminAdminAuthedAccountRoute
   '/$lng/admin': typeof LngAdminAdminAuthedIndexRoute
   '/$lng/admin/activities/add': typeof LngAdminAdminAuthedActivitiesAddRoute
@@ -643,6 +635,7 @@ export interface FileRoutesById {
   '/$lng/_forms/sign-up': typeof LngFormsSignUpRoute
   '/$lng/_public/$': typeof LngPublicSplatRoute
   '/$lng/_public/about': typeof LngPublicAboutRoute
+  '/$lng/_public/accessibility': typeof LngPublicAccessibilityRoute
   '/lti/launch/$activity_id': typeof LtiLaunchActivity_idRoute
   '/routes/agent/activity': typeof RoutesAgentActivityRoute
   '/routes/agent/authorize': typeof RoutesAgentAuthorizeRoute
@@ -660,10 +653,8 @@ export interface FileRoutesById {
   '/$lng/_admin/admin/sign-in': typeof LngAdminAdminSignInRoute
   '/$lng/_auth/dashboard/create-activity-code': typeof LngAuthDashboardCreateActivityCodeRoute
   '/$lng/_forms/start-activity/$': typeof LngFormsStartActivitySplatRoute
-  '/$lng/_public/docs/$slug': typeof LngPublicDocsSlugRoute
   '/routes/lti/deep-link/activities': typeof RoutesLtiDeepLinkActivitiesRoute
   '/$lng/_auth/dashboard/': typeof LngAuthDashboardIndexRoute
-  '/$lng/_public/docs/': typeof LngPublicDocsIndexRoute
   '/$lng/_admin/admin/_authed/account': typeof LngAdminAdminAuthedAccountRoute
   '/$lng/_admin/admin/_authed/': typeof LngAdminAdminAuthedIndexRoute
   '/$lng/_admin/admin/_authed/activities/add': typeof LngAdminAdminAuthedActivitiesAddRoute
@@ -716,6 +707,7 @@ export interface FileRouteTypes {
     | '/$lng/sign-up'
     | '/$lng/$'
     | '/$lng/about'
+    | '/$lng/accessibility'
     | '/lti/launch/$activity_id'
     | '/routes/agent/activity'
     | '/routes/agent/authorize'
@@ -733,10 +725,8 @@ export interface FileRouteTypes {
     | '/$lng/admin/sign-in'
     | '/$lng/dashboard/create-activity-code'
     | '/$lng/start-activity/$'
-    | '/$lng/docs/$slug'
     | '/routes/lti/deep-link/activities'
     | '/$lng/dashboard/'
-    | '/$lng/docs/'
     | '/$lng/admin/account'
     | '/$lng/admin/'
     | '/$lng/admin/activities/add'
@@ -787,6 +777,7 @@ export interface FileRouteTypes {
     | '/$lng/sign-up'
     | '/$lng/$'
     | '/$lng/about'
+    | '/$lng/accessibility'
     | '/lti/launch/$activity_id'
     | '/routes/agent/activity'
     | '/routes/agent/authorize'
@@ -802,10 +793,8 @@ export interface FileRouteTypes {
     | '/$lng/admin/sign-in'
     | '/$lng/dashboard/create-activity-code'
     | '/$lng/start-activity/$'
-    | '/$lng/docs/$slug'
     | '/routes/lti/deep-link/activities'
     | '/$lng/dashboard'
-    | '/$lng/docs'
     | '/$lng/admin/account'
     | '/$lng/admin'
     | '/$lng/admin/activities/add'
@@ -860,6 +849,7 @@ export interface FileRouteTypes {
     | '/$lng/_forms/sign-up'
     | '/$lng/_public/$'
     | '/$lng/_public/about'
+    | '/$lng/_public/accessibility'
     | '/lti/launch/$activity_id'
     | '/routes/agent/activity'
     | '/routes/agent/authorize'
@@ -877,10 +867,8 @@ export interface FileRouteTypes {
     | '/$lng/_admin/admin/sign-in'
     | '/$lng/_auth/dashboard/create-activity-code'
     | '/$lng/_forms/start-activity/$'
-    | '/$lng/_public/docs/$slug'
     | '/routes/lti/deep-link/activities'
     | '/$lng/_auth/dashboard/'
-    | '/$lng/_public/docs/'
     | '/$lng/_admin/admin/_authed/account'
     | '/$lng/_admin/admin/_authed/'
     | '/$lng/_admin/admin/_authed/activities/add'
@@ -1072,6 +1060,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LngPublicAboutRouteImport
       parentRoute: typeof LngPublicRouteRoute
     }
+    '/$lng/_public/accessibility': {
+      id: '/$lng/_public/accessibility'
+      path: '/accessibility'
+      fullPath: '/$lng/accessibility'
+      preLoaderRoute: typeof LngPublicAccessibilityRouteImport
+      parentRoute: typeof LngPublicRouteRoute
+    }
     '/lti/launch/$activity_id': {
       id: '/lti/launch/$activity_id'
       path: '/launch/$activity_id'
@@ -1190,20 +1185,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/$lng/start-activity/$'
       preLoaderRoute: typeof LngFormsStartActivitySplatRouteImport
       parentRoute: typeof LngFormsRouteRoute
-    }
-    '/$lng/_public/docs/': {
-      id: '/$lng/_public/docs/'
-      path: '/docs'
-      fullPath: '/$lng/docs/'
-      preLoaderRoute: typeof LngPublicDocsIndexRouteImport
-      parentRoute: typeof LngPublicRouteRoute
-    }
-    '/$lng/_public/docs/$slug': {
-      id: '/$lng/_public/docs/$slug'
-      path: '/docs/$slug'
-      fullPath: '/$lng/docs/$slug'
-      preLoaderRoute: typeof LngPublicDocsSlugRouteImport
-      parentRoute: typeof LngPublicRouteRoute
     }
     '/routes/lti/deep-link/activities': {
       id: '/routes/lti/deep-link/activities'
@@ -1609,17 +1590,15 @@ const LngFormsRouteRouteWithChildren = LngFormsRouteRoute._addFileChildren(
 interface LngPublicRouteRouteChildren {
   LngPublicSplatRoute: typeof LngPublicSplatRoute
   LngPublicAboutRoute: typeof LngPublicAboutRoute
+  LngPublicAccessibilityRoute: typeof LngPublicAccessibilityRoute
   LngPublicIndexRoute: typeof LngPublicIndexRoute
-  LngPublicDocsSlugRoute: typeof LngPublicDocsSlugRoute
-  LngPublicDocsIndexRoute: typeof LngPublicDocsIndexRoute
 }
 
 const LngPublicRouteRouteChildren: LngPublicRouteRouteChildren = {
   LngPublicSplatRoute: LngPublicSplatRoute,
   LngPublicAboutRoute: LngPublicAboutRoute,
+  LngPublicAccessibilityRoute: LngPublicAccessibilityRoute,
   LngPublicIndexRoute: LngPublicIndexRoute,
-  LngPublicDocsSlugRoute: LngPublicDocsSlugRoute,
-  LngPublicDocsIndexRoute: LngPublicDocsIndexRoute,
 }
 
 const LngPublicRouteRouteWithChildren = LngPublicRouteRoute._addFileChildren(

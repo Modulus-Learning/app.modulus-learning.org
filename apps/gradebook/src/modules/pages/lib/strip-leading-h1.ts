@@ -1,7 +1,7 @@
 /**
  * Drop the body's leading H1 when its text matches the frontmatter
  * `title`. Frontmatter is the source of truth for the page title; if
- * the body also opens with the same H1 the rendered doc would display
+ * the body also opens with the same H1 the rendered page would display
  * the title twice.
  */
 

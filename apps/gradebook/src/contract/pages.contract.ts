@@ -3,11 +3,14 @@ import { describe, expect, test } from 'vitest'
 import { location, request, serves, TARGET } from './client'
 
 describe.runIf(serves('frontend'))('learner pages', () => {
-  test.each(['/', '/sign-in', '/sign-up', '/about', '/docs'])('GET %s → 200 html', async (path) => {
-    const response = await request(path)
-    expect(response.status).toBe(200)
-    expect(response.headers.get('content-type')).toMatch(/text\/html/)
-  })
+  test.each(['/', '/sign-in', '/sign-up', '/about', '/accessibility'])(
+    'GET %s → 200 html',
+    async (path) => {
+      const response = await request(path)
+      expect(response.status).toBe(200)
+      expect(response.headers.get('content-type')).toMatch(/text\/html/)
+    }
+  )
 
   test('GET /dashboard without a session → redirect to sign-in with callbackUrl', async () => {
     const response = await request('/dashboard')

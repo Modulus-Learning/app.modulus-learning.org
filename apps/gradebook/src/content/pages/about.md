@@ -1,11 +1,9 @@
 ---
-
-title: "Introduction"
-path: "introduction"
+title: "About"
 summary: "An assignment-grade database designed to track progress on Ximera assignments using time-series data and latest page-state snapshots. Helping instructors understand their assignments."
 ---
 
-# Introduction
+# About
 
 Modulus is a learner activity database for Ximera, the open-source interactive textbook platform developed at The Ohio State University (OSU), Mathematics Department. Modulus connects Ximera to OSU's learning management system (LMS) via LTI 1.3. Modulus also records time-series interaction data and page-state snapshots from Ximera assignments, giving instructors a clearer picture of how their materials are actually being used.
 

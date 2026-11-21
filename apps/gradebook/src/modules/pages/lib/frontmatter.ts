@@ -1,5 +1,5 @@
 /**
- * Frontmatter contract for docs rendered from /src/content/docs/*.md.
+ * Frontmatter contract for the standalone pages in /src/content/pages/*.md.
  *
  * Required:  title
  * Optional:  slug, summary, locale, publishedOn
@@ -11,7 +11,7 @@
 
 import matter from 'gray-matter'
 
-export interface DocFrontmatter {
+export interface PageFrontmatter {
   title: string
   slug?: string
   summary?: string
@@ -19,12 +19,12 @@ export interface DocFrontmatter {
   publishedOn?: Date
 }
 
-export interface ParsedDoc {
-  frontmatter: DocFrontmatter
+export interface ParsedPage {
+  frontmatter: PageFrontmatter
   body: string
 }
 
-export function parseDocFile(source: string, filePath: string): ParsedDoc {
+export function parsePageFile(source: string, filePath: string): ParsedPage {
   const parsed = matter(source)
   const data = parsed.data as Record<string, unknown>
 
@@ -32,7 +32,7 @@ export function parseDocFile(source: string, filePath: string): ParsedDoc {
     throw new Error(`${filePath}: frontmatter is missing required 'title' string.`)
   }
 
-  const fm: DocFrontmatter = { title: data.title.trim() }
+  const fm: PageFrontmatter = { title: data.title.trim() }
 
   const rawSlug = data.slug ?? data.path
   if (rawSlug !== undefined) {

@@ -43,7 +43,7 @@ export async function renderMarkdown(body: string, title: string): Promise<Rende
 }
 
 /**
- * Synchronous variant for client rendering (the TanStack Start docs pages render
+ * Synchronous variant for client rendering (the TanStack Start markdown pages render
  * from serialisable loader data): `remark-rehype` has no async plugins here.
  */
 export function renderMarkdownSync(body: string, title: string): ReactNode {
