@@ -45,6 +45,7 @@ export const hostClientDependencies = [
   '@hookform/resolvers/zod',
   '@infonomic/schemas',
   'clsx',
+  'intl-messageformat',
   'motion/react',
   'react-hook-form',
   'react-share',

@@ -73,13 +73,23 @@ if (missing.length > 0) {
 // Every third-party module imported by browser code must be pre-bundled by the
 // modulus() Vite preset, or installations fail in dev when CommonJS sits
 // beneath it (Modulus-Learning/app.modulus-learning.org#16). Browser code is
-// everything under these directories apart from `*.server.js` modules.
-// Packages an installation depends on directly are pre-bundled by its own
-// Vite config and are not listed in the preset.
+// everything under these directories apart from `*.server.js` modules. The rest
+// of `i18n/` (locale detection, redirects) and `lib/` hold server-only modules
+// not named `*.server.js`, so only the browser-reachable parts of `i18n/` are
+// listed. Packages an installation depends on directly are pre-bundled by its
+// own Vite config and are not listed in the preset.
 const { hostClientDependencies } = await import(join(dist, 'vite/index.js'))
 const installationDependency =
   /^(react|react-dom|lucide-react)(\/|$)|^@(tanstack|modulus-learning)\/|^@infonomic\/uikit(\/|$)/
-const browserDirs = ['ui', 'modules', 'context', 'routes'].map((dir) => join(dist, dir))
+const browserDirs = [
+  'ui',
+  'modules',
+  'context',
+  'routes',
+  'i18n/client',
+  'i18n/components',
+  'i18n/translations',
+].map((dir) => join(dist, dir))
 const unbundled = new Map()
 for (const file of all) {
   if (!file.endsWith('.js') || file.endsWith('.server.js')) continue
