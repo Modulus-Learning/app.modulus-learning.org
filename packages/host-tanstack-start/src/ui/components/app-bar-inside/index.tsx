@@ -116,8 +116,7 @@ export const AppBarInside = forwardRef<Ref, AppBarProps>(function AppBar(
             open={mobileMenuOpen}
             onChange={handleToggleMobileMenu}
           />
-        </div>
-        <MobileMenu lng={lng} open={mobileMenuOpen} onClose={handleMobileMenuClose} /> */}
+        </div> */}
       </div>
     </header>
   )
