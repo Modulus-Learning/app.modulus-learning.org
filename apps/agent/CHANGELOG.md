@@ -1,5 +1,12 @@
 # @modulus-learning/agent
 
+## 0.13.1
+
+### Patch Changes
+
+- fixed the admin area in `vite dev` for pnpm installations by pre-bundling the host package's browser dependencies, removed the unused mobile menu that imported missing images, and kept the `modulus admin create` password prompts visible
+  simplified the packaged site footer to home, about and docs links
+
 ## 0.13.0
 
 ### Minor Changes
