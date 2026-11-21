@@ -21,12 +21,46 @@ export const nativeExternals = [
 
 const modulusScope = /^@modulus-learning\//
 
+const hostPackage = '@modulus-learning/host-tanstack-start'
+
+/**
+ * Every third-party module the host package imports in browser code, except
+ * the ones an installation already depends on directly (React, TanStack,
+ * `@infonomic/uikit`, `lucide-react`, the `@modulus-learning/*` packages).
+ *
+ * TanStack Start excludes the host package from dev pre-bundling (it lists
+ * `@tanstack/react-start` as a peer), and pnpm does not hoist these to the
+ * installation's root, so Vite would serve them unbundled and any CommonJS
+ * beneath them (`use-sync-external-store`, `classnames`, `react-is`) would fail
+ * in the browser. `modulus()` pre-bundles them through the host package, in one
+ * pass, so shared code such as Base UI stays a single module instance.
+ *
+ * `scripts/check-dist.mjs` fails the build when a browser import in `dist/` is
+ * missing from this list.
+ */
+export const hostClientDependencies = [
+  '@base-ui/react/navigation-menu',
+  '@dnd-kit/core',
+  '@dnd-kit/sortable',
+  '@hookform/resolvers/zod',
+  '@infonomic/schemas',
+  'clsx',
+  'motion/react',
+  'react-hook-form',
+  'react-share',
+  'react-swipeable',
+  'recharts',
+  'tailwind-merge',
+  'zod',
+]
+
 /**
  * The Vite configuration every Modulus host needs: `@modulus-learning/*`
  * inlined through SSR so Start's compiler sees packaged server functions,
  * native packages kept external, `@infonomic/uikit` (which imports its own
- * CSS) taken through Vite's pipeline in dev, and the Modulus layer-order
- * statement prepended to every stylesheet.
+ * CSS) taken through Vite's pipeline in dev, the host package's browser
+ * dependencies pre-bundled in dev (`hostClientDependencies`), and the Modulus
+ * layer-order statement prepended to every stylesheet.
  *
  * The PostCSS plugin is set inline (`css.postcss`), which Vite merges with a
  * host's own inline plugins. An inline PostCSS config also stops Vite reading
@@ -40,7 +74,10 @@ export const modulus = (): Plugin => ({
       external: nativeExternals,
       noExternal: [modulusScope, '@infonomic/uikit'],
     },
-    optimizeDeps: { exclude: nativeExternals },
+    optimizeDeps: {
+      exclude: nativeExternals,
+      include: hostClientDependencies.map((dependency) => `${hostPackage} > ${dependency}`),
+    },
     css: { postcss: { plugins: [modulusLayerOrder()] } },
   }),
 })

@@ -129,7 +129,10 @@ export default defineConfig({
 
 - `modulus()` passes `@modulus-learning/*` through Vite's server-side build, so
   TanStack Start's compiler processes the packaged server functions, and keeps
-  the native packages external.
+  the native packages external. In development it also pre-bundles the host
+  package's own browser dependencies (`hostClientDependencies`), which pnpm
+  does not hoist into your project, so CommonJS beneath them loads in the
+  browser.
 - `modulusNitroOptions()` adds Modulus's eager-boot Nitro plugin, which starts
   the application when the process starts rather than on the first request, and
   keeps React and the native packages external. Pass your own Nitro options

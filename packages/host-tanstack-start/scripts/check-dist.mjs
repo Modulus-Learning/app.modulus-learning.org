@@ -3,7 +3,8 @@
 // files (emitted where inferred types reference other modules), so rewrite
 // those to relative paths here. Then fail if any `@/` specifier survives
 // (asset imports — SVG, CSS, JSON — must be written as relative paths in
-// source), or if a relative import names no file.
+// source), if a relative import names no file, or if browser code imports a
+// third-party module the modulus() Vite preset does not pre-bundle.
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 
@@ -66,5 +67,35 @@ const missing = all
   )
 if (missing.length > 0) {
   console.error(`relative imports in dist that resolve to no file:\n${missing.join('\n')}`)
+  process.exit(1)
+}
+
+// Every third-party module imported by browser code must be pre-bundled by the
+// modulus() Vite preset, or installations fail in dev when CommonJS sits
+// beneath it (Modulus-Learning/app.modulus-learning.org#16). Browser code is
+// everything under these directories apart from `*.server.js` modules.
+// Packages an installation depends on directly are pre-bundled by its own
+// Vite config and are not listed in the preset.
+const { hostClientDependencies } = await import(join(dist, 'vite/index.js'))
+const installationDependency =
+  /^(react|react-dom|lucide-react)(\/|$)|^@(tanstack|modulus-learning)\/|^@infonomic\/uikit(\/|$)/
+const browserDirs = ['ui', 'modules', 'context', 'routes'].map((dir) => join(dist, dir))
+const unbundled = new Map()
+for (const file of all) {
+  if (!file.endsWith('.js') || file.endsWith('.server.js')) continue
+  if (!browserDirs.some((dir) => file.startsWith(`${dir}/`))) continue
+  for (const specifier of specifiers(readFileSync(file, 'utf8'))) {
+    if (specifier.startsWith('.') || specifier.startsWith('node:')) continue
+    if (installationDependency.test(specifier) || hostClientDependencies.includes(specifier)) {
+      continue
+    }
+    unbundled.set(specifier, relative(dist, file))
+  }
+}
+if (unbundled.size > 0) {
+  const list = [...unbundled].map(([specifier, file]) => `${specifier} (${file})`).join('\n')
+  console.error(
+    `browser imports missing from hostClientDependencies in src/vite/index.ts:\n${list}`
+  )
   process.exit(1)
 }
