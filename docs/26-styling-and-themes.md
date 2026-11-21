@@ -299,8 +299,10 @@ These changes arrive in the release that introduced the layer contract:
 ## Honest Notes & Open Questions
 
 - **Branding of the app bar and footer.** The public app bar and footer still
-  show the Modulus logo and links. Installation branding for them is under
-  consideration; `appTitle` and `icons` remain the only branding options of
+  show the Modulus logo, and the footer links only to Home, About and the
+  Modulus docs. Installation branding for the public pages may come later; it
+  will not reach the dashboard or admin, which keep the Modulus chrome.
+  `appTitle` and `icons` remain the only branding options of
   `createModulusRootRoute`.
 - **Intent tokens sit in `modulus-base`.** The kit defines its intent tokens in
   `infonomic-functional`, above `modulus-theme`, so the Modulus values live in

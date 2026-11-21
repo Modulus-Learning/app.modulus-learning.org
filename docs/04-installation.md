@@ -376,7 +376,8 @@ wrong schema.
 - **Branding is minimal.** The root route takes a title, icons, and analytics,
   and your stylesheet can theme the public pages as described in
   [Styling and Themes](./26-styling-and-themes.md). The app bar and footer
-  still show the Modulus logo.
+  still show the Modulus logo; the footer links to Home (`/`), About (`/about`)
+  and the Modulus docs, so give your installation an `/about` page.
 - **LMS composition.** Canvas support is provided by `@modulus-learning/lms-canvas`,
   selected explicitly in the server entry shown above. Additional LMS adapters
   remain future work; [LMS Integration](./08-lms-integration.md) describes the boundary.
