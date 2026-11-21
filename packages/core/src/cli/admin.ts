@@ -16,16 +16,25 @@ const readPassword = async (fromStdin: boolean): Promise<string> => {
   }
   if (!process.stdin.isTTY) throw new Error('no terminal to prompt on; use --password-stdin')
   const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true })
+  // Let readline draw each prompt, and hide only what is typed after it. Writing the prompt
+  // ourselves and asking readline for an empty one erased it: readline redraws its own line,
+  // moving to column 1 and clearing to the end of the screen. A redraw while typing (after
+  // Backspace, say) writes the prompt plus the typed text, so keep the prompt part.
+  let muted = false
+  const output = rl as unknown as { _writeToOutput: (text: string) => void }
+  output._writeToOutput = (text) => {
+    if (!muted) process.stdout.write(text)
+    else if (text.startsWith(rl.getPrompt())) process.stdout.write(rl.getPrompt())
+  }
   const ask = (prompt: string) =>
     new Promise<string>((resolve) => {
-      process.stdout.write(prompt)
-      // Suppress echo of what is typed after the prompt.
-      const output = rl as unknown as { _writeToOutput: (text: string) => void }
-      output._writeToOutput = () => {}
-      rl.question('', (answer) => {
+      muted = false
+      rl.question(prompt, (answer) => {
+        muted = false
         process.stdout.write('\n')
         resolve(answer)
       })
+      muted = true
     })
   try {
     const password = await ask('Password: ')
